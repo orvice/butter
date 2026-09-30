@@ -45,13 +45,6 @@ export interface FormState {
 
 export const FormStateContext = createContext<FormState | null>(null)
 
-// Form fields are built server-side with id "field_<name>".
-function fieldName(componentId: string): string {
-  return componentId.startsWith('field_')
-    ? componentId.slice('field_'.length)
-    : componentId
-}
-
 const text = (v: unknown): string =>
   typeof v === 'string' ? v : v == null ? '' : String(v)
 
@@ -205,6 +198,8 @@ const Status = createComponentImplementation(StatusApi, ({ props }) => (
 const FormTextFieldApi = {
   name: 'TextField',
   schema: TextFieldApi.schema.extend({
+    // The form field this input answers, as the submission names it.
+    name: CommonSchemas.ComponentId,
     hint: CommonSchemas.ComponentId.optional(),
     required: CommonSchemas.DynamicBoolean.optional(),
     maxLength: CommonSchemas.DynamicNumber.optional(),
@@ -261,10 +256,10 @@ function describedBy(id: string, hint?: string, error?: string) {
 
 const TextField = createComponentImplementation(
   FormTextFieldApi,
-  ({ props, context }) => {
+  ({ props }) => {
     const form = useContext(FormStateContext)
     const id = useId()
-    const name = fieldName(context.componentModel.id)
+    const name = props.name
     const error = form?.fieldErrors[name]
     const hint = props.hint ? text(props.hint) : undefined
     const common = {
@@ -304,6 +299,7 @@ const TextField = createComponentImplementation(
 const FormChoicePickerApi = {
   name: 'ChoicePicker',
   schema: ChoicePickerApi.schema.extend({
+    name: CommonSchemas.ComponentId,
     hint: CommonSchemas.ComponentId.optional(),
     required: CommonSchemas.DynamicBoolean.optional(),
   }),
@@ -311,10 +307,10 @@ const FormChoicePickerApi = {
 
 const ChoicePicker = createComponentImplementation(
   FormChoicePickerApi,
-  ({ props, context }) => {
+  ({ props }) => {
     const form = useContext(FormStateContext)
     const id = useId()
-    const name = fieldName(context.componentModel.id)
+    const name = props.name
     const error = form?.fieldErrors[name]
     const hint = props.hint ? text(props.hint) : undefined
     const selected = Array.isArray(props.value) ? (props.value[0] ?? '') : ''

@@ -1,6 +1,10 @@
 import type { Page } from '@playwright/test'
 import { ListAgentsResponseSchema } from '../../src/gen/agents/v1/agent_service_pb'
-import { fulfillProto, setupAuthenticatedConnectRoutes } from './connect'
+import {
+  fulfillProto,
+  setupAuthenticatedConnectRoutes,
+  type ConnectFixtureOptions,
+} from './connect'
 
 // AG-UI fixtures: POST /api/agui/:agent_id is answered from a queue of
 // literal SSE bodies (or HTTP errors), and GET .../threads/:id/ui from a
@@ -17,7 +21,13 @@ export interface RunRejection {
   body: Record<string, unknown>
 }
 
-export type RunResponse = string | RunRejection
+// A run whose stream starts only after a delay, to observe in-flight UI.
+export interface DelayedRun {
+  delayMs: number
+  sse: string
+}
+
+export type RunResponse = string | RunRejection | DelayedRun
 
 export interface SnapshotResponse {
   status?: number
@@ -42,7 +52,8 @@ export const emptySnapshot = (threadId = 't') => ({
 
 export async function setupAGUI(
   page: Page,
-  fixture: Partial<AGUIFixture> & { runs: RunResponse[] }
+  fixture: Partial<AGUIFixture> & { runs: RunResponse[] },
+  options: ConnectFixtureOptions = {}
 ): Promise<AGUIFixture> {
   const state: AGUIFixture = {
     runs: fixture.runs,
@@ -80,7 +91,7 @@ export async function setupAGUI(
       })
     }
     return false
-  })
+  }, options)
 
   await page.route('**/api/agui/**', async (route) => {
     const request = route.request()
@@ -96,6 +107,15 @@ export async function setupAGUI(
     }
     state.requests.push(JSON.parse(request.postData() ?? '{}'))
     const next = state.runs.shift() ?? sse([])
+    if (typeof next !== 'string' && 'delayMs' in next) {
+      await new Promise((resolve) => setTimeout(resolve, next.delayMs))
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: next.sse,
+      })
+      return
+    }
     if (typeof next === 'string') {
       await route.fulfill({
         status: 200,

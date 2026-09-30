@@ -87,7 +87,7 @@ func render(ctx agent.Context, args renderArgs) (renderResult, error) {
 	if err != nil {
 		return renderResult{}, fmt.Errorf("card not rendered, nothing was changed: %w", err)
 	}
-	card := res.Surface
+	card := res.Card
 	if err := ctx.State().Set(a2ui.CardKey(card.ID), card.StateValue()); err != nil {
 		return renderResult{}, fmt.Errorf("card not rendered: %w", err)
 	}
@@ -102,7 +102,8 @@ func render(ctx agent.Context, args renderArgs) (renderResult, error) {
 }
 
 func description() string {
-	return `Show a read-only result card to the user, next to your text answer. Use it when a structured view (a summary with key facts, a status, a short list of results) is easier to read than prose. The card cannot collect input or contain buttons; keep answering in text as well.
+	limits := a2ui.DefaultLimits
+	return fmt.Sprintf(`Show a read-only result card to the user, next to your text answer. Use it when a structured view (a summary with key facts, a status, a short list of results) is easier to read than prose. The card cannot collect input or contain buttons; keep answering in text as well.
 
 Pass A2UI v0.9.1 messages. To create a card, omit surface_id and send an updateComponents message whose components form a tree under a component with id "root", optionally followed by updateDataModel. The result returns the card's surface_id; pass it later to update the same card (send only the components that change, and/or new data) or to remove it with {"deleteSurface": {}}.
 
@@ -115,7 +116,8 @@ Components (catalog butter-basic-v1). Every component is {"id": "...", "componen
 - Divider: {"axis"?: horizontal|vertical}.
 <text> is a plain string, or {"path": "/key"} to read a string from the card's data model (set with {"updateDataModel": {"path": "/", "value": {"key": "..."}}}).
 
-Rules: plain text only (no HTML, markdown links, images or URLs); at most 100 components per card, 64 KiB per call, and 20 cards per conversation. An invalid call changes nothing and returns an error explaining why; fix it or answer in text.
+Rules: plain text only (no HTML, markdown links, images or URLs); at most %d components per card, %d KiB per call, and %d cards per conversation. An invalid call changes nothing and returns an error explaining why; fix it or answer in text.
 
-Example: {"messages": [{"updateComponents": {"components": [{"id": "root", "component": "Card", "child": "col"}, {"id": "col", "component": "Column", "children": ["title", "env", "state"]}, {"id": "title", "component": "Text", "text": "Deploy summary", "variant": "h3"}, {"id": "env", "component": "KeyValue", "label": "Environment", "value": "production"}, {"id": "state", "component": "Status", "text": "Healthy", "tone": "success"}]}}], "fallback": "Deploy summary: production, healthy."}`
+Example: {"messages": [{"updateComponents": {"components": [{"id": "root", "component": "Card", "child": "col"}, {"id": "col", "component": "Column", "children": ["title", "env", "state"]}, {"id": "title", "component": "Text", "text": "Deploy summary", "variant": "h3"}, {"id": "env", "component": "KeyValue", "label": "Environment", "value": "production"}, {"id": "state", "component": "Status", "text": "Healthy", "tone": "success"}]}}], "fallback": "Deploy summary: production, healthy."}`,
+		limits.MaxComponents, limits.MaxBatchBytes>>10, limits.MaxSurfaces)
 }

@@ -171,16 +171,16 @@ export function AGUIChatPage() {
 // A2UIStoreContext gives message parts access to the thread's surfaces.
 const A2UIStoreContext = createContext<A2UIStore | null>(null)
 
-function useThreadA2UI(): A2UIStore {
+function useA2UIContext(): A2UIStore {
   const store = useContext(A2UIStoreContext)
   if (!store) throw new Error('A2UI store missing')
   return store
 }
 
-// useA2UI owns one thread's surfaces: it feeds every butter.a2ui CUSTOM
+// useOwnedA2UIStore creates and owns one thread's surfaces: it feeds every butter.a2ui CUSTOM
 // event to the store in arrival order and restores the thread's persisted
 // cards and unanswered forms from the UI snapshot on mount.
-function useA2UI(
+function useOwnedA2UIStore(
   httpAgent: ButterAGUIAgent,
   agentId: string,
   threadId: string
@@ -253,7 +253,7 @@ function AGUIChatWithRuntime({
     agent: httpAgent,
     onError: (err) => toast.error(err.message || 'AG-UI request failed'),
   })
-  const store = useA2UI(httpAgent, agentId, threadId)
+  const store = useOwnedA2UIStore(httpAgent, agentId, threadId)
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -431,7 +431,7 @@ function RenderUIToolView(props: Parameters<typeof GenericToolCallView>[0]) {
 // A2UIDataPart places a surface where its create event arrived in the
 // message; later updates of the same surface re-render it in place.
 function A2UIDataPart({ data }: { data: unknown }) {
-  const store = useThreadA2UI()
+  const store = useA2UIContext()
   const locked = useAuiState((s) => s.thread.isRunning)
   if (
     !isA2UIEventValue(data) ||
@@ -453,7 +453,7 @@ function A2UIDataPart({ data }: { data: unknown }) {
 // the conversation text itself is not restored, so each surface says where
 // it came from.
 function RestoredSurfaces() {
-  const store = useA2UIStore(useThreadA2UI())
+  const store = useA2UIStore(useA2UIContext())
   const locked = useAuiState((s) => s.thread.isRunning)
   const restored = store
     .list()
@@ -559,7 +559,7 @@ function MarkdownText({ text }: { text: string }) {
 function InterruptPrompts() {
   const interrupts = useAgUiInterrupts()
   const submitResponses = useAgUiSubmitInterruptResponses()
-  const store = useA2UIStore(useThreadA2UI())
+  const store = useA2UIStore(useA2UIContext())
 
   // An Interrupt with a form is answered through the form; the text prompt
   // is only for the rest.

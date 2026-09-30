@@ -17,6 +17,9 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -69,6 +72,12 @@ func Negotiate(forwardedProps any) (ok bool, err error) {
 		catalogs = append(catalogs, id)
 	}
 	return version == Version && slices.Contains(catalogs, CatalogID), nil
+}
+
+// newSurfaceID mints a server-assigned surface ID: prefix plus 16 random hex
+// digits, safe as a session-state key segment.
+func newSurfaceID(prefix string) string {
+	return prefix + "-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
 }
 
 // Run is one AG-UI run for which A2UI is live: the client negotiated it and

@@ -60,7 +60,7 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 **Human Input 表单（A2UI，issue #350，ADR-0014）：**
 - HUMAN_INPUT 节点可选配置 `form`：标题与最多 20 个有序字段（文本字段最长 2000 字符；单选字段最多 50 个固定选项）。保存 Agent 和构建 Workflow Agent 时都会校验（重复/非法字段名、空标签、非法选项、类型与长度），dashboard 的 Agent 编辑页可直接增删、排序字段和选项。空配置保持原有纯文本问题。
 - 节点暂停时，表单定义、surface、提交 token 与 Interrupt ID 的绑定随 request-input 事件一起持久化；之后修改配置不影响已展示表单的规则。
-- 支持 A2UI 的 AG-UI 客户端（dashboard 的 AG-UI Chat）看到服务端生成的表单；提交经服务端校验后，按配置字段顺序编码为 JSON 对象文本，作为该 Interrupt 的普通字符串回复——下游节点收到的仍是文本（ADK 恢复时会解析 JSON 并重新编码，后继节点看到的键按字母序）。
+- 支持 A2UI 的 AG-UI 客户端（dashboard 的 AG-UI Chat）看到服务端生成的表单；提交经服务端校验后，按配置字段顺序编码为 JSON 对象文本，作为该 Interrupt 的普通字符串回复——下游节点收到的仍是文本（ADK 恢复时会解析 JSON：AGENT 后继收到按字母序重新编码的 JSON 文本，ROUTER 后继按该 JSON 文本匹配 route label，通常走 default edge）。
 - 其他入口（Telegram、经典 Chat、cron 投递、不支持 A2UI 的客户端）收到问题文本 + 字段填写说明，可直接用文字或 JSON 文本回答；表单规则只约束表单提交，纯文本与 FIFO 语义不变。
 
 **配置校验：** `CreateAgent` / `UpdateAgent` 在保存时校验图结构——未声明的节点引用、重复名称、Router 缺少 default edge、routed edge 指向 JOIN、非法 Human Input 表单等均被拒绝。
@@ -160,7 +160,7 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 ### AG-UI Chat 的结果卡片与表单（A2UI v0.9.1，ADR-0014）
 
 - **定位**：AG-UI 仍是事件与状态传输协议，A2UI 只是 UI 内容格式。客户端在 `forwardedProps.butterA2UI` 声明 `v0.9.1` 与 catalog `butter-basic-v1` 才启用；没有声明时协议行为与之前完全一致。每条 A2UI 消息作为一个 `CUSTOM` 事件 `butter.a2ui` 下发（Butter 自有扩展），携带服务端分配的 revision、消息关联信息、完整 envelope 和可读 fallback。
-- **结果卡片**：协商成功的运行中，LLM Agent 获得 `render_ui` 工具，可生成、更新、删除只读卡片（标题、正文、键值结果、状态）。整批先校验再写入：未知组件、原始 HTML、URL、模型自定义 action、悬空引用、超过 100 个组件 / 64 KiB 每批 / 每个会话 20 张卡片都会被拒绝并返回可读工具错误，不部分写入。Pi/Cursor、远程 Agent 和非 AG-UI 入口没有这个工具。
+- **结果卡片**：协商成功的运行中，LLM Agent 获得 `render_ui` 工具，可生成、更新、删除只读卡片（标题、正文、键值结果、状态）。整批先校验再写入：未知组件、原始 HTML、任何 URL（包括正文与数据里的链接）、模型自定义 action、悬空引用、超过 100 个组件 / 64 KiB 每批 / 每个会话 20 张卡片都会被拒绝并返回可读工具错误，不部分写入。Pi/Cursor、远程 Agent 和非 AG-UI 入口没有这个工具。
 - **持久化**：卡片存在 session state 的隐藏命名空间里（不进入 AG-UI 共享 state，客户端 `state` 无法读写）；表单绑定随暂停事件保存。先持久化、后发送；刷新、断线或重启后通过 UI 快照恢复，不再次运行 Agent，也没有新的数据库集合或第二份 pending 状态（ADR-0002）。
 - **隔离**：新 AG-UI 会话创建时记录 UI 绑定（调用用户、Workspace、Agent ID、thread）。只有完全匹配的请求才能看到或提交 UI；A2UI 之前创建的历史会话、在其他 Workspace/Agent 下复用的 threadId 都只保留文字聊天。
 - **表单提交**：沿用 AG-UI `resume` 的 resolved 分支。服务端在 session lease 内校验绑定、token、revision、Interrupt 仍待回答以及字段规则，失败时在运行前拒绝（400 未知/伪造/跨上下文、409 已提交或过期、422 字段错误），不追加回复、不运行 Agent、也不会转去回答另一个 Interrupt。重复提交返回“已提交”提示，不承诺跨系统 exactly-once；`cancelled` 仍被拒绝。

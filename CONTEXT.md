@@ -95,7 +95,7 @@ A read-only Surface a model creates, updates, or removes with the `render_ui` to
 _Avoid_: rich message, UI message
 
 **Human Input Form**:
-The optional form presentation of a Human Input Node's question: ordered text and single-choice fields. Its binding to one Interrupt is frozen into the pause; submitting it answers exactly that Interrupt with a JSON object text, while other channels still answer in text.
+The optional form presentation of a Human Input Node's question: ordered text and single-choice fields. Its binding to one Interrupt is frozen into the request-input event that opens it; submitting it answers exactly that Interrupt with a JSON object text, while other channels still answer in text.
 _Avoid_: HITL form, typed resume
 
 **UI Binding**:

@@ -10,7 +10,6 @@ import (
 	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/a2ui"
-	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -86,10 +85,23 @@ func (h *AGUIHandler) prepareUI(ctx context.Context, rc *aguiRunContext) (*aguiU
 }
 
 // aguiFormError is the pre-stream body of a rejected form submission. The
-// client keeps the draft and shows the message (and per-field errors).
+// client keeps the draft and shows the message (and per-field errors); Code
+// says what happened without parsing the message.
 type aguiFormError struct {
 	Error       string            `json:"error"`
+	Code        string            `json:"code,omitempty"`
 	FieldErrors map[string]string `json:"fieldErrors,omitempty"`
+}
+
+// Form rejection codes, by submit error kind.
+var aguiFormErrorCodes = map[a2ui.SubmitErrorKind]struct {
+	status int
+	code   string
+}{
+	a2ui.SubmitUnknown:  {http.StatusBadRequest, "form_unknown"},
+	a2ui.SubmitAnswered: {http.StatusConflict, "form_answered"},
+	a2ui.SubmitStale:    {http.StatusConflict, "form_stale"},
+	a2ui.SubmitInvalid:  {http.StatusUnprocessableEntity, "form_invalid"},
 }
 
 // resolveFormSubmissions validates every form submission in the request
@@ -102,23 +114,18 @@ func resolveFormSubmissions(rc *aguiRunContext, ui *aguiUIContext) (int, *aguiFo
 	}
 	if !ui.bound {
 		// Unbound or bound elsewhere: this context has no forms at all.
-		return http.StatusBadRequest, &aguiFormError{Error: "unknown or expired form"}
+		unknown := aguiFormErrorCodes[a2ui.SubmitUnknown]
+		return unknown.status, &aguiFormError{Error: "unknown or expired form", Code: unknown.code}
 	}
 	for _, entry := range rc.formEntries {
-		answer, _, err := a2ui.Resolve(ui.sess, entry.interruptID, entry.submission)
+		answer, err := a2ui.Resolve(ui.sess, entry.interruptID, entry.submission)
 		if err != nil {
 			var submitErr *a2ui.SubmitError
 			if !errors.As(err, &submitErr) {
 				return http.StatusInternalServerError, &aguiFormError{Error: err.Error()}
 			}
-			status := http.StatusBadRequest
-			switch submitErr.Kind {
-			case a2ui.SubmitAnswered, a2ui.SubmitStale:
-				status = http.StatusConflict
-			case a2ui.SubmitInvalid:
-				status = http.StatusUnprocessableEntity
-			}
-			return status, &aguiFormError{Error: submitErr.Message, FieldErrors: submitErr.FieldErrors}
+			kind := aguiFormErrorCodes[submitErr.Kind]
+			return kind.status, &aguiFormError{Error: submitErr.Message, Code: kind.code, FieldErrors: submitErr.FieldErrors}
 		}
 		fr := rc.parts[entry.partIndex].FunctionResponse
 		fr.Response = map[string]any{aguiRequestInputPayloadKey: answer}
@@ -154,18 +161,11 @@ type aguiSnapshotItem struct {
 // with an empty snapshot, so the endpoint reveals nothing about threads the
 // caller does not own.
 func (h *AGUIHandler) UISnapshot(c *gin.Context) {
-	ctx := c.Request.Context()
-	workspaceID, ok := wsctx.FromContext(ctx)
+	workspaceID, agent, ok := h.resolveAgent(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, aguiErrorResponse{Error: "workspace required (set X-Workspace-ID header)"})
 		return
 	}
-	agentID := c.Param("agent_id")
-	agent, err := h.agentRepo.GetAgent(ctx, workspaceID, agentID)
-	if err != nil || agent == nil || !agent.GetEnableAgui() {
-		c.JSON(http.StatusNotFound, aguiErrorResponse{Error: "agent not found: " + agentID})
-		return
-	}
+	ctx := c.Request.Context()
 	threadID := strings.TrimSpace(c.Param("thread_id"))
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: "threadId is required"})
@@ -180,19 +180,11 @@ func (h *AGUIHandler) UISnapshot(c *gin.Context) {
 	ctxInfo := &agentsv1.ContextInfo{UserId: aguiUserID(ctx), SessionId: aguiSessionPrefix + threadID}
 	// Reads are consistent with writes the same way runs are with each
 	// other: under the thread's session lease. A busy thread is retryable.
-	if guard := h.getSessionGuard(); guard != nil {
-		leaseCtx, release, acquired, err := guard.Acquire(ctx, aguiSessionKey(ctxInfo))
-		if err != nil {
-			c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session lock unavailable, retry later"})
-			return
-		}
-		if !acquired {
-			c.JSON(http.StatusConflict, aguiErrorResponse{Error: "a run is in progress for this thread, retry after it finishes"})
-			return
-		}
-		defer release()
-		ctx = leaseCtx
+	ctx, release, ok := h.acquireThread(c, ctxInfo)
+	if !ok {
+		return
 	}
+	defer release()
 
 	snap := aguiUISnapshot{Version: a2ui.Version, CatalogID: a2ui.CatalogID, ThreadID: threadID, Surfaces: []aguiSnapshotItem{}}
 	resp, err := svc.Get(ctx, &session.GetRequest{AppName: aguiAppName, UserID: ctxInfo.GetUserId(), SessionID: ctxInfo.GetSessionId()})

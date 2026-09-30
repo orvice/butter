@@ -718,10 +718,12 @@ interrupt by id:
 
 Addressed resume takes precedence over Butter's implicit oldest-first matching,
 so answering out of order works when several interrupts are pending. A resume
-entry may answer any subset of the pending interrupts; the rest stay pending —
-Butter has no cancel. A run that carried `resume` entries ends by listing
-**every** interrupt still open in its `RUN_FINISHED` outcome, not only those it
-raised, so the client's pending set matches the session.
+may answer any subset of the pending interrupts — at most one entry per
+`interruptId`, a duplicate is `400` — and the rest stay pending: Butter has no
+cancel. The `RUN_FINISHED` outcome lists the interrupts the run raised; for a
+client that negotiated [A2UI](#a2ui-surfaces-result-cards-and-forms) it lists
+**every** interrupt still open on the thread, however the others were answered,
+so the client's pending set and its forms match the session.
 
 A Human Input node with a [form](#humaninputform-object) appends field
 instructions to its question (`message`), so clients without A2UI can still tell
@@ -850,8 +852,9 @@ misses them (disconnect, refresh) recovers from the [UI snapshot](#ui-snapshot).
 
 **Catalog `butter-basic-v1`.** Components follow A2UI's basic catalog where one
 exists; every component is `{"id", "component", …properties}` and references
-children by id (templates are not supported). Text is plain text — no HTML,
-links, images or URLs.
+children by id (templates are not supported). Text is plain text: no HTML,
+and no URLs of any kind (`scheme://…`, `javascript:`), in component text, data
+or `fallback` — links belong in the model's text answer.
 
 | Component | Properties | Who may use it |
 |---|---|---|
@@ -861,8 +864,8 @@ links, images or URLs.
 | `KeyValue` | `label`, `value` | model |
 | `Status` | `text`, `tone?` (`neutral`, `info`, `success`, `warning`, `error`) | model |
 | `Divider` | `axis?` | model |
-| `TextField` | `label`, `value`, `variant?`, `hint?`, `required?`, `maxLength?` | server-built forms only |
-| `ChoicePicker` | `label`, `value`, `options`, `variant: "mutuallyExclusive"`, `hint?`, `required?` | server-built forms only |
+| `TextField` | `name`, `label`, `value`, `variant?`, `hint?`, `required?`, `maxLength?` | server-built forms only |
+| `ChoicePicker` | `name`, `label`, `value`, `options`, `variant: "mutuallyExclusive"`, `hint?`, `required?` | server-built forms only |
 | `Button` | `child`, `variant?`, `action` | server-built forms only |
 
 A text property is a literal string or `{"path": "/key"}` bound to the
@@ -923,7 +926,7 @@ surface bound to that interrupt. The form's `CUSTOM` values carry:
 ```
 
 The binding (surface, token, revision, interrupt) and the field rules are fixed
-by the server when the node pauses and persisted with the pause; neither the
+by the server when the node pauses and persisted with its Interrupt; neither the
 model nor the client can choose them, and later edits to the node's config do
 not change a form already shown. The form's data model holds only the
 client's local draft — nothing is sent until the user submits.
@@ -957,11 +960,15 @@ pending, and the field rules. A rejection answers before the stream opens —
 nothing is appended, the agent does not run, and no other interrupt is answered
 instead:
 
-| Status | When |
-|---|---|
-| `400` | unknown, forged or expired form (wrong token, surface, interrupt, or another user/workspace/agent context); malformed `butterForm` |
-| `409` | the form was already submitted, or `revision` is stale; also a busy thread |
-| `422` | invalid values; the body lists them per field: `{"error": "…", "fieldErrors": {"reason": "must be at most 200 characters"}}` |
+| Status | `code` | When |
+|---|---|---|
+| `400` | `form_unknown` | unknown, forged or expired form (wrong token, surface, interrupt, or another user/workspace/agent context) |
+| `409` | `form_answered` | the form was already submitted |
+| `409` | `form_stale` | `revision` is not the form's current one |
+| `422` | `form_invalid` | invalid values, listed per field: `{"error": "…", "code": "form_invalid", "fieldErrors": {"reason": "must be at most 200 characters"}}` |
+
+A malformed `butterForm` wrapper is a plain `400`, and a busy thread the usual
+`409` before any of these checks. Branch on `code`, not on the message.
 
 Values must be strings: a single-choice answer is one of the option values.
 Unknown fields, missing required fields, over-long text (characters, not
@@ -975,12 +982,15 @@ order, and nothing else**; an unanswered optional field is `""`:
 ```
 
 That string is what the session stores. Note that ADK's workflow engine parses
-a JSON answer when it resumes and hands the successor node the same object
-re-encoded, so the successor sees the keys in alphabetical order. The run then
+a JSON answer when it resumes and hands the successor node the parsed object:
+an AGENT successor receives it re-encoded as JSON text with the keys in
+alphabetical order, and a ROUTER successor matches that JSON text against its
+route labels (so it takes the default edge unless a label is the whole JSON
+text). The same holds for any reply a person types as JSON. The run then
 marks the form answered with `updateDataModel` on `/status` (value
 `"answered"`, revision 2) so clients disable it; the same happens when the
 interrupt is answered any other way (plain resume, implicit text reply).
-Resubmitting an answered form is `409 this form was already submitted`;
+Resubmitting an answered form is `409` with `code: "form_answered"`;
 exactly-once execution across systems is not promised. `status: "cancelled"`
 stays rejected.
 
@@ -1918,7 +1928,7 @@ Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-gra
 
 The form a HUMAN_INPUT node presents to an A2UI-capable client. Validated when
 the agent is saved and when the Workflow Agent is built; the definition is
-frozen into the pause, so edits never change a form already shown. It is a
+frozen into its Interrupt, so edits never change a form already shown. It is a
 presentation and submission format, not an ADK response schema: the successor
 always receives a string.
 

@@ -217,11 +217,11 @@ function formEnvelopes(surfaceId: string) {
           { id: 'title', component: 'Text', text: 'Deploy approval', variant: 'h3' },
           { id: 'question', component: 'Text', text: 'Approve this deploy?' },
           {
-            id: 'field_env', component: 'ChoicePicker', label: 'Environment', value: { path: '/values/env' }, required: true,
+            id: 'field_env', component: 'ChoicePicker', name: 'env', label: 'Environment', value: { path: '/values/env' }, required: true,
             variant: 'mutuallyExclusive', options: [{ label: 'Production', value: 'prod' }, { label: 'Staging', value: 'staging' }],
           },
-          { id: 'field_reason', component: 'TextField', label: 'Reason', value: { path: '/values/reason' }, hint: 'Why now?', required: true, variant: 'shortText', maxLength: 20 },
-          { id: 'field_note', component: 'TextField', label: 'Note', value: { path: '/values/note' }, variant: 'longText', maxLength: 2000 },
+          { id: 'field_reason', component: 'TextField', name: 'reason', label: 'Reason', value: { path: '/values/reason' }, hint: 'Why now?', required: true, variant: 'shortText', maxLength: 20 },
+          { id: 'field_note', component: 'TextField', name: 'note', label: 'Note', value: { path: '/values/note' }, variant: 'longText', maxLength: 2000 },
           {
             id: 'submit', component: 'Button', child: 'submit_label', variant: 'primary',
             action: { event: { name: 'butter.submitForm', context: { values: { path: '/values' } } } },
@@ -320,7 +320,14 @@ test.describe('A2UI Human Input forms', () => {
     const fixture = await setupAGUI(page, {
       runs: [
         pausedRun,
-        { status: 422, body: { error: 'some fields are invalid', fieldErrors: { reason: 'must be at most 20 characters' } } },
+        {
+          status: 422,
+          body: {
+            error: 'some fields are invalid',
+            code: 'form_invalid',
+            fieldErrors: { reason: 'must be at most 20 characters' },
+          },
+        },
         answeredRun,
       ],
     })
@@ -350,7 +357,7 @@ test.describe('A2UI Human Input forms', () => {
 
   test('tells the user when the form was already submitted', async ({ page }) => {
     await setupAGUI(page, {
-      runs: [pausedRun, { status: 409, body: { error: 'this form was already submitted' } }],
+      runs: [pausedRun, { status: 409, body: { error: 'this form was already submitted', code: 'form_answered' } }],
     })
     await page.goto('/agui-chat', { waitUntil: 'networkidle' })
     await send(page, 'release it')
@@ -359,6 +366,27 @@ test.describe('A2UI Human Input forms', () => {
     await form(page).getByRole('button', { name: 'Submit' }).click()
     await expect(form(page).getByText('This form was already submitted.')).toBeVisible()
     await expect(form(page).getByRole('button', { name: 'Submit' })).toBeDisabled()
+  })
+
+  test('shows the submission in flight and sends it only once', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, {
+      runs: [pausedRun, { delayMs: 1500, sse: answeredRun }],
+    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await send(page, 'release it')
+    await form(page).getByRole('radio', { name: 'Production' }).check()
+    await form(page).getByLabel('Reason').fill('hotfix')
+
+    await form(page).getByRole('button', { name: 'Submit' }).dblclick()
+    await expect(form(page).getByText('Submitting…')).toBeVisible()
+    await expect(form(page).getByRole('button', { name: 'Submit' })).toBeDisabled()
+    await expect(form(page).getByLabel('Reason')).toBeDisabled()
+
+    await expect(page.getByText('Published to production.')).toBeVisible()
+    await expect(form(page).getByText('Submitted')).toBeVisible()
+    expect(fixture.requests).toHaveLength(2)
   })
 
   test('can be filled and submitted with the keyboard alone', async ({ page }) => {
@@ -482,5 +510,69 @@ test.describe('A2UI recovery', () => {
       .poll(() => fixture.snapshotRequests.some((u) => u.includes('/streamer-id/') && !u.includes(firstThread)))
       .toBe(true)
     await expect(card(page)).toHaveCount(0)
+  })
+
+  test('an answered form does not come back after a refresh', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, { runs: [pausedRun, answeredRun] })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await send(page, 'release it')
+    await form(page).getByRole('radio', { name: 'Production' }).check()
+    await form(page).getByLabel('Reason').fill('hotfix')
+    await form(page).getByRole('button', { name: 'Submit' }).click()
+    await expect(page.getByText('Published to production.')).toBeVisible()
+
+    // The server no longer lists the answered form.
+    const reads = fixture.snapshotRequests.length
+    await page.reload({ waitUntil: 'networkidle' })
+    await expect.poll(() => fixture.snapshotRequests.length).toBeGreaterThan(reads)
+    await expect(form(page)).toHaveCount(0)
+    await expect(
+      page.getByRole('region', { name: 'Restored from this conversation' })
+    ).toHaveCount(0)
+    expect(fixture.snapshotRequests.at(-1)).toContain(
+      fixture.requests[0].threadId as string
+    )
+  })
+
+  test('switching workspace shows that workspace\'s own thread', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(
+      page,
+      {
+        runs: [
+          sse([
+            runStarted('r1'),
+            ...cardCreated('card-1'),
+            ...text('a1', 'Here.'),
+            runFinished('r1'),
+          ]),
+        ],
+      },
+      {
+        workspaces: [
+          { id: 'default', name: 'Default', slug: 'default' },
+          { id: 'team-b', name: 'Team B', slug: 'team-b' },
+        ],
+      }
+    )
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await send(page, 'deploy')
+    await expect(card(page)).toHaveCount(1)
+    const firstThread = fixture.requests[0].threadId as string
+
+    await page.getByRole('button', { name: /Default/ }).first().click()
+    await page.getByRole('menuitem', { name: 'Team B' }).click()
+    await expect(card(page)).toHaveCount(0)
+    await expect(page.getByText('Here.')).toHaveCount(0)
+    await expect
+      .poll(() =>
+        fixture.snapshotRequests.some(
+          (u) => u.includes('/streamer-id/') && !u.includes(firstThread)
+        )
+      )
+      .toBe(true)
   })
 })

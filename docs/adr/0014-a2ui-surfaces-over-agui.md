@@ -69,9 +69,10 @@ two meet in Butter:
    token, revision, that the Interrupt is still pending, and the field rules,
    then delivers the configured fields as a JSON object text — the ordinary
    string payload of ADR-0002, not a typed resume. A rejection answers before
-   the stream opens and never falls back to answering another Interrupt. A run
-   that answered Interrupts reports every one still open in its outcome, and
-   marks answered forms with an `updateDataModel` on `/status`.
+   the stream opens, with a machine-readable code, and never falls back to
+   answering another Interrupt. For A2UI clients every run reports every
+   Interrupt still open in its outcome and marks answered forms with an
+   `updateDataModel` on `/status`; other clients keep the original outcome.
 
 ## Consequences
 
@@ -82,9 +83,10 @@ two meet in Butter:
   deleting a session deletes its UI with it.
 - The UI state is only as isolated as the binding: a pre-A2UI session never
   gets UI, even for its owner.
-- ADK's workflow engine parses a JSON answer on resume and re-encodes it for
-  the successor, so the successor sees the answer's keys sorted; the stored
-  payload keeps the configured order.
+- ADK's workflow engine parses a JSON answer on resume and hands the successor
+  the parsed object, so an AGENT successor sees the keys sorted and butter's
+  Router matches the object as its JSON text; the stored payload keeps the
+  configured order.
 - The dashboard sends a form's resume through the assistant-ui runtime's
   "steer away" path and replaces the resume array the runtime and AG-UI client
   require (every open interrupt) with the form's single entry, so the

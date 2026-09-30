@@ -28,7 +28,8 @@ const (
 	formMetadataKey     = "butter_a2ui_form"
 	formSubmitEventName = "butter.submitForm"
 	formRevision        = 1
-	answeredRevision    = 2
+	// AnsweredRevision is the revision of a form's answered marker.
+	AnsweredRevision = 2
 )
 
 // FieldType is how one form field is answered.
@@ -254,7 +255,7 @@ func NewForm(interruptID, question string, cfg *agentsv1.HumanInputForm) Form {
 		title = question
 	}
 	return Form{
-		SurfaceID:   "form-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16],
+		SurfaceID:   newSurfaceID("form"),
 		Token:       strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", ""),
 		Revision:    formRevision,
 		InterruptID: interruptID,
@@ -367,6 +368,7 @@ func (f Form) Envelopes() []Envelope {
 		children = append(children, id)
 		c := Component{
 			"id":    id,
+			"name":  field.Name,
 			"label": field.Label,
 			"value": map[string]any{"path": "/values/" + field.Name},
 		}
@@ -416,10 +418,10 @@ func (f Form) Envelopes() []Envelope {
 	}
 }
 
-// AnsweredEnvelope marks the form answered: the client disables it so the
-// workflow cannot be resumed twice from the same form.
-func (f Form) AnsweredEnvelope() (Envelope, int) {
-	return dataEnvelope(f.SurfaceID, "/status", "answered"), answeredRevision
+// AnsweredEnvelope marks the form answered (at AnsweredRevision): the client
+// disables it so the workflow cannot be resumed twice from the same form.
+func (f Form) AnsweredEnvelope() Envelope {
+	return dataEnvelope(f.SurfaceID, "/status", "answered")
 }
 
 // SubmissionKey is the member of a resume payload that marks it as a form
@@ -494,7 +496,7 @@ func (e *SubmitError) Error() string { return e.Message }
 // JSON object text. The Interrupt must be the one the form was built for and
 // must still be pending; a rejection never falls back to answering another
 // Interrupt.
-func Resolve(sess session.Session, interruptID string, sub Submission) (string, Form, error) {
+func Resolve(sess session.Session, interruptID string, sub Submission) (string, error) {
 	var form Form
 	found := false
 	if sess != nil {
@@ -507,26 +509,19 @@ func Resolve(sess session.Session, interruptID string, sub Submission) (string, 
 	}
 	if !found || form.InterruptID != interruptID ||
 		subtle.ConstantTimeCompare([]byte(form.Token), []byte(sub.Token)) != 1 {
-		return "", Form{}, &SubmitError{Kind: SubmitUnknown, Message: "unknown or expired form"}
+		return "", &SubmitError{Kind: SubmitUnknown, Message: "unknown or expired form"}
 	}
 	if sub.Revision != form.Revision {
-		return "", Form{}, &SubmitError{Kind: SubmitStale, Message: "this form has changed; reload it and submit again"}
+		return "", &SubmitError{Kind: SubmitStale, Message: "this form has changed; reload it and submit again"}
 	}
-	stillPending := false
-	for _, p := range interrupt.Pending(sess) {
-		if p.InterruptID == interruptID {
-			stillPending = true
-			break
-		}
-	}
-	if !stillPending {
-		return "", Form{}, &SubmitError{Kind: SubmitAnswered, Message: "this form was already submitted"}
+	if !interrupt.PendingIDs(sess)[interruptID] {
+		return "", &SubmitError{Kind: SubmitAnswered, Message: "this form was already submitted"}
 	}
 	answer, fieldErrors := form.Answer(sub.Values)
 	if len(fieldErrors) > 0 {
-		return "", Form{}, &SubmitError{Kind: SubmitInvalid, Message: "some fields are invalid", FieldErrors: fieldErrors}
+		return "", &SubmitError{Kind: SubmitInvalid, Message: "some fields are invalid", FieldErrors: fieldErrors}
 	}
-	return answer, form, nil
+	return answer, nil
 }
 
 // Answer validates values against the form's fields and encodes the answer.

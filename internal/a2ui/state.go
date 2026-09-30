@@ -19,7 +19,7 @@ const (
 	StatePrefix = "butter:a2ui:"
 	// BindingKey holds the session's Binding.
 	BindingKey = StatePrefix + "binding"
-	// cardKeyPrefix + surface ID holds one card's Surface record.
+	// cardKeyPrefix + surface ID holds one Result Card's record.
 	cardKeyPrefix = StatePrefix + "card:"
 )
 
@@ -73,24 +73,25 @@ func Bound(sess session.Session, want Binding) bool {
 }
 
 // StateValue encodes s for session state.
-func (s *Surface) StateValue() string {
+func (s *Card) StateValue() string {
 	raw, _ := json.Marshal(s)
 	return string(raw)
 }
 
-// IsCardKey reports whether a session-state key holds a card, and which.
-func IsCardKey(key string) (string, bool) {
+// CardIDFromKey returns the surface ID of the card a session-state key holds,
+// and whether it holds one.
+func CardIDFromKey(key string) (string, bool) {
 	id, ok := strings.CutPrefix(key, cardKeyPrefix)
 	return id, ok && id != ""
 }
 
 // DecodeCard reads one card record from a session-state value.
-func DecodeCard(v any) (*Surface, bool) {
+func DecodeCard(v any) (*Card, bool) {
 	s, _ := v.(string)
 	if s == "" {
 		return nil, false
 	}
-	var out Surface
+	var out Card
 	if err := json.Unmarshal([]byte(s), &out); err != nil || out.ID == "" {
 		return nil, false
 	}
@@ -101,8 +102,8 @@ func DecodeCard(v any) (*Surface, bool) {
 }
 
 // Cards reads every card record, tombstones included, from session state.
-func Cards(st session.State) map[string]*Surface {
-	cards := map[string]*Surface{}
+func Cards(st session.State) map[string]*Card {
+	cards := map[string]*Card{}
 	if st == nil {
 		return cards
 	}
@@ -110,9 +111,9 @@ func Cards(st session.State) map[string]*Surface {
 	return cards
 }
 
-func collectCards(all iter.Seq2[string, any], into map[string]*Surface) {
+func collectCards(all iter.Seq2[string, any], into map[string]*Card) {
 	for key, v := range all {
-		id, ok := IsCardKey(key)
+		id, ok := CardIDFromKey(key)
 		if !ok {
 			continue
 		}
@@ -123,8 +124,8 @@ func collectCards(all iter.Seq2[string, any], into map[string]*Surface) {
 }
 
 // LiveCards returns the cards that still exist, oldest first.
-func LiveCards(st session.State) []*Surface {
-	var out []*Surface
+func LiveCards(st session.State) []*Card {
+	var out []*Card
 	for _, c := range Cards(st) {
 		if c.Live() {
 			out = append(out, c)

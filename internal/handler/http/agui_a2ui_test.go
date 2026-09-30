@@ -505,7 +505,12 @@ func TestAGUIA2UI_InvalidCardIsReadableToolError(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		"raw HTML":             {component(map[string]any{"id": "root", "component": "Text", "text": "<script>alert(1)</script>"}), "HTML"},
+		"raw HTML":    {component(map[string]any{"id": "root", "component": "Text", "text": "<script>alert(1)</script>"}), "HTML"},
+		"URL in text": {component(map[string]any{"id": "root", "component": "Text", "text": "details at https://evil.example/login"}), "URL"},
+		"script URL in data": {map[string]any{"messages": []any{
+			map[string]any{"updateComponents": map[string]any{"components": []any{map[string]any{"id": "root", "component": "Text", "text": map[string]any{"path": "/t"}}}}},
+			map[string]any{"updateDataModel": map[string]any{"path": "/", "value": map[string]any{"t": "javascript:alert(1)"}}},
+		}, "fallback": "x"}, "URL"},
 		"unknown component":    {component(map[string]any{"id": "root", "component": "Image", "url": "https://example.com/x.png"}), "unknown component"},
 		"model-defined action": {component(map[string]any{"id": "root", "component": "Button", "child": "x", "action": map[string]any{"event": map[string]any{"name": "delete_all"}}}), "read-only"},
 		"input component":      {component(map[string]any{"id": "root", "component": "TextField", "label": "Name", "value": map[string]any{"path": "/n"}}), "read-only"},
@@ -1061,7 +1066,7 @@ func TestAGUIA2UI_FormResumesWorkflowWithStructuredAnswer(t *testing.T) {
 		t.Errorf("form fields = %+v", fields)
 	}
 	comps, _ := json.Marshal(values[1]["envelope"])
-	for _, want := range []string{`"component":"ChoicePicker"`, `"component":"TextField"`, `"component":"Button"`, `"name":"butter.submitForm"`} {
+	for _, want := range []string{`"component":"ChoicePicker"`, `"name":"env"`, `"component":"TextField"`, `"component":"Button"`, `"name":"butter.submitForm"`} {
 		if !strings.Contains(string(comps), want) {
 			t.Errorf("form components lack %s: %s", want, comps)
 		}
@@ -1160,21 +1165,22 @@ func TestAGUIA2UI_FormRejectsBadSubmissions(t *testing.T) {
 		status      int
 		want        string
 		field       string
+		code        string
 	}{
-		{name: "forged token", payload: sub(func(m map[string]any) { m["token"] = "guess" }), status: http.StatusBadRequest, want: "unknown or expired form"},
-		{name: "unknown surface", payload: sub(func(m map[string]any) { m["surfaceId"] = "form-nope" }), status: http.StatusBadRequest, want: "unknown or expired form"},
-		{name: "other interrupt", interruptID: "ask-made-up", payload: sub(func(map[string]any) {}), status: http.StatusBadRequest, want: "unknown or expired form"},
-		{name: "old revision", payload: sub(func(m map[string]any) { m["revision"] = 0 }), status: http.StatusConflict, want: "changed"},
+		{name: "forged token", payload: sub(func(m map[string]any) { m["token"] = "guess" }), status: http.StatusBadRequest, want: "unknown or expired form", code: "form_unknown"},
+		{name: "unknown surface", payload: sub(func(m map[string]any) { m["surfaceId"] = "form-nope" }), status: http.StatusBadRequest, want: "unknown or expired form", code: "form_unknown"},
+		{name: "other interrupt", interruptID: "ask-made-up", payload: sub(func(map[string]any) {}), status: http.StatusBadRequest, want: "unknown or expired form", code: "form_unknown"},
+		{name: "old revision", payload: sub(func(m map[string]any) { m["revision"] = 0 }), status: http.StatusConflict, want: "changed", code: "form_stale"},
 		{name: "wrong version", payload: sub(func(m map[string]any) { m["version"] = "v0.8" }), status: http.StatusBadRequest, want: "version"},
-		{name: "missing required", payload: sub(func(m map[string]any) { m["values"] = map[string]any{"env": "prod"} }), status: http.StatusUnprocessableEntity, field: "reason"},
+		{name: "missing required", payload: sub(func(m map[string]any) { m["values"] = map[string]any{"env": "prod"} }), status: http.StatusUnprocessableEntity, field: "reason", code: "form_invalid"},
 		{name: "extra field", payload: sub(func(m map[string]any) { m["values"] = map[string]any{"env": "prod", "reason": "x", "admin": "yes"} }), status: http.StatusUnprocessableEntity, field: "admin"},
 		{name: "non-string value", payload: sub(func(m map[string]any) { m["values"] = map[string]any{"env": []any{"prod"}, "reason": "x"} }), status: http.StatusUnprocessableEntity, field: "env"},
 		{name: "not an option", payload: sub(func(m map[string]any) { m["values"] = map[string]any{"env": "moon", "reason": "x"} }), status: http.StatusUnprocessableEntity, field: "env"},
 		{name: "too long", payload: sub(func(m map[string]any) {
 			m["values"] = map[string]any{"env": "prod", "reason": strings.Repeat("r", 21)}
-		}), status: http.StatusUnprocessableEntity, field: "reason"},
+		}), status: http.StatusUnprocessableEntity, field: "reason", code: "form_invalid"},
 		{name: "another workspace", payload: sub(func(map[string]any) {}), opts: []a2uiOpt{inWorkspace("ws-b")}, status: http.StatusNotFound},
-		{name: "another user", payload: sub(func(map[string]any) {}), opts: []a2uiOpt{asUser("u2")}, status: http.StatusBadRequest, want: "unknown or expired form"},
+		{name: "another user", payload: sub(func(map[string]any) {}), opts: []a2uiOpt{asUser("u2")}, status: http.StatusBadRequest, want: "unknown or expired form", code: "form_unknown"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1193,6 +1199,9 @@ func TestAGUIA2UI_FormRejectsBadSubmissions(t *testing.T) {
 			_ = json.Unmarshal(w.Body.Bytes(), &body)
 			if tc.want != "" && !strings.Contains(body.Error, tc.want) {
 				t.Errorf("error = %q, want it to mention %q", body.Error, tc.want)
+			}
+			if tc.code != "" && body.Code != tc.code {
+				t.Errorf("code = %q, want %q", body.Code, tc.code)
 			}
 			if tc.field != "" && body.FieldErrors[tc.field] == "" {
 				t.Errorf("fieldErrors = %+v, want an error for %q", body.FieldErrors, tc.field)
@@ -1227,7 +1236,8 @@ func TestAGUIA2UI_FormDuplicateSubmission(t *testing.T) {
 		t.Fatalf("first submit status = %d, body = %s", w.Code, w.Body.String())
 	}
 	w := h.post("approval", body)
-	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "already submitted") {
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "already submitted") ||
+		!strings.Contains(w.Body.String(), `"code":"form_answered"`) {
 		t.Fatalf("repeat status = %d, body = %s", w.Code, w.Body.String())
 	}
 	if h.backend.CallCount("publisher") != 1 || len(h.storedAnswers("t-dup")) != 1 {
@@ -1404,7 +1414,7 @@ func TestAGUIA2UI_FormCancelRejected(t *testing.T) {
 
 // After a restart the pending form comes back from the persisted session
 // with the same binding, and submitting it resumes the workflow on the new
-// instance without re-running anything before the pause.
+// instance without re-running anything before the Interrupt.
 func TestAGUIA2UI_FormSurvivesRestart(t *testing.T) {
 	h := newA2UIHarness(t, approvalWorkflow(deployForm()), "drafter", "publisher")
 	h.echoModels("drafter", "publisher")
@@ -1468,5 +1478,149 @@ func TestAGUIA2UI_SnapshotRecoversUndeliveredCard(t *testing.T) {
 	}
 	if h.backend.CallCount("card-model") != calls {
 		t.Error("recovery ran the agent")
+	}
+}
+
+// A form's answer is a JSON object text. ADK parses a JSON answer when the
+// workflow resumes, so a Router after the form must still take it as text:
+// it matches no route label here and the default edge fires.
+func TestAGUIA2UI_FormAnswerFeedsRouter(t *testing.T) {
+	form := &agentsv1.HumanInputForm{Fields: []*agentsv1.HumanInputFormField{{
+		Name: "decision", Label: "Decision", Required: true,
+		Type: agentsv1.HumanInputFormFieldType_HUMAN_INPUT_FORM_FIELD_TYPE_SINGLE_CHOICE,
+		Options: []*agentsv1.HumanInputFormOption{
+			{Value: "approve", Label: "Approve"},
+			{Value: "reject", Label: "Reject"},
+		},
+	}}}
+	agents := []agentsv1.Agent{{
+		Name: "gate", AgentId: "gate", WorkspaceId: "ws-a",
+		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
+		ChildAgentIds: []string{"yes", "fallback"},
+		Config: &agentsv1.AgentConfig{Workflow: &agentsv1.WorkflowConfig{
+			Nodes: []*agentsv1.WorkflowNode{
+				{Name: "ask", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT, Question: "Ship it?", Form: form},
+				{Name: "route", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER},
+				{Name: "yes", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "yes"},
+				{Name: "fallback", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "fallback"},
+			},
+			Edges: []*agentsv1.WorkflowEdge{
+				{From: "START", To: "ask"},
+				{From: "ask", To: "route"},
+				{From: "route", To: "yes", Route: "approve"},
+				{From: "route", To: "fallback", IsDefault: true},
+			},
+		}},
+	},
+		{Name: "yes", AgentId: "yes", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "yes-model"}},
+		{Name: "fallback", AgentId: "fallback", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "fallback-model"}},
+	}
+	h := newA2UIHarness(t, agents, "yes-model", "fallback-model")
+	h.echoModels("yes-model", "fallback-model")
+
+	w := h.post("gate", a2uiBody("t-gate", "go"))
+	values := a2uiValues(sseEvents(t, w.Body.String()))
+	if len(values) == 0 {
+		t.Fatalf("no form shown:\n%s", w.Body.String())
+	}
+	fx := values[0]["form"].(map[string]any)
+	w = h.post("gate", resumeBody("t-gate", "run-2", fx["interruptId"].(string),
+		formSubmission(fx, values[0]["surfaceId"].(string), map[string]any{"decision": "approve"})))
+	if w.Code != http.StatusOK {
+		t.Fatalf("submit status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), `"type":"RUN_ERROR"`) {
+		t.Fatalf("the router failed on the form answer:\n%s", w.Body.String())
+	}
+	if got := h.backend.LastInput("fallback-model"); got != `{"decision":"approve"}` {
+		t.Errorf("default branch input = %q, want the answer as JSON text", got)
+	}
+}
+
+// finishedOutcome returns the RUN_FINISHED outcome of a stream.
+func finishedOutcome(t *testing.T, body string) map[string]any {
+	t.Helper()
+	events := sseEvents(t, body)
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i]["type"] == "RUN_FINISHED" {
+			outcome, _ := events[i]["outcome"].(map[string]any)
+			return outcome
+		}
+	}
+	t.Fatalf("no RUN_FINISHED:\n%s", body)
+	return nil
+}
+
+// For an A2UI client, RUN_FINISHED lists every Interrupt still open on the
+// thread whenever one remains — also after a plain-text reply answered the
+// oldest (ADR-0002), so the client's forms and pending set stay in step. A
+// client without A2UI keeps the original contract: only Interrupts raised
+// in the run are listed.
+func TestAGUIA2UI_OutcomeListsOpenInterruptsForA2UIClients(t *testing.T) {
+	t.Run("A2UI client, text reply answers the oldest", func(t *testing.T) {
+		h := newA2UIHarness(t, parallelApprovals(), "model-a", "model-b")
+		h.echoModels("model-a", "model-b")
+		_, finished := h.pausedForm("t-fifo")
+		open := finished["outcome"].(map[string]any)["interrupts"].([]any)
+		if len(open) != 2 {
+			t.Fatalf("setup: open interrupts = %d", len(open))
+		}
+		w := h.post("approval", a2uiBody("t-fifo", "my answer"))
+		outcome := finishedOutcome(t, w.Body.String())
+		left, _ := outcome["interrupts"].([]any)
+		if outcome["type"] != "interrupt" || len(left) != 1 {
+			t.Fatalf("outcome after a text reply = %+v, want the other interrupt still open", outcome)
+		}
+		if answered := a2uiValues(sseEvents(t, w.Body.String())); len(answered) != 1 || envelopeKind(answered[0]) != "updateDataModel" {
+			t.Errorf("the answered form was not marked: %+v", answered)
+		}
+	})
+	t.Run("client without A2UI", func(t *testing.T) {
+		h := newA2UIHarness(t, parallelApprovals(), "model-a", "model-b")
+		h.echoModels("model-a", "model-b")
+		w := h.post("approval", minimalAGUIBody("t-plain-par", "go"))
+		it := finishedOutcome(t, w.Body.String())["interrupts"].([]any)[0].(map[string]any)
+		body := resumeBody("t-plain-par", "run-2", it["id"].(string), "done")
+		delete(body, "forwardedProps")
+		w = h.post("approval", body)
+		if outcome := finishedOutcome(t, w.Body.String()); outcome["type"] != "success" {
+			t.Fatalf("plain client outcome = %+v, want success (no interrupt raised in this run)", outcome)
+		}
+	})
+}
+
+// A form is submittable only from the context that owns its thread: the same
+// caller reusing the threadId with another agent, or under another workspace
+// whose agent shares the agent_id, is refused before anything runs.
+func TestAGUIA2UI_FormSubmissionFromAnotherContext(t *testing.T) {
+	agents := approvalWorkflow(deployForm())
+	agents = append(agents,
+		agentsv1.Agent{Name: "other", AgentId: "other", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "publisher"}},
+		agentsv1.Agent{Name: "approvalB", AgentId: "approval", WorkspaceId: "ws-b", Config: &agentsv1.AgentConfig{Model: "publisher"}},
+	)
+	h := newA2UIHarness(t, agents, "drafter", "publisher")
+	h.echoModels("drafter", "publisher")
+	fx := h.pauseWithForm("t-ctx")
+	calls := h.backend.CallCount("publisher")
+
+	for name, tc := range map[string]struct {
+		agentID string
+		opts    []a2uiOpt
+	}{
+		"another agent":     {agentID: "other"},
+		"another workspace": {agentID: "approval", opts: []a2uiOpt{inWorkspace("ws-b")}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := h.post(tc.agentID, resumeBody("t-ctx", "run-x", fx.interruptID, formSubmission(fx.form, fx.surfaceID, validDeployValues())), tc.opts...)
+			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"code":"form_unknown"`) {
+				t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+			}
+		})
+	}
+	if h.backend.CallCount("publisher") != calls || len(h.storedAnswers("t-ctx")) != 0 {
+		t.Fatal("a submission from another context ran or consumed the Interrupt")
+	}
+	if len(h.snapshotSurfaces("approval", "t-ctx")) != 1 {
+		t.Fatal("the owner's form is gone")
 	}
 }

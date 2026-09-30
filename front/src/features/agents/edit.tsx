@@ -45,7 +45,7 @@ import {
   validateCursorAgentForm,
 } from './cursor-config'
 import { PiAgentConfigurationCard } from './pi-agent-fields'
-import { HumanInputNodesCard, type HumanInputNodeErrors } from './human-input-fields'
+import { HumanInputConfigurationCard, type HumanInputNodeErrors } from './human-input-fields'
 import {
   applyHumanInputValues,
   humanInputNodeSchema,
@@ -453,7 +453,7 @@ export function AgentEdit() {
               </Card>
 
               {agentType === 'AGENT_TYPE_WORKFLOW' && (
-                <HumanInputNodesCard
+                <HumanInputConfigurationCard
                   value={humanInputValues ?? []}
                   onChange={(value) => form.setValue('human_inputs', value, {
                     shouldDirty: true,

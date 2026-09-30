@@ -29,22 +29,22 @@ import {
 } from './human-input-config'
 
 // Errors mirror the form values' shape, as react-hook-form reports them.
-interface Msg {
+interface FieldMessage {
   message?: string
 }
 interface OptionErrors {
-  value?: Msg
-  label?: Msg
+  value?: FieldMessage
+  label?: FieldMessage
 }
 interface FieldErrors {
-  name?: Msg
-  label?: Msg
-  max_length?: Msg
-  options?: Msg & Record<number, OptionErrors | undefined>
+  name?: FieldMessage
+  label?: FieldMessage
+  max_length?: FieldMessage
+  options?: FieldMessage & Record<number, OptionErrors | undefined>
 }
 export interface HumanInputNodeErrors {
-  question?: Msg
-  fields?: Msg & Record<number, FieldErrors | undefined>
+  question?: FieldMessage
+  fields?: FieldMessage & Record<number, FieldErrors | undefined>
 }
 
 function move<T>(list: T[], from: number, to: number): T[] {
@@ -55,7 +55,7 @@ function move<T>(list: T[], from: number, to: number): T[] {
   return next
 }
 
-function ErrorText({ id, error }: { id?: string; error?: Msg }) {
+function ErrorText({ id, error }: { id?: string; error?: FieldMessage }) {
   if (!error?.message) return null
   return (
     <p id={id} role='alert' className='text-xs text-destructive'>
@@ -64,9 +64,9 @@ function ErrorText({ id, error }: { id?: string; error?: Msg }) {
   )
 }
 
-// HumanInputNodesCard edits the question and form of every Human Input node
+// HumanInputConfigurationCard edits the question and form of every Human Input node
 // of a Workflow Agent. The rest of the graph stays in JSON mode.
-export function HumanInputNodesCard({
+export function HumanInputConfigurationCard({
   value,
   onChange,
   errors,
@@ -84,11 +84,11 @@ export function HumanInputNodesCard({
           Human Input nodes
         </CardTitle>
         <CardDescription>
-          The question each pause asks. A form shows the question as fields in
-          AG-UI Chat; every other channel gets the question followed by the
-          field list and may answer in text. The node&apos;s successor always
-          receives text — a submitted form arrives as a JSON object with one
-          member per field.
+          The question each node asks when it pauses the workflow. A form shows
+          the question as fields in AG-UI Chat; every other channel gets the
+          question followed by the field list and may answer in text. The
+          node&apos;s successor always receives text — a submitted form arrives
+          as a JSON object with one member per field.
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-6'>

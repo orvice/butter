@@ -15,23 +15,19 @@ import (
 // for result cards. The dashboard renders every component with its own
 // design system (front/src/features/agui-chat/a2ui).
 //
-// Models may only produce the read-only subset. TextField, ChoicePicker and
-// Button exist solely in forms the server builds from a Human Input node, so
-// a model can neither collect input nor define an action.
+// Models may only produce the read-only subset validated below. TextField,
+// ChoicePicker and Button exist solely in forms the server builds from a
+// Human Input node, so a model can neither collect input nor define an
+// action.
 
 type propKind int
 
 const (
 	// propDynString is a literal string or a {"path": "/…"} data binding.
 	propDynString propKind = iota
-	propString
 	propEnum
-	propBool
-	propNumber
 	propChild
 	propChildren
-	propOptions
-	propAction
 )
 
 type propSpec struct {
@@ -80,27 +76,11 @@ var catalog = map[string]componentSpec{
 		"text": {kind: propDynString, required: true},
 		"tone": {kind: propEnum, enum: []string{"neutral", "info", "success", "warning", "error"}},
 	}},
-	"TextField": {props: map[string]propSpec{
-		"label":     {kind: propDynString, required: true},
-		"value":     {kind: propDynString, required: true},
-		"variant":   {kind: propEnum, enum: []string{"shortText", "longText"}},
-		"hint":      {kind: propString},
-		"required":  {kind: propBool},
-		"maxLength": {kind: propNumber},
-	}},
-	"ChoicePicker": {props: map[string]propSpec{
-		"label":    {kind: propDynString, required: true},
-		"value":    {kind: propDynString, required: true},
-		"variant":  {kind: propEnum, enum: []string{"mutuallyExclusive"}},
-		"options":  {kind: propOptions, required: true},
-		"hint":     {kind: propString},
-		"required": {kind: propBool},
-	}},
-	"Button": {props: map[string]propSpec{
-		"child":   {kind: propChild, required: true},
-		"variant": {kind: propEnum, enum: []string{"default", "primary", "borderless"}},
-		"action":  {kind: propAction, required: true},
-	}},
+	// Form components: built by the server only (Form.Envelopes), so they
+	// carry no property rules here — a model is refused them by name.
+	"TextField":    {},
+	"ChoicePicker": {},
+	"Button":       {},
 }
 
 // ModelComponentNames lists the read-only components a model may render.
@@ -125,6 +105,9 @@ var (
 	// htmlTagPattern spots raw markup: the renderer shows text as text, but
 	// the catalog forbids HTML outright rather than rely on that.
 	htmlTagPattern = regexp.MustCompile(`<\s*/?\s*[A-Za-z!][^>]*>`)
+	// urlPattern spots URLs. No component takes a URL, and cards carry none
+	// in their text either: links belong in the model's text answer.
+	urlPattern = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://|\bjavascript:`)
 )
 
 // validateModelComponent checks one component a model sent: a known
@@ -177,24 +160,10 @@ func validateProp(prop propSpec, v any) error {
 	switch prop.kind {
 	case propDynString:
 		return validateDynString(v)
-	case propString:
-		s, ok := v.(string)
-		if !ok {
-			return fmt.Errorf("must be a string")
-		}
-		return validateLiteral(s)
 	case propEnum:
 		s, ok := v.(string)
 		if !ok || !slices.Contains(prop.enum, s) {
 			return fmt.Errorf("must be one of %s", strings.Join(prop.enum, ", "))
-		}
-	case propBool:
-		if _, ok := v.(bool); !ok {
-			return fmt.Errorf("must be a boolean")
-		}
-	case propNumber:
-		if _, ok := v.(float64); !ok {
-			return fmt.Errorf("must be a number")
 		}
 	case propChild:
 		if s, ok := v.(string); !ok || s == "" {
@@ -242,6 +211,9 @@ func validateLiteral(s string) error {
 	}
 	if htmlTagPattern.MatchString(s) {
 		return fmt.Errorf("must be plain text; HTML is not allowed")
+	}
+	if urlPattern.MatchString(s) {
+		return fmt.Errorf("must not contain a URL; put links in your text answer instead")
 	}
 	return nil
 }

@@ -90,8 +90,8 @@ type aguiSink struct {
 	finalSess    session.Session
 	finalOK      bool
 	// reportPending adds every Interrupt still open after the run to the
-	// interrupt outcome, not only those raised in-stream. Set for runs that
-	// answered Interrupts.
+	// interrupt outcome, not only those raised in-stream. Set for clients
+	// that negotiated A2UI; others keep the in-stream-only outcome.
 	reportPending bool
 
 	// ui is non-nil when A2UI is live for this run.
@@ -103,7 +103,7 @@ type aguiSink struct {
 // the state it has to the state the session now holds.
 type aguiSinkUI struct {
 	// cards is the client's view of every card record, tombstones included.
-	cards map[string]*a2ui.Surface
+	cards map[string]*a2ui.Card
 	// openForms are the forms pending when the run started or raised during
 	// it; each one answered by the end of the run is marked answered.
 	openForms []a2ui.Form
@@ -134,7 +134,7 @@ func (s *aguiSink) reportPendingInterrupts() {
 // before the run; the client is assumed to hold its cards already (from
 // earlier runs or the UI snapshot), so only changes are sent.
 func (s *aguiSink) setA2UI(sess session.Session) {
-	ui := &aguiSinkUI{cards: map[string]*a2ui.Surface{}}
+	ui := &aguiSinkUI{cards: map[string]*a2ui.Card{}}
 	if sess != nil {
 		ui.cards = a2ui.Cards(sess.State())
 		ui.openForms = a2ui.PendingForms(sess)
@@ -239,7 +239,7 @@ func (s *aguiSink) emitUI(evt *session.Event) error {
 	// version it holds to the stored one.
 	var ids []string
 	for key := range evt.Actions.StateDelta {
-		if id, ok := a2ui.IsCardKey(key); ok {
+		if id, ok := a2ui.CardIDFromKey(key); ok {
 			ids = append(ids, id)
 		}
 	}
@@ -302,20 +302,16 @@ func (s *aguiSink) emitAnsweredForms() error {
 	if !ok {
 		return nil
 	}
-	still := map[string]bool{}
-	for _, p := range interrupt.Pending(final) {
-		still[p.InterruptID] = true
-	}
+	still := interrupt.PendingIDs(final)
 	var remaining []a2ui.Form
 	for _, form := range s.ui.openForms {
 		if still[form.InterruptID] {
 			remaining = append(remaining, form)
 			continue
 		}
-		env, revision := form.AnsweredEnvelope()
 		if err := s.emitA2UI(a2ui.EventValue{
-			SurfaceID: form.SurfaceID, Kind: a2ui.KindForm, Revision: revision,
-			Envelope: env, Form: form.View(),
+			SurfaceID: form.SurfaceID, Kind: a2ui.KindForm, Revision: a2ui.AnsweredRevision,
+			Envelope: form.AnsweredEnvelope(), Form: form.View(),
 		}); err != nil {
 			return err
 		}
@@ -325,11 +321,11 @@ func (s *aguiSink) emitAnsweredForms() error {
 }
 
 // outcomeInterrupts is the interrupt list of RUN_FINISHED: the Interrupts
-// raised in-stream, plus — for runs that answered Interrupts — every other
-// one still open, so the client's pending set matches the session.
+// raised in-stream, plus — when reportPending is set — every other one still
+// open, so the client's pending set matches the session.
 func (s *aguiSink) outcomeInterrupts() []aguitypes.Interrupt {
 	out := append([]aguitypes.Interrupt(nil), s.interrupts...)
-	if !s.reportPending && len(s.interrupts) == 0 {
+	if !s.reportPending {
 		return out
 	}
 	final, ok := s.finalSession()

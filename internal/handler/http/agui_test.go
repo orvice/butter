@@ -306,6 +306,15 @@ func TestAGUIRun_Rejections(t *testing.T) {
 			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "cancel",
 		},
 		{
+			name:    "two answers for one interrupt",
+			agentID: "writer",
+			body: withAGUIField(valid, "resume", []map[string]any{
+				{"interruptId": "int-1", "status": "resolved", "payload": "yes"},
+				{"interruptId": "int-1", "status": "resolved", "payload": "no"},
+			}),
+			runner: &mockRunner{}, wantStatus: http.StatusBadRequest, wantError: "duplicate resume entry",
+		},
+		{
 			name:    "resume without interruptId",
 			agentID: "writer",
 			body: withAGUIField(valid, "resume", []map[string]any{

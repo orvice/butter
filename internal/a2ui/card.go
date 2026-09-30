@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/google/uuid"
 )
 
 // Limits bound what one session's read-only cards may hold. Exceeding any of
@@ -46,9 +44,9 @@ type Anchor struct {
 	At           time.Time `json:"at"`
 }
 
-// Surface is the authoritative state of one read-only card, as persisted in
+// Card is the authoritative state of one Result Card, as persisted in
 // session state. Components keep first-appearance order.
-type Surface struct {
+type Card struct {
 	ID         string         `json:"surface_id"`
 	Revision   int            `json:"revision"`
 	Components []Component    `json:"components"`
@@ -62,7 +60,7 @@ type Surface struct {
 }
 
 // Live reports whether s is a card that still exists.
-func (s *Surface) Live() bool { return s != nil && !s.Deleted }
+func (s *Card) Live() bool { return s != nil && !s.Deleted }
 
 // Batch is one render_ui call: A2UI messages for one surface, applied in
 // order. An empty SurfaceID creates a new surface whose ID the server
@@ -75,9 +73,9 @@ type Batch struct {
 
 // Result is a batch's validated outcome.
 type Result struct {
-	// Surface is the new state to persist; a tombstone when the batch
+	// Card is the new state to persist; a tombstone when the batch
 	// deleted the card.
-	Surface *Surface
+	Card    *Card
 	Created bool
 }
 
@@ -85,7 +83,7 @@ type Result struct {
 // resulting surface. It writes nothing: callers persist Result and only then
 // let a client see it. Every message is checked — catalog, properties,
 // references, lifecycle, and limits — before any of them takes effect.
-func Apply(cards map[string]*Surface, b Batch, anchor Anchor, limits Limits) (Result, error) {
+func Apply(cards map[string]*Card, b Batch, anchor Anchor, limits Limits) (Result, error) {
 	if len(b.Messages) == 0 {
 		return Result{}, errors.New("messages must contain at least one A2UI message")
 	}
@@ -103,7 +101,7 @@ func Apply(cards map[string]*Surface, b Batch, anchor Anchor, limits Limits) (Re
 		return Result{}, fmt.Errorf("fallback %w", err)
 	}
 
-	var next *Surface
+	var next *Card
 	create := b.SurfaceID == ""
 	if create {
 		if countLive(cards) >= limits.MaxSurfaces {
@@ -112,7 +110,7 @@ func Apply(cards map[string]*Surface, b Batch, anchor Anchor, limits Limits) (Re
 		if strings.TrimSpace(b.Fallback) == "" {
 			return Result{}, errors.New("fallback is required when creating a card: a plain-text version for clients that cannot render it")
 		}
-		next = &Surface{ID: newSurfaceID(), Data: map[string]any{}, Fallback: b.Fallback, Created: anchor}
+		next = &Card{ID: newSurfaceID("card"), Data: map[string]any{}, Fallback: b.Fallback, Created: anchor}
 	} else {
 		prev, ok := cards[b.SurfaceID]
 		if !ok || !prev.Live() {
@@ -162,18 +160,18 @@ func Apply(cards map[string]*Surface, b Batch, anchor Anchor, limits Limits) (Re
 		prevRevision = cards[b.SurfaceID].Revision
 	}
 	if deleted {
-		tomb := &Surface{ID: next.ID, Revision: prevRevision + 1, Created: next.Created, Updated: anchor, Deleted: true}
-		return Result{Surface: tomb}, nil
+		tomb := &Card{ID: next.ID, Revision: prevRevision + 1, Created: next.Created, Updated: anchor, Deleted: true}
+		return Result{Card: tomb}, nil
 	}
 	if err := next.validateTree(limits); err != nil {
 		return Result{}, err
 	}
 	next.Revision = prevRevision + 1
 	next.Updated = anchor
-	return Result{Surface: next, Created: create}, nil
+	return Result{Card: next, Created: create}, nil
 }
 
-func countLive(cards map[string]*Surface) int {
+func countLive(cards map[string]*Card) int {
 	n := 0
 	for _, s := range cards {
 		if s.Live() {
@@ -181,10 +179,6 @@ func countLive(cards map[string]*Surface) int {
 		}
 	}
 	return n
-}
-
-func newSurfaceID() string {
-	return "card-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
 }
 
 // splitMessage returns a message's single operation and its body, checking
@@ -227,7 +221,7 @@ func splitMessage(msg map[string]any, surfaceID string) (string, map[string]any,
 	return op, body, nil
 }
 
-func (s *Surface) upsertComponents(body map[string]any) error {
+func (s *Card) upsertComponents(body map[string]any) error {
 	for key := range body {
 		if key != "components" && key != "surfaceId" {
 			return fmt.Errorf("updateComponents has no member %q", key)
@@ -266,7 +260,7 @@ func (s *Surface) upsertComponents(body map[string]any) error {
 	return nil
 }
 
-func (s *Surface) updateData(body map[string]any) error {
+func (s *Card) updateData(body map[string]any) error {
 	for key := range body {
 		if key != "path" && key != "value" && key != "surfaceId" {
 			return fmt.Errorf("updateDataModel has no member %q", key)
@@ -370,7 +364,7 @@ func parsePointer(path string) ([]string, error) {
 
 // validateTree checks the surface a batch produced: a root, resolvable
 // child references, no cycles, and the size limits.
-func (s *Surface) validateTree(limits Limits) error {
+func (s *Card) validateTree(limits Limits) error {
 	if len(s.Components) > limits.MaxComponents {
 		return fmt.Errorf("a card may have at most %d components, this one would have %d", limits.MaxComponents, len(s.Components))
 	}
@@ -427,9 +421,9 @@ func (s *Surface) validateTree(limits Limits) error {
 	return nil
 }
 
-func (s *Surface) clone() *Surface {
+func (s *Card) clone() *Card {
 	raw, _ := json.Marshal(s)
-	var out Surface
+	var out Card
 	_ = json.Unmarshal(raw, &out)
 	if out.Data == nil {
 		out.Data = map[string]any{}
@@ -438,7 +432,7 @@ func (s *Surface) clone() *Surface {
 }
 
 // Envelopes returns the messages that build s from nothing.
-func (s *Surface) Envelopes() []Envelope {
+func (s *Card) Envelopes() []Envelope {
 	return []Envelope{
 		createEnvelope(s.ID),
 		componentsEnvelope(s.ID, s.Components),
@@ -450,7 +444,7 @@ func (s *Surface) Envelopes() []Envelope {
 // A nil or deleted state means the card does not exist. The result depends
 // only on the two persisted states, so it is the same wherever it is
 // computed.
-func Transition(id string, prev, next *Surface) []Envelope {
+func Transition(id string, prev, next *Card) []Envelope {
 	switch {
 	case !prev.Live() && !next.Live():
 		return nil

@@ -8,10 +8,8 @@ import {
   SUBMIT_EVENT,
   envelopeOp,
   isA2UIEventValue,
-  type A2UIEventValue,
   type Envelope,
   type FormView,
-  type SnapshotSurface,
   type SurfaceKind,
   type UISnapshot,
 } from './protocol'
@@ -51,7 +49,11 @@ export type SubmitForm = (
 
 interface HttpError {
   status?: number
-  payload?: { error?: string; fieldErrors?: Record<string, string> }
+  payload?: {
+    error?: string
+    code?: string
+    fieldErrors?: Record<string, string>
+  }
   message?: string
 }
 
@@ -160,7 +162,7 @@ export class A2UIStore {
           fallback: value.fallback ?? prev.fallback,
           form: value.form ?? prev.form,
         }
-      : newEntry(value, 'stream')
+      : freshEntry(value, value.seq, 'stream')
     if (value.version !== A2UI_VERSION) {
       entry = { ...entry, error: `unsupported A2UI version ${value.version}` }
     } else {
@@ -192,7 +194,11 @@ export class A2UIStore {
           // The renderer may never have created it; rebuilding is the point.
         }
       }
-      let entry = snapshotEntry(item, prev?.origin ?? 'snapshot')
+      let entry = freshEntry(
+        item,
+        Math.max(0, (item.envelopes?.length ?? 1) - 1),
+        prev?.origin ?? 'snapshot'
+      )
       entry = this.process(entry, item.envelopes)
       for (const env of item.envelopes) entry = afterEnvelope(entry, env)
       this.entries.set(entry.id, entry)
@@ -251,7 +257,7 @@ export class A2UIStore {
       const message =
         httpErr?.payload?.error ??
         (err instanceof Error ? err.message : 'The submission failed.')
-      if (httpErr?.status === 409 && /already submitted/i.test(message)) {
+      if (httpErr?.payload?.code === 'form_answered') {
         this.put({
           ...current,
           formStatus: 'answered',
@@ -285,42 +291,32 @@ function unknownComponent(envelopes: Envelope[]): string | undefined {
   return undefined
 }
 
-function newEntry(
-  value: A2UIEventValue,
+// freshEntry is a surface as first seen, from a live event or a snapshot.
+function freshEntry(
+  surface: {
+    surfaceId: string
+    kind: SurfaceKind
+    revision: number
+    runId?: string
+    messageId?: string
+    fallback?: string
+    form?: FormView
+  },
+  seq: number,
   origin: SurfaceEntry['origin']
 ): SurfaceEntry {
   return {
-    id: value.surfaceId,
-    kind: value.kind === 'form' ? 'form' : 'card',
-    revision: value.revision,
-    seq: value.seq,
+    id: surface.surfaceId,
+    kind: surface.kind === 'form' ? 'form' : 'card',
+    revision: surface.revision,
+    seq,
     origin,
-    runId: value.runId,
-    messageId: value.messageId,
-    fallback: value.fallback,
-    form: value.form,
+    runId: surface.runId,
+    messageId: surface.messageId,
+    fallback: surface.fallback,
+    form: surface.form,
     deleted: false,
-    formStatus: value.kind === 'form' ? 'pending' : undefined,
-    fieldErrors: {},
-  }
-}
-
-function snapshotEntry(
-  item: SnapshotSurface,
-  origin: SurfaceEntry['origin']
-): SurfaceEntry {
-  return {
-    id: item.surfaceId,
-    kind: item.kind === 'form' ? 'form' : 'card',
-    revision: item.revision,
-    seq: Math.max(0, (item.envelopes?.length ?? 1) - 1),
-    origin,
-    runId: item.runId,
-    messageId: item.messageId,
-    fallback: item.fallback,
-    form: item.form,
-    deleted: false,
-    formStatus: item.kind === 'form' ? 'pending' : undefined,
+    formStatus: surface.kind === 'form' ? 'pending' : undefined,
     fieldErrors: {},
   }
 }
