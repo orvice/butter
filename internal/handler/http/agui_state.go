@@ -8,6 +8,8 @@ import (
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 	"google.golang.org/adk/v2/session"
+
+	"go.orx.me/apps/butter/internal/a2ui"
 )
 
 // AG-UI shared state is the session's state map, server-authoritative
@@ -23,6 +25,9 @@ var aguiStateHiddenPrefixes = []string{
 	session.KeyPrefixApp,
 	session.KeyPrefixUser,
 	session.KeyPrefixTemp,
+	// UI records travel as A2UI envelopes, never as shared state, so a
+	// client can neither read nor overwrite them through STATE_*.
+	a2ui.StatePrefix,
 }
 
 // aguiVisibleState filters a session state map down to the keys a client may

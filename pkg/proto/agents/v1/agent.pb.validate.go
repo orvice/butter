@@ -1157,6 +1157,35 @@ func (m *WorkflowNode) validate(all bool) error {
 
 	// no validation rules for TimeoutSeconds
 
+	if all {
+		switch v := interface{}(m.GetForm()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, WorkflowNodeValidationError{
+					field:  "Form",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, WorkflowNodeValidationError{
+					field:  "Form",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetForm()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return WorkflowNodeValidationError{
+				field:  "Form",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return WorkflowNodeMultiError(errors)
 	}
@@ -1233,6 +1262,396 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = WorkflowNodeValidationError{}
+
+// Validate checks the field values on HumanInputForm with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *HumanInputForm) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on HumanInputForm with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in HumanInputFormMultiError,
+// or nil if none found.
+func (m *HumanInputForm) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *HumanInputForm) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Title
+
+	for idx, item := range m.GetFields() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, HumanInputFormValidationError{
+						field:  fmt.Sprintf("Fields[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, HumanInputFormValidationError{
+						field:  fmt.Sprintf("Fields[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return HumanInputFormValidationError{
+					field:  fmt.Sprintf("Fields[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return HumanInputFormMultiError(errors)
+	}
+
+	return nil
+}
+
+// HumanInputFormMultiError is an error wrapping multiple validation errors
+// returned by HumanInputForm.ValidateAll() if the designated constraints
+// aren't met.
+type HumanInputFormMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m HumanInputFormMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m HumanInputFormMultiError) AllErrors() []error { return m }
+
+// HumanInputFormValidationError is the validation error returned by
+// HumanInputForm.Validate if the designated constraints aren't met.
+type HumanInputFormValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e HumanInputFormValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e HumanInputFormValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e HumanInputFormValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e HumanInputFormValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e HumanInputFormValidationError) ErrorName() string { return "HumanInputFormValidationError" }
+
+// Error satisfies the builtin error interface
+func (e HumanInputFormValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sHumanInputForm.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = HumanInputFormValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = HumanInputFormValidationError{}
+
+// Validate checks the field values on HumanInputFormField with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *HumanInputFormField) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on HumanInputFormField with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// HumanInputFormFieldMultiError, or nil if none found.
+func (m *HumanInputFormField) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *HumanInputFormField) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for Label
+
+	// no validation rules for Hint
+
+	// no validation rules for Required
+
+	// no validation rules for Type
+
+	// no validation rules for MaxLength
+
+	for idx, item := range m.GetOptions() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, HumanInputFormFieldValidationError{
+						field:  fmt.Sprintf("Options[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, HumanInputFormFieldValidationError{
+						field:  fmt.Sprintf("Options[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return HumanInputFormFieldValidationError{
+					field:  fmt.Sprintf("Options[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return HumanInputFormFieldMultiError(errors)
+	}
+
+	return nil
+}
+
+// HumanInputFormFieldMultiError is an error wrapping multiple validation
+// errors returned by HumanInputFormField.ValidateAll() if the designated
+// constraints aren't met.
+type HumanInputFormFieldMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m HumanInputFormFieldMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m HumanInputFormFieldMultiError) AllErrors() []error { return m }
+
+// HumanInputFormFieldValidationError is the validation error returned by
+// HumanInputFormField.Validate if the designated constraints aren't met.
+type HumanInputFormFieldValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e HumanInputFormFieldValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e HumanInputFormFieldValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e HumanInputFormFieldValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e HumanInputFormFieldValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e HumanInputFormFieldValidationError) ErrorName() string {
+	return "HumanInputFormFieldValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e HumanInputFormFieldValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sHumanInputFormField.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = HumanInputFormFieldValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = HumanInputFormFieldValidationError{}
+
+// Validate checks the field values on HumanInputFormOption with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *HumanInputFormOption) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on HumanInputFormOption with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// HumanInputFormOptionMultiError, or nil if none found.
+func (m *HumanInputFormOption) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *HumanInputFormOption) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Value
+
+	// no validation rules for Label
+
+	if len(errors) > 0 {
+		return HumanInputFormOptionMultiError(errors)
+	}
+
+	return nil
+}
+
+// HumanInputFormOptionMultiError is an error wrapping multiple validation
+// errors returned by HumanInputFormOption.ValidateAll() if the designated
+// constraints aren't met.
+type HumanInputFormOptionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m HumanInputFormOptionMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m HumanInputFormOptionMultiError) AllErrors() []error { return m }
+
+// HumanInputFormOptionValidationError is the validation error returned by
+// HumanInputFormOption.Validate if the designated constraints aren't met.
+type HumanInputFormOptionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e HumanInputFormOptionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e HumanInputFormOptionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e HumanInputFormOptionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e HumanInputFormOptionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e HumanInputFormOptionValidationError) ErrorName() string {
+	return "HumanInputFormOptionValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e HumanInputFormOptionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sHumanInputFormOption.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = HumanInputFormOptionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = HumanInputFormOptionValidationError{}
 
 // Validate checks the field values on WorkflowRetryConfig with the rules
 // defined in the proto definition for this message. If any rules are

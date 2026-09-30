@@ -16,8 +16,9 @@ import (
 // Backend is an OpenAI-compatible chat completions endpoint for tests. It
 // records complete requests and derived user input by actual model ID.
 type Backend struct {
-	server   *httptest.Server
-	scripted map[string]http.HandlerFunc
+	server          *httptest.Server
+	scripted        map[string]http.HandlerFunc
+	requestScripted map[string]func(http.ResponseWriter, ChatCompletionRequest)
 
 	mu                sync.Mutex
 	inputsByModelID   map[string][]string
@@ -74,8 +75,13 @@ func (b *Backend) handleCompletion(w http.ResponseWriter, r *http.Request) {
 	b.inputsByModelID[req.Model] = append(b.inputsByModelID[req.Model], lastUser)
 	b.requestsByModelID[req.Model] = append(b.requestsByModelID[req.Model], req)
 	handler := b.scripted[req.Model]
+	requestHandler := b.requestScripted[req.Model]
 	b.mu.Unlock()
 
+	if requestHandler != nil {
+		requestHandler(w, req)
+		return
+	}
 	if handler != nil {
 		handler(w, r)
 		return
@@ -119,6 +125,7 @@ func (b *Backend) Answer(model, reply string) {
 func (b *Backend) Script(model string, handler http.HandlerFunc) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	delete(b.requestScripted, model)
 	b.scripted[model] = handler
 }
 
@@ -195,4 +202,92 @@ func WriteCompletion(w http.ResponseWriter, model, reply string) {
 		"model": %q,
 		"choices": [{"index": 0, "message": {"role": "assistant", "content": %q}, "finish_reason": "stop"}]
 	}`, model, reply)
+}
+
+// ToolCall is one function call a scripted model reply asks the agent to make.
+type ToolCall struct {
+	ID        string
+	Name      string
+	Arguments string
+}
+
+// ScriptRequest installs a handler that sees the decoded request — which the
+// plain Script handler cannot, because the body is already consumed — so a
+// script can answer differently per turn (e.g. call a tool, then reply once
+// the tool result is in the conversation).
+func (b *Backend) ScriptRequest(model string, handler func(w http.ResponseWriter, req ChatCompletionRequest)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.scripted, model)
+	if b.requestScripted == nil {
+		b.requestScripted = make(map[string]func(http.ResponseWriter, ChatCompletionRequest))
+	}
+	b.requestScripted[model] = handler
+}
+
+// Streaming reports whether the request asked for an SSE chunk stream.
+func (r ChatCompletionRequest) Streaming() bool {
+	stream, _ := r.Decoded["stream"].(bool)
+	return stream
+}
+
+// LastRole returns the role of the conversation's final message.
+func (r ChatCompletionRequest) LastRole() string {
+	if len(r.Messages) == 0 {
+		return ""
+	}
+	return r.Messages[len(r.Messages)-1].Role
+}
+
+// WriteReply answers in the shape the request asked for — an SSE chunk
+// stream when it set "stream": true, one JSON completion otherwise — with
+// either text or tool calls.
+func WriteReply(w http.ResponseWriter, req ChatCompletionRequest, text string, calls ...ToolCall) {
+	finish := "stop"
+	if len(calls) > 0 {
+		finish = "tool_calls"
+	}
+	if !req.Streaming() {
+		message := map[string]any{"role": "assistant", "content": text}
+		if len(calls) > 0 {
+			message["tool_calls"] = toolCallsJSON(calls, false)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "cmpl-test", "object": "chat.completion", "created": 1, "model": req.Model,
+			"choices": []any{map[string]any{"index": 0, "message": message, "finish_reason": finish}},
+		})
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	chunk := func(delta map[string]any, finishReason any) {
+		raw, _ := json.Marshal(map[string]any{
+			"id": "cmpl-test", "object": "chat.completion.chunk", "created": 1, "model": req.Model,
+			"choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finishReason}},
+		})
+		fmt.Fprintf(w, "data: %s\n\n", raw)
+	}
+	if text != "" {
+		chunk(map[string]any{"role": "assistant", "content": text}, nil)
+	}
+	if len(calls) > 0 {
+		chunk(map[string]any{"role": "assistant", "tool_calls": toolCallsJSON(calls, true)}, nil)
+	}
+	chunk(map[string]any{}, finish)
+	fmt.Fprint(w, "data: [DONE]\n\n")
+}
+
+func toolCallsJSON(calls []ToolCall, streaming bool) []any {
+	out := make([]any, 0, len(calls))
+	for i, c := range calls {
+		call := map[string]any{
+			"id": c.ID, "type": "function",
+			"function": map[string]any{"name": c.Name, "arguments": c.Arguments},
+		}
+		if streaming {
+			call["index"] = i
+		}
+		out = append(out, call)
+	}
+	return out
 }

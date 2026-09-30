@@ -345,6 +345,83 @@ message WorkflowNode {
   // Bounds a single activation of the node. 0 means no per-node timeout.
   // @gotags: json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"
   int32 timeout_seconds = 12;
+
+  // HUMAN_INPUT nodes: optional form presentation of the question. An
+  // A2UI-capable AG-UI client renders it as fields and submits a structured
+  // answer; every other entry point receives the question followed by field
+  // instructions and may answer in plain text. The form is a presentation
+  // and submission format, not an ADK response schema: the successor still
+  // receives a string. Unset keeps the plain-text question.
+  // @gotags: json:"form,omitempty" yaml:"form,omitempty"
+  HumanInputForm form = 13;
+}
+
+// HumanInputForm is the form a HUMAN_INPUT node presents to an A2UI-capable
+// client. Its definition is frozen into the request-input event when the node
+// pauses, so later edits never change the rules of a form already shown.
+message HumanInputForm {
+  // Heading shown above the fields. Empty uses the node's question.
+  // @gotags: json:"title,omitempty" yaml:"title,omitempty"
+  string title = 1;
+
+  // Ordered fields, 1 to 20. The submitted answer is a JSON object with one
+  // string member per field, in this order.
+  // @gotags: json:"fields,omitempty" yaml:"fields,omitempty"
+  repeated HumanInputFormField fields = 2;
+}
+
+// HumanInputFormFieldType selects how one form field is answered.
+enum HumanInputFormFieldType {
+  HUMAN_INPUT_FORM_FIELD_TYPE_UNSPECIFIED = 0;
+  // Free text, up to max_length characters.
+  HUMAN_INPUT_FORM_FIELD_TYPE_TEXT = 1;
+  // Exactly one of the fixed options.
+  HUMAN_INPUT_FORM_FIELD_TYPE_SINGLE_CHOICE = 2;
+}
+
+// HumanInputFormField is one field of a Human Input form.
+message HumanInputFormField {
+  // Key of this field in the submitted JSON object. Unique within the form;
+  // letters, digits and underscores, starting with a letter or underscore.
+  // @gotags: json:"name,omitempty" yaml:"name,omitempty"
+  string name = 1;
+
+  // Label shown next to the input.
+  // @gotags: json:"label,omitempty" yaml:"label,omitempty"
+  string label = 2;
+
+  // Optional helper text shown under the input.
+  // @gotags: json:"hint,omitempty" yaml:"hint,omitempty"
+  string hint = 3;
+
+  // Whether the field must be answered before the form can be submitted.
+  // @gotags: json:"required,omitempty" yaml:"required,omitempty"
+  bool required = 4;
+
+  // How the field is answered.
+  // @gotags: json:"type,omitempty" yaml:"type,omitempty"
+  HumanInputFormFieldType type = 5;
+
+  // TEXT fields: maximum answer length in characters, at most 2000. 0 uses
+  // 2000. Must be 0 for SINGLE_CHOICE fields.
+  // @gotags: json:"max_length,omitempty" yaml:"max_length,omitempty"
+  int32 max_length = 6;
+
+  // SINGLE_CHOICE fields: the fixed options, 1 to 50, with unique values.
+  // Must be empty for TEXT fields.
+  // @gotags: json:"options,omitempty" yaml:"options,omitempty"
+  repeated HumanInputFormOption options = 7;
+}
+
+// HumanInputFormOption is one fixed choice of a SINGLE_CHOICE field.
+message HumanInputFormOption {
+  // Value submitted when the option is chosen.
+  // @gotags: json:"value,omitempty" yaml:"value,omitempty"
+  string value = 1;
+
+  // Text shown for the option.
+  // @gotags: json:"label,omitempty" yaml:"label,omitempty"
+  string label = 2;
 }
 
 // WorkflowRetryConfig is a serializable subset of the ADK retry policy.

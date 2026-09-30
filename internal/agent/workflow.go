@@ -12,6 +12,7 @@ import (
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/workflow"
 
+	"go.orx.me/apps/butter/internal/a2ui"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -68,12 +69,18 @@ func validateWorkflowGraph(pb *agentsv1.Agent) error {
 			if strings.TrimSpace(n.GetQuestion()) == "" {
 				return fmt.Errorf("workflow node %q: a HUMAN_INPUT node requires a question", name)
 			}
+			if err := a2ui.ValidateFormConfig(n.GetForm()); err != nil {
+				return fmt.Errorf("workflow node %q: %w", name, err)
+			}
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER,
 			agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN:
 		default:
 			return fmt.Errorf("workflow node %q: kind must be one of AGENT, HUMAN_INPUT, ROUTER, JOIN", name)
 		}
 
+		if a2ui.HasForm(n.GetForm()) && n.GetKind() != agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT {
+			return fmt.Errorf("workflow node %q: a form is supported on only HUMAN_INPUT nodes", name)
+		}
 		if n.GetParallelWorker() && n.GetKind() != agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT {
 			return fmt.Errorf("workflow node %q: parallel_worker is only supported on AGENT nodes", name)
 		}
@@ -179,7 +186,7 @@ func newWorkflowAgent(pb *agentsv1.Agent, subAgents []agent.Agent, pool AgentPoo
 			}
 			nodes[n.GetName()] = node
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT:
-			nodes[n.GetName()] = newHumanInputNode(n.GetName(), n.GetQuestion(), workflowNodeConfig(n))
+			nodes[n.GetName()] = newHumanInputNode(n.GetName(), n.GetQuestion(), n.GetForm(), workflowNodeConfig(n))
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_ROUTER:
 			nodes[n.GetName()] = newRouterNode(n.GetName(), outgoingLabels[n.GetName()], workflowNodeConfig(n))
 		case agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN:
