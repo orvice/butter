@@ -29,6 +29,7 @@ import {
   Server,
   Settings2,
   ShieldCheck,
+  SquareKanban,
   Sun,
   UserRound,
   Users,
@@ -118,6 +119,20 @@ const CONNECTION_SECTIONS: ManageSection[] = [
           'Inspect processing history and resend replies that never landed.',
         to: '/telegram-updates',
         icon: ListTree,
+      },
+      {
+        title: 'Linear Platform Settings',
+        description:
+          'Set the public base URL Linear delivers webhooks and OAuth callbacks to.',
+        to: '/admin/linear',
+        icon: ShieldCheck,
+      },
+      {
+        title: 'Linear Apps',
+        description:
+          'Route Linear OAuth apps to Agents so issues can be delegated to them.',
+        to: '/linear-apps',
+        icon: SquareKanban,
       },
       {
         title: 'Notify Groups',

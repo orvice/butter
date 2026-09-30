@@ -1,0 +1,224 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// Linear Agent Sessions (ADR-0015, spec #358).
+//
+// A LinearApp is a workspace's registration of one Linear OAuth application,
+// routed to exactly one Agent. Its app user is that Agent's identity in
+// Linear: people delegate an issue to it or mention it, and the routed Agent
+// works in the resulting Linear Agent Session.
+//
+// The client secret and the webhook signing secret are intentionally not
+// fields of LinearApp: they are encrypted at rest behind a repository
+// credential seam (ADR-0005, ADR-0008), so plaintext can never appear in API
+// responses, logs, or persisted public models. `credential_state` and the
+// `*_secret_set` flags only report whether they are stored.
+// =============================================================================
+
+// LinearAppCredentialState reports whether both App secrets are stored
+// without revealing either.
+enum LinearAppCredentialState {
+  LINEAR_APP_CREDENTIAL_STATE_UNSPECIFIED = 0;
+  // At least one of the client secret and webhook signing secret is missing.
+  LINEAR_APP_CREDENTIAL_STATE_INCOMPLETE = 1;
+  // Both secrets are stored.
+  LINEAR_APP_CREDENTIAL_STATE_COMPLETE = 2;
+}
+
+// LinearApp is one Linear OAuth application registered in a workspace.
+message LinearApp {
+  // Service-generated immutable identifier. The webhook URL is derived from
+  // it, so it never changes.
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // Mutable display name, also the channel name of the Agent's turns.
+  // @gotags: json:"display_name,omitempty" bson:"display_name,omitempty"
+  string display_name = 2;
+
+  // The Linear OAuth application's public client ID. Globally unique: one
+  // Linear app can be registered in exactly one Butter workspace.
+  // @gotags: json:"client_id,omitempty" bson:"client_id,omitempty"
+  string client_id = 3;
+
+  // The Agent every Linear Agent Session of this App is routed to. Must name
+  // an active Agent of the workspace.
+  // @gotags: json:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 4;
+
+  // Desired inbound state: whether Linear deliveries are accepted. Enabling
+  // requires both secrets and a durable queue.
+  // @gotags: json:"inbound_enabled,omitempty" bson:"inbound_enabled,omitempty"
+  bool inbound_enabled = 5;
+
+  // Linear user IDs admitted to open or prompt a session. Empty admits every
+  // member of the installed Linear organizations.
+  // @gotags: json:"allowed_user_ids,omitempty" bson:"allowed_user_ids,omitempty"
+  repeated string allowed_user_ids = 6;
+
+  // Maximum run time of one turn, in seconds. Absent means 1800; an explicit
+  // 0 means unlimited.
+  // @gotags: json:"max_run_seconds,omitempty" bson:"max_run_seconds,omitempty"
+  optional int32 max_run_seconds = 7;
+
+  // Optimistic concurrency token. Updates must send the revision they read.
+  // @gotags: json:"revision,omitempty" bson:"revision,omitempty"
+  int64 revision = 8;
+
+  // Server-owned. Never carries credential material.
+  // @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+  LinearAppCredentialState credential_state = 9;
+
+  // Whether the OAuth client secret is stored. Server-owned.
+  // @gotags: json:"client_secret_set,omitempty" bson:"client_secret_set,omitempty"
+  bool client_secret_set = 10;
+
+  // Whether the webhook signing secret is stored. Server-owned.
+  // @gotags: json:"webhook_secret_set,omitempty" bson:"webhook_secret_set,omitempty"
+  bool webhook_secret_set = 11;
+
+  // The OAuth callback URL to register with the Linear app. Output only:
+  // derived from the platform Linear base URL, empty until it is configured.
+  // @gotags: json:"callback_url,omitempty" bson:"callback_url,omitempty"
+  string callback_url = 12;
+
+  // The webhook URL to register with the Linear app. Output only: derived
+  // from the platform Linear base URL and this App's ID.
+  // @gotags: json:"webhook_url,omitempty" bson:"webhook_url,omitempty"
+  string webhook_url = 13;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 14;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 15;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// LinearAppService manages a workspace's Linear Apps. Members may read;
+// workspace owners and admins manage.
+service LinearAppService {
+  rpc ListLinearApps(ListLinearAppsRequest) returns (ListLinearAppsResponse);
+  rpc GetLinearApp(GetLinearAppRequest) returns (GetLinearAppResponse);
+
+  // CreateLinearApp registers a Linear OAuth app routed to one Agent.
+  rpc CreateLinearApp(CreateLinearAppRequest) returns (CreateLinearAppResponse);
+
+  // UpdateLinearApp replaces the mutable fields under the optimistic
+  // revision check. The ID and client ID are immutable.
+  rpc UpdateLinearApp(UpdateLinearAppRequest) returns (UpdateLinearAppResponse);
+
+  // PutLinearAppCredentials sets or clears the write-only secrets.
+  rpc PutLinearAppCredentials(PutLinearAppCredentialsRequest) returns (PutLinearAppCredentialsResponse);
+
+  rpc DeleteLinearApp(DeleteLinearAppRequest) returns (DeleteLinearAppResponse);
+}
+
+message ListLinearAppsRequest {}
+
+message ListLinearAppsResponse {
+  repeated LinearApp apps = 1;
+}
+
+message GetLinearAppRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetLinearAppResponse {
+  LinearApp app = 1;
+}
+
+message CreateLinearAppRequest {
+  // Only display_name, client_id, agent_id, inbound_enabled,
+  // allowed_user_ids and max_run_seconds are read. Identity, revision,
+  // timestamps and credential state are server-owned.
+  LinearApp app = 1;
+
+  // OAuth client secret, write-only. Encrypted before storage and never
+  // returned by any RPC.
+  optional string client_secret = 2;
+
+  // Webhook signing secret, write-only.
+  optional string webhook_secret = 3;
+}
+
+message CreateLinearAppResponse {
+  LinearApp app = 1;
+}
+
+message UpdateLinearAppRequest {
+  // `id` selects the App and `revision` must match the stored one.
+  LinearApp app = 1;
+}
+
+message UpdateLinearAppResponse {
+  LinearApp app = 1;
+}
+
+message PutLinearAppCredentialsRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Absent keeps the stored secret; empty clears it.
+  optional string client_secret = 2;
+
+  // Absent keeps the stored secret; empty clears it.
+  optional string webhook_secret = 3;
+}
+
+message PutLinearAppCredentialsResponse {
+  LinearApp app = 1;
+}
+
+message DeleteLinearAppRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteLinearAppResponse {}
+
+// =============================================================================
+// LinearAdminService manages platform-level Linear settings.
+//
+// The public base URL is global, not per-workspace: it names the public
+// address of this deployment. Only global administrators may read or change
+// it, so workspace input can never redirect Linear webhooks or OAuth
+// callbacks.
+// =============================================================================
+service LinearAdminService {
+  rpc GetLinearSettings(GetLinearSettingsRequest) returns (GetLinearSettingsResponse);
+  rpc UpdateLinearSettings(UpdateLinearSettingsRequest) returns (UpdateLinearSettingsResponse);
+}
+
+// LinearSettings holds platform-level Linear configuration.
+message LinearSettings {
+  // Public base URL Linear reaches this deployment at, e.g.
+  // "https://butter.example.com". Callback and webhook URLs are derived from
+  // it and immutable IDs.
+  // @gotags: json:"public_base_url,omitempty" bson:"public_base_url,omitempty"
+  string public_base_url = 1;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 2;
+}
+
+message GetLinearSettingsRequest {}
+
+message GetLinearSettingsResponse {
+  LinearSettings settings = 1;
+}
+
+message UpdateLinearSettingsRequest {
+  LinearSettings settings = 1;
+}
+
+message UpdateLinearSettingsResponse {
+  LinearSettings settings = 1;
+}

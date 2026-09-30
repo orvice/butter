@@ -70,6 +70,8 @@ type Handlers struct {
 	tgDestinationSvcServer *application.TelegramDestinationServiceServer
 	tgAdminSvcServer       *application.TelegramAdminServiceServer
 	tgProcessingSvcServer  *application.TelegramProcessingServiceServer
+	linearAppSvcServer     *application.LinearAppServiceServer
+	linearAdminSvcServer   *application.LinearAdminServiceServer
 	tgReceiver             atomic.Value // *telegram.Receiver
 	tgReconciler           *telegramruntime.Reconciler
 	tgWorker               *telegramruntime.Worker
@@ -549,6 +551,20 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			result.AutomationEngine.SetTelegramDelivery(sender)
 		}
 	}
+	// Linear Apps (ADR-0015). Their secrets go through the same
+	// database-backed master key as Telegram and ButterBox credentials.
+	if result.LinearRepo != nil {
+		if h.linearAppSvcServer != nil {
+			h.linearAppSvcServer.SetRepo(result.LinearRepo)
+			h.linearAppSvcServer.SetKeyring(secretbox.NewKeyring(result.CryptoKeyRepo))
+			h.linearAppSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+			h.linearAppSvcServer.SetSettingsRepo(result.LinearSettingRepo)
+		}
+		h.agentSvcServer.SetLinearGuard(application.NewLinearReferenceGuard(result.LinearRepo))
+	}
+	if h.linearAdminSvcServer != nil && result.LinearSettingRepo != nil {
+		h.linearAdminSvcServer.SetRepo(result.LinearSettingRepo)
+	}
 	if result.WorkspaceRepo != nil {
 		if h.tgChannelSvcServer != nil {
 			h.tgChannelSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
@@ -736,6 +752,11 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	tgAdminConnectPath, tgAdminConnectHandler := agentsv1connect.NewTelegramAdminServiceHandler(tgAdminSvcServer, connectOpts...)
 	tgProcessingSvcServer := application.NewTelegramProcessingServiceServer(nil)
 	tgProcessingConnectPath, tgProcessingConnectHandler := agentsv1connect.NewTelegramProcessingServiceHandler(tgProcessingSvcServer, connectOpts...)
+	linearAppSvcServer := application.NewLinearAppServiceServer(nil)
+	linearAppSvcServer.SetAgentRepo(configStore)
+	linearAppConnectPath, linearAppConnectHandler := agentsv1connect.NewLinearAppServiceHandler(linearAppSvcServer, connectOpts...)
+	linearAdminSvcServer := application.NewLinearAdminServiceServer(nil)
+	linearAdminConnectPath, linearAdminConnectHandler := agentsv1connect.NewLinearAdminServiceHandler(linearAdminSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -769,6 +790,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		tgDestinationSvcServer: tgDestinationSvcServer,
 		tgAdminSvcServer:       tgAdminSvcServer,
 		tgProcessingSvcServer:  tgProcessingSvcServer,
+		linearAppSvcServer:     linearAppSvcServer,
+		linearAdminSvcServer:   linearAdminSvcServer,
 		workspaceMCPSvc:        workspaceMCPSvc,
 		configStore:            configStore,
 		configRuntime:          configRuntime,
@@ -843,6 +866,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+tgDestinationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgDestinationConnectHandler)))
 		r.Any("/api"+tgAdminConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgAdminConnectHandler)))
 		r.Any("/api"+tgProcessingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", tgProcessingConnectHandler)))
+		r.Any("/api"+linearAppConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearAppConnectHandler)))
+		r.Any("/api"+linearAdminConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearAdminConnectHandler)))
 
 		// The Telegram callback is public: it authenticates with the
 		// per-Channel secret Telegram echoes, not with a Butter session, and
