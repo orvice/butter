@@ -15,6 +15,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 
+	"go.orx.me/apps/butter/internal/a2ui"
 	"go.orx.me/apps/butter/internal/linearapi"
 	linearrepo "go.orx.me/apps/butter/internal/repo/linear"
 	"go.orx.me/apps/butter/internal/repo/linearprocessing"
@@ -567,21 +568,60 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts 
 		_ = t.fail(ctx, body)
 		return nil
 	}
-	output := strings.TrimSpace(result.Output)
-	if output == "" {
-		output = "The agent finished without a text reply."
+	reply := linearapi.Activity{Type: linearapi.ActivityResponse}
+	if result.Interrupted() {
+		// A Workflow paused on a Human Input node: ask in Linear. The next
+		// message resumes it through the runner's FIFO implicit resume
+		// (ADR-0002), so there is no pending store of our own.
+		reply = o.elicitation(ctx, route, result.Pending[0])
+	} else {
+		output := strings.TrimSpace(result.Output)
+		if output == "" {
+			output = "The agent finished without a text reply."
+		}
+		reply.Body = truncateResponse(output, o.externalURL(ctx, route))
 	}
 	// Persist the reply before posting it: a failed post is then a resend,
 	// never a rerun.
-	if err := o.persistReply(ctx, prompts, linearapi.Activity{
-		Type: linearapi.ActivityResponse,
-		Body: truncateResponse(output, o.externalURL(ctx, route)),
-	}); err != nil {
+	if err := o.persistReply(ctx, prompts, reply); err != nil {
 		o.recordUncertain(ctx, t, prompts, err)
 		return nil
 	}
 	_ = o.deliver(ctx, t, prompts)
 	return nil
+}
+
+// elicitation asks a paused Workflow's question. A Human Input Form whose
+// only field is a single choice offers its options as a select; any other
+// form's question already carries the field instructions every non-A2UI
+// entry point appends.
+func (o *Orchestrator) elicitation(ctx context.Context, route routing, pending runner.PendingInput) linearapi.Activity {
+	a := linearapi.Activity{Type: linearapi.ActivityElicitation, Body: pending.Question}
+	sess, err := o.runner.GetSession(ctx, AppName, route.sessionID, route.userID)
+	if err != nil || sess == nil {
+		return a
+	}
+	for _, form := range a2ui.PendingForms(sess) {
+		if form.InterruptID != pending.InterruptID || len(form.Fields) != 1 || form.Fields[0].Type != a2ui.FieldSingleChoice {
+			continue
+		}
+		options := make([]any, 0, len(form.Fields[0].Options))
+		for _, option := range form.Fields[0].Options {
+			label := option.Label
+			if label == "" {
+				label = option.Value
+			}
+			options = append(options, map[string]any{"label": label, "value": option.Value})
+		}
+		question := strings.TrimSpace(form.Question)
+		if question == "" {
+			question = form.Title
+		}
+		a.Body = question
+		a.Signal = "select"
+		a.SignalMetadata = map[string]any{"options": options}
+	}
+	return a
 }
 
 // linkSession points the Linear Agent Session at the Butter session in the
