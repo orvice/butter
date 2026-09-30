@@ -149,3 +149,29 @@ export function applyAGUIStateDelta(
   }
   return next
 }
+
+// fetchAGUIUISnapshot reads a thread's current A2UI surfaces — read-only
+// cards and unanswered forms — rebuilt from the persisted session, without
+// starting a run. A thread the caller does not own, or one without UI,
+// answers with no surfaces. 409 means a run holds the thread: retry.
+export async function fetchAGUIUISnapshot<T>(
+  agentId: string,
+  threadId: string,
+  signal?: AbortSignal
+): Promise<T> {
+  const res = await fetch(
+    `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}/threads/${encodeURIComponent(threadId)}/ui`,
+    { headers: authHeaders(), signal }
+  )
+  if (!res.ok) {
+    let message = `UI snapshot failed (${res.status})`
+    try {
+      const data = (await res.json()) as { error?: string }
+      if (data?.error) message = data.error
+    } catch {
+      // Non-JSON error body; keep the status message.
+    }
+    throw new ApiError(String(res.status), message)
+  }
+  return (await res.json()) as T
+}

@@ -1,0 +1,93 @@
+# ADR-0014: A2UI result cards and Human Input forms over AG-UI
+
+- Status: Accepted
+- Date: 2026-09-30
+- Issue: #350 (spec), #351–#355 (slices)
+- Builds on: ADR-0002 (Interrupt state derived from session events)
+
+## Context
+
+AG-UI Chat shows text, tool calls, shared state and Workflow Interrupts, but
+structured results arrive as Markdown or raw tool JSON, and a Human Input node
+offers only a question. A2UI v0.9.1 is a declarative UI format — the agent
+sends JSON describing components from a catalog the client ships — and it is
+complementary to AG-UI, which stays the transport. Several facts shape how the
+two meet in Butter:
+
+- The AG-UI session key is `(caller, "agui-" + threadId)`. Neither the
+  workspace nor the agent is part of it, so the same caller reusing a
+  `threadId` under another workspace or agent lands on the same session.
+- The ADK runner appends every non-partial event to the session before it
+  yields it, and a tool's `State().Set` becomes that event's `StateDelta`.
+- Pending Interrupts are derived from session events alone (ADR-0002); there
+  is no Butter-owned Interrupt store.
+- A2UI v0.9.1 is prompt-first: model output must be validated after
+  generation, never rendered as is.
+- The assistant-ui AG-UI runtime and the AG-UI client assume one resume
+  answers every open interrupt; Butter answers by ID and keeps the rest
+  pending.
+
+## Decision
+
+1. **Transport.** Each A2UI message is one AG-UI `CUSTOM` event named
+   `butter.a2ui` whose value carries the protocol version, a server-assigned
+   `(revision, seq)`, the thread/run/message it belongs to, readable fallback
+   text, and exactly one complete envelope. It is a Butter extension, not an
+   A2UI-standard AG-UI binding. Clients opt in per run with
+   `forwardedProps.butterA2UI = {version, catalogs}`; the declaration selects
+   the server's built-in catalog `butter-basic-v1` and can never upload
+   components or schemas. Without it nothing changes.
+2. **Two kinds of Surface, one catalog.** Models create, update and delete
+   read-only **Result Cards** through an invocation-scoped `render_ui` tool,
+   offered only in negotiated runs to LLM agents. Inputs and buttons exist only
+   in **Human Input Forms** the server builds; a model can neither collect
+   input nor define an action. Every `render_ui` batch is validated whole
+   (catalog, properties, references, lifecycle, limits) before anything is
+   written.
+3. **State lives in the session, nowhere else.** A card is a JSON-string record
+   in a hidden namespace of ADK session state (`butter:a2ui:card:<id>`, deleted
+   cards kept as tombstones so revisions stay monotonic), written through the
+   tool's state delta. A form's binding — surface ID, submit token, revision,
+   the Interrupt ID and the field rules — is frozen into the request-input
+   event's `CustomMetadata` when the node pauses. There is no UI collection and
+   no second pending store: which forms are open is `interrupt.Pending` joined
+   with those bindings. The namespace never enters AG-UI shared state, so a
+   client's `state` can neither read nor write it.
+4. **Persist, then send.** The sink derives envelopes only from events the
+   runner already stored, as the transition from what the client holds to what
+   the session now holds. The UI Snapshot
+   (`GET /api/agui/:agent_id/threads/:thread_id/ui`) rebuilds the same state
+   after a refresh, a dropped stream or a restart, under the thread's session
+   lease, without running the agent.
+5. **UI Binding.** The AG-UI handler creates a new thread's session carrying
+   `{principal, workspace, agent_id, thread_id}`. UI is exposed and accepted
+   only when a request matches it; sessions created before A2UI (no binding)
+   and reused threadIds in another context stay text-only.
+6. **Submission is a resume.** A form is submitted through AG-UI `resume`
+   (`status: "resolved"`, payload `{butterForm: {version, surfaceId,
+   revision, token, values}}`). Under the lease the handler checks binding,
+   token, revision, that the Interrupt is still pending, and the field rules,
+   then delivers the configured fields as a JSON object text — the ordinary
+   string payload of ADR-0002, not a typed resume. A rejection answers before
+   the stream opens and never falls back to answering another Interrupt. A run
+   that answered Interrupts reports every one still open in its outcome, and
+   marks answered forms with an `updateDataModel` on `/status`.
+
+## Consequences
+
+- Non-A2UI clients and every other entry point are unchanged; a Human Input
+  node with a form appends field instructions to its question, and plain-text
+  and FIFO answers keep working. The form's rules bind form submissions only.
+- Surfaces cost one session-state write per card change and nothing else;
+  deleting a session deletes its UI with it.
+- The UI state is only as isolated as the binding: a pre-A2UI session never
+  gets UI, even for its owner.
+- ADK's workflow engine parses a JSON answer on resume and re-encodes it for
+  the successor, so the successor sees the answer's keys sorted; the stored
+  payload keeps the configured order.
+- The dashboard sends a form's resume through the assistant-ui runtime's
+  "steer away" path and replaces the resume array the runtime and AG-UI client
+  require (every open interrupt) with the form's single entry, so the
+  submission appears as a readable reply in the conversation.
+- A per-agent policy for card generation (disable, prefer) and pre-built card
+  templates are left for later.

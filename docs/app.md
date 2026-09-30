@@ -57,7 +57,13 @@ Workflow Agent 是第五种 agent 类型，将有向图（节点 + 边）声明�
 - 删除 session 可放弃暂停中的 workflow。
 - 暂停状态存储在 session events 中（ADK 把 workflow run state 写在 session state），进程重启后可恢复。
 
-**配置校验：** `CreateAgent` / `UpdateAgent` 在保存时校验图结构——未声明的节点引用、重复名称、Router 缺少 default edge、routed edge 指向 JOIN 等均被拒绝。
+**Human Input 表单（A2UI，issue #350，ADR-0014）：**
+- HUMAN_INPUT 节点可选配置 `form`：标题与最多 20 个有序字段（文本字段最长 2000 字符；单选字段最多 50 个固定选项）。保存 Agent 和构建 Workflow Agent 时都会校验（重复/非法字段名、空标签、非法选项、类型与长度），dashboard 的 Agent 编辑页可直接增删、排序字段和选项。空配置保持原有纯文本问题。
+- 节点暂停时，表单定义、surface、提交 token 与 Interrupt ID 的绑定随 request-input 事件一起持久化；之后修改配置不影响已展示表单的规则。
+- 支持 A2UI 的 AG-UI 客户端（dashboard 的 AG-UI Chat）看到服务端生成的表单；提交经服务端校验后，按配置字段顺序编码为 JSON 对象文本，作为该 Interrupt 的普通字符串回复——下游节点收到的仍是文本（ADK 恢复时会解析 JSON 并重新编码，后继节点看到的键按字母序）。
+- 其他入口（Telegram、经典 Chat、cron 投递、不支持 A2UI 的客户端）收到问题文本 + 字段填写说明，可直接用文字或 JSON 文本回答；表单规则只约束表单提交，纯文本与 FIFO 语义不变。
+
+**配置校验：** `CreateAgent` / `UpdateAgent` 在保存时校验图结构——未声明的节点引用、重复名称、Router 缺少 default edge、routed edge 指向 JOIN、非法 Human Input 表单等均被拒绝。
 
 ### 1.2 Pi Agent（ButterBox 执行）
 
@@ -148,6 +154,16 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - `POST /a2a/:agent_ref`：A2A JSON-RPC `tasks/send`。
 - `GET /api/v1/models` / `POST /api/v1/chat/completions`：OpenAI 兼容 API（仅 `enable_openai_api: true` 的 Agent）；`model` 字段**即** agent_id（legacy name 查找已移除），`/v1/models` 只列出有 agent_id 的 agent。
 - `POST /api/uploads/*`：头像/静态资源 multipart 上传（REST，非 Connect）；见 `docs/storage.md`。
+- `POST /api/agui/:agent_id`：AG-UI 协议入口（仅 `enable_agui: true` 的 Agent），SSE 流式返回 AG-UI 事件；同一 thread 跨 Pod 串行。
+- `GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照，返回该 thread 当前的只读结果卡片与未回答的表单，不运行 Agent。
+
+### AG-UI Chat 的结果卡片与表单（A2UI v0.9.1，ADR-0014）
+
+- **定位**：AG-UI 仍是事件与状态传输协议，A2UI 只是 UI 内容格式。客户端在 `forwardedProps.butterA2UI` 声明 `v0.9.1` 与 catalog `butter-basic-v1` 才启用；没有声明时协议行为与之前完全一致。每条 A2UI 消息作为一个 `CUSTOM` 事件 `butter.a2ui` 下发（Butter 自有扩展），携带服务端分配的 revision、消息关联信息、完整 envelope 和可读 fallback。
+- **结果卡片**：协商成功的运行中，LLM Agent 获得 `render_ui` 工具，可生成、更新、删除只读卡片（标题、正文、键值结果、状态）。整批先校验再写入：未知组件、原始 HTML、URL、模型自定义 action、悬空引用、超过 100 个组件 / 64 KiB 每批 / 每个会话 20 张卡片都会被拒绝并返回可读工具错误，不部分写入。Pi/Cursor、远程 Agent 和非 AG-UI 入口没有这个工具。
+- **持久化**：卡片存在 session state 的隐藏命名空间里（不进入 AG-UI 共享 state，客户端 `state` 无法读写）；表单绑定随暂停事件保存。先持久化、后发送；刷新、断线或重启后通过 UI 快照恢复，不再次运行 Agent，也没有新的数据库集合或第二份 pending 状态（ADR-0002）。
+- **隔离**：新 AG-UI 会话创建时记录 UI 绑定（调用用户、Workspace、Agent ID、thread）。只有完全匹配的请求才能看到或提交 UI；A2UI 之前创建的历史会话、在其他 Workspace/Agent 下复用的 threadId 都只保留文字聊天。
+- **表单提交**：沿用 AG-UI `resume` 的 resolved 分支。服务端在 session lease 内校验绑定、token、revision、Interrupt 仍待回答以及字段规则，失败时在运行前拒绝（400 未知/伪造/跨上下文、409 已提交或过期、422 字段错误），不追加回复、不运行 Agent、也不会转去回答另一个 Interrupt。重复提交返回“已提交”提示，不承诺跨系统 exactly-once；`cancelled` 仍被拒绝。
 
 ### RPC（`/api`，ConnectRPC，同时支持 Connect / gRPC-Web / gRPC）
 
@@ -399,6 +415,7 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 route/feature 层 boundary。Chat 通过 `SubmitAgentInvocation` + `WatchAgentInvocation` 观察异步执行；同步兼容入口仍可使用 `AgentService.StreamAgent`。头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
 - 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Forum / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Memory / Users / Profile / Integrations / Admin。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
+- AG-UI Chat（`front/src/features/agui-chat`）基于 `@ag-ui/client` HttpAgent + assistant-ui，并用 `@a2ui/react` / `@a2ui/web_core` 0.12.0 按 dashboard 设计系统渲染 `butter-basic-v1`。卡片出现在产生它的回答里，同一卡片的更新原地刷新；无法渲染的 surface 只显示其可读 fallback，不影响文字和工具调用。表单提交中禁用按钮、失败保留草稿并显示字段错误、成功后以一条可读回复出现在对话里并变为不可再提交。当前 thread 按 Workspace + Agent + 用户记住，刷新后先读 UI 快照再接收增量；切换 Workspace/Agent/用户或点 “New thread” 会清掉上一上下文的 UI。完整聊天历史不恢复，未提交草稿也不跨刷新保存。
 
 ## 18.5 Telegram 运维前提
 

@@ -6,6 +6,7 @@ export type AgentType =
   | "AGENT_TYPE_LOOP"
   | "AGENT_TYPE_SEQUENTIAL"
   | "AGENT_TYPE_PARALLEL"
+  | "AGENT_TYPE_WORKFLOW"
   | "AGENT_TYPE_PI"
   | "AGENT_TYPE_CURSOR";
 
@@ -182,8 +183,58 @@ export interface CursorAgentConfig {
   max_run_seconds?: number;
 }
 
+export type HumanInputFormFieldType =
+  | "HUMAN_INPUT_FORM_FIELD_TYPE_UNSPECIFIED"
+  | "HUMAN_INPUT_FORM_FIELD_TYPE_TEXT"
+  | "HUMAN_INPUT_FORM_FIELD_TYPE_SINGLE_CHOICE";
+
+export interface HumanInputFormOption {
+  value?: string;
+  label?: string;
+}
+
+export interface HumanInputFormField {
+  name?: string;
+  label?: string;
+  hint?: string;
+  required?: boolean;
+  type?: HumanInputFormFieldType;
+  max_length?: number;
+  options?: HumanInputFormOption[];
+}
+
+/** Form presentation of a HUMAN_INPUT node (A2UI-capable AG-UI clients). */
+export interface HumanInputForm {
+  title?: string;
+  fields?: HumanInputFormField[];
+}
+
+export type WorkflowNodeKind =
+  | "WORKFLOW_NODE_KIND_UNSPECIFIED"
+  | "WORKFLOW_NODE_KIND_AGENT"
+  | "WORKFLOW_NODE_KIND_HUMAN_INPUT"
+  | "WORKFLOW_NODE_KIND_ROUTER"
+  | "WORKFLOW_NODE_KIND_JOIN";
+
+export interface WorkflowNode {
+  name?: string;
+  kind?: WorkflowNodeKind;
+  agent_id?: string;
+  question?: string;
+  form?: HumanInputForm;
+  parallel_worker?: boolean;
+  timeout_seconds?: number;
+  [key: string]: unknown;
+}
+
+export interface WorkflowConfig {
+  nodes?: WorkflowNode[];
+  edges?: Array<Record<string, unknown>>;
+}
+
 export interface AgentConfig {
   runtime?: AgentRuntime;
+  workflow?: WorkflowConfig;
   mcp_servers?: MCPServer[];
   context_guard?: ContextGuardConfig;
   memory?: MemoryConfig;

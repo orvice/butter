@@ -1,27 +1,40 @@
-import { useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import type { Agent } from '@/types/api'
-import { HttpAgent } from '@ag-ui/client'
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
   ActionBarPrimitive,
+  useAuiState,
 } from '@assistant-ui/react'
 import {
   useAgUiRuntime,
   useAgUiInterrupts,
+  useAgUiSteerAway,
   useAgUiSubmitInterruptResponses,
   useAgUiState,
 } from '@assistant-ui/react-ag-ui'
-import { ChevronDown, Copy, PlugZap, Send, Square, Wrench } from 'lucide-react'
+import {
+  ChevronDown,
+  Copy,
+  History,
+  MessageSquarePlus,
+  PlugZap,
+  Send,
+  Square,
+  Wrench,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
+import { fetchAGUIUISnapshot } from '@/api/agui'
 import { BASE_URL, authHeaders } from '@/api/client'
+import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
+import { useWorkspace } from '@/context/workspace-provider'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -36,6 +49,22 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { ButterAGUIAgent } from './a2ui/agent'
+import { readableReply, submissionPayload } from './a2ui/form'
+import {
+  EVENT_NAME,
+  envelopeOp,
+  isA2UIEventValue,
+  type UISnapshot,
+} from './a2ui/protocol'
+import { A2UIStore, useA2UIStore } from './a2ui/store'
+import { A2UISurfaceView } from './a2ui/surface-view'
+import {
+  currentThread,
+  newThreadId,
+  threadPointerKey,
+  writeThreadPointer,
+} from './thread-pointer'
 
 function isSelectableAgent(a: Agent): boolean {
   const status = a.lifecycle_status
@@ -46,9 +75,10 @@ function isSelectableAgent(a: Agent): boolean {
   return runnable && !!a.enable_agui && !!a.agent_id
 }
 
-function makeHttpAgent(agentId: string): HttpAgent {
-  return new HttpAgent({
+function makeHttpAgent(agentId: string, threadId: string): ButterAGUIAgent {
+  return new ButterAGUIAgent({
     url: `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}`,
+    threadId,
     fetch: (url, init) => {
       const headers = {
         ...authHeaders(),
@@ -75,13 +105,33 @@ export function AGUIChatPage() {
     () => agents.find((a) => a.agent_id === agentId) ?? null,
     [agents, agentId]
   )
+  const { selectedWorkspaceId } = useWorkspace()
+  const userId = useAuthStore((state) => state.auth.user?.id ?? '')
+
+  // The current thread is remembered per workspace, user and agent, so a
+  // refresh returns to it; switching any of them selects that context's own
+  // thread and discards everything shown for the previous one.
+  const pointerKey =
+    agentId && userId && selectedWorkspaceId
+      ? threadPointerKey(selectedWorkspaceId, userId, agentId)
+      : null
+  const [threads, setThreads] = useState<Record<string, string>>({})
+  const threadId = pointerKey
+    ? (threads[pointerKey] ?? currentThread(pointerKey))
+    : null
+  const startNewThread = () => {
+    if (!pointerKey) return
+    const id = newThreadId()
+    writeThreadPointer(pointerKey, id)
+    setThreads((t) => ({ ...t, [pointerKey]: id }))
+  }
 
   const httpAgent = useMemo(
-    () => (agentId ? makeHttpAgent(agentId) : null),
-    [agentId]
+    () => (agentId && threadId ? makeHttpAgent(agentId, threadId) : null),
+    [agentId, threadId]
   )
 
-  if (!httpAgent) {
+  if (!httpAgent || !agentId || !threadId) {
     return (
       <>
         <PageHeader />
@@ -106,50 +156,161 @@ export function AGUIChatPage() {
 
   return (
     <AGUIChatWithRuntime
+      key={`${selectedWorkspaceId}:${userId}:${agentId}:${threadId}`}
       httpAgent={httpAgent}
       agents={agents}
       agentId={agentId}
+      threadId={threadId}
       agentName={agent?.name ?? 'Agent'}
       onAgentChange={(id) => setPickedAgentId(id)}
+      onNewThread={startNewThread}
     />
   )
+}
+
+// A2UIStoreContext gives message parts access to the thread's surfaces.
+const A2UIStoreContext = createContext<A2UIStore | null>(null)
+
+function useThreadA2UI(): A2UIStore {
+  const store = useContext(A2UIStoreContext)
+  if (!store) throw new Error('A2UI store missing')
+  return store
+}
+
+// useA2UI owns one thread's surfaces: it feeds every butter.a2ui CUSTOM
+// event to the store in arrival order and restores the thread's persisted
+// cards and unanswered forms from the UI snapshot on mount.
+function useA2UI(
+  httpAgent: ButterAGUIAgent,
+  agentId: string,
+  threadId: string
+) {
+  const [store] = useState(() => new A2UIStore())
+
+  useEffect(() => {
+    const sub = httpAgent.subscribe({
+      onCustomEvent: ({ event }) => {
+        if (event.name === EVENT_NAME) store.apply(event.value)
+      },
+    })
+    return () => sub.unsubscribe()
+  }, [httpAgent, store])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const load = async (attempt: number) => {
+      try {
+        const snap = await fetchAGUIUISnapshot<UISnapshot>(
+          agentId,
+          threadId,
+          controller.signal
+        )
+        store.applySnapshot(snap)
+      } catch (err) {
+        if (controller.signal.aborted) return
+        // A run holds the thread (409) or the read failed: retry a few
+        // times; live events keep arriving meanwhile.
+        if (attempt < 5) {
+          timer = setTimeout(() => void load(attempt + 1), 500 * 2 ** attempt)
+        } else {
+          toast.error(
+            `Could not restore this thread's cards and forms: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          )
+        }
+      }
+    }
+    void load(0)
+    return () => {
+      controller.abort()
+      if (timer) clearTimeout(timer)
+    }
+  }, [agentId, threadId, store])
+
+  useEffect(() => () => store.dispose(), [store])
+  return store
 }
 
 function AGUIChatWithRuntime({
   httpAgent,
   agents,
   agentId,
+  threadId,
   onAgentChange,
+  onNewThread,
 }: {
-  httpAgent: HttpAgent
+  httpAgent: ButterAGUIAgent
   agents: Agent[]
-  agentId: string | null
+  agentId: string
+  threadId: string
   agentName: string
   onAgentChange: (id: string) => void
+  onNewThread: () => void
 }) {
   const runtime = useAgUiRuntime({
     agent: httpAgent,
     onError: (err) => toast.error(err.message || 'AG-UI request failed'),
   })
+  const store = useA2UI(httpAgent, agentId, threadId)
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <PageHeader />
-      <Main fixed fluid className='flex flex-col px-0 py-0'>
-        <AgentBar
-          agents={agents}
-          agentId={agentId}
-          onAgentChange={(id) => {
-            httpAgent.abortRun()
-            onAgentChange(id)
-          }}
-        />
-        <ThreadArea />
-        <SharedStatePanel />
-        <ComposerArea />
-      </Main>
+      <A2UIStoreContext.Provider value={store}>
+        <FormSubmitBridge store={store} httpAgent={httpAgent} />
+        <PageHeader />
+        <Main fixed fluid className='flex flex-col px-0 py-0'>
+          <AgentBar
+            agents={agents}
+            agentId={agentId}
+            onAgentChange={(id) => {
+              httpAgent.abortRun()
+              onAgentChange(id)
+            }}
+            onNewThread={() => {
+              httpAgent.abortRun()
+              onNewThread()
+            }}
+          />
+          <ThreadArea />
+          <SharedStatePanel />
+          <ComposerArea />
+        </Main>
+      </A2UIStoreContext.Provider>
     </AssistantRuntimeProvider>
   )
+}
+
+// FormSubmitBridge sends form submissions through the chat runtime so the
+// resumed run streams into this conversation. The submission shows up as a
+// readable user reply; the request itself carries only the form's own
+// addressed resume entry (ButterAGUIAgent.resumeNextRunWith).
+function FormSubmitBridge({
+  store,
+  httpAgent,
+}: {
+  store: A2UIStore
+  httpAgent: ButterAGUIAgent
+}) {
+  const steerAway = useAgUiSteerAway()
+  useEffect(() => {
+    store.setSubmitter(async (entry, values) => {
+      const form = entry.form
+      if (!form) throw new Error('not a form')
+      httpAgent.resumeNextRunWith(
+        form.interruptId,
+        submissionPayload(entry.id, form, values)
+      )
+      try {
+        await steerAway(readableReply(form, values))
+      } finally {
+        httpAgent.clearNextResume()
+      }
+    })
+    return () => store.setSubmitter(undefined)
+  }, [store, httpAgent, steerAway])
+  return null
 }
 
 function PageHeader() {
@@ -168,11 +329,13 @@ function AgentBar({
   agents,
   agentId,
   onAgentChange,
+  onNewThread,
   isLoading,
 }: {
   agents: Agent[]
   agentId: string | null
   onAgentChange: (id: string) => void
+  onNewThread?: () => void
   isLoading?: boolean
 }) {
   return (
@@ -195,6 +358,17 @@ function AgentBar({
           ))}
         </SelectContent>
       </Select>
+      {onNewThread && (
+        <Button
+          variant='ghost'
+          size='sm'
+          className='ms-auto h-8'
+          onClick={onNewThread}
+        >
+          <MessageSquarePlus className='size-4' />
+          New thread
+        </Button>
+      )}
     </div>
   )
 }
@@ -244,10 +418,75 @@ function GenericToolCallView(props: {
   )
 }
 
+// RenderUIToolView keeps the render_ui call out of the way: its card is the
+// visible result. A rejected call still shows the tool error.
+function RenderUIToolView(props: Parameters<typeof GenericToolCallView>[0]) {
+  const result = props.result as { error?: unknown } | undefined
+  if (result && typeof result === 'object' && 'error' in result) {
+    return <GenericToolCallView {...props} />
+  }
+  return null
+}
+
+// A2UIDataPart places a surface where its create event arrived in the
+// message; later updates of the same surface re-render it in place.
+function A2UIDataPart({ data }: { data: unknown }) {
+  const store = useThreadA2UI()
+  const locked = useAuiState((s) => s.thread.isRunning)
+  if (
+    !isA2UIEventValue(data) ||
+    envelopeOp(data.envelope) !== 'createSurface'
+  ) {
+    return null
+  }
+  return (
+    <A2UISurfaceView
+      store={store}
+      surfaceId={data.surfaceId}
+      locked={locked}
+      className='my-2 max-w-full'
+    />
+  )
+}
+
+// RestoredSurfaces shows what the UI snapshot brought back after a refresh:
+// the conversation text itself is not restored, so each surface says where
+// it came from.
+function RestoredSurfaces() {
+  const store = useA2UIStore(useThreadA2UI())
+  const locked = useAuiState((s) => s.thread.isRunning)
+  const restored = store
+    .list()
+    .filter((e) => e.origin === 'snapshot' && !e.deleted)
+  if (restored.length === 0) return null
+  return (
+    <section
+      aria-label='Restored from this conversation'
+      className='flex flex-col gap-3'
+    >
+      <p className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+        <History className='size-3.5' />
+        Restored from earlier in this conversation
+      </p>
+      {restored.map((entry) => (
+        <div key={entry.id} className='flex flex-col gap-1'>
+          <p className='text-xs text-muted-foreground'>
+            {entry.kind === 'form'
+              ? 'Waiting for your answer'
+              : 'Result card from an earlier reply'}
+          </p>
+          <A2UISurfaceView store={store} surfaceId={entry.id} locked={locked} />
+        </div>
+      ))}
+    </section>
+  )
+}
+
 function ThreadArea() {
   return (
     <ThreadPrimitive.Root className='flex-1 overflow-y-auto px-4 py-4'>
       <ThreadPrimitive.Viewport className='mx-auto flex max-w-3xl flex-col gap-3'>
+        <RestoredSurfaces />
         <ThreadPrimitive.Messages
           components={{
             UserMessage: UserMessageView,
@@ -283,7 +522,11 @@ function AssistantMessageView() {
       <MessagePrimitive.Content
         components={{
           Text: MarkdownText,
-          tools: { Fallback: GenericToolCallView },
+          tools: {
+            by_name: { render_ui: RenderUIToolView },
+            Fallback: GenericToolCallView,
+          },
+          data: { by_name: { [EVENT_NAME]: A2UIDataPart } },
         }}
       />
       <MessagePrimitive.If lastOrHover>
@@ -316,12 +559,16 @@ function MarkdownText({ text }: { text: string }) {
 function InterruptPrompts() {
   const interrupts = useAgUiInterrupts()
   const submitResponses = useAgUiSubmitInterruptResponses()
+  const store = useA2UIStore(useThreadA2UI())
 
-  if (interrupts.length === 0) return null
+  // An Interrupt with a form is answered through the form; the text prompt
+  // is only for the rest.
+  const textOnly = interrupts.filter((i) => !store.formFor(i.id))
+  if (textOnly.length === 0) return null
 
   return (
     <>
-      {interrupts.map((interrupt) => (
+      {textOnly.map((interrupt) => (
         <InterruptPrompt
           key={interrupt.id}
           interrupt={interrupt}
