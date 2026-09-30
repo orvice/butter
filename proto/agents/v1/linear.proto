@@ -1,0 +1,474 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// Linear Agent Sessions (ADR-0015, spec #358).
+//
+// A LinearApp is a workspace's registration of one Linear OAuth application,
+// routed to exactly one Agent. Its app user is that Agent's identity in
+// Linear: people delegate an issue to it or mention it, and the routed Agent
+// works in the resulting Linear Agent Session.
+//
+// The client secret and the webhook signing secret are intentionally not
+// fields of LinearApp: they are encrypted at rest behind a repository
+// credential seam (ADR-0005, ADR-0008), so plaintext can never appear in API
+// responses, logs, or persisted public models. `credential_state` and the
+// `*_secret_set` flags only report whether they are stored.
+// =============================================================================
+
+// LinearAppCredentialState reports whether both App secrets are stored
+// without revealing either.
+enum LinearAppCredentialState {
+  LINEAR_APP_CREDENTIAL_STATE_UNSPECIFIED = 0;
+  // At least one of the client secret and webhook signing secret is missing.
+  LINEAR_APP_CREDENTIAL_STATE_INCOMPLETE = 1;
+  // Both secrets are stored.
+  LINEAR_APP_CREDENTIAL_STATE_COMPLETE = 2;
+}
+
+// LinearApp is one Linear OAuth application registered in a workspace.
+message LinearApp {
+  // Service-generated immutable identifier. The webhook URL is derived from
+  // it, so it never changes.
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // Mutable display name, also the channel name of the Agent's turns.
+  // @gotags: json:"display_name,omitempty" bson:"display_name,omitempty"
+  string display_name = 2;
+
+  // The Linear OAuth application's public client ID. Globally unique: one
+  // Linear app can be registered in exactly one Butter workspace.
+  // @gotags: json:"client_id,omitempty" bson:"client_id,omitempty"
+  string client_id = 3;
+
+  // The Agent every Linear Agent Session of this App is routed to. Must name
+  // an active Agent of the workspace.
+  // @gotags: json:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 4;
+
+  // Desired inbound state: whether Linear deliveries are accepted. Enabling
+  // requires both secrets and a durable queue.
+  // @gotags: json:"inbound_enabled,omitempty" bson:"inbound_enabled,omitempty"
+  bool inbound_enabled = 5;
+
+  // Linear user IDs admitted to open or prompt a session. Empty admits every
+  // member of the installed Linear organizations.
+  // @gotags: json:"allowed_user_ids,omitempty" bson:"allowed_user_ids,omitempty"
+  repeated string allowed_user_ids = 6;
+
+  // Maximum run time of one turn, in seconds. Absent means 1800; an explicit
+  // 0 means unlimited.
+  // @gotags: json:"max_run_seconds,omitempty" bson:"max_run_seconds,omitempty"
+  optional int32 max_run_seconds = 7;
+
+  // Optimistic concurrency token. Updates must send the revision they read.
+  // @gotags: json:"revision,omitempty" bson:"revision,omitempty"
+  int64 revision = 8;
+
+  // Server-owned. Never carries credential material.
+  // @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+  LinearAppCredentialState credential_state = 9;
+
+  // Whether the OAuth client secret is stored. Server-owned.
+  // @gotags: json:"client_secret_set,omitempty" bson:"client_secret_set,omitempty"
+  bool client_secret_set = 10;
+
+  // Whether the webhook signing secret is stored. Server-owned.
+  // @gotags: json:"webhook_secret_set,omitempty" bson:"webhook_secret_set,omitempty"
+  bool webhook_secret_set = 11;
+
+  // The OAuth callback URL to register with the Linear app. Output only:
+  // derived from the platform Linear base URL, empty until it is configured.
+  // @gotags: json:"callback_url,omitempty" bson:"callback_url,omitempty"
+  string callback_url = 12;
+
+  // The webhook URL to register with the Linear app. Output only: derived
+  // from the platform Linear base URL and this App's ID.
+  // @gotags: json:"webhook_url,omitempty" bson:"webhook_url,omitempty"
+  string webhook_url = 13;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 14;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 15;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// LinearAppService manages a workspace's Linear Apps. Members may read;
+// workspace owners and admins manage.
+service LinearAppService {
+  rpc ListLinearApps(ListLinearAppsRequest) returns (ListLinearAppsResponse);
+  rpc GetLinearApp(GetLinearAppRequest) returns (GetLinearAppResponse);
+
+  // CreateLinearApp registers a Linear OAuth app routed to one Agent.
+  rpc CreateLinearApp(CreateLinearAppRequest) returns (CreateLinearAppResponse);
+
+  // UpdateLinearApp replaces the mutable fields under the optimistic
+  // revision check. The ID and client ID are immutable.
+  rpc UpdateLinearApp(UpdateLinearAppRequest) returns (UpdateLinearAppResponse);
+
+  // PutLinearAppCredentials sets or clears the write-only secrets.
+  rpc PutLinearAppCredentials(PutLinearAppCredentialsRequest) returns (PutLinearAppCredentialsResponse);
+
+  // DeleteLinearApp removes the App together with its installations.
+  rpc DeleteLinearApp(DeleteLinearAppRequest) returns (DeleteLinearAppResponse);
+
+  // BeginLinearInstall starts installing the App into a Linear organization:
+  // it returns Linear's authorize URL, carrying a single-use state that the
+  // public OAuth callback consumes.
+  rpc BeginLinearInstall(BeginLinearInstallRequest) returns (BeginLinearInstallResponse);
+
+  rpc ListLinearInstallations(ListLinearInstallationsRequest) returns (ListLinearInstallationsResponse);
+
+  // DeleteLinearInstallation removes an installation, revoking its token at
+  // Linear as a best effort.
+  rpc DeleteLinearInstallation(DeleteLinearInstallationRequest) returns (DeleteLinearInstallationResponse);
+}
+
+message ListLinearAppsRequest {}
+
+message ListLinearAppsResponse {
+  repeated LinearApp apps = 1;
+}
+
+message GetLinearAppRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetLinearAppResponse {
+  LinearApp app = 1;
+}
+
+message CreateLinearAppRequest {
+  // Only display_name, client_id, agent_id, inbound_enabled,
+  // allowed_user_ids and max_run_seconds are read. Identity, revision,
+  // timestamps and credential state are server-owned.
+  LinearApp app = 1;
+
+  // OAuth client secret, write-only. Encrypted before storage and never
+  // returned by any RPC.
+  optional string client_secret = 2;
+
+  // Webhook signing secret, write-only.
+  optional string webhook_secret = 3;
+}
+
+message CreateLinearAppResponse {
+  LinearApp app = 1;
+}
+
+message UpdateLinearAppRequest {
+  // `id` selects the App and `revision` must match the stored one.
+  LinearApp app = 1;
+}
+
+message UpdateLinearAppResponse {
+  LinearApp app = 1;
+}
+
+message PutLinearAppCredentialsRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Absent keeps the stored secret; empty clears it.
+  optional string client_secret = 2;
+
+  // Absent keeps the stored secret; empty clears it.
+  optional string webhook_secret = 3;
+}
+
+message PutLinearAppCredentialsResponse {
+  LinearApp app = 1;
+}
+
+message DeleteLinearAppRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteLinearAppResponse {}
+
+// LinearInstallationCredentialState reports whether an installation's token
+// is usable without revealing it.
+enum LinearInstallationCredentialState {
+  LINEAR_INSTALLATION_CREDENTIAL_STATE_UNSPECIFIED = 0;
+  // The stored token worked, or was refreshed, on last use.
+  LINEAR_INSTALLATION_CREDENTIAL_STATE_VALID = 1;
+  // Linear revoked the token or refused to refresh it; install again.
+  LINEAR_INSTALLATION_CREDENTIAL_STATE_NEEDS_REINSTALL = 2;
+}
+
+// LinearInstallation is a Linear App installed into one Linear
+// organization. Its access and refresh tokens are not proto fields: they sit
+// behind the same credential seam as the App's secrets.
+message LinearInstallation {
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // @gotags: json:"app_id,omitempty" bson:"app_id,omitempty"
+  string app_id = 2;
+
+  // The Linear organization (Linear calls it a workspace) the App is
+  // installed in. Unique per App.
+  // @gotags: json:"organization_id,omitempty" bson:"organization_id,omitempty"
+  string organization_id = 3;
+
+  // @gotags: json:"organization_name,omitempty" bson:"organization_name,omitempty"
+  string organization_name = 4;
+
+  // The App's own user in that organization (its `viewer.id`), which is
+  // what people delegate issues to and mention.
+  // @gotags: json:"app_user_id,omitempty" bson:"app_user_id,omitempty"
+  string app_user_id = 5;
+
+  // Scopes Linear granted.
+  // @gotags: json:"scopes,omitempty" bson:"scopes,omitempty"
+  repeated string scopes = 6;
+
+  // Server-owned. Never carries credential material.
+  // @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+  LinearInstallationCredentialState credential_state = 7;
+
+  // Sanitized reason the installation needs reinstalling. Empty otherwise.
+  // @gotags: json:"last_credential_error,omitempty" bson:"last_credential_error,omitempty"
+  string last_credential_error = 8;
+
+  // First install time; kept when the App is installed again.
+  // @gotags: json:"installed_at,omitempty" bson:"installed_at,omitempty"
+  google.protobuf.Timestamp installed_at = 9;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 10;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+message BeginLinearInstallRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Where the browser lands after the install: a relative path, or an
+  // absolute URL on the configured Linear base URL's or dashboard's origin.
+  // Anything else falls back to the App's page.
+  string return_url = 2;
+}
+
+message BeginLinearInstallResponse {
+  // Linear's authorize URL to open in the browser.
+  string authorize_url = 1;
+}
+
+message ListLinearInstallationsRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListLinearInstallationsResponse {
+  repeated LinearInstallation installations = 1;
+}
+
+message DeleteLinearInstallationRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+  string id = 2 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteLinearInstallationResponse {}
+
+// =============================================================================
+// LinearAdminService manages platform-level Linear settings.
+//
+// The public base URL is global, not per-workspace: it names the public
+// address of this deployment. Only global administrators may read or change
+// it, so workspace input can never redirect Linear webhooks or OAuth
+// callbacks.
+// =============================================================================
+service LinearAdminService {
+  rpc GetLinearSettings(GetLinearSettingsRequest) returns (GetLinearSettingsResponse);
+  rpc UpdateLinearSettings(UpdateLinearSettingsRequest) returns (UpdateLinearSettingsResponse);
+}
+
+// LinearSettings holds platform-level Linear configuration.
+message LinearSettings {
+  // Public base URL Linear reaches this deployment at, e.g.
+  // "https://butter.example.com". Callback and webhook URLs are derived from
+  // it and immutable IDs.
+  // @gotags: json:"public_base_url,omitempty" bson:"public_base_url,omitempty"
+  string public_base_url = 1;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 2;
+}
+
+message GetLinearSettingsRequest {}
+
+message GetLinearSettingsResponse {
+  LinearSettings settings = 1;
+}
+
+message UpdateLinearSettingsRequest {
+  LinearSettings settings = 1;
+}
+
+message UpdateLinearSettingsResponse {
+  LinearSettings settings = 1;
+}
+
+// =============================================================================
+// Linear processing records (ADR-0015 §8, ADR-0009).
+//
+// One record per accepted delivery. Its state answers one question: may the
+// Agent have run? Everything before that boundary retries automatically;
+// after it, a failure is dead-lettered for a person and never rerun. The
+// reply is persisted before it is posted, so a failed post is resent
+// without invoking the Agent.
+// =============================================================================
+
+enum LinearProcessingStatus {
+  LINEAR_PROCESSING_STATUS_UNSPECIFIED = 0;
+  // A follow-up waiting behind the session's current turn.
+  LINEAR_PROCESSING_STATUS_QUEUED = 1;
+  // Claimed from the queue; no Agent work started.
+  LINEAR_PROCESSING_STATUS_RECEIVED = 2;
+  // Agent work may have started. A crash from here is not safely retryable.
+  LINEAR_PROCESSING_STATUS_PROCESSING = 3;
+  // The reply is persisted; only posting it remains.
+  LINEAR_PROCESSING_STATUS_READY_TO_DELIVER = 4;
+  // Answered.
+  LINEAR_PROCESSING_STATUS_SUCCEEDED = 5;
+  // Failed before Agent work started, or the post failed. Safe to retry or
+  // resend.
+  LINEAR_PROCESSING_STATUS_FAILED = 6;
+  // Failed after Agent work may have started. Never retried automatically:
+  // a rerun could repeat tool side effects.
+  LINEAR_PROCESSING_STATUS_FAILED_UNCERTAIN = 7;
+  // Stopped by the user, or discarded by a stop while queued.
+  LINEAR_PROCESSING_STATUS_CANCELLED = 8;
+}
+
+// LinearProcessingRecord is the auditable state of one accepted delivery.
+message LinearProcessingRecord {
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 2;
+  // @gotags: json:"app_id,omitempty" bson:"app_id,omitempty"
+  string app_id = 3;
+  // @gotags: json:"installation_id,omitempty" bson:"installation_id,omitempty"
+  string installation_id = 4;
+  // @gotags: json:"agent_session_id,omitempty" bson:"agent_session_id,omitempty"
+  string agent_session_id = 5;
+  // created or prompted.
+  // @gotags: json:"action,omitempty" bson:"action,omitempty"
+  string action = 6;
+  // Linear's delivery ID (or the body hash); unique with app_id.
+  // @gotags: json:"delivery_id,omitempty" bson:"delivery_id,omitempty"
+  string delivery_id = 7;
+
+  // @gotags: json:"status,omitempty" bson:"status,omitempty"
+  LinearProcessingStatus status = 8;
+
+  // Stable across retries; shared by follow-ups run in one turn.
+  // @gotags: json:"invocation_id,omitempty" bson:"invocation_id,omitempty"
+  string invocation_id = 9;
+
+  // How many times the record has been claimed.
+  // @gotags: json:"attempts,omitempty" bson:"attempts,omitempty"
+  int32 attempts = 10;
+
+  // App revision frozen at acceptance.
+  // @gotags: json:"app_revision,omitempty" bson:"app_revision,omitempty"
+  int64 app_revision = 11;
+
+  // Sanitized failure summary. Never contains credential material.
+  // @gotags: json:"error,omitempty" bson:"error,omitempty"
+  string error = 12;
+
+  // The complete reply, persisted before it is posted.
+  // @gotags: json:"output,omitempty" bson:"output,omitempty"
+  string output = 13;
+
+  // The activity type the reply is posted as: response, elicitation or
+  // error.
+  // @gotags: json:"output_type,omitempty" bson:"output_type,omitempty"
+  string output_type = 14;
+
+  // An elicitation's signal and its metadata as JSON, e.g. select options.
+  // @gotags: json:"output_signal,omitempty" bson:"output_signal,omitempty"
+  string output_signal = 15;
+  // @gotags: json:"output_signal_metadata,omitempty" bson:"output_signal_metadata,omitempty"
+  string output_signal_metadata = 16;
+
+  // Whether the reply reached Linear.
+  // @gotags: json:"delivered,omitempty" bson:"delivered,omitempty"
+  bool delivered = 17;
+
+  // Whether the record needs a person.
+  // @gotags: json:"dead_lettered,omitempty" bson:"dead_lettered,omitempty"
+  bool dead_lettered = 18;
+
+  // @gotags: json:"prompting_user_id,omitempty" bson:"prompting_user_id,omitempty"
+  string prompting_user_id = 19;
+  // @gotags: json:"issue_identifier,omitempty" bson:"issue_identifier,omitempty"
+  string issue_identifier = 20;
+
+  // The Agent the turn ran on, set when Agent work starts. A session's
+  // lease is per Agent, so settling a dead holder's records must not touch
+  // another Agent's turn after the App is re-pointed.
+  // @gotags: json:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 24;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 21;
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 22;
+  // When the record becomes eligible for TTL cleanup (30 days).
+  // @gotags: json:"expires_at,omitempty" bson:"expires_at,omitempty"
+  google.protobuf.Timestamp expires_at = 23;
+}
+
+// LinearProcessingService exposes processing records. Members read;
+// owners and admins resend a reply that was produced but not posted. There
+// is deliberately no rerun action.
+service LinearProcessingService {
+  rpc ListLinearProcessingRecords(ListLinearProcessingRecordsRequest) returns (ListLinearProcessingRecordsResponse);
+  rpc GetLinearProcessingRecord(GetLinearProcessingRecordRequest) returns (GetLinearProcessingRecordResponse);
+
+  // ResendLinearReply posts the persisted reply of a FAILED record. It never
+  // invokes the Agent, and it is refused when no reply was persisted.
+  rpc ResendLinearReply(ResendLinearReplyRequest) returns (ResendLinearReplyResponse);
+}
+
+message ListLinearProcessingRecordsRequest {
+  // Optional filters.
+  string app_id = 1;
+  LinearProcessingStatus status = 2;
+  // Maximum records to return. Defaults to 50, capped at 200.
+  int32 page_size = 3;
+}
+
+message ListLinearProcessingRecordsResponse {
+  repeated LinearProcessingRecord records = 1;
+}
+
+message GetLinearProcessingRecordRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetLinearProcessingRecordResponse {
+  LinearProcessingRecord record = 1;
+}
+
+message ResendLinearReplyRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ResendLinearReplyResponse {
+  LinearProcessingRecord record = 1;
+}

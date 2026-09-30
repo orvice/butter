@@ -151,3 +151,17 @@ _Avoid_: memory preload, memory injection
 **Memory Capture**:
 Best-effort submission of one turn's user and assistant text to Workspace Memory for extraction after the turn completes.
 _Avoid_: memory sync, memory flush
+
+### Linear
+
+**Linear App**:
+A Workspace's registration of one Linear OAuth application, routed to exactly one Agent. Its app user is that Agent's identity in Linear (ADR-0015).
+_Avoid_: Linear integration, Linear bot, Linear channel
+
+**Linear Installation**:
+A Linear App installed into one Linear organization, holding that organization's app user and access grant.
+_Avoid_: Linear workspace (collides with Workspace), Linear connection
+
+**Linear Agent Session**:
+Linear's conversation on an issue between people and a Linear App's app user, opened by delegation or mention. In Butter it is exactly one session of the routed Agent.
+_Avoid_: Linear thread, Linear conversation

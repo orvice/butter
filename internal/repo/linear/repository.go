@@ -1,0 +1,141 @@
+// Package linear stores Linear Apps and their Installations (ADR-0015).
+//
+// Apps and Installations live behind one repository because their
+// invariants are joint: an Installation's organization is only unique
+// relative to an App, and deleting an App removes its Installations.
+//
+// The App's client secret and webhook signing secret are handled through a
+// credential seam, exactly as Telegram Bot Tokens and ButterBox tokens are
+// (ADR-0005, ADR-0008): callers pass pre-encrypted ciphertext in and get
+// ciphertext out, so implementations never see plaintext and a secret can
+// never ride along on an App read into an API response or log line.
+// Implementations derive the App proto's server-owned workspace_id,
+// credential_state and *_secret_set fields from storage on every read.
+package linear
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+)
+
+var (
+	// ErrNotFound means no such App exists in the workspace.
+	ErrNotFound = errors.New("not found")
+	// ErrClientIDExists means another App — in any workspace — already
+	// registered that Linear OAuth client ID.
+	ErrClientIDExists = errors.New("linear client id already registered")
+	// ErrRevisionConflict means the caller's expected revision no longer
+	// matches the stored one; the write was not applied.
+	ErrRevisionConflict = errors.New("revision conflict")
+)
+
+// Credential is one encrypted secret plus the master key ID that sealed it.
+type Credential struct {
+	Ciphertext string
+	KeyID      string
+}
+
+// Set reports whether a credential is actually present.
+func (c Credential) Set() bool { return c.Ciphertext != "" }
+
+// AppCredentials are an App's two write-only secrets.
+type AppCredentials struct {
+	ClientSecret  Credential
+	WebhookSecret Credential
+}
+
+// InstallationTokens are an Installation's OAuth tokens, encrypted.
+type InstallationTokens struct {
+	AccessToken  Credential
+	RefreshToken Credential
+	// ExpiresAt is when the access token expires; zero when unknown.
+	ExpiresAt time.Time
+	// Revision increments on every token write. Refreshing is fenced on
+	// it, because Linear rotates refresh tokens.
+	Revision int64
+}
+
+// CredentialChange updates an App's secrets. A nil field keeps the stored
+// secret; a non-nil unset Credential clears it.
+type CredentialChange struct {
+	ClientSecret  *Credential
+	WebhookSecret *Credential
+}
+
+// Repository persists Linear Apps.
+type Repository interface {
+	EnsureIndexes(ctx context.Context) error
+
+	ListApps(ctx context.Context, workspaceID string) ([]*agentsv1.LinearApp, error)
+	GetApp(ctx context.Context, workspaceID, id string) (*agentsv1.LinearApp, error)
+	// FindApp resolves an App by ID without a workspace scope. The public
+	// webhook route carries only the App ID, so the receive path reads the
+	// workspace off the returned App.
+	FindApp(ctx context.Context, id string) (*agentsv1.LinearApp, error)
+
+	// CreateApp stores a new App with its secrets in one operation. It
+	// returns ErrClientIDExists when any workspace already registered the
+	// client ID.
+	CreateApp(ctx context.Context, workspaceID string, app *agentsv1.LinearApp, creds AppCredentials) (*agentsv1.LinearApp, error)
+	// UpdateApp replaces the mutable fields of an App when the stored
+	// revision equals expectedRevision, returning ErrRevisionConflict
+	// without writing otherwise. The ID and client ID are preserved
+	// regardless of what the caller passes.
+	UpdateApp(ctx context.Context, workspaceID string, app *agentsv1.LinearApp, expectedRevision int64) (*agentsv1.LinearApp, error)
+	// SetAppCredentials applies change atomically and returns the App with
+	// its derived credential fields refreshed.
+	SetAppCredentials(ctx context.Context, workspaceID, id string, change CredentialChange) (*agentsv1.LinearApp, error)
+	// GetAppCredentials returns the stored secrets' ciphertext; unset
+	// fields are simply not Set().
+	GetAppCredentials(ctx context.Context, workspaceID, id string) (AppCredentials, error)
+	// DeleteApp removes an App together with its Installations.
+	DeleteApp(ctx context.Context, workspaceID, id string) error
+
+	// UpsertInstallation stores the App's installation into one Linear
+	// organization, keyed by (app ID, organization ID). Installing again
+	// keeps the Installation's ID and installed_at, replaces its identity
+	// fields and tokens, and marks its credential VALID. It returns
+	// ErrNotFound when the App does not exist in the workspace.
+	UpsertInstallation(ctx context.Context, workspaceID string, inst *agentsv1.LinearInstallation, tokens InstallationTokens) (*agentsv1.LinearInstallation, error)
+	ListInstallations(ctx context.Context, workspaceID, appID string) ([]*agentsv1.LinearInstallation, error)
+	GetInstallation(ctx context.Context, workspaceID, id string) (*agentsv1.LinearInstallation, error)
+	// FindInstallation resolves the App's installation in one organization.
+	FindInstallation(ctx context.Context, workspaceID, appID, organizationID string) (*agentsv1.LinearInstallation, error)
+	DeleteInstallation(ctx context.Context, workspaceID, id string) error
+	// GetInstallationTokens returns the stored tokens' ciphertext.
+	GetInstallationTokens(ctx context.Context, workspaceID, id string) (InstallationTokens, error)
+	// ReplaceInstallationTokens stores refreshed tokens when the stored
+	// token revision still equals expectedRevision, returning
+	// ErrRevisionConflict without writing otherwise. It returns the new
+	// revision.
+	ReplaceInstallationTokens(ctx context.Context, workspaceID, id string, expectedRevision int64, tokens InstallationTokens) (int64, error)
+	// MarkInstallationNeedsReinstall records that Linear revoked the token
+	// or refused to refresh it. Installing again clears the mark.
+	MarkInstallationNeedsReinstall(ctx context.Context, workspaceID, id, reason string) error
+}
+
+// StampCredentialState fills the App's derived credential fields from the
+// stored secrets. Implementations call it on every read.
+func StampCredentialState(app *agentsv1.LinearApp, creds AppCredentials) {
+	app.ClientSecretSet = creds.ClientSecret.Set()
+	app.WebhookSecretSet = creds.WebhookSecret.Set()
+	if app.ClientSecretSet && app.WebhookSecretSet {
+		app.CredentialState = agentsv1.LinearAppCredentialState_LINEAR_APP_CREDENTIAL_STATE_COMPLETE
+	} else {
+		app.CredentialState = agentsv1.LinearAppCredentialState_LINEAR_APP_CREDENTIAL_STATE_INCOMPLETE
+	}
+}
+
+// StripDerived clears every server-derived field before storage, so stored
+// specs can never contradict the credential columns or the platform URL.
+func StripDerived(app *agentsv1.LinearApp) {
+	app.WorkspaceId = ""
+	app.CredentialState = agentsv1.LinearAppCredentialState_LINEAR_APP_CREDENTIAL_STATE_UNSPECIFIED
+	app.ClientSecretSet = false
+	app.WebhookSecretSet = false
+	app.CallbackUrl = ""
+	app.WebhookUrl = ""
+}

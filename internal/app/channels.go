@@ -53,6 +53,18 @@ import (
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	invocationmongo "go.orx.me/apps/butter/internal/repo/invocation/mongo"
+	linearrepo "go.orx.me/apps/butter/internal/repo/linear"
+	linearmemory "go.orx.me/apps/butter/internal/repo/linear/memory"
+	linearmongo "go.orx.me/apps/butter/internal/repo/linear/mongo"
+	linearprocessingrepo "go.orx.me/apps/butter/internal/repo/linearprocessing"
+	linearprocessingmemory "go.orx.me/apps/butter/internal/repo/linearprocessing/memory"
+	linearprocessingmongo "go.orx.me/apps/butter/internal/repo/linearprocessing/mongo"
+	linearsettingrepo "go.orx.me/apps/butter/internal/repo/linearsetting"
+	linearsettingmemory "go.orx.me/apps/butter/internal/repo/linearsetting/memory"
+	linearsettingmongo "go.orx.me/apps/butter/internal/repo/linearsetting/mongo"
+	linearstaterepo "go.orx.me/apps/butter/internal/repo/linearstate"
+	linearstatememory "go.orx.me/apps/butter/internal/repo/linearstate/memory"
+	linearstatemongo "go.orx.me/apps/butter/internal/repo/linearstate/mongo"
 	mcpoauthrepo "go.orx.me/apps/butter/internal/repo/mcpoauth"
 	mcpoauthmemory "go.orx.me/apps/butter/internal/repo/mcpoauth/memory"
 	mcpoauthmongo "go.orx.me/apps/butter/internal/repo/mcpoauth/mongo"
@@ -132,6 +144,10 @@ type BootstrapResult struct {
 	TelegramRepo           telegramrepo.Repository
 	TelegramSettingRepo    telegramsettingrepo.Repository
 	TelegramProcessingRepo telegramprocessingrepo.Repository
+	LinearRepo             linearrepo.Repository
+	LinearSettingRepo      linearsettingrepo.Repository
+	LinearStateRepo        linearstaterepo.Repository
+	LinearProcessingRepo   linearprocessingrepo.Repository
 	CryptoKeyRepo          cryptokeyrepo.Repository
 	RepoCacheRepo          repocache.Repository
 	AgentContentRepo       agentcontentrepo.Repository
@@ -192,6 +208,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		cryptoKeyRepo          cryptokeyrepo.Repository
 		telegramSettingRepo    telegramsettingrepo.Repository
 		telegramProcessingRepo telegramprocessingrepo.Repository
+		linearRepo             linearrepo.Repository
+		linearSettingRepo      linearsettingrepo.Repository
+		linearStateRepo        linearstaterepo.Repository
+		linearProcessingRepo   linearprocessingrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -238,6 +258,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		cryptoKeyRepo = cryptokeymongo.New(db)
 		telegramSettingRepo = telegramsettingmongo.New(db)
 		telegramProcessingRepo = telegramprocessingmongo.New(db)
+		linearRepo = linearmongo.New(db)
+		linearSettingRepo = linearsettingmongo.New(db)
+		linearStateRepo = linearstatemongo.New(db)
+		linearProcessingRepo = linearprocessingmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New()
@@ -259,6 +283,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		cryptoKeyRepo = cryptokeymemory.New()
 		telegramSettingRepo = telegramsettingmemory.New()
 		telegramProcessingRepo = telegramprocessingmemory.New()
+		linearRepo = linearmemory.New()
+		linearSettingRepo = linearsettingmemory.New()
+		linearStateRepo = linearstatememory.New()
+		linearProcessingRepo = linearprocessingmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
@@ -336,6 +364,26 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// index is what bounds Telegram content retention; both are fatal.
 	if err := telegramProcessingRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create telegram processing indexes", "err", err)
+		return nil, err
+	}
+	// The Linear client ID index is what keeps one Linear app from being
+	// registered twice, so a failure is fatal like Telegram's.
+	if err := linearRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create linear indexes", "err", err)
+		return nil, err
+	}
+	if err := linearSettingRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create linear settings indexes", "err", err)
+		return nil, err
+	}
+	if err := linearStateRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create linear install state indexes", "err", err)
+		return nil, err
+	}
+	// The (app, delivery) unique index is the dedupe guarantee and the TTL
+	// index bounds retention of Linear replies; both are fatal.
+	if err := linearProcessingRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create linear processing indexes", "err", err)
 		return nil, err
 	}
 	if err := applyActiveContent(ctx, cfg.Agents, bindingRepo, contentRepo); err != nil {
@@ -553,6 +601,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		TelegramRepo:           telegramRepo,
 		TelegramSettingRepo:    telegramSettingRepo,
 		TelegramProcessingRepo: telegramProcessingRepo,
+		LinearRepo:             linearRepo,
+		LinearSettingRepo:      linearSettingRepo,
+		LinearStateRepo:        linearStateRepo,
+		LinearProcessingRepo:   linearProcessingRepo,
 		CryptoKeyRepo:          cryptoKeyRepo,
 		RepoCacheRepo:          cacheRepo,
 		AgentContentRepo:       contentRepo,

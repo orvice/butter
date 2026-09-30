@@ -74,6 +74,8 @@ type SessionExcluder interface {
 type AgentServiceServer struct {
 	// telegramGuard blocks removing an agent a Telegram Destination routes to.
 	telegramGuard *TelegramReferenceGuard
+	// linearGuard blocks removing an agent a Linear App routes to.
+	linearGuard *LinearReferenceGuard
 
 	repo            configrepo.AgentRepository
 	butterBoxRepo   butterboxrepo.Repository
@@ -156,6 +158,11 @@ func (s *AgentServiceServer) SetInputPartRepo(repo inputpart.Repository) {
 // SetTelegramGuard wires the Telegram reference guard after bootstrap.
 func (s *AgentServiceServer) SetTelegramGuard(guard *TelegramReferenceGuard) {
 	s.telegramGuard = guard
+}
+
+// SetLinearGuard wires the Linear App reference guard after bootstrap.
+func (s *AgentServiceServer) SetLinearGuard(guard *LinearReferenceGuard) {
+	s.linearGuard = guard
 }
 
 // SetWorkspaceRepo wires the workspace repository used for role-based
@@ -647,6 +654,11 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 	// A Telegram Destination that routes to this agent would silently stop
 	// working; block the delete and name the destinations instead (#264).
 	if err := s.telegramGuard.CheckAgentRemovable(ctx, wsID, prev.GetAgentId()); err != nil {
+		return nil, err
+	}
+	// Likewise for a Linear App: its delegated issues would never be
+	// answered (ADR-0015).
+	if err := s.linearGuard.CheckAgentRemovable(ctx, wsID, prev.GetAgentId()); err != nil {
 		return nil, err
 	}
 	coord := s.coordinator()

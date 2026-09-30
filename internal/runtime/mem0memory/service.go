@@ -25,6 +25,7 @@ import (
 	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/mem0"
+	"go.orx.me/apps/butter/internal/redact"
 	"go.orx.me/apps/butter/internal/runtime/memoryconn"
 )
 
@@ -156,7 +157,7 @@ func (s *Service) Add(ctx context.Context, scope Scope, target Target, messages 
 	}
 	clean := make([]mem0.Message, len(messages))
 	for i, m := range messages {
-		clean[i] = mem0.Message{Role: m.Role, Content: Redact(m.Content)}
+		clean[i] = mem0.Message{Role: m.Role, Content: redact.Text(m.Content)}
 	}
 	messages = clean
 	userID, agentID, err := scope.identity(target)

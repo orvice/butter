@@ -422,6 +422,80 @@ Group、Dashboard 测试消息、Agent 回复。它统一做 Markdown → Markdo
 通用 Channel 只有 chat 白名单而没有精确地址，推断不出应该变成哪个 Destination，
 猜测会把回复发到没人选择的地方。
 
+## Linear 执行流（ADR-0015）
+
+Linear Agent Session 是一个入口，复用 Telegram 的持久接收契约（ADR-0008 /
+ADR-0009），但为 Linear 的时限单独设计了 worker、会话协调与 stop。
+
+```text
+POST /api/linear/webhook/{app_id} ─> 验签 + 时间窗 ─> Lua(去重 + XADD) ─> butter:linear:events
+                                                                              │
+                          consumer group ─> worker(不因 turn 阻塞读取) ─> Orchestrator.Handle
+                                                                              │
+                  处理记录 claim ─> 准入 ─> 确认 thought ─> enqueue-or-acquire ─> runner ─> activity
+```
+
+### 接收
+
+`POST /api/linear/webhook/{app_id}` 在每个 Pod 上可达、绕过 workspace 鉴权；
+workspace 只从 App 读取。签名覆盖整个 body，所以先按 1 MiB 上限读 body，再常量
+时间校验 `Linear-Signature`（HMAC-SHA256），然后才解析并检查 `webhookTimestamp`
+的 ±60 秒窗口。`200` 仍被严格定义为「已持久化进 Redis Stream（或被明确忽略）」；
+队列失败返回 `503` 让 Linear 重投。去重键是 `Linear-Delivery`，缺失时用 body 的
+SHA-256。Stream 与 Telegram 分开（`butter:linear:events`），这样 Telegram 积压不会
+把一个新 session 推过 Linear 的 10 秒时限；Stream 的通用机制（去重追加、claim、
+心跳、ack、持久性检查）抽到 `internal/eventqueue` 共用。
+
+### Worker
+
+Telegram 的 worker 会等一批 claim 全部处理完再读下一批；Linear 不能这样——一个 turn
+可能跑半小时，而排在后面的新 session 必须在 10 秒内得到确认。Linear worker 每个事件
+一个 goroutine，按空闲槽位（默认 32）读取，从不因 turn 阻塞读取；忙的 Pod 把剩余
+工作留给其他 Pod。
+
+### 会话、追加与 stop
+
+一个 Linear Agent Session 对应一个 Butter 会话：session
+`linear:{app_id}:{agent_session_id}:{agent_id}`，ADK app 名固定为 `linear`（不能用
+可改名的显示名），user 为 `linear:{app_id}:{organization_id}`——session 属于 issue 上
+所有人，而不是其中某个人。发消息的 Linear 用户通过 `ContextInfo.metadata.principal`
+进入 Memory Capture 的 provenance。
+
+turn 由 `SessionCoordinator` 串行化，它有内存与 Redis 两个实现：
+- **enqueue-or-acquire**：会话空闲就拿到租约（并带走上一个持有者留下的 backlog），
+  否则把消息追加进该会话的 follow-up 列表，事件立即 ack 并回「Queued」。
+- **release-or-drain**：没有排队消息就释放租约；有就一次取走全部并保留租约，合并成
+  下一轮。两者各是一段 Lua，因此追加的消息既不会丢，也不会与当前轮并发。
+- **stop**：`RequestStop` 不拿租约——它原子地清空 follow-up 列表，并在有持有者时写入
+  绑定该持有者租约 token 的 stop 标记（10 分钟 TTL）、发布一次 pub/sub nudge。持有者
+  先订阅再读标记，所以与 turn 启动赛跑的 stop 不会丢，也不会误伤下一个持有者。持有者
+  取消 turn（Pi / Cursor 经各自 bridge 的 abort），turn 真正结束后才发确认。
+
+持有者崩溃后，下一个拿到会话的一方会先扫描该会话残留的 `PROCESSING` 记录（标记
+`FAILED_UNCERTAIN` 并在 session 里报「cut short」），再运行 backlog。
+
+### 处理记录与回复
+
+每次投递一条 `LinearProcessingRecord`（`(app_id, delivery_id)` 唯一、30 天 TTL），
+语义同 ADR-0009：进入 `PROCESSING` 之前的失败自动重试（最多 3 次）；之后的失败
+死信、绝不重跑；回复（response、elicitation 或无需 Agent 的 error）先持久化为
+`READY_TO_DELIVER` 再发送，发送失败可重投或经 `ResendLinearReply` 补发而不重跑
+Agent。记录写入由可续约的 claim 租约围栏。
+
+工具进度由 runner 的事件回调驱动：函数调用映射成 action，最新优先、每 3 秒最多一条；
+在最终 activity 之前关闭，因此之后不会再有进度。Workflow 停在 Human Input 节点时，
+最老的 Interrupt 以 elicitation 发出；表单只有一个单选字段时带 `select` 信号与选项
+（从 request-input 事件冻结的表单读取）。下一条消息经 runner 的 FIFO 隐式 resume
+（ADR-0002）继续，不新增任何 pending 存储。
+
+### 凭据
+
+App 的 client secret / webhook secret 与 Installation 的 access / refresh token
+都在凭据接缝后、由数据库主密钥加密，从不作为 proto 字段。token 每次调用解密，不缓存；
+快过期（5 分钟内）时刷新。Linear 会轮换 refresh token，所以刷新在按 installation 的
+Redis 租约下进行，并按 token revision 做 compare-and-swap；`invalid_grant` 把
+installation 标为 `NEEDS_REINSTALL`，之后快速失败、不再联系 Linear。
+
 ## HTTP 与 RPC
 
 HTTP handler 位于 `internal/handler/http`：

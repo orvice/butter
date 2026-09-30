@@ -471,6 +471,9 @@ The header is required for most methods on these app-facing services:
 | `TelegramDestinationService` | Telegram addresses (chat + optional forum topic), policy, test send |
 | `TelegramAdminService` | Platform Telegram settings (webhook base URL); global admin only |
 | `TelegramProcessingService` | Telegram update processing records and reply resend |
+| `LinearAppService` | Linear Apps (a Linear OAuth app routed to one Agent): CRUD, write-only secrets, install, installations |
+| `LinearAdminService` | Platform Linear settings (public base URL); global admin only |
+| `LinearProcessingService` | Linear delivery processing records and reply resend |
 | `ChannelService` | **Deprecated.** Legacy generic channels: read and delete only |
 | `AutomationService` | Workspace automation definitions, runs, and step runs |
 | `CronJobService` | Workspace cron jobs and executions |
@@ -2924,6 +2927,141 @@ X-Telegram-Bot-Api-Secret-Token: <per-channel secret>
 Public (no workspace header, no session). Authenticates the secret in constant
 time before parsing. `200` means the update was durably enqueued; `503` means
 retry; `400` means the payload can never be processed.
+
+### Linear services
+
+Linear Agent Sessions are an entry point for any Agent type (ADR-0015). A
+**Linear App** is one Linear OAuth application registered in one workspace
+and routed to exactly one Agent. Its app user is that Agent's identity in
+Linear: people delegate an issue to it or mention it, and the routed Agent
+answers in the resulting **Linear Agent Session**. A **Linear Installation**
+is the App installed into one Linear organization.
+
+`LinearAppService` and `LinearProcessingService` require `X-Workspace-ID`.
+Members read; workspace owners and admins manage; global admins bypass.
+`LinearAdminService` is platform-level and global-admin only.
+
+#### Setting up a Linear App
+
+1. A global admin sets the Linear public base URL
+   (`LinearAdminService.UpdateLinearSettings`): `https` with no path, or plain
+   `http` for `localhost`.
+2. In Linear (Settings → API → OAuth applications), create an OAuth app and
+   enable **Agent session events**.
+3. `CreateLinearApp` with the app's `client_id`, the routed `agent_id`, and
+   optionally the write-only `client_secret` and `webhook_secret`. The
+   response carries the derived `callback_url` and `webhook_url`; paste them
+   into the Linear app.
+4. `BeginLinearInstall` returns Linear's authorize URL; open it in the
+   browser and approve. Linear redirects to the public callback, which
+   stores the Installation and redirects back to the dashboard.
+5. Enable inbound (`UpdateLinearApp` with `inbound_enabled: true`). This
+   requires both secrets and Redis configured as a durable queue.
+
+**Security.** Anyone admitted to a Linear App can drive its Agent. For a Pi or
+Cursor Agent that means running commands on its ButterBox, including anything
+the box user can reach. Keep `allowed_user_ids` to people you would give that
+access; an empty list admits every member of the installed organizations.
+
+#### LinearAppService
+
+| RPC | Notes |
+|---|---|
+| `ListLinearApps` / `GetLinearApp` | Any member; carry derived `callback_url` / `webhook_url` |
+| `CreateLinearApp` | `client_id` is globally unique (`AlreadyExists`); `agent_id` must name an active Agent |
+| `UpdateLinearApp` | Requires `revision` (`Aborted` when stale); `id` and `client_id` are immutable |
+| `PutLinearAppCredentials` | Optional `client_secret` / `webhook_secret`: absent keeps, empty clears; clearing is refused while inbound is on |
+| `DeleteLinearApp` | Removes the App and its Installations, revoking their tokens as a best effort |
+| `BeginLinearInstall` | Owner/admin; needs the base URL and the client secret; `return_url` must be relative or on the base URL's or dashboard's origin |
+| `ListLinearInstallations` | Any member |
+| `DeleteLinearInstallation` | Owner/admin; revokes the token as a best effort |
+
+`LinearApp` fields: `display_name`, `client_id`, `agent_id`,
+`inbound_enabled`, `allowed_user_ids` (Linear user UUIDs; empty admits every
+member of the installed organizations), optional `max_run_seconds` (absent =
+1800, explicit `0` = unlimited, at most 86400), `revision`, and the
+server-owned `credential_state` (`INCOMPLETE` / `COMPLETE`),
+`client_secret_set`, `webhook_secret_set`.
+
+`LinearInstallation` fields: `organization_id`, `organization_name`,
+`app_user_id`, `scopes`, `credential_state` (`VALID` / `NEEDS_REINSTALL`),
+`last_credential_error`, `installed_at`. Tokens are never returned. An
+installation whose token Linear revoked or refused to refresh is
+`NEEDS_REINSTALL`; installing again clears it.
+
+Deleting an Agent a Linear App routes to is refused (`FailedPrecondition`,
+naming the App IDs).
+
+#### LinearProcessingService
+
+| RPC | Notes |
+|---|---|
+| `ListLinearProcessingRecords` | Filter by `app_id` and `status`; newest first; `page_size` defaults to 50, capped at 200 |
+| `GetLinearProcessingRecord` | |
+| `ResendLinearReply` | Owner/admin; posts the persisted reply of a `FAILED` record; never invokes the Agent |
+
+Statuses: `QUEUED` (a follow-up waiting behind the session's turn),
+`RECEIVED`, `PROCESSING`, `READY_TO_DELIVER`, `SUCCEEDED`, `FAILED`,
+`FAILED_UNCERTAIN`, `CANCELLED` (stopped by the user, or discarded by a stop
+while queued). Records expire after 30 days. As with Telegram there is **no
+rerun action**: `FAILED_UNCERTAIN` means the Agent may have run tools
+(ADR-0009).
+
+#### Linear webhook
+
+```
+POST /api/linear/webhook/{app_id}
+Linear-Signature: <hex HMAC-SHA256 of the raw body>
+Linear-Delivery: <delivery id>
+```
+
+Public (no session, no workspace header); the workspace comes from the App.
+
+| Condition | Status |
+|---|---|
+| Unknown App | `404` |
+| Body over 1 MiB | `413` |
+| Signature missing or wrong | `401` |
+| Malformed JSON | `400` |
+| `webhookTimestamp` more than ±60 s off | `401` |
+| Not an `AgentSessionEvent`, App not inbound-enabled, or organization not installed | `200` (ignored) |
+| Accepted, or a duplicate delivery | `200` |
+| Queue or credential failure | `503` (Linear redelivers) |
+
+Deliveries are deduplicated by `Linear-Delivery`, or by the SHA-256 of the
+raw body when the header is missing. An event without a top-level
+`organizationId` resolves to the App's only installation.
+
+#### Linear OAuth callback
+
+```
+GET /api/linear/oauth/callback?state=…&code=…
+```
+
+Public and shared by every App; the single-use state (10-minute TTL) names
+the App. It always redirects to the return URL (or the App page) with
+`linear_install=success&installation_id=…`, or `linear_install=error` and a
+`reason` of `denied`, `state_invalid`, `app_missing`, `exchange_failed`,
+`identity_failed` or `storage_failed`. A failure writes nothing.
+
+#### What the session shows
+
+| Linear activity | When |
+|---|---|
+| `thought` "Picked up …" | First, within seconds of `created`, before any slow work |
+| `thought` "Queued …" | A message arrived while a turn runs; it runs next |
+| `action` | A tool call: verb or "Using <tool>", one-line redacted parameter (≤200 runes); at most one per 3 s |
+| ephemeral `thought` | Context compaction |
+| `response` | The Agent's reply, redacted, truncated at 8000 runes with a link to the full reply in Butter |
+| `elicitation` | A Workflow paused on a Human Input node; `signal: "select"` with options when the form's only field is a single choice |
+| `error` | A failure, timeout (`max_run_seconds`), disallowed user, disabled App, unloaded Agent, or a turn cut short by a crash |
+| `response` "Stopped …" | After a stop, once the stopped turn can post nothing more |
+
+Each session is linked to the Butter session (`agentSessionUpdate` external
+URL) at `/sessions/detail?app=linear&user=…&sid=…`. Turns run in session
+`linear:{app_id}:{agent_session_id}:{agent_id}` under app name `linear`, as
+user `linear:{app_id}:{organization_id}`; Memory Capture records the
+prompting Linear user as principal `linear:{user_id}`.
 
 ---
 

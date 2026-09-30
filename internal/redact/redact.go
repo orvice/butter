@@ -1,15 +1,19 @@
-package mem0memory
+// Package redact removes common credential shapes from text that leaves
+// Butter for a shared destination: memories written to mem0 (ADR-0013) and
+// activities posted to Linear (ADR-0015). It is best effort by design.
+package redact
 
 import "regexp"
 
-// redacted replaces a secret found in text sent to mem0.
+// redacted replaces a secret found in outgoing text.
 const redacted = "[REDACTED]"
 
 // secretPatterns match common credential shapes. Memory is shared across the
 // whole workspace (ADR-0013 §3), so a key pasted into one conversation must
-// not become a recallable "fact" for every agent. The list is deliberately
-// conservative: shapes with a distinctive prefix, plus `key = value`
-// assignments whose key names a secret.
+// not become a recallable "fact" for every agent; the same holds for text
+// posted into a Linear issue. The list is deliberately conservative: shapes
+// with a distinctive prefix, plus `key = value` assignments whose key names a
+// secret.
 var secretPatterns = []*regexp.Regexp{
 	// PEM private keys, whole block.
 	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----`),
@@ -41,8 +45,8 @@ var bearerPattern = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-
 // `api_key: abc123` or `PASSWORD=hunter2`.
 var assignmentPattern = regexp.MustCompile(`(?i)\b([A-Za-z0-9_-]*(?:api[_-]?key|secret|password|passwd|token|access[_-]?key)[A-Za-z0-9_-]*)(\s*[:=]\s*)("[^"]*"|'[^']*'|\S+)`)
 
-// Redact removes common secret shapes from text before it is sent to mem0.
-func Redact(text string) string {
+// Text removes common secret shapes from text before it leaves Butter.
+func Text(text string) string {
 	for _, p := range secretPatterns {
 		text = p.ReplaceAllString(text, redacted)
 	}
