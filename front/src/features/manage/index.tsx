@@ -17,6 +17,7 @@ import {
   Cpu,
   FileBox,
   GitBranch,
+  Globe,
   KeyRound,
   Laptop,
   ListTree,
@@ -86,12 +87,6 @@ const CONNECTION_SECTIONS: ManageSection[] = [
         to: '/agent-files',
         icon: FileBox,
       },
-      {
-        title: 'API Tokens',
-        description: 'Issue and revoke programmatic access tokens.',
-        to: '/api-tokens',
-        icon: KeyRound,
-      },
     ],
   },
   {
@@ -100,46 +95,18 @@ const CONNECTION_SECTIONS: ManageSection[] = [
       'Configure inbound channels and outbound notification targets.',
     items: [
       {
-        title: 'Telegram Platform Settings',
+        title: 'Telegram',
         description:
-          'Set the public webhook base URL Telegram delivers callbacks to.',
-        to: '/admin/telegram',
-        icon: ShieldCheck,
-      },
-      {
-        title: 'Telegram Channels',
-        description:
-          'Register Telegram bots and bind chats, groups, and forum topics.',
+          'Register bots, bind chats and forum topics, and review processed updates.',
         to: '/telegram-channels',
         icon: Send,
       },
       {
-        title: 'Telegram Updates',
+        title: 'Linear',
         description:
-          'Inspect processing history and resend replies that never landed.',
-        to: '/telegram-updates',
-        icon: ListTree,
-      },
-      {
-        title: 'Linear Platform Settings',
-        description:
-          'Set the public base URL Linear delivers webhooks and OAuth callbacks to.',
-        to: '/admin/linear',
-        icon: ShieldCheck,
-      },
-      {
-        title: 'Linear Apps',
-        description:
-          'Route Linear OAuth apps to Agents so issues can be delegated to them.',
+          'Route Linear apps to Agents so issues can be delegated, and review deliveries.',
         to: '/linear-apps',
         icon: SquareKanban,
-      },
-      {
-        title: 'Linear Deliveries',
-        description:
-          'Inspect Linear processing history and resend replies that never landed.',
-        to: '/linear-deliveries',
-        icon: ListTree,
       },
       {
         title: 'Notify Groups',
@@ -201,7 +168,7 @@ const MODEL_SECTIONS: ManageSection[] = [
 const WORKSPACE_SECTION: ManageSection = {
   title: 'Workspace and access',
   description:
-    'Manage workspace membership, shared infrastructure, and your profile.',
+    'Manage workspace membership, shared infrastructure, and access.',
   items: [
     {
       title: 'Workspaces',
@@ -222,10 +189,10 @@ const WORKSPACE_SECTION: ManageSection = {
       icon: Brain,
     },
     {
-      title: 'Profile',
-      description: 'Update your display name and profile image.',
-      to: '/profile',
-      icon: UserRound,
+      title: 'API Tokens',
+      description: 'Issue and revoke programmatic access tokens.',
+      to: '/api-tokens',
+      icon: KeyRound,
     },
   ],
 }
@@ -249,6 +216,13 @@ const ADMIN_ITEMS: ManageItem[] = [
       'Manage the platform allowlist of Git hosts for repository bindings.',
     to: '/admin/git-hosts',
     icon: GitBranch,
+  },
+  {
+    title: 'Public endpoints',
+    description:
+      'Set the public base URL Telegram and Linear deliver callbacks to.',
+    to: '/admin/endpoints',
+    icon: Globe,
   },
 ]
 

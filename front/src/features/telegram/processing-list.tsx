@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { RefreshCw, Send } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ArrowLeft, ChevronRight, RefreshCw, Send } from 'lucide-react'
 import {
   useResendTelegramReply,
   useTelegramProcessingRecords,
@@ -52,6 +53,17 @@ export function TelegramProcessingList() {
     <Page>
       <PageHeader
         title='Telegram updates'
+        breadcrumb={
+          <Link
+            to='/telegram-channels'
+            className='inline-flex items-center gap-1.5 hover:text-foreground'
+          >
+            <ArrowLeft className='size-3.5' />
+            Telegram Channels
+            <ChevronRight className='size-3' />
+            <span className='text-foreground'>Updates</span>
+          </Link>
+        }
         subtitle='Processing history for accepted Telegram updates in this workspace.'
         actions={
           <Select value={status} onValueChange={setStatus}>

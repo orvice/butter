@@ -1,6 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { AdminTelegramSettingsPage } from '@/features/admin/telegram-settings'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/admin/telegram')({
-  component: AdminTelegramSettingsPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/endpoints', replace: true })
+  },
 })

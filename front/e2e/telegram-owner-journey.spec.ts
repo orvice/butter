@@ -182,9 +182,9 @@ test('an owner goes from bot creation to failure recovery', async ({ page }) => 
   })
 
   // 1. A global admin sets the public callback host.
-  await page.goto('/admin/telegram')
-  await page.getByLabel('Public base URL').fill('https://butter.example.com')
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.goto('/admin/endpoints')
+  await page.getByLabel('Telegram public base URL').fill('https://butter.example.com')
+  await page.getByRole('button', { name: 'Save Telegram settings' }).click()
   await expect(page.getByText('Telegram settings updated').first()).toBeVisible()
 
   // 2. The owner registers the bot with a write-only token.
