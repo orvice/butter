@@ -17,6 +17,7 @@ import (
 	"google.golang.org/adk/v2/workflow"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/a2ui"
 	"go.orx.me/apps/butter/internal/aguitool"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
@@ -128,6 +129,7 @@ func aguiSessionKey(ctxInfo *agentsv1.ContextInfo) string {
 // agent's immutable agent_id, the sole agent reference on protocol interfaces.
 func (h *AGUIHandler) Register(r *gin.Engine) {
 	r.POST("/api/agui/:agent_id", h.RunAgent)
+	r.GET("/api/agui/:agent_id/threads/:thread_id/ui", h.UISnapshot)
 }
 
 // aguiErrorResponse is the body for failures that happen before the SSE stream
@@ -152,6 +154,14 @@ type aguiRunContext struct {
 	stateArmed    bool
 	stateInitial  map[string]any
 	stateSnapshot bool
+
+	// a2uiNegotiated is set when the client declared A2UI
+	// (forwardedProps.butterA2UI). It becomes live for the run only if the
+	// session's binding matches.
+	a2uiNegotiated bool
+	// formEntries are the resume entries that submit forms; they are
+	// validated under the lease, before the run starts.
+	formEntries []aguiFormEntry
 }
 
 // RunAgent handles POST /api/agui/:agent_id.
@@ -177,21 +187,29 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 	// error the client can retry, not a stream that dies mid-run. Client
 	// disconnect cancels the request context, which ends the run and releases
 	// the lease through the same defer.
-	runCtx := c.Request.Context()
-	if guard := h.getSessionGuard(); guard != nil {
-		leaseCtx, release, acquired, err := guard.Acquire(runCtx, aguiSessionKey(rc.ctxInfo))
-		if err != nil {
-			logger.Error("agui session lease unavailable",
-				"thread_id", rc.input.ThreadID, "err", err)
-			c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session lock unavailable, retry later"})
-			return
-		}
-		if !acquired {
-			c.JSON(http.StatusConflict, aguiErrorResponse{Error: "a run is already in progress for this thread, retry after it finishes"})
-			return
-		}
-		defer release()
-		runCtx = leaseCtx
+	runCtx, release, ok := h.acquireThread(c, rc.ctxInfo)
+	if !ok {
+		return
+	}
+	defer release()
+
+	// Under the lease: bind a new session to this caller, and check form
+	// submissions against the session they claim to answer. Both still
+	// happen before the stream opens, so a rejection is an HTTP error and
+	// nothing runs.
+	ui, status, err := h.prepareUI(runCtx, rc)
+	if err != nil {
+		c.JSON(status, aguiErrorResponse{Error: err.Error()})
+		return
+	}
+	if status, formErr := resolveFormSubmissions(rc, ui); formErr != nil {
+		c.JSON(status, formErr)
+		return
+	}
+	messageID := uuid.NewString()
+	uiLive := rc.a2uiNegotiated && ui.bound
+	if uiLive {
+		runCtx = a2ui.WithRun(runCtx, &a2ui.Run{ThreadID: rc.input.ThreadID, RunID: rc.input.RunID, MessageID: messageID})
 	}
 
 	// Client-declared frontend tools ride the run context: the aguitool
@@ -207,17 +225,13 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 
-	sink := newAGUISink(rc.input.ThreadID, rc.input.RunID, uuid.NewString(),
+	sink := newAGUISink(rc.input.ThreadID, rc.input.RunID, messageID,
 		newAGUISSEEmitter(c.Request.Context(), c.Writer, c.Writer.Flush))
-	if rc.stateArmed {
+	if svc := h.getSessionService(); svc != nil {
 		// The final fetch runs on the request context, not the lease context:
 		// it must still work when the run was cancelled.
 		reqCtx := c.Request.Context()
-		sink.setSharedState(rc.stateInitial, rc.stateSnapshot, func() (map[string]any, bool) {
-			svc := h.getSessionService()
-			if svc == nil {
-				return nil, false
-			}
+		sink.setFinalSession(func() (session.Session, bool) {
 			resp, err := svc.Get(reqCtx, &session.GetRequest{
 				AppName:   aguiAppName,
 				UserID:    rc.ctxInfo.GetUserId(),
@@ -226,8 +240,20 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 			if err != nil {
 				return nil, false
 			}
-			return aguiVisibleState(sessionStateMap(resp.Session)), true
+			return resp.Session, true
 		})
+	}
+	if rc.stateArmed {
+		sink.setSharedState(rc.stateInitial, rc.stateSnapshot)
+	}
+	if rc.a2uiNegotiated {
+		// An A2UI client's forms track the thread's open Interrupts, so its
+		// runs end by reporting every one still open — not only those they
+		// raised — however the others were answered.
+		sink.reportPendingInterrupts()
+	}
+	if uiLive {
+		sink.setA2UI(ui.sess)
 	}
 
 	runErr := streamorch.Run(runCtx, rc.svc,
@@ -256,22 +282,56 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 	}
 }
 
+// acquireThread takes the thread's cross-Pod session lease for the rest of
+// the request, answering 503 (lease infrastructure down) or 409 (busy)
+// itself when it cannot. Without a guard it is a no-op. The returned context
+// is cancelled if the lease is lost.
+func (h *AGUIHandler) acquireThread(c *gin.Context, ctxInfo *agentsv1.ContextInfo) (context.Context, func(), bool) {
+	ctx := c.Request.Context()
+	guard := h.getSessionGuard()
+	if guard == nil {
+		return ctx, func() {}, true
+	}
+	leaseCtx, release, acquired, err := guard.Acquire(ctx, aguiSessionKey(ctxInfo))
+	if err != nil {
+		log.FromContext(ctx).Error("agui session lease unavailable",
+			"session_id", ctxInfo.GetSessionId(), "err", err)
+		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session lock unavailable, retry later"})
+		return nil, nil, false
+	}
+	if !acquired {
+		c.JSON(http.StatusConflict, aguiErrorResponse{Error: "a run is already in progress for this thread, retry after it finishes"})
+		return nil, nil, false
+	}
+	return leaseCtx, release, true
+}
+
+// resolveAgent finds the AG-UI-enabled agent the route addresses in the
+// request's workspace, answering 401 or 404 itself when there is none.
+func (h *AGUIHandler) resolveAgent(c *gin.Context) (string, *agentsv1.Agent, bool) {
+	ctx := c.Request.Context()
+	workspaceID, hasWorkspace := wsctx.FromContext(ctx)
+	if !hasWorkspace {
+		c.JSON(http.StatusUnauthorized, aguiErrorResponse{Error: "workspace required (set X-Workspace-ID header)"})
+		return "", nil, false
+	}
+	agentID := c.Param("agent_id")
+	agent, err := h.agentRepo.GetAgent(ctx, workspaceID, agentID)
+	if err != nil || agent == nil || !agent.GetEnableAgui() {
+		c.JSON(http.StatusNotFound, aguiErrorResponse{Error: "agent not found: " + agentID})
+		return "", nil, false
+	}
+	return workspaceID, agent, true
+}
+
 // validateAndPrepare resolves the workspace, agent and runner, decodes and
 // validates the RunAgentInput, and builds the run's parts and ContextInfo.
 // It returns false when an error response was already written.
 func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool) {
 	ctx := c.Request.Context()
 
-	workspaceID, hasWorkspace := wsctx.FromContext(ctx)
-	if !hasWorkspace {
-		c.JSON(http.StatusUnauthorized, aguiErrorResponse{Error: "workspace required (set X-Workspace-ID header)"})
-		return nil, false
-	}
-
-	agentID := c.Param("agent_id")
-	agent, err := h.agentRepo.GetAgent(ctx, workspaceID, agentID)
-	if err != nil || agent == nil || !agent.GetEnableAgui() {
-		c.JSON(http.StatusNotFound, aguiErrorResponse{Error: "agent not found: " + agentID})
+	workspaceID, agent, ok := h.resolveAgent(c)
+	if !ok {
 		return nil, false
 	}
 
@@ -293,6 +353,11 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 	if input.RunID == "" {
 		input.RunID = uuid.NewString()
 	}
+	negotiated, err := a2ui.Negotiate(input.ForwardedProps)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: err.Error()})
+		return nil, false
+	}
 
 	ctxInfo, err := streamorch.NewContextInfo(streamorch.ContextInfoInput{
 		AppName:       aguiAppName,
@@ -300,7 +365,7 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		SessionID:     aguiSessionPrefix + input.ThreadID,
 		SessionPrefix: aguiSessionPrefix,
 		WorkspaceID:   workspaceID,
-		HasWorkspace:  hasWorkspace,
+		HasWorkspace:  true,
 		IsAdmin:       auth.IsAdmin(ctx),
 		Source:        agentsv1.ContextSource_CONTEXT_SOURCE_API,
 		ChatType:      agentsv1.ChatType_CHAT_TYPE_PRIVATE,
@@ -310,19 +375,21 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		return nil, false
 	}
 
-	parts, status, err := h.aguiInputParts(ctx, &input, ctxInfo)
+	parts, formEntries, status, err := h.aguiInputParts(ctx, &input, ctxInfo)
 	if err != nil {
 		c.JSON(status, aguiErrorResponse{Error: err.Error()})
 		return nil, false
 	}
 
 	rc := &aguiRunContext{
-		input:       input,
-		agent:       agent,
-		svc:         svc,
-		parts:       parts,
-		ctxInfo:     ctxInfo,
-		clientTools: clientToolDeclarations(input.Tools),
+		input:          input,
+		agent:          agent,
+		svc:            svc,
+		parts:          parts,
+		ctxInfo:        ctxInfo,
+		clientTools:    clientToolDeclarations(input.Tools),
+		a2uiNegotiated: negotiated,
+		formEntries:    formEntries,
 	}
 	if status, err := h.prepareSharedState(ctx, rc); err != nil {
 		c.JSON(status, aguiErrorResponse{Error: err.Error()})
@@ -393,6 +460,7 @@ func validateAGUIInput(input *aguitypes.RunAgentInput) error {
 	default:
 		return errors.New("state must be a JSON object")
 	}
+	seenResume := make(map[string]bool, len(input.Resume))
 	for _, entry := range input.Resume {
 		if entry.Status == aguitypes.ResumeStatusCancelled {
 			// Butter has no way to abandon a pending Interrupt: the workflow
@@ -403,6 +471,10 @@ func validateAGUIInput(input *aguitypes.RunAgentInput) error {
 		if entry.InterruptID == "" {
 			return errors.New("resume entries require an interruptId")
 		}
+		if seenResume[entry.InterruptID] {
+			return errors.New("duplicate resume entry for interruptId: " + entry.InterruptID)
+		}
+		seenResume[entry.InterruptID] = true
 	}
 	return nil
 }
@@ -437,15 +509,29 @@ func clientToolDeclarations(tools []aguitypes.Tool) []aguitool.Declaration {
 // Otherwise only the trailing user message is sent: RunAgentInput.Messages is
 // the client's full history, but the server-side session is authoritative, so
 // replaying it would duplicate the conversation.
-func (h *AGUIHandler) aguiInputParts(ctx context.Context, input *aguitypes.RunAgentInput, ctxInfo *agentsv1.ContextInfo) ([]*genai.Part, int, error) {
+//
+// A resume entry whose payload is an A2UI form submission (butterForm) is
+// returned as a form entry: its answer is only known once the submission is
+// validated against the session under the lease (resolveFormSubmissions).
+func (h *AGUIHandler) aguiInputParts(ctx context.Context, input *aguitypes.RunAgentInput, ctxInfo *agentsv1.ContextInfo) ([]*genai.Part, []aguiFormEntry, int, error) {
 	var parts []*genai.Part
+	var forms []aguiFormEntry
 	for _, entry := range input.Resume {
+		payload := entry.Payload
+		sub, isForm, err := a2ui.SubmissionOf(entry.Payload)
+		if err != nil {
+			return nil, nil, http.StatusBadRequest, err
+		}
+		if isForm {
+			forms = append(forms, aguiFormEntry{partIndex: len(parts), interruptID: entry.InterruptID, submission: sub})
+			payload = nil
+		}
 		parts = append(parts, &genai.Part{
 			FunctionResponse: &genai.FunctionResponse{
 				ID:   entry.InterruptID,
 				Name: workflow.WorkflowInputFunctionCallName,
 				Response: map[string]any{
-					aguiRequestInputPayloadKey: entry.Payload,
+					aguiRequestInputPayloadKey: payload,
 				},
 			},
 		})
@@ -453,24 +539,24 @@ func (h *AGUIHandler) aguiInputParts(ctx context.Context, input *aguitypes.RunAg
 
 	results, err := trailingToolResults(input.Messages)
 	if err != nil {
-		return nil, http.StatusBadRequest, err
+		return nil, nil, http.StatusBadRequest, err
 	}
 	if len(results) > 0 {
 		toolParts, status, err := h.toolResultParts(ctx, results, ctxInfo)
 		if err != nil {
-			return nil, status, err
+			return nil, nil, status, err
 		}
 		parts = append(parts, toolParts...)
 	}
 	if len(parts) > 0 {
-		return parts, 0, nil
+		return parts, forms, 0, nil
 	}
 
 	text := latestAGUIUserText(input.Messages)
 	if text == "" {
-		return nil, http.StatusBadRequest, errors.New("messages must end with a non-empty user message")
+		return nil, nil, http.StatusBadRequest, errors.New("messages must end with a non-empty user message")
 	}
-	return []*genai.Part{{Text: text}}, 0, nil
+	return []*genai.Part{{Text: text}}, nil, 0, nil
 }
 
 // trailingToolResults returns the tool-role messages that terminate the

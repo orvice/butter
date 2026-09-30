@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"iter"
 	"strings"
@@ -30,9 +31,9 @@ func newRouterNode(name string, labels []string, cfg workflow.NodeConfig) *route
 
 func (n *routerNode) Run(ctx agent.Context, input any) iter.Seq2[*session.Event, error] {
 	return func(yield func(*session.Event, error) bool) {
-		text, ok := input.(string)
-		if !ok {
-			yield(nil, fmt.Errorf("router %q: input must be text, got %T", n.Name(), input))
+		text, err := routerText(input)
+		if err != nil {
+			yield(nil, fmt.Errorf("router %q: %w", n.Name(), err))
 			return
 		}
 
@@ -59,4 +60,19 @@ func matchRouteLabel(text string, labels []string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// routerText is the text a Router matches. A human's JSON answer — a
+// Human Input form submission, or a reply typed as JSON — reaches the Router
+// already parsed, because ADK decodes JSON answers when a workflow resumes;
+// it is matched as its JSON text, which is what every other node sees.
+func routerText(input any) (string, error) {
+	if text, ok := input.(string); ok {
+		return text, nil
+	}
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return "", fmt.Errorf("input must be text, got %T", input)
+	}
+	return string(encoded), nil
 }

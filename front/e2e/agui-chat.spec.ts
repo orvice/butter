@@ -1,54 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
-import { ListAgentsResponseSchema } from '../src/gen/agents/v1/agent_service_pb'
-import { fulfillProto, setupAuthenticatedConnectRoutes } from './support/connect'
+import { expect, test } from '@playwright/test'
+import { setupAGUI as setupAGUIFixture, sse } from './support/agui'
 
 // The dashboard AG-UI chat uses the official assistant-ui AG-UI runtime with
 // HttpAgent. Fixtures fulfill POST /api/agui/:agent_id with literal SSE event
 // frames. The runtime handles parsing, message reconstruction, and state.
 
-function sse(events: Array<Record<string, unknown>>): string {
-  return events.map((ev) => `data: ${JSON.stringify(ev)}\n\n`).join('')
-}
-
 async function setupAGUI(
-  page: Page,
+  page: Parameters<typeof setupAGUIFixture>[0],
   runs: string[],
   requests: Array<Record<string, unknown>>
 ) {
-  await setupAuthenticatedConnectRoutes(page, async (route, url) => {
-    if (url.includes('AgentService/ListAgents')) {
-      return fulfillProto(route, ListAgentsResponseSchema, {
-        agents: [
-          {
-            name: 'Streamer',
-            agentId: 'streamer-id',
-            description: 'AG-UI enabled',
-            enableAgui: true,
-            lifecycleStatus: 1,
-          },
-          {
-            name: 'Plain',
-            agentId: 'plain-id',
-            description: 'not exposed',
-            enableAgui: false,
-            lifecycleStatus: 1,
-          },
-        ],
-        total: 2,
-      })
-    }
-    return false
-  })
-
-  await page.route('**/api/agui/**', async (route) => {
-    requests.push(JSON.parse(route.request().postData() ?? '{}'))
-    const body = runs.shift() ?? sse([])
-    await route.fulfill({
-      status: 200,
-      contentType: 'text/event-stream',
-      body,
-    })
-  })
+  await setupAGUIFixture(page, { runs, requests })
 }
 
 test.describe('AG-UI chat', () => {

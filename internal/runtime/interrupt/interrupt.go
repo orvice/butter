@@ -78,6 +78,16 @@ func Pending(sess session.Session) []Interrupt {
 	return pending
 }
 
+// PendingIDs is the set of Interrupt IDs Pending reports.
+func PendingIDs(sess session.Session) map[string]bool {
+	pending := Pending(sess)
+	ids := make(map[string]bool, len(pending))
+	for _, p := range pending {
+		ids[p.InterruptID] = true
+	}
+	return ids
+}
+
 // Resume implements the implicit-resume contract: when the session has a
 // pending Interrupt and the inbound message carries plain text, the text is
 // taken as the answer to the oldest pending Interrupt (Pending's FIFO order)

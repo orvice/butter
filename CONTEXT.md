@@ -84,6 +84,28 @@ _Avoid_: pause, suspension
 **Parallel Worker**:
 A node option that runs the node once per item of a list-typed input, concurrently, then aggregates outputs.
 
+### Generative UI (A2UI)
+
+**Surface**:
+One A2UI-rendered area in AG-UI Chat, identified by a server-assigned surface ID: either a Result Card or a Human Input Form. It reaches a client as `butter.a2ui` CUSTOM events and from the UI Snapshot (ADR-0014).
+_Avoid_: widget, generative component
+
+**Result Card**:
+A read-only Surface a model creates, updates, or removes with the `render_ui` tool during an A2UI-capable AG-UI run. Persisted in the session's hidden UI state namespace; it cannot collect input or trigger actions.
+_Avoid_: rich message, UI message
+
+**Human Input Form**:
+The optional form presentation of a Human Input Node's question: ordered text and single-choice fields. Its binding to one Interrupt is frozen into the request-input event that opens it; submitting it answers exactly that Interrupt with a JSON object text, while other channels still answer in text.
+_Avoid_: HITL form, typed resume
+
+**UI Binding**:
+The authenticated principal, Workspace, Agent ID, and thread an AG-UI session's Surfaces belong to, recorded when the session is created. UI is exposed and accepted only for a request whose context matches it.
+_Avoid_: session owner
+
+**UI Snapshot**:
+A thread's current Result Cards and unanswered Human Input Forms, rebuilt from the persisted session without running the agent.
+_Avoid_: UI cache, UI history
+
 ### Skills
 
 **Skill**:

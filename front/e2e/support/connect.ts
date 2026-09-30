@@ -103,9 +103,15 @@ export async function fulfillConnectStream<T extends DescMessage>(
   return true
 }
 
+export interface ConnectFixtureOptions {
+  // Workspaces the signed-in user belongs to; the first is selected.
+  workspaces?: Array<{ id: string; name: string; slug: string }>
+}
+
 export async function setupAuthenticatedConnectRoutes(
   page: Page,
-  handleRoute: ConnectRouteHandler
+  handleRoute: ConnectRouteHandler,
+  options: ConnectFixtureOptions = {}
 ) {
   await page.addInitScript(() => {
     localStorage.setItem('butter_token', 'fake-test-token')
@@ -129,7 +135,9 @@ export async function setupAuthenticatedConnectRoutes(
 
     if (url.includes('WorkspaceService')) {
       await fulfillProto(route, ListWorkspacesResponseSchema, {
-        workspaces: [{ id: 'default', name: 'Default', slug: 'default' }],
+        workspaces: options.workspaces ?? [
+          { id: 'default', name: 'Default', slug: 'default' },
+        ],
       })
       return
     }

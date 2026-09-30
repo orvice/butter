@@ -657,7 +657,9 @@ data: {"type":"RUN_FINISHED","threadId":"t-1","runId":"run-1","outcome":{"type":
 ```
 
 Emitted events: `RUN_STARTED`, `TEXT_MESSAGE_START` / `_CONTENT` / `_END`,
-`TOOL_CALL_START` / `_ARGS` / `_END`, `TOOL_CALL_RESULT`, `RUN_FINISHED`, and
+`TOOL_CALL_START` / `_ARGS` / `_END`, `TOOL_CALL_RESULT`, `STATE_SNAPSHOT` /
+`STATE_DELTA`, `CUSTOM` (`butter.a2ui`, only for clients that negotiated A2UI —
+see [A2UI surfaces](#a2ui-surfaces-result-cards-and-forms)), `RUN_FINISHED`, and
 `RUN_ERROR`. `STEP_STARTED` / `STEP_FINISHED` are **not** emitted — ADK exposes no
 per-node signal that could produce an honest step boundary.
 
@@ -715,7 +717,18 @@ interrupt by id:
 ```
 
 Addressed resume takes precedence over Butter's implicit oldest-first matching,
-so answering out of order works when several interrupts are pending.
+so answering out of order works when several interrupts are pending. A resume
+may answer any subset of the pending interrupts — at most one entry per
+`interruptId`, a duplicate is `400` — and the rest stay pending: Butter has no
+cancel. The `RUN_FINISHED` outcome lists the interrupts the run raised; for a
+client that negotiated [A2UI](#a2ui-surfaces-result-cards-and-forms) it lists
+**every** interrupt still open on the thread, however the others were answered,
+so the client's pending set and its forms match the session.
+
+A Human Input node with a [form](#humaninputform-object) appends field
+instructions to its question (`message`), so clients without A2UI can still tell
+the user what to answer; they may reply in plain text or JSON text. A2UI clients
+also receive the form itself — see [Human Input forms](#human-input-forms).
 
 #### Frontend tools
 
@@ -775,6 +788,249 @@ server → client only:
 `state` must be a JSON object (or null); anything else is `400`. Send the
 mirror back on each request — it is how the server knows whether the client
 needs a re-baseline.
+
+#### A2UI surfaces (result cards and forms)
+
+Butter can render [A2UI v0.9.1](https://a2ui.org/specification/v0.9.1-a2ui/)
+surfaces inside the conversation: **read-only result cards** a model produces,
+and **forms** for Workflow Human Input nodes. AG-UI stays the transport; A2UI is
+the content format. Everything below is a Butter extension of AG-UI, not an
+A2UI-standard AG-UI binding.
+
+**Negotiation.** A client opts in per run through `forwardedProps`:
+
+```json
+{ "forwardedProps": { "butterA2UI": { "version": "v0.9.1", "catalogs": ["butter-basic-v1"] } } }
+```
+
+The declaration only selects what the server already ships — it never uploads
+components or schemas. Without it, or with a version or catalog Butter does not
+serve, the run is plain AG-UI: no `CUSTOM` events and no `render_ui` tool. A
+`butterA2UI` value that is not shaped like the object above is `400`. A2UI also
+needs the thread's **UI binding**: a session created by the AG-UI endpoint is
+bound to its creator's principal, workspace, `agent_id` and `threadId`. A
+session created before A2UI existed has no binding, and the same caller reusing
+a `threadId` under another workspace or agent does not match it — in both cases
+the run is plain text chat and no UI is exposed or accepted.
+
+**Events.** Each A2UI message arrives as one AG-UI `CUSTOM` event named
+`butter.a2ui`:
+
+```json
+{
+  "type": "CUSTOM",
+  "name": "butter.a2ui",
+  "value": {
+    "version": "v0.9.1",
+    "surfaceId": "card-3f2a…",
+    "kind": "card",
+    "revision": 2,
+    "seq": 0,
+    "threadId": "t-1",
+    "runId": "run-2",
+    "messageId": "…",
+    "envelope": { "version": "v0.9.1", "updateComponents": { "surfaceId": "card-3f2a…", "components": [ … ] } },
+    "fallback": "Deploy summary: production, healthy."
+  }
+}
+```
+
+- `envelope` is one complete A2UI server-to-client message (`createSurface`,
+  `updateComponents`, `updateDataModel` or `deleteSurface`); token streams are
+  never split into envelopes.
+- `revision` is server-assigned per surface and grows with every persisted
+  change; `seq` orders the envelopes of one revision. Apply an event only when
+  `(revision, seq)` is past what you applied for that surface, so a replay
+  never overwrites newer content; a deleted surface never returns.
+- `threadId` / `runId` / `messageId` associate the envelope with the run and
+  assistant message that produced it.
+- `fallback` is readable text for when the surface cannot be rendered.
+- `kind: "form"` events also carry `form` (see [Human Input forms](#human-input-forms)).
+
+Events are sent only after the change they describe is persisted; a client that
+misses them (disconnect, refresh) recovers from the [UI snapshot](#ui-snapshot).
+
+**Catalog `butter-basic-v1`.** Components follow A2UI's basic catalog where one
+exists; every component is `{"id", "component", …properties}` and references
+children by id (templates are not supported). Text is plain text: no HTML,
+and no URLs of any kind (`scheme://…`, `javascript:`), in component text, data
+or `fallback` — links belong in the model's text answer.
+
+| Component | Properties | Who may use it |
+|---|---|---|
+| `Card` | `child` | model, forms |
+| `Column` / `Row` | `children`, `justify?`, `align?` | model, forms |
+| `Text` | `text`, `variant?` (`h1`–`h5`, `caption`, `body`) | model, forms |
+| `KeyValue` | `label`, `value` | model |
+| `Status` | `text`, `tone?` (`neutral`, `info`, `success`, `warning`, `error`) | model |
+| `Divider` | `axis?` | model |
+| `TextField` | `name`, `label`, `value`, `variant?`, `hint?`, `required?`, `maxLength?` | server-built forms only |
+| `ChoicePicker` | `name`, `label`, `value`, `options`, `variant: "mutuallyExclusive"`, `hint?`, `required?` | server-built forms only |
+| `Button` | `child`, `variant?`, `action` | server-built forms only |
+
+A text property is a literal string or `{"path": "/key"}` bound to the
+surface's data model; function calls are not part of the catalog.
+
+##### Result cards: `render_ui`
+
+In a negotiated, bound run every LLM agent is offered a `render_ui` tool (Pi,
+Cursor, remote agents and every non-AG-UI entry point never see it):
+
+```json
+{
+  "surface_id": "card-3f2a…",
+  "messages": [
+    { "updateComponents": { "components": [ … ] } },
+    { "updateDataModel": { "path": "/", "value": { … } } }
+  ],
+  "fallback": "Plain-text version of the card"
+}
+```
+
+- Omit `surface_id` to create a card; the server assigns the id and returns it
+  (`{"surface_id", "revision", "status": "created"}`). A new card needs an
+  `updateComponents` message with a `root` component and a `fallback`.
+  `createSurface` is never accepted from the model.
+- Pass an existing `surface_id` of **this conversation** to update the card
+  (send only the components that change and/or new data) or remove it with
+  `{"deleteSurface": {}}`. The client re-renders the same surface; deleting
+  frees its slot. A form is never addressable.
+- A call is validated whole — catalog, properties, references, cycles,
+  lifecycle and limits — before anything is written. An invalid call changes
+  nothing and returns a readable tool error the model can act on. Limits: 100
+  components per card, 64 KiB of messages per call, 20 cards per session, and
+  256 KiB of stored components and data per card.
+- Cards live in a hidden namespace of the session's state (`butter:a2ui:*`),
+  never in AG-UI shared state: `STATE_*` events do not carry them and a
+  client's `state` cannot create or change them.
+
+##### Human Input forms
+
+A Human Input node with a `form` pauses as usual (`RUN_FINISHED` with an
+interrupt outcome) and, for A2UI clients, also streams a server-built form
+surface bound to that interrupt. The form's `CUSTOM` values carry:
+
+```json
+"form": {
+  "interruptId": "ask-8c1…",
+  "token": "…",
+  "revision": 1,
+  "title": "Deploy approval",
+  "question": "Approve this deploy?",
+  "fields": [
+    { "name": "env", "label": "Environment", "required": true, "type": "single_choice",
+      "options": [{ "value": "prod", "label": "Production" }, { "value": "staging", "label": "Staging" }] },
+    { "name": "reason", "label": "Reason", "hint": "Why now?", "type": "text", "maxLength": 200 }
+  ]
+}
+```
+
+The binding (surface, token, revision, interrupt) and the field rules are fixed
+by the server when the node pauses and persisted with its Interrupt; neither the
+model nor the client can choose them, and later edits to the node's config do
+not change a form already shown. The form's data model holds only the
+client's local draft — nothing is sent until the user submits.
+
+Submit through the existing `resume` branch, with a `butterForm` payload:
+
+```json
+{
+  "threadId": "t-1",
+  "runId": "run-3",
+  "messages": [],
+  "forwardedProps": { "butterA2UI": { "version": "v0.9.1", "catalogs": ["butter-basic-v1"] } },
+  "resume": [{
+    "interruptId": "ask-8c1…",
+    "status": "resolved",
+    "payload": { "butterForm": {
+      "version": "v0.9.1",
+      "surfaceId": "form-5d0…",
+      "revision": 1,
+      "token": "…",
+      "values": { "env": "prod", "reason": "hotfix" }
+    } }
+  }]
+}
+```
+
+Under the thread's session lease, before anything runs, the server checks the
+caller's binding, that `surfaceId` / `token` / `revision` belong to a form of
+this session built for exactly this `interruptId`, that the interrupt is still
+pending, and the field rules. A rejection answers before the stream opens —
+nothing is appended, the agent does not run, and no other interrupt is answered
+instead:
+
+| Status | `code` | When |
+|---|---|---|
+| `400` | `form_unknown` | unknown, forged or expired form (wrong token, surface, interrupt, or another user/workspace/agent context) |
+| `409` | `form_answered` | the form was already submitted |
+| `409` | `form_stale` | `revision` is not the form's current one |
+| `422` | `form_invalid` | invalid values, listed per field: `{"error": "…", "code": "form_invalid", "fieldErrors": {"reason": "must be at most 200 characters"}}` |
+
+A malformed `butterForm` wrapper is a plain `400`, and a busy thread the usual
+`409` before any of these checks. Branch on `code`, not on the message.
+
+Values must be strings: a single-choice answer is one of the option values.
+Unknown fields, missing required fields, over-long text (characters, not
+bytes; text is trimmed) and non-option choices are rejected. An accepted
+submission is delivered to the workflow as the ordinary string payload of the
+interrupt — a JSON object text with **every configured field, in configured
+order, and nothing else**; an unanswered optional field is `""`:
+
+```json
+{"env":"prod","reason":"hotfix","note":""}
+```
+
+That string is what the session stores. Note that ADK's workflow engine parses
+a JSON answer when it resumes and hands the successor node the parsed object:
+an AGENT successor receives it re-encoded as JSON text with the keys in
+alphabetical order, and a ROUTER successor matches that JSON text against its
+route labels (so it takes the default edge unless a label is the whole JSON
+text). The same holds for any reply a person types as JSON. The run then
+marks the form answered with `updateDataModel` on `/status` (value
+`"answered"`, revision 2) so clients disable it; the same happens when the
+interrupt is answered any other way (plain resume, implicit text reply).
+Resubmitting an answered form is `409` with `code: "form_answered"`;
+exactly-once execution across systems is not promised. `status: "cancelled"`
+stays rejected.
+
+Text replies keep their existing semantics (implicit oldest-first resume,
+ADR-0002): the form's rules bind only form submissions.
+
+##### UI snapshot
+
+```
+GET /api/agui/:agent_id/threads/:thread_id/ui
+```
+
+Returns a thread's current read-only cards and unanswered forms, rebuilt from
+the persisted session; it never starts a run. Use it after a refresh or a
+dropped stream, then keep applying live `CUSTOM` events (the `(revision, seq)`
+rule makes the two safe to combine).
+
+```json
+{
+  "version": "v0.9.1",
+  "catalogId": "butter-basic-v1",
+  "threadId": "t-1",
+  "surfaces": [
+    { "surfaceId": "card-3f2a…", "kind": "card", "revision": 2, "runId": "run-1", "messageId": "…",
+      "fallback": "…", "envelopes": [ { "version": "v0.9.1", "createSurface": { … } }, … ] },
+    { "surfaceId": "form-5d0…", "kind": "form", "revision": 1, "fallback": "…", "form": { … }, "envelopes": [ … ] }
+  ]
+}
+```
+
+Each surface's `envelopes` rebuild it from nothing. The same auth, workspace
+header and `agent_id` rules as `POST` apply; a thread without a session,
+without a binding, or bound to another user, workspace or agent answers with
+no surfaces rather than revealing it. The read takes the thread's session
+lease: a thread with a run in flight answers `409` — retry after it finishes.
+
+The dashboard's AG-UI Chat remembers the current thread per workspace, agent
+and signed-in user, reads the snapshot on load, and shows restored surfaces
+with a note that they come from earlier in the conversation (the text history
+itself is not restored, and neither is an unsent form draft).
 
 #### Not supported yet
 
@@ -1663,9 +1919,44 @@ Declares a Workflow Agent's directed graph. See [ADR 0001](adr/0001-workflow-gra
 | `agent_id` | string | AGENT nodes: Agent ID of the independent agent to run. **Required** |
 | `agent` | string | Deprecated legacy name reference. Never resolved; retained only so historical records decode |
 | `question` | string | HUMAN_INPUT nodes: the question presented to the human |
+| `form` | HumanInputForm | HUMAN_INPUT nodes only: optional form presentation of the question for A2UI clients (see [Human Input forms](#human-input-forms)); unset keeps the plain question |
 | `parallel_worker` | bool | AGENT nodes only: fan-out concurrently over list-typed input |
 | `retry` | WorkflowRetryConfig | Retry policy for failed activations |
 | `timeout_seconds` | int32 | Per-activation timeout; 0 means no timeout |
+
+#### HumanInputForm Object
+
+The form a HUMAN_INPUT node presents to an A2UI-capable client. Validated when
+the agent is saved and when the Workflow Agent is built; the definition is
+frozen into its Interrupt, so edits never change a form already shown. It is a
+presentation and submission format, not an ADK response schema: the successor
+always receives a string.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Heading shown above the fields (at most 200 characters); empty uses the node's question |
+| `fields` | HumanInputFormField[] | 1–20 ordered fields |
+
+An empty form (no title, no fields) keeps the plain question.
+
+#### HumanInputFormField Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Key in the submitted JSON object; unique in the form; letters, digits and `_`, starting with a letter or `_`; at most 64 characters |
+| `label` | string | Label shown for the input; required, at most 200 characters |
+| `hint` | string | Optional helper text, at most 500 characters |
+| `required` | bool | Whether a value is needed to submit |
+| `type` | enum | `HUMAN_INPUT_FORM_FIELD_TYPE_TEXT` or `HUMAN_INPUT_FORM_FIELD_TYPE_SINGLE_CHOICE` |
+| `max_length` | int32 | TEXT only: at most 2000 characters; 0 means 2000. Must be 0 for SINGLE_CHOICE |
+| `options` | HumanInputFormOption[] | SINGLE_CHOICE only: 1–50 options with unique, non-empty values and labels. Must be empty for TEXT |
+
+#### HumanInputFormOption Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `value` | string | Submitted value (at most 200 characters) |
+| `label` | string | Text shown for the option (at most 200 characters) |
 
 #### WorkflowEdge Object
 

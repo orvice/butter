@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"sort"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	aguisse "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/encoding/sse"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/workflow"
+	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/a2ui"
+	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
 )
 
@@ -76,10 +80,33 @@ type aguiSink struct {
 	// when the client's mirror is absent or diverged from the authoritative
 	// state (the conflict answer: the server wins, visibly).
 	emitSnapshot bool
-	// fetchFinalState re-reads the authoritative state after the run, closing
-	// the gap for deltas the runner never streams (agent output_key writes
-	// land on final events, which only reach the callback in special cases).
-	fetchFinalState func() (map[string]any, bool)
+
+	// fetchFinal re-reads the authoritative session after the run. It closes
+	// the gap for state deltas the runner never streams (agent output_key
+	// writes land on final events, which only reach the callback in special
+	// cases), and answers which Interrupts and forms are still open.
+	fetchFinal   func() (session.Session, bool)
+	finalFetched bool
+	finalSess    session.Session
+	finalOK      bool
+	// reportPending adds every Interrupt still open after the run to the
+	// interrupt outcome, not only those raised in-stream. Set for clients
+	// that negotiated A2UI; others keep the in-stream-only outcome.
+	reportPending bool
+
+	// ui is non-nil when A2UI is live for this run.
+	ui *aguiSinkUI
+}
+
+// aguiSinkUI tracks what the client has been shown of the session's UI, so
+// every persisted change goes out as the envelopes that move the client from
+// the state it has to the state the session now holds.
+type aguiSinkUI struct {
+	// cards is the client's view of every card record, tombstones included.
+	cards map[string]*a2ui.Card
+	// openForms are the forms pending when the run started or raised during
+	// it; each one answered by the end of the run is marked answered.
+	openForms []a2ui.Form
 }
 
 func newAGUISink(threadID, runID, messageID string, emit aguiEmitter) *aguiSink {
@@ -88,10 +115,40 @@ func newAGUISink(threadID, runID, messageID string, emit aguiEmitter) *aguiSink 
 
 // setSharedState arms the state mapping for this run. initial must already be
 // the client-visible (filtered, normalized) view.
-func (s *aguiSink) setSharedState(initial map[string]any, emitSnapshot bool, fetchFinal func() (map[string]any, bool)) {
+func (s *aguiSink) setSharedState(initial map[string]any, emitSnapshot bool) {
 	s.state = initial
 	s.emitSnapshot = emitSnapshot
-	s.fetchFinalState = fetchFinal
+}
+
+// setFinalSession wires the post-run session read.
+func (s *aguiSink) setFinalSession(fetch func() (session.Session, bool)) {
+	s.fetchFinal = fetch
+}
+
+// reportPendingInterrupts makes the outcome list every open Interrupt.
+func (s *aguiSink) reportPendingInterrupts() {
+	s.reportPending = true
+}
+
+// setA2UI makes A2UI live for this run. sess is the session as it stood
+// before the run; the client is assumed to hold its cards already (from
+// earlier runs or the UI snapshot), so only changes are sent.
+func (s *aguiSink) setA2UI(sess session.Session) {
+	ui := &aguiSinkUI{cards: map[string]*a2ui.Card{}}
+	if sess != nil {
+		ui.cards = a2ui.Cards(sess.State())
+		ui.openForms = a2ui.PendingForms(sess)
+	}
+	s.ui = ui
+}
+
+// finalSession returns the post-run session, fetched at most once.
+func (s *aguiSink) finalSession() (session.Session, bool) {
+	if !s.finalFetched && s.fetchFinal != nil {
+		s.finalFetched = true
+		s.finalSess, s.finalOK = s.fetchFinal()
+	}
+	return s.finalSess, s.finalOK
 }
 
 func (s *aguiSink) Started(streamorch.RunIdentity) error {
@@ -134,10 +191,21 @@ func (s *aguiSink) RunEvent(_ streamorch.RunIdentity, evt *session.Event) error 
 		}
 	}
 
-	if evt.Content == nil {
-		return nil
+	if evt.Content != nil {
+		if err := s.emitContent(evt.Content.Parts); err != nil {
+			return err
+		}
 	}
-	for _, part := range evt.Content.Parts {
+	if s.ui != nil {
+		return s.emitUI(evt)
+	}
+	return nil
+}
+
+// emitContent maps an event's function calls and responses onto AG-UI tool
+// events.
+func (s *aguiSink) emitContent(parts []*genai.Part) error {
+	for _, part := range parts {
 		if part == nil {
 			continue
 		}
@@ -163,6 +231,120 @@ func (s *aguiSink) RunEvent(_ streamorch.RunIdentity, evt *session.Event) error 
 	return nil
 }
 
+// emitUI sends the A2UI envelopes a persisted event implies. The runner
+// hands the callback an event only after the session stored it, so a client
+// never sees a card version or form that is not durable.
+func (s *aguiSink) emitUI(evt *session.Event) error {
+	// Card writes: each record in the delta moves the client from the
+	// version it holds to the stored one.
+	var ids []string
+	for key := range evt.Actions.StateDelta {
+		if id, ok := a2ui.CardIDFromKey(key); ok {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		next, ok := a2ui.DecodeCard(evt.Actions.StateDelta[a2ui.CardKey(id)])
+		if !ok {
+			continue
+		}
+		prev := s.ui.cards[id]
+		if prev != nil && next.Revision <= prev.Revision {
+			continue
+		}
+		fallback := next.Fallback
+		for seq, env := range a2ui.Transition(id, prev, next) {
+			if err := s.emitA2UI(a2ui.EventValue{
+				SurfaceID: id, Kind: a2ui.KindCard, Revision: next.Revision, Seq: seq,
+				Envelope: env, Fallback: fallback,
+			}); err != nil {
+				return err
+			}
+		}
+		s.ui.cards[id] = next
+	}
+
+	// A Human Input node with a form: the server builds the form surface
+	// from the binding persisted on the request-input event itself.
+	if evt.RequestedInput != nil {
+		if form, ok := a2ui.FormOf(evt); ok {
+			view := form.View()
+			for seq, env := range form.Envelopes() {
+				if err := s.emitA2UI(a2ui.EventValue{
+					SurfaceID: form.SurfaceID, Kind: a2ui.KindForm, Revision: form.Revision, Seq: seq,
+					Envelope: env, Fallback: form.Fallback(), Form: view,
+				}); err != nil {
+					return err
+				}
+			}
+			s.ui.openForms = append(s.ui.openForms, form)
+		}
+	}
+	return nil
+}
+
+func (s *aguiSink) emitA2UI(v a2ui.EventValue) error {
+	v.Version = a2ui.Version
+	v.ThreadID, v.RunID, v.MessageID = s.threadID, s.runID, s.messageID
+	return s.emit(aguievents.NewCustomEvent(a2ui.EventName, aguievents.WithValue(v)))
+}
+
+// emitAnsweredForms marks every form whose Interrupt the run answered — by
+// form submission, plain resume, or implicit text reply — so the client
+// disables it. Answered-ness is read from the stored session, not assumed
+// from the request.
+func (s *aguiSink) emitAnsweredForms() error {
+	if s.ui == nil || len(s.ui.openForms) == 0 {
+		return nil
+	}
+	final, ok := s.finalSession()
+	if !ok {
+		return nil
+	}
+	still := interrupt.PendingIDs(final)
+	var remaining []a2ui.Form
+	for _, form := range s.ui.openForms {
+		if still[form.InterruptID] {
+			remaining = append(remaining, form)
+			continue
+		}
+		if err := s.emitA2UI(a2ui.EventValue{
+			SurfaceID: form.SurfaceID, Kind: a2ui.KindForm, Revision: a2ui.AnsweredRevision,
+			Envelope: form.AnsweredEnvelope(), Form: form.View(),
+		}); err != nil {
+			return err
+		}
+	}
+	s.ui.openForms = remaining
+	return nil
+}
+
+// outcomeInterrupts is the interrupt list of RUN_FINISHED: the Interrupts
+// raised in-stream, plus — when reportPending is set — every other one still
+// open, so the client's pending set matches the session.
+func (s *aguiSink) outcomeInterrupts() []aguitypes.Interrupt {
+	out := append([]aguitypes.Interrupt(nil), s.interrupts...)
+	if !s.reportPending {
+		return out
+	}
+	final, ok := s.finalSession()
+	if !ok {
+		return out
+	}
+	seen := make(map[string]bool, len(out))
+	for _, it := range out {
+		seen[it.ID] = true
+	}
+	for _, p := range interrupt.Pending(final) {
+		if seen[p.InterruptID] {
+			continue
+		}
+		out = append(out, aguitypes.Interrupt{ID: p.InterruptID, Reason: aguiInterruptReason, Message: p.Question})
+	}
+	return out
+}
+
 func (s *aguiSink) Final(_ streamorch.RunIdentity, response string) error {
 	// streamorch streams TextDelta only for *partial* events, so a
 	// non-streaming turn carries its whole answer in response. Emit it so the
@@ -185,8 +367,9 @@ func (s *aguiSink) Final(_ streamorch.RunIdentity, response string) error {
 	}
 	// Deltas the runner never streamed (output_key and callback writes land
 	// on final events) surface here by re-reading the authoritative state.
-	if s.state != nil && s.fetchFinalState != nil {
-		if final, ok := s.fetchFinalState(); ok {
+	if s.state != nil {
+		if sess, ok := s.finalSession(); ok {
+			final := aguiVisibleState(sessionStateMap(sess))
 			if ops := aguiStateDiffOps(s.state, final); len(ops) > 0 {
 				if err := s.emit(aguievents.NewStateDeltaEvent(ops)); err != nil {
 					return err
@@ -195,9 +378,12 @@ func (s *aguiSink) Final(_ streamorch.RunIdentity, response string) error {
 			}
 		}
 	}
-	if len(s.interrupts) > 0 {
+	if err := s.emitAnsweredForms(); err != nil {
+		return err
+	}
+	if interrupts := s.outcomeInterrupts(); len(interrupts) > 0 {
 		return s.emit(aguievents.NewRunFinishedEventWithOptions(
-			s.threadID, s.runID, aguievents.WithInterruptOutcome(s.interrupts)))
+			s.threadID, s.runID, aguievents.WithInterruptOutcome(interrupts)))
 	}
 	return s.emit(aguievents.NewRunFinishedEventWithOptions(
 		s.threadID, s.runID, aguievents.WithSuccessOutcome()))
@@ -234,6 +420,11 @@ func (s *aguiSink) emitStateDelta(delta map[string]any) error {
 // waiting on a TEXT_MESSAGE_END that never arrives.
 func (s *aguiSink) Error(runErr error) error {
 	if err := s.closeMessage(); err != nil {
+		return err
+	}
+	// A failed run may still have consumed an Interrupt (the answer is
+	// stored before the workflow resumes); its form must not stay open.
+	if err := s.emitAnsweredForms(); err != nil {
 		return err
 	}
 	return s.emit(aguievents.NewRunErrorEvent(runErr.Error(), aguievents.WithRunID(s.runID)))

@@ -45,6 +45,13 @@ import {
   validateCursorAgentForm,
 } from './cursor-config'
 import { PiAgentConfigurationCard } from './pi-agent-fields'
+import { HumanInputConfigurationCard, type HumanInputNodeErrors } from './human-input-fields'
+import {
+  applyHumanInputValues,
+  humanInputNodeSchema,
+  humanInputValuesFromWorkflow,
+  validateHumanInputNodes,
+} from './human-input-config'
 import { ContextGuardConfigurationCard } from './context-guard-fields'
 import { MemoryConfigurationCard } from './memory-fields'
 import {
@@ -98,9 +105,11 @@ const agentSchema = z.object({
   memory: memoryFormSchema,
   pi: piAgentFormSchema,
   cursor: cursorAgentFormSchema,
+  human_inputs: z.array(humanInputNodeSchema),
 }).superRefine((values, ctx) => {
   if (values.type === 'AGENT_TYPE_PI') validatePiAgentForm(values.pi, ctx)
   if (values.type === 'AGENT_TYPE_CURSOR') validateCursorAgentForm(values.cursor, ctx)
+  if (values.type === 'AGENT_TYPE_WORKFLOW') validateHumanInputNodes(values.human_inputs, ctx, ['human_inputs'])
 })
 
 type AgentFormValues = z.infer<typeof agentSchema>
@@ -161,6 +170,7 @@ export function AgentEdit() {
       memory: { ...EMPTY_MEMORY_FORM_VALUES },
       pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
       cursor: { ...EMPTY_CURSOR_AGENT_FORM_VALUES },
+      human_inputs: [],
     },
   })
   const agentName = useWatch({ control: form.control, name: 'name' })
@@ -170,6 +180,7 @@ export function AgentEdit() {
   const memoryValues = useWatch({ control: form.control, name: 'memory' })
   const piValues = useWatch({ control: form.control, name: 'pi' })
   const cursorValues = useWatch({ control: form.control, name: 'cursor' })
+  const humanInputValues = useWatch({ control: form.control, name: 'human_inputs' })
 
   useEffect(() => {
     if (!supportsContextGuard(agentType)) {
@@ -203,6 +214,7 @@ export function AgentEdit() {
         memory: memoryFormValuesFromConfig(a.config?.memory),
         pi: piFormValuesFromConfig(a.config?.pi),
         cursor: cursorFormValuesFromConfig(a.config?.cursor),
+        human_inputs: humanInputValuesFromWorkflow(a.config?.workflow),
       })
     }
   }, [data, form])
@@ -234,6 +246,7 @@ export function AgentEdit() {
           ? buildContextGuardConfig(values.context_guard)
           : undefined,
         memory: buildMemoryConfig(values.memory, values.type),
+        workflow: applyHumanInputValues(data?.agent?.config?.workflow, values.human_inputs),
       },
     }
     if (values.type === 'AGENT_TYPE_PI') return asPiAgent(agent, values.pi)
@@ -302,6 +315,7 @@ export function AgentEdit() {
           memory: memoryFormValuesFromConfig(agent.config?.memory),
           pi: piFormValuesFromConfig(agent.config?.pi),
           cursor: cursorFormValuesFromConfig(agent.config?.cursor),
+          human_inputs: humanInputValuesFromWorkflow(agent.config?.workflow),
         })
       } catch { /* keep current form values if JSON is invalid */ }
     }
@@ -372,13 +386,16 @@ export function AgentEdit() {
                   <FormField control={form.control} name='type' render={({ field }) => (
                     <FormItem>
                       <FormLabel>Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      {/* Radix Select reports '' while the form resets to a
+                          loaded agent; that is not a user choice. */}
+                      <Select onValueChange={(v) => { if (v) field.onChange(v) }} value={field.value}>
                         <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value='AGENT_TYPE_LLM'>LLM</SelectItem>
                           <SelectItem value='AGENT_TYPE_LOOP'>Loop</SelectItem>
                           <SelectItem value='AGENT_TYPE_SEQUENTIAL'>Sequential</SelectItem>
                           <SelectItem value='AGENT_TYPE_PARALLEL'>Parallel</SelectItem>
+                          <SelectItem value='AGENT_TYPE_WORKFLOW'>Workflow</SelectItem>
                           <SelectItem value='AGENT_TYPE_PI'>Pi</SelectItem>
                           <SelectItem value='AGENT_TYPE_CURSOR'>Cursor</SelectItem>
                         </SelectContent>
@@ -434,6 +451,17 @@ export function AgentEdit() {
                   />
                 </CardContent>
               </Card>
+
+              {agentType === 'AGENT_TYPE_WORKFLOW' && (
+                <HumanInputConfigurationCard
+                  value={humanInputValues ?? []}
+                  onChange={(value) => form.setValue('human_inputs', value, {
+                    shouldDirty: true,
+                    shouldValidate: form.formState.isSubmitted,
+                  })}
+                  errors={form.formState.errors.human_inputs as unknown as Record<number, HumanInputNodeErrors | undefined>}
+                />
+              )}
 
               {agentType === 'AGENT_TYPE_PI' ? (
                 <PiAgentConfigurationCard

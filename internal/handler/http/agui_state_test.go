@@ -68,7 +68,7 @@ func TestAGUIVisibleStateFiltersScopes(t *testing.T) {
 func TestAGUISink_InStreamStateDelta(t *testing.T) {
 	rec := &aguiEventRecorder{}
 	sink := newAGUISink("thread-1", "run-1", "msg-1", rec.emit)
-	sink.setSharedState(map[string]any{"draft": "v1"}, false, nil)
+	sink.setSharedState(map[string]any{"draft": "v1"}, false)
 
 	evt := &session.Event{ID: "e1", Author: "chat"}
 	evt.Actions.StateDelta = map[string]any{"draft": "v2", "temp:cursor": 9}
@@ -100,7 +100,7 @@ func TestAGUISink_InStreamStateDelta(t *testing.T) {
 func TestAGUISink_SnapshotFollowsRunStarted(t *testing.T) {
 	rec := &aguiEventRecorder{}
 	sink := newAGUISink("thread-1", "run-1", "msg-1", rec.emit)
-	sink.setSharedState(map[string]any{"draft": "v1"}, true, nil)
+	sink.setSharedState(map[string]any{"draft": "v1"}, true)
 
 	id := streamorch.RunIdentity{}
 	if err := sink.Started(id); err != nil {

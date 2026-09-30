@@ -388,3 +388,102 @@ func TestNewFromProto_WorkflowLinearChain(t *testing.T) {
 		t.Errorf("agent name = %q, want %q", a.Name(), "wf")
 	}
 }
+
+// validDeployForm is a two-field form: a required single choice and an
+// optional bounded text.
+func validDeployForm() *agentsv1.HumanInputForm {
+	return &agentsv1.HumanInputForm{
+		Title: "Deploy approval",
+		Fields: []*agentsv1.HumanInputFormField{
+			{
+				Name: "env", Label: "Environment", Required: true,
+				Type: agentsv1.HumanInputFormFieldType_HUMAN_INPUT_FORM_FIELD_TYPE_SINGLE_CHOICE,
+				Options: []*agentsv1.HumanInputFormOption{
+					{Value: "prod", Label: "Production"},
+					{Value: "staging", Label: "Staging"},
+				},
+			},
+			{
+				Name: "reason", Label: "Reason", Hint: "Why now?", MaxLength: 200,
+				Type: agentsv1.HumanInputFormFieldType_HUMAN_INPUT_FORM_FIELD_TYPE_TEXT,
+			},
+		},
+	}
+}
+
+// A Human Input node's form is checked when the agent is saved and when the
+// Workflow Agent is built: a valid form builds, and each broken rule is
+// refused with a message naming it.
+func TestValidateWorkflowAgent_HumanInputForm(t *testing.T) {
+	t.Run("valid form builds", func(t *testing.T) {
+		pb, pool := humanInputWorkflowProto()
+		pb.Config.Workflow.Nodes[1].Form = validDeployForm()
+		if err := ValidateWorkflowAgent(pb); err != nil {
+			t.Fatalf("ValidateWorkflowAgent: %v", err)
+		}
+		if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, workflowProviders(), nil, nil, nil, nil, nil, nil, pool); err != nil {
+			t.Fatalf("NewFromProto: %v", err)
+		}
+	})
+	t.Run("empty form keeps the plain question", func(t *testing.T) {
+		pb, _ := humanInputWorkflowProto()
+		pb.Config.Workflow.Nodes[1].Form = &agentsv1.HumanInputForm{}
+		if err := ValidateWorkflowAgent(pb); err != nil {
+			t.Fatalf("ValidateWorkflowAgent: %v", err)
+		}
+	})
+
+	text := agentsv1.HumanInputFormFieldType_HUMAN_INPUT_FORM_FIELD_TYPE_TEXT
+	choice := agentsv1.HumanInputFormFieldType_HUMAN_INPUT_FORM_FIELD_TYPE_SINGLE_CHOICE
+	manyFields := make([]*agentsv1.HumanInputFormField, 21)
+	for i := range manyFields {
+		manyFields[i] = &agentsv1.HumanInputFormField{Name: "f" + strings.Repeat("x", i), Label: "F", Type: text}
+	}
+	manyOptions := make([]*agentsv1.HumanInputFormOption, 51)
+	for i := range manyOptions {
+		manyOptions[i] = &agentsv1.HumanInputFormOption{Value: "v" + strings.Repeat("x", i), Label: "V"}
+	}
+	cases := map[string]struct {
+		mutate func(f *agentsv1.HumanInputForm)
+		want   string
+	}{
+		"no fields":      {func(f *agentsv1.HumanInputForm) { f.Fields = nil }, "at least one field"},
+		"too many":       {func(f *agentsv1.HumanInputForm) { f.Fields = manyFields }, "at most 20 fields"},
+		"duplicate name": {func(f *agentsv1.HumanInputForm) { f.Fields[1].Name = "env" }, "duplicate field name"},
+		"empty name":     {func(f *agentsv1.HumanInputForm) { f.Fields[1].Name = "" }, "name is required"},
+		"bad name":       {func(f *agentsv1.HumanInputForm) { f.Fields[1].Name = "2 words" }, "letters, digits or underscores"},
+		"no label":       {func(f *agentsv1.HumanInputForm) { f.Fields[1].Label = " " }, "label is required"},
+		"unknown type": {func(f *agentsv1.HumanInputForm) {
+			f.Fields[1].Type = agentsv1.HumanInputFormFieldType_HUMAN_INPUT_FORM_FIELD_TYPE_UNSPECIFIED
+		}, "TEXT or SINGLE_CHOICE"},
+		"text too long": {func(f *agentsv1.HumanInputForm) { f.Fields[1].MaxLength = 2001 }, "between 0 and 2000"},
+		"text options": {func(f *agentsv1.HumanInputForm) {
+			f.Fields[1].Options = []*agentsv1.HumanInputFormOption{{Value: "a", Label: "A"}}
+		}, "no options"},
+		"choice without options": {func(f *agentsv1.HumanInputForm) { f.Fields[0].Options = nil }, "at least one option"},
+		"too many options":       {func(f *agentsv1.HumanInputForm) { f.Fields[0].Options = manyOptions }, "at most 50 options"},
+		"duplicate option":       {func(f *agentsv1.HumanInputForm) { f.Fields[0].Options[1].Value = "prod" }, "duplicate value"},
+		"empty option value":     {func(f *agentsv1.HumanInputForm) { f.Fields[0].Options[1].Value = "" }, "value is required"},
+		"option without label":   {func(f *agentsv1.HumanInputForm) { f.Fields[0].Options[1].Label = "" }, "label is required"},
+		"choice with max length": {func(f *agentsv1.HumanInputForm) { f.Fields[0].MaxLength = 10 }, "text fields only"},
+		"choice type on text": {func(f *agentsv1.HumanInputForm) {
+			f.Fields[1].Type = choice
+			f.Fields[1].MaxLength = 0
+		}, "at least one option"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			pb, pool := humanInputWorkflowProto()
+			form := validDeployForm()
+			tc.mutate(form)
+			pb.Config.Workflow.Nodes[1].Form = form
+			assertGraphRejected(t, pb, pool, tc.want)
+		})
+	}
+
+	t.Run("form on a non-HUMAN_INPUT node", func(t *testing.T) {
+		pb, pool := humanInputWorkflowProto()
+		pb.Config.Workflow.Nodes[0].Form = validDeployForm()
+		assertGraphRejected(t, pb, pool, "only HUMAN_INPUT nodes")
+	})
+}

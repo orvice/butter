@@ -4,6 +4,7 @@ export const AGENT_TYPE_LABELS: Record<string, string> = {
   AGENT_TYPE_LOOP: "Loop",
   AGENT_TYPE_SEQUENTIAL: "Sequential",
   AGENT_TYPE_PARALLEL: "Parallel",
+  AGENT_TYPE_WORKFLOW: "Workflow",
   AGENT_TYPE_PI: "Pi",
   AGENT_TYPE_CURSOR: "Cursor",
 };
