@@ -26,17 +26,17 @@ import (
 const recordsCollection = "linear_processing_records"
 
 type recordDoc struct {
-	ID          string    `bson:"_id"`
-	WorkspaceID string    `bson:"workspace_id"`
-	AppID       string    `bson:"app_id"`
-	DeliveryID  string    `bson:"delivery_id"`
-	SessionID   string    `bson:"agent_session_id"`
-	Status      int32     `bson:"status"`
-	CreatedAt   time.Time `bson:"created_at"`
-	ExpiresAt   time.Time `bson:"expires_at"`
-	LeaseToken  string    `bson:"lease_token,omitempty"`
-	LeaseExpiry time.Time `bson:"lease_expires_at,omitempty"`
-	Spec        string    `bson:"spec"`
+	ID             string    `bson:"_id"`
+	WorkspaceID    string    `bson:"workspace_id"`
+	AppID          string    `bson:"app_id"`
+	DeliveryID     string    `bson:"delivery_id"`
+	AgentSessionID string    `bson:"agent_session_id"`
+	Status         int32     `bson:"status"`
+	CreatedAt      time.Time `bson:"created_at"`
+	ExpiresAt      time.Time `bson:"expires_at"`
+	LeaseToken     string    `bson:"lease_token,omitempty"`
+	LeaseExpiry    time.Time `bson:"lease_expires_at,omitempty"`
+	Spec           string    `bson:"spec"`
 }
 
 // Store implements linearprocessing.Repository backed by MongoDB.
@@ -92,15 +92,15 @@ func encode(record *agentsv1.LinearProcessingRecord) (recordDoc, error) {
 		return recordDoc{}, fmt.Errorf("marshal linear processing record %q: %w", record.GetId(), err)
 	}
 	return recordDoc{
-		ID:          record.GetId(),
-		WorkspaceID: record.GetWorkspaceId(),
-		AppID:       record.GetAppId(),
-		DeliveryID:  record.GetDeliveryId(),
-		SessionID:   record.GetAgentSessionId(),
-		Status:      int32(record.GetStatus()),
-		CreatedAt:   record.GetCreatedAt().AsTime(),
-		ExpiresAt:   record.GetExpiresAt().AsTime(),
-		Spec:        string(spec),
+		ID:             record.GetId(),
+		WorkspaceID:    record.GetWorkspaceId(),
+		AppID:          record.GetAppId(),
+		DeliveryID:     record.GetDeliveryId(),
+		AgentSessionID: record.GetAgentSessionId(),
+		Status:         int32(record.GetStatus()),
+		CreatedAt:      record.GetCreatedAt().AsTime(),
+		ExpiresAt:      record.GetExpiresAt().AsTime(),
+		Spec:           string(spec),
 	}, nil
 }
 

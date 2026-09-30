@@ -418,6 +418,12 @@ message LinearProcessingRecord {
   // @gotags: json:"issue_identifier,omitempty" bson:"issue_identifier,omitempty"
   string issue_identifier = 20;
 
+  // The Agent the turn ran on, set when Agent work starts. A session's
+  // lease is per Agent, so settling a dead holder's records must not touch
+  // another Agent's turn after the App is re-pointed.
+  // @gotags: json:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 24;
+
   // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
   google.protobuf.Timestamp created_at = 21;
   // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"

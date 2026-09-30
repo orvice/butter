@@ -144,6 +144,12 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.LinearApp, header 
 		event.Stop = a.Signal == "stop"
 		event.PromptText = strings.TrimSpace(a.Content.Body)
 	}
+	if c := payload.AgentSession.Comment; event.PromptText == "" && c != nil {
+		// A session opened by a mention carries the comment that mentioned
+		// the app; without promptContext it is the only statement of the
+		// request.
+		event.PromptText = strings.TrimSpace(c.Body)
+	}
 	if issue := payload.AgentSession.Issue; issue != nil {
 		event.Issue = Issue{ID: issue.ID, Identifier: issue.Identifier, Title: issue.Title, URL: issue.URL}
 	}

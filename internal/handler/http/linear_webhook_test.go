@@ -343,3 +343,18 @@ func TestLinearWebhookIsPublic(t *testing.T) {
 		t.Fatal("prefix check is too loose")
 	}
 }
+
+func TestAMentionsCommentIsTheCreatedSessionsMessage(t *testing.T) {
+	fx := newWebhookFixture(t)
+	body := fx.payload(func(p map[string]any) {
+		delete(p, "promptContext")
+		session := p["agentSession"].(map[string]any)
+		session["comment"] = map[string]any{"body": " @support why is login slow? ", "userId": "user-3"}
+		delete(session, "creatorId")
+	})
+	fx.post(t, "app-1", body, signed(body, "d-1"))
+	events := fx.queue.accepted()
+	if len(events) != 1 || events[0].PromptText != "@support why is login slow?" || events[0].PromptingUserID != "user-3" {
+		t.Fatalf("events = %+v; want the mention's comment and author", events)
+	}
+}

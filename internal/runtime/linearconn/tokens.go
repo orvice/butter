@@ -27,8 +27,6 @@ const (
 	refreshWait = 10 * time.Second
 	// refreshPoll is how often a waiting caller re-reads the tokens.
 	refreshPoll = 50 * time.Millisecond
-	// refreshLeasePrefix namespaces the per-installation refresh lease.
-	refreshLeasePrefix = "linear-refresh:"
 )
 
 var (
@@ -152,7 +150,7 @@ func (s *TokenSource) refresh(ctx context.Context, workspaceID string, inst *age
 	}
 	deadline := time.Now().Add(refreshWait)
 	for {
-		_, release, acquired, err := s.guard.Acquire(ctx, refreshLeasePrefix+inst.GetId())
+		_, release, acquired, err := s.guard.Acquire(ctx, inst.GetId())
 		if err != nil {
 			return "", fmt.Errorf("acquire linear refresh lease: %w", err)
 		}
@@ -160,8 +158,14 @@ func (s *TokenSource) refresh(ctx context.Context, workspaceID string, inst *age
 			defer release()
 			return s.refreshHeld(ctx, workspaceID, inst, seen)
 		}
-		// Another caller is refreshing: wait for its write rather than
-		// spending the rotated refresh token a second time.
+		// Another caller is refreshing. Until the current token actually
+		// expires it still works, so use it now: a caller acknowledging a
+		// new Linear session must not spend its deadline waiting.
+		if !s.expired(seen) {
+			return s.decrypt(ctx, seen.AccessToken)
+		}
+		// Expired: wait for the other caller's write rather than spending
+		// the rotated refresh token a second time.
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()

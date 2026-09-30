@@ -168,21 +168,6 @@ func runCoordinationContract(t *testing.T, factory coordinatorFactory) {
 		next.Abandon()
 	})
 
-	t.Run("DiscardRemovesQueuedFollowUps", func(t *testing.T) {
-		c, _ := factory(t)
-		ctx := t.Context()
-		hold, _, _ := c.EnqueueOrAcquire(ctx, "s", followUp(0))
-		c.EnqueueOrAcquire(ctx, "s", followUp(1))
-		c.EnqueueOrAcquire(ctx, "s", followUp(2))
-		discarded, err := c.Discard(ctx, "s")
-		if err != nil || len(discarded) != 2 {
-			t.Fatalf("Discard = %+v, %v; want both queued follow-ups", discarded, err)
-		}
-		if drained, _ := hold.ReleaseOrDrain(ctx); len(drained) != 0 {
-			t.Fatalf("drained after discard = %+v, want nothing", drained)
-		}
-	})
-
 	t.Run("LosingTheLeaseCancelsTheHolder", func(t *testing.T) {
 		c, steal := factory(t)
 		ctx := t.Context()

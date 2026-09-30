@@ -38,8 +38,6 @@ type SessionCoordinator interface {
 	// TryAcquire takes the session when it is free, with its backlog. A nil
 	// hold means another turn holds it.
 	TryAcquire(ctx context.Context, sessionKey string) (SessionHold, []FollowUp, error)
-	// Discard removes and returns every queued follow-up.
-	Discard(ctx context.Context, sessionKey string) ([]FollowUp, error)
 	// RequestStop discards every queued follow-up and, when a turn holds
 	// the session, tells that holder to stop. It never takes the lease, so
 	// a stop never waits behind the turn it is meant to stop. held reports
@@ -130,15 +128,6 @@ func (c *MemoryCoordinator) TryAcquire(ctx context.Context, key string) (Session
 	return hold, backlog, nil
 }
 
-func (c *MemoryCoordinator) Discard(_ context.Context, key string) ([]FollowUp, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	s := c.session(key)
-	items := s.items
-	s.items = nil
-	return items, nil
-}
-
 func (c *MemoryCoordinator) RequestStop(_ context.Context, key string) (bool, []FollowUp, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -150,19 +139,6 @@ func (c *MemoryCoordinator) RequestStop(_ context.Context, key string) (bool, []
 	}
 	s.hold.stop()
 	return true, discarded, nil
-}
-
-// Steal simulates another holder taking the session: the current holder's
-// context is cancelled and its lease is gone. Used by tests.
-func (c *MemoryCoordinator) Steal(key string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	s := c.session(key)
-	if s.cancel != nil {
-		s.cancel()
-	}
-	s.holder = "stolen-" + uuid.NewString()
-	s.cancel = nil
 }
 
 type memoryHold struct {
@@ -284,12 +260,6 @@ end
 redis.call('DEL', KEYS[2])
 redis.call('PEXPIRE', KEYS[1], ARGV[2])
 table.insert(items, 1, 'drained')
-return items
-`)
-
-var discardScript = redis.NewScript(`
-local items = redis.call('LRANGE', KEYS[1], 0, -1)
-redis.call('DEL', KEYS[1])
 return items
 `)
 
@@ -437,15 +407,6 @@ func (c *RedisCoordinator) TryAcquire(ctx context.Context, key string) (SessionH
 		return nil, nil, nil
 	}
 	return c.acquired(ctx, key, token, raw)
-}
-
-func (c *RedisCoordinator) Discard(ctx context.Context, key string) ([]FollowUp, error) {
-	result, err := discardScript.Run(ctx, c.rdb, c.keys(key)[1:]).Result()
-	if err != nil {
-		return nil, fmt.Errorf("discard linear follow-ups: %w", err)
-	}
-	raw, _ := result.([]any)
-	return decodeFollowUps(raw)
 }
 
 func (c *RedisCoordinator) startHold(ctx context.Context, key, token string) *redisHold {

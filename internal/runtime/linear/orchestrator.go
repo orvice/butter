@@ -271,6 +271,12 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 		// Linear marks a session unresponsive without an activity within
 		// seconds of its creation: acknowledge before any slow work.
 		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityThought, Body: acknowledgement(event.Issue, route.agentName)})
+		if event.ReceivedAtUnixMs > 0 {
+			// Linear's deadline is 10 seconds from creation; this is how
+			// much of it the queue used.
+			logger.Info("linear session acknowledged",
+				"queue_delay_ms", time.Since(time.UnixMilli(event.ReceivedAtUnixMs)).Milliseconds())
+		}
 		o.linkSession(ctx, t, route)
 	}
 
@@ -292,7 +298,7 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityThought, Body: queuedMessage})
 		return nil
 	}
-	prompts := append(o.loadFollowUps(ctx, t, backlog), t.own)
+	prompts := shareInvocation(append(o.loadFollowUps(ctx, t, backlog), t.own))
 	return o.holdSession(ctx, t, hold, route, prompts)
 }
 
@@ -393,7 +399,6 @@ func (o *Orchestrator) recoverSession(ctx context.Context, t *turn) error {
 // Follow-ups drained together advance under one invocation ID.
 func (o *Orchestrator) loadFollowUps(ctx context.Context, t *turn, followUps []FollowUp) []*prompt {
 	prompts := make([]*prompt, 0, len(followUps))
-	invocation := ""
 	for _, f := range followUps {
 		p := &prompt{text: f.Text, userID: f.PromptingUserID}
 		if o.processing != nil && f.RecordID != "" {
@@ -401,14 +406,27 @@ func (o *Orchestrator) loadFollowUps(ctx context.Context, t *turn, followUps []F
 			if err != nil {
 				t.logger(ctx).Warn("could not load queued linear follow-up", "record_id", f.RecordID, "err", err)
 			} else {
-				if invocation == "" {
-					invocation = record.GetInvocationId()
-				}
-				record.InvocationId = invocation
 				p.record = record
 			}
 		}
 		prompts = append(prompts, p)
+	}
+	return shareInvocation(prompts)
+}
+
+// shareInvocation gives every prompt of one turn the first prompt's
+// invocation ID: the records of a joined turn advance together.
+func shareInvocation(prompts []*prompt) []*prompt {
+	invocation := ""
+	for _, p := range prompts {
+		if invocation == "" && p.record.GetInvocationId() != "" {
+			invocation = p.record.GetInvocationId()
+		}
+	}
+	for _, p := range prompts {
+		if p.record != nil && invocation != "" {
+			p.record.InvocationId = invocation
+		}
 	}
 	return prompts
 }
@@ -433,6 +451,12 @@ func (o *Orchestrator) sweepInterrupted(ctx context.Context, t *turn, inHand []*
 	swept := 0
 	for _, record := range stale {
 		if slices.ContainsFunc(inHand, func(p *prompt) bool { return p.record.GetId() == record.GetId() }) {
+			continue
+		}
+		if record.GetAgentId() != "" && record.GetAgentId() != t.app.GetAgentId() {
+			// Another Agent's turn on this Linear session holds its own
+			// lease and may well still be running (the App was
+			// re-pointed): it is not ours to settle.
 			continue
 		}
 		linearprocessing.MarkInterruptedUncertain(record)
@@ -524,6 +548,9 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts 
 	// From here the Agent may run tools with side effects: a crash is no
 	// longer safely retryable.
 	for _, p := range prompts {
+		if p.record != nil {
+			p.record.AgentId = t.app.GetAgentId()
+		}
 		if err := o.recordStatus(ctx, p, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING, ""); err != nil {
 			return err
 		}

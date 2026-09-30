@@ -11,7 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"go.orx.me/apps/butter/internal/linearapi"
+	"go.orx.me/apps/butter/internal/linearapi/lineartest"
 	"go.orx.me/apps/butter/internal/repo/linearprocessing"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -185,5 +188,105 @@ func TestLosingTheSessionLeaseCancelsTheTurn(t *testing.T) {
 	// The fenced-out turn leaves its record for the reclaim to settle.
 	if got := recordFor(t, records, "d-created").GetStatus(); got != agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING {
 		t.Fatalf("status = %v, want PROCESSING", got)
+	}
+}
+
+func TestAJoinedTurnIsResentOnceAndSettlesEveryRecord(t *testing.T) {
+	fx, records := newRecoveryFixture(t)
+	release, done := startBlockedTurn(t, fx)
+	var followUps []*Event
+	for _, text := range []string{"one", "two"} {
+		ev := fx.prompted(text)
+		followUps = append(followUps, ev)
+		if err := fx.orch.Handle(t.Context(), ev); err != nil {
+			t.Fatalf("Handle(%s): %v", text, err)
+		}
+	}
+	// The joined turn's reply fails to post.
+	fx.linear.OnActivity(func(a lineartest.Activity) *lineartest.Failure {
+		if a.Type == linearapi.ActivityResponse {
+			return &lineartest.Failure{Status: 502}
+		}
+		return nil
+	})
+	release()
+	if err := <-done; err != nil {
+		t.Fatalf("first Handle: %v", err)
+	}
+	fx.linear.OnActivity(nil)
+	for _, ev := range followUps {
+		if got := recordFor(t, records, ev.DeliveryID).GetStatus(); got != agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_FAILED {
+			t.Fatalf("%s status = %v, want FAILED", ev.PromptText, got)
+		}
+	}
+
+	before := len(fx.linear.Activities())
+	if _, err := fx.orch.Resend(t.Context(), "ws-a", recordFor(t, records, "d-one").GetId()); err != nil {
+		t.Fatalf("Resend: %v", err)
+	}
+	if posted := len(fx.linear.Activities()) - before; posted != 1 {
+		t.Fatalf("resend posted %d activities, want the joined reply once", posted)
+	}
+	if got := recordFor(t, records, "d-two").GetStatus(); got != agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_SUCCEEDED {
+		t.Fatalf("sibling status = %v, want SUCCEEDED once the shared reply was resent", got)
+	}
+	if _, err := fx.orch.Resend(t.Context(), "ws-a", recordFor(t, records, "d-two").GetId()); !errors.Is(err, ErrNotResendable) {
+		t.Fatalf("resend of the sibling = %v, want ErrNotResendable", err)
+	}
+}
+
+func TestABacklogAndTheNewMessageShareOneInvocation(t *testing.T) {
+	fx, records := newRecoveryFixture(t)
+	sessionID := SessionID("app-1", "session-1", "support")
+	hold, _, err := fx.coord.EnqueueOrAcquire(t.Context(), sessionID, FollowUp{})
+	if err != nil || hold == nil {
+		t.Fatalf("seed hold = %v, %v", hold, err)
+	}
+	if err := fx.orch.Handle(t.Context(), fx.prompted("left behind")); err != nil {
+		t.Fatalf("Handle(queued): %v", err)
+	}
+	hold.Abandon()
+
+	fx.handle(t, fx.prompted("new message"))
+	turns := fx.runner.turns()
+	if len(turns) != 1 || !strings.HasSuffix(turns[0].text, "left behind\n\nnew message") {
+		t.Fatalf("turns = %+v; want the backlog and the new message in one turn", turns)
+	}
+	a, b := recordFor(t, records, "d-left behind"), recordFor(t, records, "d-new message")
+	if a.GetInvocationId() == "" || a.GetInvocationId() != b.GetInvocationId() {
+		t.Fatalf("invocations = %q / %q; want one shared invocation", a.GetInvocationId(), b.GetInvocationId())
+	}
+}
+
+func TestTheSweepLeavesAnotherAgentsTurnAlone(t *testing.T) {
+	fx, records := newRecoveryFixture(t)
+	fx.runner.known["research"] = "Research Agent"
+	// A turn on the old Agent is still running on another Pod under its own
+	// lease when the App is re-pointed.
+	running := fx.prompted("long job")
+	past := time.Now()
+	record, _, err := records.Claim(t.Context(), newRecord(running), "other-pod", past, past.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING
+	record.AgentId = "support"
+	if _, err := records.UpdateClaimed(t.Context(), record, "other-pod"); err != nil {
+		t.Fatalf("seed status: %v", err)
+	}
+	app := proto.Clone(fx.app).(*agentsv1.LinearApp)
+	app.AgentId = "research"
+	if _, err := fx.repo.UpdateApp(t.Context(), "ws-a", app, fx.app.GetRevision()); err != nil {
+		t.Fatalf("UpdateApp: %v", err)
+	}
+
+	fx.handle(t, fx.prompted("hello research"))
+	if got := recordFor(t, records, running.DeliveryID).GetStatus(); got != agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING {
+		t.Fatalf("old agent's turn = %v, want it left PROCESSING", got)
+	}
+	for _, a := range fx.linear.Activities() {
+		if strings.Contains(a.Body, "cut short") {
+			t.Fatal("the sweep reported another Agent's live turn as cut short")
+		}
 	}
 }

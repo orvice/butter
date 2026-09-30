@@ -11,8 +11,9 @@
 
 Linear lets an OAuth application act as an agent. The app is installed with
 `actor=app` and the `app:assignable` / `app:mentionable` scopes, which gives it
-an app user of its own in each Linear workspace it is installed in (its
-`viewer.id` differs per installation). Delegating an issue to that app user or
+an app user of its own in each Linear organization it is installed in (Linear
+calls an organization a workspace; its `viewer.id` differs per installation).
+Delegating an issue to that app user or
 mentioning it opens an **Agent Session** in Linear. Linear then sends
 `AgentSessionEvent` webhooks: `created` when the session opens, carrying a
 formatted `promptContext`, and `prompted` for each later message, with the

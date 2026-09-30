@@ -3269,6 +3269,8 @@ func (m *LinearProcessingRecord) validate(all bool) error {
 
 	// no validation rules for IssueIdentifier
 
+	// no validation rules for AgentId
+
 	if all {
 		switch v := interface{}(m.GetCreatedAt()).(type) {
 		case interface{ ValidateAll() error }:

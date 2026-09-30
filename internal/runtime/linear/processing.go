@@ -305,5 +305,34 @@ func (o *Orchestrator) Resend(ctx context.Context, workspaceID, recordID string)
 	if err := o.deliver(ctx, t, []*prompt{p}); err != nil {
 		return p.record, err
 	}
+	o.settleSiblings(ctx, t, p.record)
 	return p.record, nil
+}
+
+// settleSiblings marks the other records of a joined turn delivered once
+// its one reply has been resent: they share the invocation and the reply,
+// so resending each would post the same reply again.
+func (o *Orchestrator) settleSiblings(ctx context.Context, t *turn, resent *agentsv1.LinearProcessingRecord) {
+	failed, err := o.processing.List(ctx, linearprocessing.Filter{
+		WorkspaceID:    resent.GetWorkspaceId(),
+		AppID:          resent.GetAppId(),
+		AgentSessionID: resent.GetAgentSessionId(),
+		Status:         agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_FAILED,
+	})
+	if err != nil {
+		t.logger(ctx).Warn("could not settle the rest of a resent linear turn", "err", err)
+		return
+	}
+	for _, sibling := range failed {
+		if sibling.GetId() == resent.GetId() || sibling.GetInvocationId() != resent.GetInvocationId() ||
+			sibling.GetOutput() != resent.GetOutput() || sibling.GetDelivered() {
+			continue
+		}
+		sibling.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_SUCCEEDED
+		sibling.Delivered = true
+		sibling.Error = ""
+		if _, err := o.processing.Update(ctx, sibling); err != nil {
+			t.logger(ctx).Warn("could not settle a resent linear follow-up", "record_id", sibling.GetId(), "err", err)
+		}
+	}
 }

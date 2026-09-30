@@ -2958,6 +2958,11 @@ Members read; workspace owners and admins manage; global admins bypass.
 5. Enable inbound (`UpdateLinearApp` with `inbound_enabled: true`). This
    requires both secrets and Redis configured as a durable queue.
 
+**Security.** Anyone admitted to a Linear App can drive its Agent. For a Pi or
+Cursor Agent that means running commands on its ButterBox, including anything
+the box user can reach. Keep `allowed_user_ids` to people you would give that
+access; an empty list admits every member of the installed organizations.
+
 #### LinearAppService
 
 | RPC | Notes |

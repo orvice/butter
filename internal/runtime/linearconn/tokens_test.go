@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	"go.orx.me/apps/butter/internal/linearapi/lineartest"
 	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
@@ -159,8 +163,8 @@ func TestANearExpiryTokenIsRefreshedOnceAndTheRotatedTokensAreStored(t *testing.
 	}
 }
 
-func TestConcurrentRefreshesExchangeOnce(t *testing.T) {
-	fx := newRefreshFixture(t, time.Minute)
+func TestConcurrentRefreshesOfAnExpiredTokenExchangeOnce(t *testing.T) {
+	fx := newRefreshFixture(t, -time.Second)
 	fx.linear.AddRefresh("refresh-1", lineartest.Grant{AccessToken: "access-2", RefreshToken: "refresh-2", ExpiresIn: 86400})
 
 	var wg sync.WaitGroup
@@ -259,5 +263,69 @@ func TestATransientRefreshFailureKeepsAStillValidToken(t *testing.T) {
 	inst, _ := fx.repo.GetInstallation(t.Context(), "ws-a", "inst-1")
 	if inst.GetCredentialState() != agentsv1.LinearInstallationCredentialState_LINEAR_INSTALLATION_CREDENTIAL_STATE_VALID {
 		t.Fatal("a transient failure marked the installation for reinstall")
+	}
+}
+
+func TestWhileAnotherCallerRefreshesAStillValidTokenIsUsedAtOnce(t *testing.T) {
+	fx := newRefreshFixture(t, time.Minute)
+	guard := sessionguard.NewMemory()
+	fx.source.SetRefreshGuard(guard)
+	// Another Pod holds the refresh lease and has not written yet.
+	_, release, acquired, err := guard.Acquire(t.Context(), "inst-1")
+	if err != nil || !acquired {
+		t.Fatalf("seed lease = %v, %v", acquired, err)
+	}
+	defer release()
+
+	started := time.Now()
+	token, err := fx.source.AccessToken(t.Context(), "ws-a", "inst-1")
+	if err != nil || token != "access-1" {
+		t.Fatalf("AccessToken = %q, %v; want the current, still-valid token", token, err)
+	}
+	if waited := time.Since(started); waited > 100*time.Millisecond {
+		t.Fatalf("AccessToken waited %v for another caller's refresh", waited)
+	}
+	if fx.refreshes() != 0 {
+		t.Fatal("a caller without the lease refreshed")
+	}
+}
+
+// The refresh lease holds across Pods only if the Redis guard does: run the
+// concurrency case against it too when Redis is available.
+func TestConcurrentRefreshesExchangeOnceWithTheRedisLease(t *testing.T) {
+	addr := os.Getenv("REDIS_ADDR")
+	if addr == "" {
+		t.Skip("REDIS_ADDR is required for the Redis refresh lease")
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: addr})
+	t.Cleanup(func() { _ = rdb.Close() })
+	fx := newRefreshFixture(t, -time.Second)
+	fx.linear.AddRefresh("refresh-1", lineartest.Grant{AccessToken: "access-2", RefreshToken: "refresh-2", ExpiresIn: 86400})
+	prefix := "butter:test:" + uuid.NewString() + ":refresh:"
+	pods := make([]*TokenSource, 3)
+	for i := range pods {
+		pods[i] = NewTokenSource(fx.repo, fx.keyring)
+		pods[i].SetLinearClient(fx.linear.Client())
+		pods[i].SetRefreshGuard(sessionguard.NewRedis(rdb, "pod-"+uuid.NewString(), prefix, 5*time.Second))
+		pods[i].SetClock(func() time.Time { return fx.now })
+	}
+	var wg sync.WaitGroup
+	errs := make([]error, len(pods))
+	tokens := make([]string, len(pods))
+	for i, pod := range pods {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tokens[i], errs[i] = pod.AccessToken(t.Context(), "ws-a", "inst-1")
+		}()
+	}
+	wg.Wait()
+	for i := range pods {
+		if errs[i] != nil || tokens[i] != "access-2" {
+			t.Fatalf("pod %d = %q, %v; want the refreshed token", i, tokens[i], errs[i])
+		}
+	}
+	if fx.refreshes() != 1 {
+		t.Fatalf("refreshes = %d, want exactly 1 across pods", fx.refreshes())
 	}
 }

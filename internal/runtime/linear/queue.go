@@ -6,6 +6,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"butterfly.orx.me/core/log"
 	"go.orx.me/apps/butter/internal/eventqueue"
 )
 
@@ -107,12 +108,14 @@ func (q *Queue) Touch(ctx context.Context, consumer, id string) error {
 
 func (q *Queue) Ack(ctx context.Context, ids ...string) error { return q.queue().Ack(ctx, ids...) }
 
-// decode drops (and acknowledges) entries that can never be processed.
+// decode drops (and acknowledges) entries that can never be processed,
+// reporting each.
 func (q *Queue) decode(ctx context.Context, entries []eventqueue.Entry) []Delivery {
 	out := make([]Delivery, 0, len(entries))
 	for _, entry := range entries {
 		event, err := DecodeEvent(entry.Payload)
 		if err != nil {
+			log.FromContext(ctx).Error("dropping undecodable linear event", "stream_id", entry.ID, "err", err)
 			_ = q.Ack(ctx, entry.ID)
 			continue
 		}
