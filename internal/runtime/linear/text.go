@@ -21,8 +21,9 @@ const (
 
 // turnInput is the text a turn sends the Agent. The first turn of a session
 // — or any turn that finds no history, after a clear or an Agent change —
-// carries Linear's context; later turns carry only the message.
-func turnInput(event *Event, hasHistory bool) string {
+// carries Linear's context; later turns carry only the messages, joined in
+// the order they arrived.
+func turnInput(event *Event, messages []string, hasHistory bool) string {
 	var b strings.Builder
 	if !hasHistory {
 		if pc := strings.TrimSpace(event.PromptContext); pc != "" {
@@ -35,11 +36,17 @@ func turnInput(event *Event, hasHistory bool) string {
 			}
 		}
 	}
-	if msg := strings.TrimSpace(event.PromptText); msg != "" {
+	var joined []string
+	for _, msg := range messages {
+		if msg = strings.TrimSpace(msg); msg != "" {
+			joined = append(joined, msg)
+		}
+	}
+	if len(joined) > 0 {
 		if b.Len() > 0 {
 			b.WriteString("\n\nMessage from the Linear user:\n")
 		}
-		b.WriteString(msg)
+		b.WriteString(strings.Join(joined, "\n\n"))
 	}
 	if b.Len() == 0 {
 		return "Continue the Linear session and report your status."

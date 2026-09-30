@@ -21,7 +21,6 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/linearconn"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
 	"go.orx.me/apps/butter/internal/runtime/runner"
-	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -38,9 +37,9 @@ const (
 	postTimeout = 15 * time.Second
 )
 
-// ErrSessionBusy means another turn holds the Agent Session's lease. The
-// event is left unacknowledged and redelivered.
-var ErrSessionBusy = errors.New("linear agent session is busy")
+// ErrSessionBusy means another owner holds the delivery's processing
+// record. The event is left unacknowledged and redelivered.
+var ErrSessionBusy = errors.New("linear delivery is being handled elsewhere")
 
 // AgentRunner is the slice of the runner service the orchestrator needs.
 type AgentRunner interface {
@@ -71,7 +70,7 @@ type Orchestrator struct {
 	runner     AgentRunner
 	tokens     TokenProvider
 	linear     *linearapi.Client
-	guard      sessionguard.Guard
+	coord      SessionCoordinator
 	baseURL    func(ctx context.Context) string
 	processing linearprocessing.Repository
 	// preAgentBackoff is the base delay between pre-Agent retries.
@@ -79,20 +78,27 @@ type Orchestrator struct {
 }
 
 func NewOrchestrator(repo linearrepo.Repository, agents AgentRunner, tokens TokenProvider, client *linearapi.Client) *Orchestrator {
-	return &Orchestrator{repo: repo, runner: agents, tokens: tokens, linear: client, preAgentBackoff: defaultPreAgentBackoff}
+	return &Orchestrator{
+		repo: repo, runner: agents, tokens: tokens, linear: client,
+		coord:           NewMemoryCoordinator(),
+		preAgentBackoff: defaultPreAgentBackoff,
+	}
+}
+
+// SetSessionCoordinator wires the cross-Pod session lease and follow-up
+// list. The default serializes sessions within this process only.
+func (o *Orchestrator) SetSessionCoordinator(coord SessionCoordinator) {
+	if coord != nil {
+		o.coord = coord
+	}
 }
 
 // SetProcessingRepo wires the retry-boundary state machine (ADR-0009).
 func (o *Orchestrator) SetProcessingRepo(repo linearprocessing.Repository) { o.processing = repo }
 
-// SetSessionGuard wires the per-session lease that serializes turns.
-func (o *Orchestrator) SetSessionGuard(guard sessionguard.Guard) { o.guard = guard }
-
 // SetExternalBaseURL wires where the dashboard lives, for the link from a
 // Linear Agent Session back to the Butter session.
-func (o *Orchestrator) SetExternalBaseURL(provider func(ctx context.Context) string) {
-	o.baseURL = provider
-}
+func (o *Orchestrator) SetExternalBaseURL(provider func(ctx context.Context) string) { o.baseURL = provider }
 
 // SessionID derives the Butter session of one Linear Agent Session and
 // Agent. Re-pointing the App to another Agent starts a fresh history.
@@ -107,16 +113,25 @@ func SessionUserID(appID, organizationID string) string {
 	return "linear:" + appID + ":" + organizationID
 }
 
+// prompt is one message a turn answers, with the processing record that
+// tracks it. Only the event being handled has a claim lease; follow-ups a
+// holder drains are serialized by the session lease instead.
+type prompt struct {
+	text   string
+	userID string
+	record *agentsv1.LinearProcessingRecord
+	lease  string
+}
+
 // turn is one event being handled, with the context its activities need.
 type turn struct {
 	o     *Orchestrator
 	event *Event
 	app   *agentsv1.LinearApp
 	token string
-	// record and lease are the delivery's processing record and the claim
-	// that fences writes to it; both are empty without a processing repo.
-	record *agentsv1.LinearProcessingRecord
-	lease  string
+	// own is the handled event's prompt; its record and claim come from
+	// the delivery.
+	own *prompt
 }
 
 func (t *turn) logger(ctx context.Context) *slog.Logger {
@@ -146,6 +161,18 @@ func (t *turn) post(ctx context.Context, a linearapi.Activity) error {
 func (t *turn) fail(ctx context.Context, body string) error {
 	return t.post(ctx, linearapi.Activity{Type: linearapi.ActivityError, Body: body})
 }
+
+// routing is where a turn runs: the Agent and the derived session.
+type routing struct {
+	agentName string
+	sessionID string
+	userID    string
+}
+
+const (
+	cutShortMessage = "The previous run was cut short before it finished, so it was not repeated. Send a message to continue in the same session."
+	queuedMessage   = "Queued — this will run after the current task finishes."
+)
 
 // Handle implements EventHandler.
 func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
@@ -183,7 +210,8 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 	if err != nil {
 		return err
 	}
-	t := &turn{o: o, event: event, app: app, token: token}
+	t := &turn{o: o, event: event, app: app, token: token,
+		own: &prompt{text: event.PromptText, userID: event.PromptingUserID}}
 	if event.AppRevision != app.GetRevision() {
 		logger.Info("linear app changed after acceptance",
 			"accepted_revision", event.AppRevision, "current_revision", app.GetRevision())
@@ -200,18 +228,20 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 	switch action {
 	case linearprocessing.ClaimAcknowledge:
 		logger.Info("acknowledging linear delivery without repeating completed or uncertain work")
-		return nil
+		// A holder that crashed may have left follow-ups behind: pick them
+		// up if the session is free.
+		return o.recoverSession(ctx, t)
 	case linearprocessing.ClaimReportInterrupted:
-		defer o.release(ctx, t)
-		_ = t.fail(ctx, "The previous run was cut short before it finished, so it was not repeated. Send a message to continue in the same session.")
-		return nil
+		_ = t.fail(ctx, cutShortMessage)
+		o.release(ctx, t.own)
+		return o.recoverSession(ctx, t)
 	case linearprocessing.ClaimResumeDelivery:
-		defer o.release(ctx, t)
-		_ = o.deliver(ctx, t)
+		defer o.release(ctx, t.own)
+		_ = o.deliver(ctx, t, []*prompt{t.own})
 		return nil
 	}
-	defer o.release(ctx, t)
-	ctx, stopHeartbeat := o.heartbeat(ctx, t)
+	defer o.release(ctx, t.own)
+	ctx, stopHeartbeat := o.heartbeat(ctx, t.own)
 	defer stopHeartbeat()
 
 	if !app.GetInboundEnabled() {
@@ -227,44 +257,173 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 		return o.answer(ctx, t, linearapi.ActivityResponse, "Nothing is running, so there is nothing to stop.")
 	}
 
-	agentName, ok := o.runner.ResolveAgentRef(event.WorkspaceID, app.GetAgentId())
+	route, ok := o.route(t)
 	if !ok {
 		return o.answer(ctx, t, linearapi.ActivityError,
 			fmt.Sprintf("The Agent this Linear App routes to (%s) is not available in Butter right now.", app.GetAgentId()))
 	}
-	sessionID := SessionID(app.GetId(), event.AgentSessionID, app.GetAgentId())
-	userID := SessionUserID(app.GetId(), event.OrganizationID)
-	if event.Action == ActionCreated && t.record.GetAttempts() <= 1 {
+	if event.Action == ActionCreated && t.own.record.GetAttempts() <= 1 {
 		// Linear marks a session unresponsive without an activity within
 		// seconds of its creation: acknowledge before any slow work.
-		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityThought, Body: acknowledgement(event.Issue, agentName)})
-		o.linkSession(ctx, t, sessionID, userID)
+		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityThought, Body: acknowledgement(event.Issue, route.agentName)})
+		o.linkSession(ctx, t, route)
 	}
 
-	runCtx := ctx
-	if o.guard != nil {
-		leaseCtx, release, acquired, err := o.guard.Acquire(ctx, sessionID)
-		if err != nil {
-			return err
-		}
-		if !acquired {
-			logger.Debug("linear session busy; deferring")
-			return ErrSessionBusy
-		}
-		defer release()
-		runCtx = leaseCtx
+	hold, backlog, err := o.coord.EnqueueOrAcquire(ctx, route.sessionID, FollowUp{
+		RecordID:        t.own.record.GetId(),
+		DeliveryID:      event.DeliveryID,
+		Text:            event.PromptText,
+		PromptingUserID: event.PromptingUserID,
+	})
+	if err != nil {
+		return err
 	}
-	return o.run(runCtx, t, agentName, sessionID, userID)
+	if hold == nil {
+		// Another turn holds the session: this message waits for it and
+		// the delivery is done.
+		if err := o.recordStatus(ctx, t.own, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_QUEUED, ""); err != nil {
+			logger.Warn("could not record queued linear follow-up", "err", err)
+		}
+		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityThought, Body: queuedMessage})
+		return nil
+	}
+	prompts := append(o.loadFollowUps(ctx, t, backlog), t.own)
+	return o.holdSession(ctx, t, hold, route, prompts)
 }
 
-// run invokes the Agent, persists its reply, then posts it.
-func (o *Orchestrator) run(ctx context.Context, t *turn, agentName, sessionID, userID string) error {
+// route resolves the App's Agent and the session it runs in.
+func (o *Orchestrator) route(t *turn) (routing, bool) {
+	agentName, ok := o.runner.ResolveAgentRef(t.event.WorkspaceID, t.app.GetAgentId())
+	if !ok {
+		return routing{}, false
+	}
+	return routing{
+		agentName: agentName,
+		sessionID: SessionID(t.app.GetId(), t.event.AgentSessionID, t.app.GetAgentId()),
+		userID:    SessionUserID(t.app.GetId(), t.event.OrganizationID),
+	}, true
+}
+
+// holdSession runs turns while holding the session: first prompts, then
+// whatever follow-ups queued meanwhile, until release-or-drain releases.
+func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHold, route routing, prompts []*prompt) error {
+	logger := t.logger(ctx)
+	runCtx, stop := contextWithPeerCancellation(ctx, hold.Context())
+	defer stop()
+	o.sweepInterrupted(runCtx, t, prompts)
+	for {
+		if len(prompts) > 0 {
+			if err := o.run(runCtx, t, route, prompts); err != nil {
+				hold.Abandon()
+				return err
+			}
+		}
+		if runCtx.Err() != nil {
+			// Shutting down or fenced out: leave queued follow-ups for the
+			// next holder, and this delivery for redelivery.
+			hold.Abandon()
+			return runCtx.Err()
+		}
+		next, err := hold.ReleaseOrDrain(ctx)
+		if err != nil {
+			logger.Warn("lost the linear session while draining follow-ups", "err", err)
+			return nil
+		}
+		if len(next) == 0 {
+			return nil
+		}
+		prompts = o.loadFollowUps(ctx, t, next)
+	}
+}
+
+// recoverSession takes a free session to settle what a crashed holder left:
+// records it was running, and follow-ups it never drained.
+func (o *Orchestrator) recoverSession(ctx context.Context, t *turn) error {
+	route, ok := o.route(t)
+	if !ok {
+		return nil
+	}
+	hold, backlog, err := o.coord.TryAcquire(ctx, route.sessionID)
+	if err != nil || hold == nil {
+		return nil
+	}
+	return o.holdSession(ctx, t, hold, route, o.loadFollowUps(ctx, t, backlog))
+}
+
+// loadFollowUps turns queued follow-ups into prompts with their records.
+// Follow-ups drained together advance under one invocation ID.
+func (o *Orchestrator) loadFollowUps(ctx context.Context, t *turn, followUps []FollowUp) []*prompt {
+	prompts := make([]*prompt, 0, len(followUps))
+	invocation := ""
+	for _, f := range followUps {
+		p := &prompt{text: f.Text, userID: f.PromptingUserID}
+		if o.processing != nil && f.RecordID != "" {
+			record, err := o.processing.Get(ctx, t.event.WorkspaceID, f.RecordID)
+			if err != nil {
+				t.logger(ctx).Warn("could not load queued linear follow-up", "record_id", f.RecordID, "err", err)
+			} else {
+				if invocation == "" {
+					invocation = record.GetInvocationId()
+				}
+				record.InvocationId = invocation
+				p.record = record
+			}
+		}
+		prompts = append(prompts, p)
+	}
+	return prompts
+}
+
+// sweepInterrupted settles records of this session a dead holder left
+// running. Only one holder runs a session at a time, so any PROCESSING
+// record not in hand is from a turn that will never finish.
+func (o *Orchestrator) sweepInterrupted(ctx context.Context, t *turn, inHand []*prompt) {
+	if o.processing == nil {
+		return
+	}
+	stale, err := o.processing.List(ctx, linearprocessing.Filter{
+		WorkspaceID:    t.event.WorkspaceID,
+		AppID:          t.event.AppID,
+		AgentSessionID: t.event.AgentSessionID,
+		Status:         agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING,
+	})
+	if err != nil {
+		t.logger(ctx).Warn("could not look for interrupted linear turns", "err", err)
+		return
+	}
+	swept := 0
+	for _, record := range stale {
+		if slices.ContainsFunc(inHand, func(p *prompt) bool { return p.record.GetId() == record.GetId() }) {
+			continue
+		}
+		linearprocessing.MarkInterruptedUncertain(record)
+		if _, err := o.processing.Update(ctx, record); err != nil {
+			t.logger(ctx).Warn("could not settle an interrupted linear turn", "record_id", record.GetId(), "err", err)
+			continue
+		}
+		swept++
+	}
+	if swept > 0 {
+		_ = t.fail(ctx, cutShortMessage)
+	}
+}
+
+// run invokes the Agent for prompts, persists its reply, then posts it.
+func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts []*prompt) error {
 	logger := t.logger(ctx)
 	hasHistory := false
-	if sess, err := o.runner.GetSession(ctx, AppName, sessionID, userID); err == nil && sess != nil && sess.Events().Len() > 0 {
+	if sess, err := o.runner.GetSession(ctx, AppName, route.sessionID, route.userID); err == nil && sess != nil && sess.Events().Len() > 0 {
 		hasHistory = true
 	}
-	input := turnInput(t.event, hasHistory)
+	texts := make([]string, 0, len(prompts))
+	principal := ""
+	for _, p := range prompts {
+		texts = append(texts, p.text)
+		if p.userID != "" {
+			principal = p.userID
+		}
+	}
+	input := turnInput(t.event, texts, hasHistory)
 
 	maxRun := defaultMaxRun
 	if t.app.MaxRunSeconds != nil {
@@ -278,9 +437,9 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, agentName, sessionID, u
 	}
 
 	ctxInfo := &agentsv1.ContextInfo{
-		Uuid:        t.record.GetInvocationId(),
-		SessionId:   sessionID,
-		UserId:      userID,
+		Uuid:        prompts[0].record.GetInvocationId(),
+		SessionId:   route.sessionID,
+		UserId:      route.userID,
 		ChannelName: AppName,
 		ChannelType: ChannelType,
 		ChatId:      t.event.AgentSessionID,
@@ -293,27 +452,35 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, agentName, sessionID, u
 			"linear_issue":           t.event.Issue.Identifier,
 		},
 	}
-	if t.event.PromptingUserID != "" {
-		ctxInfo.Metadata[memoryhook.PrincipalMetadataKey] = "linear:" + t.event.PromptingUserID
+	if principal != "" {
+		ctxInfo.Metadata[memoryhook.PrincipalMetadataKey] = "linear:" + principal
 	}
 
 	// From here the Agent may run tools with side effects: a crash is no
 	// longer safely retryable.
-	if err := o.recordStatus(ctx, t, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING, ""); err != nil {
-		return err
+	for _, p := range prompts {
+		if err := o.recordStatus(ctx, p, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_PROCESSING, ""); err != nil {
+			return err
+		}
 	}
-	logger.Info("invoking linear agent", "agent", agentName, "session_id", sessionID, "has_history", hasHistory)
+	logger.Info("invoking linear agent", "agent", route.agentName, "session_id", route.sessionID,
+		"has_history", hasHistory, "prompts", len(prompts))
 
 	started := time.Now()
-	result, err := o.runner.RunTurnSSE(runCtx, agentName, []*genai.Part{{Text: input}}, "", ctxInfo, nil, nil)
+	result, err := o.runner.RunTurnSSE(runCtx, route.agentName, []*genai.Part{{Text: input}}, "", ctxInfo, nil, nil)
 	if err != nil {
+		if ctx.Err() != nil {
+			// Shutting down or fenced out mid-turn: the records stay
+			// PROCESSING for the reclaim to settle honestly.
+			return ctx.Err()
+		}
 		body := "The agent could not finish: " + sanitizeError(err)
-		if errors.Is(runCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
 			body = fmt.Sprintf("The agent timed out after %s and was stopped.", formatElapsed(time.Since(started)))
 		}
 		logger.Warn("linear agent turn failed", "err", err)
 		// The Agent may have run tools: dead-letter, never rerun.
-		_ = o.recordUncertain(ctx, t, err)
+		o.recordUncertain(ctx, t, prompts, err)
 		_ = t.fail(ctx, body)
 		return nil
 	}
@@ -323,21 +490,21 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, agentName, sessionID, u
 	}
 	// Persist the reply before posting it: a failed post is then a resend,
 	// never a rerun.
-	if err := o.persistReply(ctx, t, linearapi.Activity{
+	if err := o.persistReply(ctx, prompts, linearapi.Activity{
 		Type: linearapi.ActivityResponse,
-		Body: truncateResponse(output, o.externalURL(ctx, sessionID, userID)),
+		Body: truncateResponse(output, o.externalURL(ctx, route)),
 	}); err != nil {
-		_ = o.recordUncertain(ctx, t, err)
+		o.recordUncertain(ctx, t, prompts, err)
 		return nil
 	}
-	_ = o.deliver(ctx, t)
+	_ = o.deliver(ctx, t, prompts)
 	return nil
 }
 
 // linkSession points the Linear Agent Session at the Butter session in the
 // dashboard. Best effort.
-func (o *Orchestrator) linkSession(ctx context.Context, t *turn, sessionID, userID string) {
-	link := o.externalURL(ctx, sessionID, userID)
+func (o *Orchestrator) linkSession(ctx context.Context, t *turn, route routing) {
+	link := o.externalURL(ctx, route)
 	if link == "" {
 		return
 	}
@@ -348,7 +515,7 @@ func (o *Orchestrator) linkSession(ctx context.Context, t *turn, sessionID, user
 	}
 }
 
-func (o *Orchestrator) externalURL(ctx context.Context, sessionID, userID string) string {
+func (o *Orchestrator) externalURL(ctx context.Context, route routing) string {
 	if o.baseURL == nil {
 		return ""
 	}
@@ -356,7 +523,7 @@ func (o *Orchestrator) externalURL(ctx context.Context, sessionID, userID string
 	if base == "" {
 		return ""
 	}
-	return base + "/sessions/detail?" + url.Values{"app": {AppName}, "user": {userID}, "sid": {sessionID}}.Encode()
+	return base + "/sessions/detail?" + url.Values{"app": {AppName}, "user": {route.userID}, "sid": {route.sessionID}}.Encode()
 }
 
 // admitted applies the allowlist: empty admits everyone, otherwise only
@@ -366,4 +533,14 @@ func admitted(allowlist []string, userID string) bool {
 		return true
 	}
 	return userID != "" && slices.Contains(allowlist, strings.ToLower(userID))
+}
+
+// contextWithPeerCancellation cancels ctx's child when peer ends too.
+func contextWithPeerCancellation(ctx, peer context.Context) (context.Context, func()) {
+	merged, cancel := context.WithCancel(ctx)
+	stopPeer := context.AfterFunc(peer, cancel)
+	return merged, func() {
+		stopPeer()
+		cancel()
+	}
 }

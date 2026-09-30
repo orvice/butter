@@ -31,10 +31,11 @@ const RetentionPeriod = 30 * 24 * time.Hour
 
 // Filter narrows a listing.
 type Filter struct {
-	WorkspaceID string
-	AppID       string
-	Status      agentsv1.LinearProcessingStatus
-	Limit       int
+	WorkspaceID    string
+	AppID          string
+	AgentSessionID string
+	Status         agentsv1.LinearProcessingStatus
+	Limit          int
 }
 
 // ClaimAction tells a worker what can safely happen after claiming a

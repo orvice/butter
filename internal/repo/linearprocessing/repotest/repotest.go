@@ -155,6 +155,13 @@ func Run(t *testing.T, factory Factory) {
 		if len(limited) != 1 {
 			t.Fatalf("List with limit = %d, want 1", len(limited))
 		}
+		bySession, _ := repo.List(ctx, linearprocessing.Filter{WorkspaceID: "ws-a", AgentSessionID: "s-1"})
+		if len(bySession) != 3 {
+			t.Fatalf("List by session = %d, want 3", len(bySession))
+		}
+		if none, _ := repo.List(ctx, linearprocessing.Filter{WorkspaceID: "ws-a", AgentSessionID: "s-other"}); len(none) != 0 {
+			t.Fatalf("List by another session = %d, want 0", len(none))
+		}
 		byStatus, _ := repo.List(ctx, linearprocessing.Filter{WorkspaceID: "ws-a", Status: agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_SUCCEEDED})
 		if len(byStatus) != 0 {
 			t.Fatalf("List by status = %d, want 0", len(byStatus))

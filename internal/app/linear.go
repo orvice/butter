@@ -22,9 +22,6 @@ import (
 )
 
 const (
-	// linearSessionLeasePrefix serializes turns within one Linear Agent
-	// Session across Pods.
-	linearSessionLeasePrefix = "butter:linear:lease:session:"
 	// linearSessionLeaseTTL bounds how long a crashed worker blocks one
 	// session; the lease is renewed while the turn runs.
 	linearSessionLeaseTTL = 5 * time.Minute
@@ -80,7 +77,9 @@ func (h *Handlers) wireLinearRuntime(result *BootstrapResult, keyring *secretbox
 	tokens.SetRefreshGuard(sessionguard.NewRedis(result.Redis, instanceID, linearRefreshLeasePrefix, linearRefreshLeaseTTL))
 
 	orchestrator := linearruntime.NewOrchestrator(result.LinearRepo, result.RunnerSvc, tokens, client)
-	orchestrator.SetSessionGuard(sessionguard.NewRedis(result.Redis, instanceID, linearSessionLeasePrefix, linearSessionLeaseTTL))
+	// Turns in one Linear Agent Session are serialized across Pods, and a
+	// message sent mid-turn queues behind it (ADR-0015 §6).
+	orchestrator.SetSessionCoordinator(linearruntime.NewRedisCoordinator(result.Redis, instanceID, linearSessionLeaseTTL))
 	orchestrator.SetExternalBaseURL(linearExternalBaseURL(h.cfg, result.LinearSettingRepo))
 	if result.LinearProcessingRepo != nil {
 		orchestrator.SetProcessingRepo(result.LinearProcessingRepo)

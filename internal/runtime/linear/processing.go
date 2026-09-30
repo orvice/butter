@@ -96,31 +96,33 @@ func (o *Orchestrator) claim(ctx context.Context, t *turn) (linearprocessing.Cla
 	if err != nil {
 		return linearprocessing.ClaimAcknowledge, err
 	}
-	t.record = record
+	t.own.record = record
 	if action != linearprocessing.ClaimAcknowledge {
-		t.lease = lease
+		t.own.lease = lease
 	}
 	return action, nil
 }
 
-func (o *Orchestrator) release(ctx context.Context, t *turn) {
-	if o.processing == nil || t.record == nil || t.lease == "" {
+func (o *Orchestrator) release(ctx context.Context, p *prompt) {
+	if o.processing == nil || p.record == nil || p.lease == "" {
 		return
 	}
 	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if err := o.processing.ReleaseClaim(releaseCtx, t.record.GetWorkspaceId(), t.record.GetId(), t.lease); err != nil &&
+	if err := o.processing.ReleaseClaim(releaseCtx, p.record.GetWorkspaceId(), p.record.GetId(), p.lease); err != nil &&
 		!errors.Is(err, linearprocessing.ErrLeaseLost) {
-		t.logger(ctx).Warn("could not release linear processing claim", "record_id", t.record.GetId(), "err", err)
+		log.FromContext(ctx).Warn("could not release linear processing claim", "record_id", p.record.GetId(), "err", err)
 	}
+	p.lease = ""
 }
 
 // heartbeat renews the claim while work runs, cancelling the work if the
 // claim is lost to another owner.
-func (o *Orchestrator) heartbeat(ctx context.Context, t *turn) (context.Context, func()) {
-	if o.processing == nil || t.record == nil || t.lease == "" {
+func (o *Orchestrator) heartbeat(ctx context.Context, p *prompt) (context.Context, func()) {
+	if o.processing == nil || p.record == nil || p.lease == "" {
 		return ctx, func() {}
 	}
+	record, lease := p.record, p.lease
 	leaseCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
@@ -132,9 +134,9 @@ func (o *Orchestrator) heartbeat(ctx context.Context, t *turn) (context.Context,
 			case <-leaseCtx.Done():
 				return
 			case <-ticker.C:
-				if err := o.processing.RenewClaim(leaseCtx, t.record.GetWorkspaceId(), t.record.GetId(), t.lease,
+				if err := o.processing.RenewClaim(leaseCtx, record.GetWorkspaceId(), record.GetId(), lease,
 					time.Now().UTC().Add(processingLeaseTTL)); err != nil {
-					log.FromContext(ctx).Error("linear processing claim lost", "record_id", t.record.GetId(), "err", err)
+					log.FromContext(ctx).Error("linear processing claim lost", "record_id", record.GetId(), "err", err)
 					cancel()
 					return
 				}
@@ -150,71 +152,79 @@ func (o *Orchestrator) heartbeat(ctx context.Context, t *turn) (context.Context,
 	}
 }
 
-// save writes the record under the claim.
-func (o *Orchestrator) save(ctx context.Context, t *turn) error {
-	if o.processing == nil || t.record == nil {
+// save writes one prompt's record: under its claim when it has one, or
+// plainly for follow-ups the session lease serializes.
+func (o *Orchestrator) save(ctx context.Context, p *prompt) error {
+	if o.processing == nil || p.record == nil || p.record.GetId() == "" {
 		return nil
 	}
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	var stored *agentsv1.LinearProcessingRecord
 	var err error
-	if t.lease != "" {
-		stored, err = o.processing.UpdateClaimed(saveCtx, t.record, t.lease)
+	if p.lease != "" {
+		stored, err = o.processing.UpdateClaimed(saveCtx, p.record, p.lease)
 	} else {
-		stored, err = o.processing.Update(saveCtx, t.record)
+		stored, err = o.processing.Update(saveCtx, p.record)
 	}
 	if err != nil {
-		return fmt.Errorf("record linear processing state %s: %w", t.record.GetStatus(), err)
+		return fmt.Errorf("record linear processing state %s: %w", p.record.GetStatus(), err)
 	}
-	t.record = stored
+	p.record = stored
 	return nil
 }
 
-func (o *Orchestrator) recordStatus(ctx context.Context, t *turn, status agentsv1.LinearProcessingStatus, errText string) error {
-	if o.processing == nil || t.record == nil {
+func (o *Orchestrator) recordStatus(ctx context.Context, p *prompt, status agentsv1.LinearProcessingStatus, errText string) error {
+	if o.processing == nil || p.record == nil {
 		return nil
 	}
-	t.record.Status = status
-	t.record.Error = errText
-	return o.save(ctx, t)
+	p.record.Status = status
+	p.record.Error = errText
+	return o.save(ctx, p)
 }
 
 // recordUncertain dead-letters a turn whose Agent may have run.
-func (o *Orchestrator) recordUncertain(ctx context.Context, t *turn, cause error) error {
-	if o.processing == nil || t.record == nil {
-		return nil
+func (o *Orchestrator) recordUncertain(ctx context.Context, t *turn, prompts []*prompt, cause error) {
+	for _, p := range prompts {
+		if p.record == nil {
+			continue
+		}
+		p.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_FAILED_UNCERTAIN
+		p.record.DeadLettered = true
+		p.record.Error = sanitizeError(cause)
+		if err := o.save(ctx, p); err != nil {
+			t.logger(ctx).Error("could not dead-letter linear processing record", "err", err)
+		}
 	}
-	t.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_FAILED_UNCERTAIN
-	t.record.DeadLettered = true
-	t.record.Error = sanitizeError(cause)
-	if err := o.save(ctx, t); err != nil {
-		t.logger(ctx).Error("could not dead-letter linear processing record", "err", err)
-		return err
-	}
-	return nil
 }
 
-// persistReply stores the reply before it is posted.
-func (o *Orchestrator) persistReply(ctx context.Context, t *turn, a linearapi.Activity) error {
-	if o.processing == nil || t.record == nil {
-		// Without records the reply lives only in memory until posted.
-		t.record = &agentsv1.LinearProcessingRecord{}
-	}
-	t.record.Output = a.Body
-	t.record.OutputType = a.Type
-	t.record.OutputSignal = a.Signal
-	t.record.OutputSignalMetadata = ""
+// persistReply stores the reply on every prompt's record before it is
+// posted.
+func (o *Orchestrator) persistReply(ctx context.Context, prompts []*prompt, a linearapi.Activity) error {
+	metadata := ""
 	if len(a.SignalMetadata) > 0 {
 		raw, err := json.Marshal(a.SignalMetadata)
 		if err != nil {
 			return fmt.Errorf("encode signal metadata: %w", err)
 		}
-		t.record.OutputSignalMetadata = string(raw)
+		metadata = string(raw)
 	}
-	t.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_READY_TO_DELIVER
-	t.record.Error = ""
-	return o.save(ctx, t)
+	for _, p := range prompts {
+		if p.record == nil {
+			// Without records the reply lives only in memory until posted.
+			p.record = &agentsv1.LinearProcessingRecord{}
+		}
+		p.record.Output = a.Body
+		p.record.OutputType = a.Type
+		p.record.OutputSignal = a.Signal
+		p.record.OutputSignalMetadata = metadata
+		p.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_READY_TO_DELIVER
+		p.record.Error = ""
+		if err := o.save(ctx, p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // replyActivity rebuilds the persisted reply.
@@ -229,35 +239,41 @@ func replyActivity(record *agentsv1.LinearProcessingRecord) linearapi.Activity {
 	return a
 }
 
-// deliver posts the persisted reply and records the outcome: SUCCEEDED, or
-// FAILED with the reply kept for a resend.
-func (o *Orchestrator) deliver(ctx context.Context, t *turn) error {
-	postErr := t.post(ctx, replyActivity(t.record))
+// deliver posts the persisted reply once and records the outcome on every
+// prompt: SUCCEEDED, or FAILED with the reply kept for a resend.
+func (o *Orchestrator) deliver(ctx context.Context, t *turn, prompts []*prompt) error {
+	postErr := t.post(ctx, replyActivity(prompts[0].record))
 	if o.processing == nil {
 		return postErr
 	}
-	if postErr != nil {
-		t.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_FAILED
-		t.record.Error = sanitizeError(postErr)
-	} else {
-		t.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_SUCCEEDED
-		t.record.Delivered = true
-		t.record.DeadLettered = false
-		t.record.Error = ""
-	}
-	if err := o.save(ctx, t); err != nil {
-		t.logger(ctx).Error("could not record linear delivery", "err", err)
+	for _, p := range prompts {
+		if p.record == nil {
+			continue
+		}
+		if postErr != nil {
+			p.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_FAILED
+			p.record.Error = sanitizeError(postErr)
+		} else {
+			p.record.Status = agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_SUCCEEDED
+			p.record.Delivered = true
+			p.record.DeadLettered = false
+			p.record.Error = ""
+		}
+		if err := o.save(ctx, p); err != nil {
+			t.logger(ctx).Error("could not record linear delivery", "err", err)
+		}
 	}
 	return postErr
 }
 
-// answer replies without running the Agent: the reply is persisted, then
-// posted, like any other.
+// answer replies to the handled event without running the Agent: the reply
+// is persisted, then posted, like any other.
 func (o *Orchestrator) answer(ctx context.Context, t *turn, activityType, body string) error {
-	if err := o.persistReply(ctx, t, linearapi.Activity{Type: activityType, Body: body}); err != nil {
+	prompts := []*prompt{t.own}
+	if err := o.persistReply(ctx, prompts, linearapi.Activity{Type: activityType, Body: body}); err != nil {
 		return err
 	}
-	_ = o.deliver(ctx, t)
+	_ = o.deliver(ctx, t, prompts)
 	return nil
 }
 
@@ -273,12 +289,8 @@ func (o *Orchestrator) Resend(ctx context.Context, workspaceID, recordID string)
 	if err != nil {
 		return nil, err
 	}
-	event := &Event{
-		WorkspaceID: record.GetWorkspaceId(), AppID: record.GetAppId(), InstallationID: record.GetInstallationId(),
-		AgentSessionID: record.GetAgentSessionId(), DeliveryID: record.GetDeliveryId(),
-	}
-	t := &turn{o: o, event: event, record: record, lease: lease}
-	defer o.release(ctx, t)
+	p := &prompt{record: record, lease: lease}
+	defer o.release(ctx, p)
 	if record.GetStatus() != agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_FAILED || record.GetOutput() == "" || record.GetDelivered() {
 		return record, ErrNotResendable
 	}
@@ -286,9 +298,12 @@ func (o *Orchestrator) Resend(ctx context.Context, workspaceID, recordID string)
 	if err != nil {
 		return record, err
 	}
-	t.token = token
-	if err := o.deliver(ctx, t); err != nil {
-		return t.record, err
+	t := &turn{o: o, token: token, own: p, event: &Event{
+		WorkspaceID: record.GetWorkspaceId(), AppID: record.GetAppId(), InstallationID: record.GetInstallationId(),
+		AgentSessionID: record.GetAgentSessionId(), DeliveryID: record.GetDeliveryId(),
+	}}
+	if err := o.deliver(ctx, t, []*prompt{p}); err != nil {
+		return p.record, err
 	}
-	return t.record, nil
+	return p.record, nil
 }

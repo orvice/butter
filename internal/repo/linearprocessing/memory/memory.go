@@ -186,6 +186,9 @@ func (s *Store) List(_ context.Context, filter linearprocessing.Filter) ([]*agen
 		if filter.AppID != "" && r.GetAppId() != filter.AppID {
 			continue
 		}
+		if filter.AgentSessionID != "" && r.GetAgentSessionId() != filter.AgentSessionID {
+			continue
+		}
 		if filter.Status != agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_UNSPECIFIED && r.GetStatus() != filter.Status {
 			continue
 		}

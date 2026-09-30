@@ -30,6 +30,7 @@ type recordDoc struct {
 	WorkspaceID string    `bson:"workspace_id"`
 	AppID       string    `bson:"app_id"`
 	DeliveryID  string    `bson:"delivery_id"`
+	SessionID   string    `bson:"agent_session_id"`
 	Status      int32     `bson:"status"`
 	CreatedAt   time.Time `bson:"created_at"`
 	ExpiresAt   time.Time `bson:"expires_at"`
@@ -59,6 +60,10 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 		{
 			Keys:    bson.D{{Key: "workspace_id", Value: 1}, {Key: "created_at", Value: -1}},
 			Options: options.Index().SetName("workspace_recent"),
+		},
+		{
+			Keys:    bson.D{{Key: "app_id", Value: 1}, {Key: "agent_session_id", Value: 1}, {Key: "status", Value: 1}},
+			Options: options.Index().SetName("app_session_status"),
 		},
 		{
 			// Mongo removes the record — and its persisted reply — once the
@@ -91,6 +96,7 @@ func encode(record *agentsv1.LinearProcessingRecord) (recordDoc, error) {
 		WorkspaceID: record.GetWorkspaceId(),
 		AppID:       record.GetAppId(),
 		DeliveryID:  record.GetDeliveryId(),
+		SessionID:   record.GetAgentSessionId(),
 		Status:      int32(record.GetStatus()),
 		CreatedAt:   record.GetCreatedAt().AsTime(),
 		ExpiresAt:   record.GetExpiresAt().AsTime(),
@@ -298,6 +304,9 @@ func (s *Store) List(ctx context.Context, filter linearprocessing.Filter) ([]*ag
 	query := bson.M{"workspace_id": filter.WorkspaceID}
 	if filter.AppID != "" {
 		query["app_id"] = filter.AppID
+	}
+	if filter.AgentSessionID != "" {
+		query["agent_session_id"] = filter.AgentSessionID
 	}
 	if filter.Status != agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_UNSPECIFIED {
 		query["status"] = int32(filter.Status)

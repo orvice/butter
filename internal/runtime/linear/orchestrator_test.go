@@ -23,7 +23,6 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/linearconn"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
 	"go.orx.me/apps/butter/internal/runtime/runner"
-	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/secretbox"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -138,6 +137,7 @@ type orchestratorFixture struct {
 	linear *lineartest.Fake
 	runner *fakeRunner
 	orch   *Orchestrator
+	coord  *MemoryCoordinator
 	app    *agentsv1.LinearApp
 }
 
@@ -169,9 +169,10 @@ func newOrchestratorFixture(t *testing.T, mutate func(*agentsv1.LinearApp)) *orc
 
 	agents := newFakeRunner()
 	orch := NewOrchestrator(repo, agents, linearconn.NewTokenSource(repo, keyring), fake.Client())
-	orch.SetSessionGuard(sessionguard.NewMemory())
+	coord := NewMemoryCoordinator()
+	orch.SetSessionCoordinator(coord)
 	orch.SetExternalBaseURL(func(context.Context) string { return "https://butter.test" })
-	return &orchestratorFixture{repo: repo, linear: fake, runner: agents, orch: orch, app: stored}
+	return &orchestratorFixture{repo: repo, linear: fake, runner: agents, orch: orch, coord: coord, app: stored}
 }
 
 func (fx *orchestratorFixture) event(action string) *Event {
@@ -410,24 +411,6 @@ func TestLongResponsesAreTruncatedWithALinkAndCredentialsRedacted(t *testing.T) 
 	}
 	if strings.Contains(body, "ghp_abcdef") {
 		t.Fatal("the response leaked a credential")
-	}
-}
-
-func TestABusySessionDefersTheEvent(t *testing.T) {
-	fx := newOrchestratorFixture(t, nil)
-	fx.runner.block = make(chan struct{})
-	fx.runner.started = make(chan struct{}, 1)
-	done := make(chan error, 1)
-	go func() { done <- fx.orch.Handle(t.Context(), fx.event(ActionCreated)) }()
-	<-fx.runner.started
-
-	err := fx.orch.Handle(t.Context(), fx.prompted("are you done?"))
-	if !errors.Is(err, ErrSessionBusy) {
-		t.Fatalf("second Handle = %v, want ErrSessionBusy", err)
-	}
-	close(fx.runner.block)
-	if err := <-done; err != nil {
-		t.Fatalf("first Handle: %v", err)
 	}
 }
 
