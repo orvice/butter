@@ -18,6 +18,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 )
@@ -82,13 +83,28 @@ func newSurfaceID(prefix string) string {
 
 // Run is one AG-UI run for which A2UI is live: the client negotiated it and
 // the session's binding matches the caller. It rides the run's context so
-// the render_ui tool is offered, and knows which message it belongs to, for
-// exactly this run.
+// the render_ui tool is offered, knows which message it belongs to, and
+// remembers how its calls have gone, for exactly this run.
 type Run struct {
 	ThreadID  string
 	RunID     string
 	MessageID string
+
+	// renderFailures counts the render_ui calls in a row that failed.
+	renderFailures atomic.Int32
 }
+
+// RenderFailures reports how many render_ui calls in a row have failed in
+// this run.
+func (r *Run) RenderFailures() int { return int(r.renderFailures.Load()) }
+
+// RenderFailed records a failed render_ui call and returns how many calls in
+// a row have now failed.
+func (r *Run) RenderFailed() int { return int(r.renderFailures.Add(1)) }
+
+// RenderSucceeded records a successful render_ui call, which ends a run of
+// failures.
+func (r *Run) RenderSucceeded() { r.renderFailures.Store(0) }
 
 type runKey struct{}
 

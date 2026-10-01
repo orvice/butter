@@ -903,6 +903,9 @@ Cursor, remote agents and every non-AG-UI entry point never see it):
   nothing and returns a readable tool error the model can act on. Limits: 100
   components per card, 64 KiB of messages per call, 20 cards per session, and
   256 KiB of stored components and data per card.
+- After 3 failed calls in a row within one run, `render_ui` refuses every
+  further call in that run and tells the model to answer in text. A
+  successful call resets the count; the next run starts from zero.
 - Cards live in a hidden namespace of the session's state (`butter:a2ui:*`),
   never in AG-UI shared state: `STATE_*` events do not carry them and a
   client's `state` cannot create or change them.
