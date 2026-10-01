@@ -1,6 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSearch } from '@tanstack/react-router'
-import type { Agent } from '@/types/api'
+import type { Agent, SessionInfo } from '@/types/api'
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -21,6 +29,7 @@ import {
   Copy,
   History,
   MessageSquarePlus,
+  PanelLeft,
   PlugZap,
   Send,
   Square,
@@ -32,6 +41,12 @@ import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { fetchAGUIUISnapshot } from '@/api/agui'
 import { BASE_URL, authHeaders } from '@/api/client'
+import {
+  useDeleteSession,
+  useGenerateSessionTitle,
+  useSessions,
+  useUpdateSessionTitle,
+} from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/context/workspace-provider'
@@ -43,7 +58,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { DeleteDialog } from '@/components/delete-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -59,12 +81,14 @@ import {
 } from './a2ui/protocol'
 import { A2UIStore, useA2UIStore } from './a2ui/store'
 import { A2UISurfaceView } from './a2ui/surface-view'
+import { ThreadList } from './thread-list'
 import {
   currentThread,
   newThreadId,
   threadPointerKey,
   writeThreadPointer,
 } from './thread-pointer'
+import { AGUI_APP_NAME, agentThreads, threadIdOf, threadTitle } from './threads'
 
 function isSelectableAgent(a: Agent): boolean {
   const status = a.lifecycle_status
@@ -119,17 +143,88 @@ export function AGUIChatPage() {
   const threadId = pointerKey
     ? (threads[pointerKey] ?? currentThread(pointerKey))
     : null
-  const startNewThread = () => {
+  const selectThread = (id: string) => {
     if (!pointerKey) return
-    const id = newThreadId()
     writeThreadPointer(pointerKey, id)
     setThreads((t) => ({ ...t, [pointerKey]: id }))
   }
+  const startNewThread = () => selectThread(newThreadId())
 
   const httpAgent = useMemo(
     () => (agentId && threadId ? makeHttpAgent(agentId, threadId) : null),
     [agentId, threadId]
   )
+
+  const queryClient = useQueryClient()
+  const sessionsQuery = useSessions(
+    { app_name: AGUI_APP_NAME, user_id: userId || undefined, page_size: 100 },
+    { enabled: !!userId }
+  )
+  const agentThreadList = useMemo(
+    () =>
+      agentId && selectedWorkspaceId
+        ? agentThreads(
+            sessionsQuery.data?.sessions ?? [],
+            selectedWorkspaceId,
+            agentId
+          )
+        : [],
+    [sessionsQuery.data, selectedWorkspaceId, agentId]
+  )
+  const renameMutation = useUpdateSessionTitle()
+  const deleteMutation = useDeleteSession()
+  const generateTitleMutation = useGenerateSessionTitle()
+  const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
+
+  // After every run: a thread's first run creates its session, so refresh
+  // the list, and title a thread that has none yet (the server keeps any
+  // title that already exists, manual ones included).
+  const handleRunSettled = () => {
+    void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    if (!threadId) return
+    const listed = agentThreadList.find((s) => threadIdOf(s) === threadId)
+    if (listed?.title?.trim()) return
+    generateTitleMutation.mutate(
+      {
+        app_name: AGUI_APP_NAME,
+        user_id: userId,
+        session_id: `agui-${threadId}`,
+      },
+      { onError: () => {} }
+    )
+  }
+
+  const handleRename = async (session: SessionInfo, title: string) => {
+    await renameMutation.mutateAsync({
+      app_name: session.app_name,
+      user_id: session.user_id,
+      session_id: session.session_id,
+      title,
+    })
+  }
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return
+    const target = deleteTarget
+    const isCurrent = threadIdOf(target) === threadId
+    // Stop a run on the thread before its session goes away.
+    if (isCurrent) httpAgent?.abortRun()
+    deleteMutation.mutate(
+      {
+        app_name: target.app_name,
+        user_id: target.user_id,
+        session_id: target.session_id,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Thread deleted')
+          setDeleteTarget(null)
+          if (isCurrent) startNewThread()
+        },
+        onError: (err) => toast.error(err.message),
+      }
+    )
+  }
 
   if (!httpAgent || !agentId || !threadId) {
     return (
@@ -155,16 +250,32 @@ export function AGUIChatPage() {
   }
 
   return (
-    <AGUIChatWithRuntime
-      key={`${selectedWorkspaceId}:${userId}:${agentId}:${threadId}`}
-      httpAgent={httpAgent}
-      agents={agents}
-      agentId={agentId}
-      threadId={threadId}
-      agentName={agent?.name ?? 'Agent'}
-      onAgentChange={(id) => setPickedAgentId(id)}
-      onNewThread={startNewThread}
-    />
+    <>
+      <AGUIChatWithRuntime
+        key={`${selectedWorkspaceId}:${userId}:${agentId}:${threadId}`}
+        httpAgent={httpAgent}
+        agents={agents}
+        agentId={agentId}
+        threadId={threadId}
+        agentName={agent?.name ?? 'Agent'}
+        onAgentChange={(id) => setPickedAgentId(id)}
+        onNewThread={startNewThread}
+        threads={agentThreadList}
+        threadsLoading={sessionsQuery.isLoading}
+        onSelectThread={selectThread}
+        onRenameThread={handleRename}
+        onDeleteThread={setDeleteTarget}
+        onRunSettled={handleRunSettled}
+      />
+      <DeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title='Delete thread'
+        description={`Delete thread "${deleteTarget ? threadTitle(deleteTarget) : ''}"? Its messages, cards and forms are removed. This cannot be undone.`}
+        loading={deleteMutation.isPending}
+        onConfirm={handleDeleteConfirm}
+      />
+    </>
   )
 }
 
@@ -240,6 +351,12 @@ function AGUIChatWithRuntime({
   threadId,
   onAgentChange,
   onNewThread,
+  threads,
+  threadsLoading,
+  onSelectThread,
+  onRenameThread,
+  onDeleteThread,
+  onRunSettled,
 }: {
   httpAgent: ButterAGUIAgent
   agents: Agent[]
@@ -248,12 +365,50 @@ function AGUIChatWithRuntime({
   agentName: string
   onAgentChange: (id: string) => void
   onNewThread: () => void
+  threads: SessionInfo[]
+  threadsLoading: boolean
+  onSelectThread: (threadId: string) => void
+  onRenameThread: (session: SessionInfo, title: string) => Promise<void>
+  onDeleteThread: (session: SessionInfo) => void
+  onRunSettled: () => void
 }) {
   const runtime = useAgUiRuntime({
     agent: httpAgent,
     onError: (err) => toast.error(err.message || 'AG-UI request failed'),
   })
   const store = useOwnedA2UIStore(httpAgent, agentId, threadId)
+  const [threadsOpen, setThreadsOpen] = useState(false)
+
+  const runSettledRef = useRef(onRunSettled)
+  useEffect(() => {
+    runSettledRef.current = onRunSettled
+  })
+  useEffect(() => {
+    const sub = httpAgent.subscribe({
+      onRunFinalized: () => {
+        runSettledRef.current()
+      },
+    })
+    return () => sub.unsubscribe()
+  }, [httpAgent])
+
+  const threadList = (
+    <ThreadList
+      threads={threads}
+      activeThreadId={threadId}
+      isLoading={threadsLoading}
+      onSelect={(id) => {
+        if (id === threadId) {
+          setThreadsOpen(false)
+          return
+        }
+        httpAgent.abortRun()
+        onSelectThread(id)
+      }}
+      onRename={onRenameThread}
+      onDelete={onDeleteThread}
+    />
+  )
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -272,11 +427,30 @@ function AGUIChatWithRuntime({
               httpAgent.abortRun()
               onNewThread()
             }}
+            onOpenThreads={() => setThreadsOpen(true)}
           />
-          <ThreadArea />
-          <SharedStatePanel />
-          <ComposerArea />
+          <div className='flex min-h-0 flex-1'>
+            <aside
+              aria-label='Threads'
+              className='hidden w-60 shrink-0 overflow-y-auto border-e border-border/60 md:block'
+            >
+              {threadList}
+            </aside>
+            <div className='flex min-w-0 flex-1 flex-col'>
+              <ThreadArea />
+              <SharedStatePanel />
+              <ComposerArea />
+            </div>
+          </div>
         </Main>
+        <Sheet open={threadsOpen} onOpenChange={setThreadsOpen}>
+          <SheetContent side='left' className='w-72 gap-0 p-0'>
+            <SheetHeader className='border-b border-border/60'>
+              <SheetTitle>Threads</SheetTitle>
+            </SheetHeader>
+            <div className='overflow-y-auto'>{threadList}</div>
+          </SheetContent>
+        </Sheet>
       </A2UIStoreContext.Provider>
     </AssistantRuntimeProvider>
   )
@@ -330,18 +504,33 @@ function AgentBar({
   agentId,
   onAgentChange,
   onNewThread,
+  onOpenThreads,
   isLoading,
 }: {
   agents: Agent[]
   agentId: string | null
   onAgentChange: (id: string) => void
   onNewThread?: () => void
+  onOpenThreads?: () => void
   isLoading?: boolean
 }) {
   return (
     <div className='flex items-center gap-2 border-b border-border/60 px-4 py-2'>
+      {onOpenThreads && (
+        <Button
+          variant='ghost'
+          size='icon'
+          className='size-8 md:hidden'
+          aria-label='Show threads'
+          onClick={onOpenThreads}
+        >
+          <PanelLeft className='size-4' />
+        </Button>
+      )}
       <PlugZap className='size-4 text-muted-foreground' />
-      <span className='text-sm font-medium'>AG-UI Chat</span>
+      <span className='hidden text-sm font-medium whitespace-nowrap sm:inline'>
+        AG-UI Chat
+      </span>
       <Select
         value={agentId ?? undefined}
         onValueChange={onAgentChange}

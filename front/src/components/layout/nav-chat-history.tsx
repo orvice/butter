@@ -1,8 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Link, useLocation } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import type { SessionInfo } from '@/types/api'
-import { MoreHorizontal, Pencil, Search, SquarePen } from 'lucide-react'
-import { useSessions, useUpdateSessionTitle } from '@/api/sessions'
+import { MoreHorizontal, Pencil, Search, SquarePen, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  useDeleteSession,
+  useSessions,
+  useUpdateSessionTitle,
+} from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
 import { CHAT_APP_NAME } from '@/lib/constants'
 import { sessionAgentName, sessionTitle } from '@/lib/session-title'
@@ -11,6 +16,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -22,6 +28,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { AgentAvatar } from '@/components/butter/primitives'
+import { DeleteDialog } from '@/components/delete-dialog'
 import { InlineTitleInput } from '@/components/inline-title-input'
 
 type SessionGroupKey = 'today' | 'week' | 'older'
@@ -49,10 +56,13 @@ const GROUP_TITLES: Record<SessionGroupKey, string> = {
 export function NavChatHistory() {
   const user = useAuthStore((state) => state.auth.user)
   const location = useLocation()
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(
     null
   )
+  const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
+  const deleteMutation = useDeleteSession()
 
   const userId = user?.id ?? ''
   const sessionsQuery = useSessions(
@@ -80,6 +90,29 @@ export function NavChatHistory() {
       })),
     [filtered]
   )
+
+  function handleDeleteConfirm() {
+    if (!deleteTarget) return
+    const target = deleteTarget
+    deleteMutation.mutate(
+      {
+        app_name: target.app_name,
+        user_id: target.user_id,
+        session_id: target.session_id,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Chat deleted')
+          setDeleteTarget(null)
+          // Leave the open chat rather than show a session that is gone.
+          if (target.session_id === activeSessionId) {
+            navigate({ to: '/chat', search: {}, replace: true })
+          }
+        },
+        onError: (err) => toast.error(err.message),
+      }
+    )
+  }
 
   return (
     <SidebarGroup className='py-1 group-data-[collapsible=icon]:hidden'>
@@ -129,6 +162,7 @@ export function NavChatHistory() {
                       renaming={s.session_id === renamingSessionId}
                       onRenameStart={() => setRenamingSessionId(s.session_id)}
                       onRenameEnd={() => setRenamingSessionId(null)}
+                      onDelete={() => setDeleteTarget(s)}
                     />
                   ))}
                 </SidebarMenu>
@@ -136,6 +170,14 @@ export function NavChatHistory() {
             )
         )
       )}
+      <DeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title='Delete chat'
+        description={`Delete chat "${deleteTarget ? sessionTitle(deleteTarget) : ''}"? This cannot be undone.`}
+        loading={deleteMutation.isPending}
+        onConfirm={handleDeleteConfirm}
+      />
     </SidebarGroup>
   )
 }
@@ -146,12 +188,14 @@ function ConversationRow({
   renaming,
   onRenameStart,
   onRenameEnd,
+  onDelete,
 }: {
   session: SessionInfo
   active: boolean
   renaming: boolean
   onRenameStart: () => void
   onRenameEnd: () => void
+  onDelete: () => void
 }) {
   const renameMutation = useUpdateSessionTitle()
   const agent = sessionAgentName(session.state)
@@ -218,6 +262,11 @@ function ConversationRow({
           <DropdownMenuItem onClick={onRenameStart}>
             <Pencil />
             Rename
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant='destructive' onClick={onDelete}>
+            <Trash2 />
+            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
