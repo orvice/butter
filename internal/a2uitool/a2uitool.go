@@ -56,9 +56,9 @@ func (t Toolset) Tools(ctx agent.ReadonlyContext) ([]tool.Tool, error) {
 }
 
 type renderArgs struct {
-	SurfaceID string           `json:"surface_id,omitempty" jsonschema_description:"Handle of a card you created earlier in this conversation, to update or delete it. Omit to create a new card; the server assigns the handle and returns it."`
-	Messages  []map[string]any `json:"messages" jsonschema_description:"A2UI v0.9.1 messages applied in order: {\"updateComponents\": {\"components\": [...]}}, {\"updateDataModel\": {\"path\": \"/\", \"value\": {...}}}, or {\"deleteSurface\": {}}."`
-	Fallback  string           `json:"fallback,omitempty" jsonschema_description:"Plain-text version of the card for clients that cannot render it. Required when creating."`
+	SurfaceID string           `json:"surface_id,omitempty" jsonschema:"Handle of a card you created earlier in this conversation, to update or delete it. Omit to create a new card; the server assigns the handle and returns it."`
+	Messages  []map[string]any `json:"messages" jsonschema:"A2UI v0.9.1 messages applied in order: {\"updateComponents\": {\"components\": [...]}}, {\"updateDataModel\": {\"path\": \"/\", \"value\": {...}}}, or {\"deleteSurface\": {}}."`
+	Fallback  string           `json:"fallback,omitempty" jsonschema:"Plain-text version of the card for clients that cannot render it. Required when creating."`
 }
 
 type renderResult struct {

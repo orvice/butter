@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryconn"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
+	"go.orx.me/apps/butter/internal/testsupport/tooltest"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -264,4 +265,8 @@ func TestFormatSearchCapsText(t *testing.T) {
 	if empty := formatSearch(mem0memory.TargetWorkspace, nil, 70); empty.Memories == nil || len(empty.Memories) != 0 {
 		t.Fatalf("empty result should be an empty list: %+v", empty)
 	}
+}
+
+func TestToolParametersAreDescribed(t *testing.T) {
+	tooltest.RequireParamDescriptions(t, newFixture(t, true).ts.tools...)
 }
