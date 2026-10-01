@@ -85,9 +85,9 @@ func (t *Toolset) Tools(ctx agent.ReadonlyContext) ([]tool.Tool, error) {
 }
 
 type searchArgs struct {
-	Query string `json:"query" jsonschema_description:"What to look for, in natural language."`
-	Scope string `json:"scope,omitempty" jsonschema_description:"'workspace' (default) or 'agent'."`
-	TopK  int    `json:"top_k,omitempty" jsonschema_description:"Maximum number of memories to return, 1-20. Defaults to the agent's configured value."`
+	Query string `json:"query" jsonschema:"What to look for, in natural language."`
+	Scope string `json:"scope,omitempty" jsonschema:"'workspace' (default) or 'agent'."`
+	TopK  int    `json:"top_k,omitempty" jsonschema:"Maximum number of memories to return, 1-20. Defaults to the agent's configured value."`
 }
 
 type memoryItem struct {
@@ -102,8 +102,8 @@ type searchResult struct {
 }
 
 type addArgs struct {
-	Content string `json:"content" jsonschema_description:"The fact, preference, or decision to remember, stated on its own."`
-	Scope   string `json:"scope,omitempty" jsonschema_description:"'workspace' (default) or 'agent'."`
+	Content string `json:"content" jsonschema:"The fact, preference, or decision to remember, stated on its own."`
+	Scope   string `json:"scope,omitempty" jsonschema:"'workspace' (default) or 'agent'."`
 }
 
 type addResult struct {

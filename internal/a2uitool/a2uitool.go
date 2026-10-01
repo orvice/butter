@@ -56,9 +56,9 @@ func (t Toolset) Tools(ctx agent.ReadonlyContext) ([]tool.Tool, error) {
 }
 
 type renderArgs struct {
-	SurfaceID string           `json:"surface_id,omitempty" jsonschema_description:"Handle of a card you created earlier in this conversation, to update or delete it. Omit to create a new card; the server assigns the handle and returns it."`
-	Messages  []map[string]any `json:"messages" jsonschema_description:"A2UI v0.9.1 messages applied in order: {\"updateComponents\": {\"components\": [...]}}, {\"updateDataModel\": {\"path\": \"/\", \"value\": {...}}}, or {\"deleteSurface\": {}}."`
-	Fallback  string           `json:"fallback,omitempty" jsonschema_description:"Plain-text version of the card for clients that cannot render it. Required when creating."`
+	SurfaceID string           `json:"surface_id,omitempty" jsonschema:"Handle of a card you created earlier in this conversation, to update or delete it. Omit to create a new card; the server assigns the handle and returns it."`
+	Messages  []map[string]any `json:"messages" jsonschema:"A2UI v0.9.1 messages applied in order: {\"updateComponents\": {\"components\": [...]}}, {\"updateDataModel\": {\"path\": \"/\", \"value\": {...}}}, or {\"deleteSurface\": {}}."`
+	Fallback  string           `json:"fallback,omitempty" jsonschema:"Plain-text version of the card for clients that cannot render it. Required when creating."`
 }
 
 type renderResult struct {
@@ -67,11 +67,37 @@ type renderResult struct {
 	Status    string `json:"status"`
 }
 
+// maxConsecutiveFailures is how many render_ui calls in a row may fail in
+// one run before the tool refuses the rest. Every failure hands the model an
+// error it can try to fix, and nothing else bounds how often it tries: ADK
+// caps model calls only in live runs.
+const maxConsecutiveFailures = 3
+
+// errRenderStopped tells the model why render_ui refuses the rest of a run.
+var errRenderStopped = fmt.Errorf("render_ui has failed %d times in a row, so cards are off for the rest of this turn; answer in text", maxConsecutiveFailures)
+
 func render(ctx agent.Context, args renderArgs) (renderResult, error) {
 	run, ok := a2ui.RunFrom(ctx)
 	if !ok {
 		return renderResult{}, errors.New("cards cannot be shown in this conversation; answer in text instead")
 	}
+	if run.RenderFailures() >= maxConsecutiveFailures {
+		return renderResult{}, errRenderStopped
+	}
+	res, err := apply(ctx, run, args)
+	if err != nil {
+		if run.RenderFailed() >= maxConsecutiveFailures {
+			return renderResult{}, fmt.Errorf("%w; %w", err, errRenderStopped)
+		}
+		return renderResult{}, err
+	}
+	run.RenderSucceeded()
+	return res, nil
+}
+
+// apply validates one batch against the session's cards and persists the
+// card it produces.
+func apply(ctx agent.Context, run *a2ui.Run, args renderArgs) (renderResult, error) {
 	cards := a2ui.Cards(ctx.State())
 	res, err := a2ui.Apply(cards, a2ui.Batch{
 		SurfaceID: strings.TrimSpace(args.SurfaceID),
@@ -116,8 +142,8 @@ Components (catalog butter-basic-v1). Every component is {"id": "...", "componen
 - Divider: {"axis"?: horizontal|vertical}.
 <text> is a plain string, or {"path": "/key"} to read a string from the card's data model (set with {"updateDataModel": {"path": "/", "value": {"key": "..."}}}).
 
-Rules: plain text only (no HTML, markdown links, images or URLs); at most %d components per card, %d KiB per call, and %d cards per conversation. An invalid call changes nothing and returns an error explaining why; fix it or answer in text.
+Rules: plain text only (no HTML, markdown links, images or URLs); at most %d components per card, %d KiB per call, and %d cards per conversation. An invalid call changes nothing and returns an error explaining why; fix it or answer in text. After %d failed calls in a row, render_ui refuses the rest of this turn.
 
 Example: {"messages": [{"updateComponents": {"components": [{"id": "root", "component": "Card", "child": "col"}, {"id": "col", "component": "Column", "children": ["title", "env", "state"]}, {"id": "title", "component": "Text", "text": "Deploy summary", "variant": "h3"}, {"id": "env", "component": "KeyValue", "label": "Environment", "value": "production"}, {"id": "state", "component": "Status", "text": "Healthy", "tone": "success"}]}}], "fallback": "Deploy summary: production, healthy."}`,
-		limits.MaxComponents, limits.MaxBatchBytes>>10, limits.MaxSurfaces)
+		limits.MaxComponents, limits.MaxBatchBytes>>10, limits.MaxSurfaces, maxConsecutiveFailures)
 }

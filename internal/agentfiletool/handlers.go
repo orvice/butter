@@ -12,7 +12,7 @@ import (
 )
 
 type listFilesArgs struct {
-	PathPrefix string `json:"path_prefix,omitempty" jsonschema_description:"Optional virtual path prefix to list, such as /docs."`
+	PathPrefix string `json:"path_prefix,omitempty" jsonschema:"Optional virtual path prefix to list, such as /docs."`
 }
 
 type fileInfo struct {
@@ -27,8 +27,8 @@ type listFilesResult struct {
 }
 
 type readFileArgs struct {
-	Path    string `json:"path" jsonschema_description:"Virtual file path to read."`
-	Version int64  `json:"version,omitempty" jsonschema_description:"Optional file version. Leave empty or 0 for latest."`
+	Path    string `json:"path" jsonschema:"Virtual file path to read."`
+	Version int64  `json:"version,omitempty" jsonschema:"Optional file version. Leave empty or 0 for latest."`
 }
 
 type readFileResult struct {
@@ -40,9 +40,9 @@ type readFileResult struct {
 }
 
 type writeFileArgs struct {
-	Path        string `json:"path" jsonschema_description:"Virtual file path to create or replace."`
-	Content     string `json:"content" jsonschema_description:"UTF-8 text content to write."`
-	ContentType string `json:"content_type,omitempty" jsonschema_description:"Optional content type. Defaults to text/plain."`
+	Path        string `json:"path" jsonschema:"Virtual file path to create or replace."`
+	Content     string `json:"content" jsonschema:"UTF-8 text content to write."`
+	ContentType string `json:"content_type,omitempty" jsonschema:"Optional content type. Defaults to text/plain."`
 }
 
 type writeFileResult struct {
@@ -52,12 +52,12 @@ type writeFileResult struct {
 }
 
 type appendFileArgs struct {
-	Path    string `json:"path" jsonschema_description:"Virtual file path to append to."`
-	Content string `json:"content" jsonschema_description:"UTF-8 text content to append."`
+	Path    string `json:"path" jsonschema:"Virtual file path to append to."`
+	Content string `json:"content" jsonschema:"UTF-8 text content to append."`
 }
 
 type deleteFileArgs struct {
-	Path string `json:"path" jsonschema_description:"Virtual file path to delete."`
+	Path string `json:"path" jsonschema:"Virtual file path to delete."`
 }
 
 type deleteFileResult struct {
@@ -65,8 +65,8 @@ type deleteFileResult struct {
 }
 
 type searchFilesArgs struct {
-	Query string `json:"query" jsonschema_description:"Substring to search for."`
-	Limit int32  `json:"limit,omitempty" jsonschema_description:"Maximum number of results. Defaults to 20."`
+	Query string `json:"query" jsonschema:"Substring to search for."`
+	Limit int32  `json:"limit,omitempty" jsonschema:"Maximum number of results. Defaults to 20."`
 }
 
 type searchResult struct {

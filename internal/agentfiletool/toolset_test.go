@@ -7,6 +7,7 @@ import (
 	"google.golang.org/adk/v2/agent"
 
 	agentfilememory "go.orx.me/apps/butter/internal/repo/agentfile/memory"
+	"go.orx.me/apps/butter/internal/testsupport/tooltest"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -90,6 +91,30 @@ func TestListFilesAllowsMountRootPrefix(t *testing.T) {
 	if len(got.Files) != 1 || got.Files[0].Path != "/docs/readme.md" {
 		t.Fatalf("files = %#v, want /docs/readme.md", got.Files)
 	}
+}
+
+func TestToolParametersAreDescribed(t *testing.T) {
+	ctx := context.Background()
+	repo := agentfilememory.New()
+	space, err := repo.CreateSpace(ctx, "ws-1", &agentsv1.AgentFileSpace{Name: "Notes"})
+	if err != nil {
+		t.Fatalf("CreateSpace: %v", err)
+	}
+	raw, err := NewToolset(repo, []*agentsv1.AgentFileMount{
+		{
+			SpaceId:    space.GetId(),
+			MountPath:  "/notes",
+			Permission: agentsv1.AgentFileMountPermission_AGENT_FILE_MOUNT_PERMISSION_READ_WRITE,
+		},
+	}, 1024)
+	if err != nil {
+		t.Fatalf("NewToolset: %v", err)
+	}
+	tools, err := raw.Tools(nil)
+	if err != nil {
+		t.Fatalf("Tools: %v", err)
+	}
+	tooltest.RequireParamDescriptions(t, tools...)
 }
 
 // newTestToolContext builds an agent.Context whose context.Context payload
