@@ -23,6 +23,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
+	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -92,6 +93,7 @@ type SessionServiceServer struct {
 	runnerSvc       sessionReplyRunner
 	titleStore      SessionTitleStore
 	wsStore         WorkspaceSessionStore
+	wsRepo          workspacerepo.Repository
 	readStore       SessionReadStore
 	invRepo         invocation.Repository
 	inputPartRepo   inputpart.Repository
@@ -290,24 +292,6 @@ type workspacedSession interface {
 	WorkspaceID() string
 }
 
-// enforceWorkspaceAccess verifies that the loaded session belongs to the
-// caller's active workspace. Returns nil when the caller is not workspace-
-// scoped (no X-Workspace-ID) or is a global admin.
-func (s *SessionServiceServer) enforceWorkspaceAccess(ctx context.Context, sess session.Session) error {
-	if auth.IsAdmin(ctx) {
-		return nil
-	}
-	wsID, ok := workspace.FromContext(ctx)
-	if !ok || wsID == "" {
-		return nil
-	}
-	ws, hasWS := sess.(workspacedSession)
-	if !hasWS || ws.WorkspaceID() == "" || ws.WorkspaceID() != wsID {
-		return connectx.NotFound("session not found in this workspace")
-	}
-	return nil
-}
-
 // enforceWorkspaceAccessByID looks up the session's workspace from the store
 // and validates access. Used by mutations that load the session after the check.
 func (s *SessionServiceServer) enforceWorkspaceAccessByID(ctx context.Context, appName, userID, sessionID string) error {
@@ -413,6 +397,10 @@ func (s *SessionServiceServer) CreateSession(ctx context.Context, req *connect.R
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 
+	if err := s.authorizeNew(ctx, req.Msg.GetUserId()); err != nil {
+		return nil, err
+	}
+
 	var state map[string]any
 	if req.Msg.GetState() != nil {
 		state = req.Msg.GetState().AsMap()
@@ -463,16 +451,17 @@ func (s *SessionServiceServer) GetSession(ctx context.Context, req *connect.Requ
 			return nil, connect.NewError(connect.CodeDeadlineExceeded, errors.New(err.Error()))
 		}
 		if strings.Contains(strings.ToLower(err.Error()), "session not found") {
-			return nil, connectx.NotFound(err.Error())
+			if _, authErr := sessionPrincipalFrom(ctx); authErr != nil {
+				return nil, authErr
+			}
+			return nil, sessionNotFound()
 		}
 		return nil, connectx.InternalWith(err)
 	}
 
-	// Workspace guard: when the caller is workspace-scoped, the session
-	// must belong to that workspace. Sessions from another workspace (or
-	// legacy sessions with no workspace) return not-found to avoid leaking
-	// their existence. Global admins bypass this check.
-	if err := s.enforceWorkspaceAccess(ctx, resp.Session); err != nil {
+	// Session access policy (session_access.go): a session the caller may
+	// not see answers not-found, like a missing one.
+	if err := s.authorizeExisting(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), sessionWorkspaceID(resp.Session)); err != nil {
 		return nil, err
 	}
 
@@ -520,9 +509,15 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *connect.Re
 		return s.listSessionsWorkspaceScoped(ctx, req)
 	}
 
+	// Session access policy (session_access.go).
+	scope, err := s.listScope(ctx, req.Msg.GetAppName(), req.Msg.GetUserId())
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := sessionSvc.List(ctx, &session.ListRequest{
 		AppName: req.Msg.GetAppName(),
-		UserID:  req.Msg.GetUserId(),
+		UserID:  scope.userID,
 	})
 	if err != nil {
 		return nil, connectx.InternalWith(err)
@@ -534,6 +529,9 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *connect.Re
 	endTs := req.Msg.GetEndTime()
 	infos := make([]*agentsv1.SessionInfo, 0, len(resp.Sessions))
 	for _, sess := range resp.Sessions {
+		if scope.workspaceID != "" && sessionWorkspaceID(sess) != scope.workspaceID {
+			continue
+		}
 		last := sess.LastUpdateTime()
 		if startTs != nil && last.Before(startTs.AsTime()) {
 			continue
@@ -573,10 +571,12 @@ func (s *SessionServiceServer) listSessionsWorkspaceScoped(ctx context.Context, 
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace session store not available"))
 	}
 
-	// Determine the user to filter on: non-admins can only see their own
-	// sessions; admins may specify a user_id or leave empty for all users.
+	// Determine the user to filter on: a person sees only their own
+	// sessions; admins and the workspace's API tokens may specify a user_id
+	// or leave it empty for all users.
 	userID := req.Msg.GetUserId()
-	if !auth.IsAdmin(ctx) {
+	_, isAPIToken := auth.APITokenFromContext(ctx)
+	if !auth.IsAdmin(ctx) && !isAPIToken {
 		user, ok := auth.UserFromContext(ctx)
 		if !ok {
 			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
@@ -705,9 +705,9 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 	appName := req.Msg.GetAppName()
 	userID := req.Msg.GetUserId()
 
-	// Workspace guard: when workspace-scoped, validate the session belongs
-	// to the caller's workspace before allowing deletion.
-	if err := s.enforceWorkspaceAccessByID(ctx, appName, userID, sessionID); err != nil {
+	// Session access policy (session_access.go), checked before anything
+	// is cancelled or redacted.
+	if err := s.authorizeByID(ctx, appName, userID, sessionID); err != nil {
 		return nil, err
 	}
 
@@ -792,6 +792,12 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 
 	parts, err := resolveUserParts(req.Msg.GetParts(), req.Msg.GetMessage())
 	if err != nil {
+		return nil, err
+	}
+
+	// Session access policy (session_access.go): a turn runs with the
+	// session's whole history, so replying is as privileged as reading it.
+	if err := s.authorizeReply(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId()); err != nil {
 		return nil, err
 	}
 

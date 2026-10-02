@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/apitoken"
+	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -25,9 +26,12 @@ const tokenSecretLen = 24
 // tokenPrefixLen is the visible portion of the secret stored as `prefix`.
 const tokenPrefixLen = 12
 
-// APITokenServiceServer manages API bearer tokens.
+// APITokenServiceServer manages API bearer tokens. A token acts for its
+// whole workspace (it reaches every session there), so only workspace owners
+// and admins may mint or revoke one; any member may list them.
 type APITokenServiceServer struct {
-	repo apitoken.Repository
+	repo   apitoken.Repository
+	wsRepo workspacerepo.Repository
 }
 
 func NewAPITokenServiceServer(repo apitoken.Repository) *APITokenServiceServer {
@@ -38,6 +42,11 @@ func NewAPITokenServiceServer(repo apitoken.Repository) *APITokenServiceServer {
 // backend after bootstrap.
 func (s *APITokenServiceServer) SetRepo(repo apitoken.Repository) {
 	s.repo = repo
+}
+
+// SetWorkspaceRepo wires workspace memberships for the owner/admin check.
+func (s *APITokenServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) {
+	s.wsRepo = repo
 }
 
 func (s *APITokenServiceServer) ListAPITokens(ctx context.Context, _ *connect.Request[agentsv1.ListAPITokensRequest]) (*connect.Response[agentsv1.ListAPITokensResponse], error) {
@@ -61,6 +70,9 @@ func (s *APITokenServiceServer) CreateAPIToken(ctx context.Context, req *connect
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireWorkspaceManageRole(ctx, s.wsRepo, wsID, "api_token"); err != nil {
 		return nil, err
 	}
 	name := req.Msg.GetName()
@@ -101,6 +113,9 @@ func (s *APITokenServiceServer) RevokeAPIToken(ctx context.Context, req *connect
 	}
 	wsID, err := requireWorkspace(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireWorkspaceManageRole(ctx, s.wsRepo, wsID, "api_token"); err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.Get(ctx, req.Msg.GetId())

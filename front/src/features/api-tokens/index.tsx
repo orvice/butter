@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useAPITokens, useCreateAPIToken, useRevokeAPIToken } from "@/api/apitokens";
 import { BASE_URL } from "@/api/transport";
+import { useCanManageWorkspace } from "@/hooks/use-workspace-role";
 import { Page, PageHeader, PageScroll } from "@/components/butter/page-parts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,9 @@ export function APITokens() {
   const { data, isLoading } = useAPITokens();
   const create = useCreateAPIToken();
   const revoke = useRevokeAPIToken();
+  // A token acts for the whole workspace, so only owners and admins mint or
+  // revoke one (the server enforces it).
+  const { canManage } = useCanManageWorkspace();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -86,12 +90,15 @@ export function APITokens() {
     {
       header: "Actions",
       cell: (t) =>
-        t.revoked ? null : (
+        t.revoked || !canManage ? null : (
           <Button
             variant="ghost"
             size="sm"
             onClick={() =>
-              revoke.mutate(t.id, { onSuccess: () => toast.success("Token revoked") })
+              revoke.mutate(t.id, {
+                onSuccess: () => toast.success("Token revoked"),
+                onError: (e) => toast.error(e.message),
+              })
             }
           >
             <Trash2 className="mr-1 h-3 w-3" /> Revoke
@@ -106,17 +113,22 @@ export function APITokens() {
         title="API Tokens"
         subtitle="Manage tokens used by external integrations to call ConnectRPC and OpenAI-compatible APIs."
         actions={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <KeyRound />
-            Generate New Token
-          </Button>
+          canManage ? (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <KeyRound />
+              Generate New Token
+            </Button>
+          ) : undefined
         }
       />
       <PageScroll>
         <Card>
           <CardHeader>
             <CardTitle>Bearer Tokens</CardTitle>
-            <CardDescription>Tokens authenticate external webhook ingestion and API calls.</CardDescription>
+            <CardDescription>
+              Tokens authenticate external webhook ingestion and API calls. A token acts for the whole workspace and
+              can reach every session in it{canManage ? "." : ", so only workspace owners and admins can generate or revoke one."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="border-b pb-5">

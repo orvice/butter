@@ -11,7 +11,6 @@ import (
 
 	inputpartmemory "go.orx.me/apps/butter/internal/repo/inputpart/memory"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
-	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -73,7 +72,7 @@ func TestDeleteSession_CancelsActiveInvocation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := workspace.WithID(context.Background(), wsID)
+	ctx := testContextWithUser(wsID, "user-1")
 
 	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
@@ -123,7 +122,7 @@ func TestDeleteSession_RedactsInvocationContent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := workspace.WithID(context.Background(), wsID)
+	ctx := testContextWithUser(wsID, "user-1")
 	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
 		UserId:    "user-1",
@@ -200,7 +199,7 @@ func TestDeleteSession_DeletesInputParts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := workspace.WithID(context.Background(), wsID)
+	ctx := testContextWithUser(wsID, "user-1")
 	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
 		UserId:    "user-1",
@@ -245,7 +244,7 @@ func TestDeleteSession_NotifiesListenersAfterCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := workspace.WithID(context.Background(), wsID)
+	ctx := testContextWithUser(wsID, "user-1")
 	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
 		UserId:    "user-1",
@@ -287,7 +286,7 @@ func TestDeleteSession_SessionDeleteFailure_NoListenerNotification(t *testing.T)
 	calls := 0
 	svc.AddSessionDeleteListener(func(_, _, _ string) { calls++ })
 
-	ctx := workspace.WithID(context.Background(), wsID)
+	ctx := testContextWithUser(wsID, "user-1")
 	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
 		UserId:    "user-1",
@@ -353,7 +352,7 @@ func TestDeleteSession_BlocksRunnerAndReleasesAfterCompletion(t *testing.T) {
 
 	deleteDone := make(chan error, 1)
 	go func() {
-		ctx := workspace.WithID(context.Background(), wsID)
+		ctx := testContextWithUser(wsID, "user-1")
 		_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 			AppName:   "web-chat",
 			UserId:    "user-1",
@@ -436,7 +435,7 @@ func TestDeleteSession_MultipleInvocationsAllRedacted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := workspace.WithID(context.Background(), wsID)
+	ctx := testContextWithUser(wsID, "user-1")
 	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
 		UserId:    "user-1",
@@ -468,7 +467,7 @@ func TestDeleteSession_NoInvocations_StillDeletes(t *testing.T) {
 	svc.SetSessionService(stub)
 	svc.SetInvocationRepo(invocationmemory.New())
 
-	_, err := svc.DeleteSession(context.Background(), connect.NewRequest(&agentsv1.DeleteSessionRequest{
+	_, err := svc.DeleteSession(testContextWithUser("ws-test", "user-1"), connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
 		UserId:    "user-1",
 		SessionId: "sess-empty",
@@ -490,7 +489,7 @@ func TestDeleteSession_WrongWorkspace_Rejected252(t *testing.T) {
 	svc.SetWorkspaceSessionStore(wsStore)
 	svc.SetInvocationRepo(invocationmemory.New())
 
-	ctx := workspace.WithID(context.Background(), "ws-alpha")
+	ctx := testContextWithUser("ws-alpha", "user-1")
 
 	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
 		AppName:   "web-chat",
