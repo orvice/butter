@@ -107,6 +107,7 @@ Docs directory layout:
 - `docs/research/adk-go-v2.1-openai.md` — ADK Go v2.1 OpenAI compatibility research.
 - `docs/research/pi-rpc-integration.md` — pi coding-agent RPC/SDK protocol research behind ADR-0011; its butter-side integration section is superseded by the ADR.
 - `docs/research/ag-ui-integration.md` — Research verifying the AG-UI integration (issue #286) against the real SDK and ADK v2.1.0: the untagged Go SDK, ADK's lack of native AG-UI support, why the interrupt outcome and addressed resume need no plumbing change, and why `STEP_*` events have no source event.
+- `docs/research/a2ui-adk-structured-output.md` — A2UI generation research. A2UI is prompt-first, so Butter uses neither ADK `OutputSchema` nor provider structured output for it. Covers why `render_ui` keeps a loose `messages` argument and the real-model `TestRenderUIProbe` result. Read before changing `render_ui`'s arguments or wiring `output_schema_json`.
 - `docs/adr/0001-workflow-graph-as-nodes-and-edges-proto.md` — ADR: Workflow graphs as explicit nodes + edges in proto; phase-1 node kinds.
 - `docs/adr/0002-interrupt-state-derived-from-session-events.md` — ADR: Pending interrupts derived from session events, FIFO implicit resume.
 - `docs/adr/0003-cron-workflow-pause-notify-and-wait.md` — ADR: Cron + Human Input → WAITING_INPUT, notify question, resume via ReplySession.
