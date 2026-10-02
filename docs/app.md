@@ -305,7 +305,7 @@ app，固定路由到一个 Agent——它在 Linear 里的 app 用户就是这�
 - **ADK Memory**：由各 workspace 配置的 mem0 OSS 服务端保存长期记忆（Workspace Memory / Agent Memory，ADR-0013）。
 - **ContextInfo**：runner 调用统一携带 channel、session、user、source、uuid，作为执行上下文。
 - **会话维度的 Agent Runner 缓存**：按 `channel:agent:model` 维度缓存 ADK runner 实例。
-- **LLM 自动标题（Web Chat）**：首轮对话完成后 dashboard 调用 `GenerateSessionTitle`。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
+- **LLM 自动标题（Web Chat / AG-UI Chat）**：首轮对话完成后 dashboard 调用 `GenerateSessionTitle`（AG-UI Chat 在每次 run 结束、列表中该 thread 仍无标题时调用）。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
 
 ### 8.1 长期记忆（mem0 OSS，ADR-0013）
 
@@ -467,7 +467,7 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 route/feature 层 boundary。Chat 通过 `SubmitAgentInvocation` + `WatchAgentInvocation` 观察异步执行；同步兼容入口仍可使用 `AgentService.StreamAgent`。头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
 - 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Forum / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Memory / Users / Profile / Integrations / Admin。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
-- AG-UI Chat（`front/src/features/agui-chat`）基于 `@ag-ui/client` HttpAgent + assistant-ui，并用 `@a2ui/react` / `@a2ui/web_core` 0.12.0 按 dashboard 设计系统渲染 `butter-basic-v1`。卡片出现在产生它的回答里，同一卡片的更新原地刷新；无法渲染的 surface 只显示其可读 fallback，不影响文字和工具调用。表单提交中禁用按钮、失败保留草稿并显示字段错误、成功后以一条可读回复出现在对话里并变为不可再提交。当前 thread 按 Workspace + Agent + 用户记住，刷新后先读 UI 快照再接收增量；切换 Workspace/Agent/用户或点 “New thread” 会清掉上一上下文的 UI。完整聊天历史不恢复，未提交草稿也不跨刷新保存。
+- AG-UI Chat（`front/src/features/agui-chat`）基于 `@ag-ui/client` HttpAgent + assistant-ui，并用 `@a2ui/react` / `@a2ui/web_core` 0.12.0 按 dashboard 设计系统渲染 `butter-basic-v1`。卡片出现在产生它的回答里，同一卡片的更新原地刷新；无法渲染的 surface 只显示其可读 fallback，不影响文字和工具调用。表单提交中禁用按钮、失败保留草稿并显示字段错误、成功后以一条可读回复出现在对话里并变为不可再提交。当前 thread 按 Workspace + Agent + 用户记住，刷新后先读 UI 快照再接收增量；切换 Workspace/Agent/用户或点 “New thread” 会清掉上一上下文的 UI。左侧（窄屏为抽屉）列出当前用户与所选 Agent 在本 Workspace 的 thread（`agui` 会话中 A2UI binding 匹配的那些；A2UI 之前创建、没有 binding 的 thread 无法归属，不列出），可切换、重命名、删除；删除当前 thread 会先中止进行中的 run，再切到新 thread。完整聊天历史不恢复（切换到旧 thread 同样只恢复卡片与未答表单），未提交草稿也不跨刷新保存。
 
 ## 18.5 Telegram 运维前提
 
