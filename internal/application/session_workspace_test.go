@@ -27,14 +27,10 @@ func newFakeWSStore() *fakeWorkspaceSessionStore {
 	}
 }
 
-func (f *fakeWorkspaceSessionStore) ListByWorkspace(_ context.Context, workspaceID, userID string) ([]session.Session, error) {
-	all := f.sessions[workspaceID]
-	if userID == "" {
-		return all, nil
-	}
+func (f *fakeWorkspaceSessionStore) ListByWorkspace(_ context.Context, workspaceID, userID, appName string) ([]session.Session, error) {
 	var filtered []session.Session
-	for _, s := range all {
-		if s.UserID() == userID {
+	for _, s := range f.sessions[workspaceID] {
+		if (userID == "" || s.UserID() == userID) && (appName == "" || s.AppName() == appName) {
 			filtered = append(filtered, s)
 		}
 	}
@@ -136,6 +132,47 @@ func TestListSessions_WorkspaceScoped_ReturnsOnlyWorkspaceSessions(t *testing.T)
 	}
 	if resp.Msg.GetTotal() != 1 {
 		t.Fatalf("expected total=1, got %d", resp.Msg.GetTotal())
+	}
+}
+
+func TestListSessions_WorkspaceScoped_FiltersByAppName(t *testing.T) {
+	wsStore := newFakeWSStore()
+	now := time.Now()
+	for i, app := range []string{"web-chat", "agui", "telegram"} {
+		wsStore.addSession("ws-alpha", &fakeWSSession{
+			id: app + "-1", appName: app, userID: "user-1", wsID: "ws-alpha",
+			lastUpdate: now.Add(-time.Duration(i) * time.Minute),
+		})
+	}
+
+	svc := NewSessionServiceServer()
+	svc.SetSessionService(&fakeListSessionService{})
+	svc.SetWorkspaceSessionStore(wsStore)
+
+	ctx := workspace.WithID(context.Background(), "ws-alpha")
+	ctx = auth.WithAuthenticated(ctx, &agentsv1.User{Id: "user-1"}, nil)
+
+	list := func(appName string) []string {
+		t.Helper()
+		resp, err := svc.ListSessions(ctx, connect.NewRequest(&agentsv1.ListSessionsRequest{
+			WorkspaceScoped: true,
+			AppName:         appName,
+		}))
+		if err != nil {
+			t.Fatalf("ListSessions(app_name=%q): %v", appName, err)
+		}
+		var ids []string
+		for _, s := range resp.Msg.GetSessions() {
+			ids = append(ids, s.GetSessionId())
+		}
+		return ids
+	}
+
+	if got := list("agui"); len(got) != 1 || got[0] != "agui-1" {
+		t.Fatalf("app_name=agui: got %v, want [agui-1]", got)
+	}
+	if got := list(""); len(got) != 3 {
+		t.Fatalf("no app_name: got %v, want all three sessions", got)
 	}
 }
 

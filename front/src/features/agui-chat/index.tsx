@@ -42,9 +42,9 @@ import { useAgents } from '@/api/agents'
 import { fetchAGUIUISnapshot } from '@/api/agui'
 import { BASE_URL, authHeaders } from '@/api/client'
 import {
+  useAllSessions,
   useDeleteSession,
   useGenerateSessionTitle,
-  useSessions,
   useUpdateSessionTitle,
 } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
@@ -88,7 +88,13 @@ import {
   threadPointerKey,
   writeThreadPointer,
 } from './thread-pointer'
-import { AGUI_APP_NAME, agentThreads, threadIdOf, threadTitle } from './threads'
+import {
+  AGUI_APP_NAME,
+  THREAD_PAGE_SIZE,
+  agentThreads,
+  threadIdOf,
+  threadTitle,
+} from './threads'
 
 function isSelectableAgent(a: Agent): boolean {
   const status = a.lifecycle_status
@@ -156,9 +162,16 @@ export function AGUIChatPage() {
   )
 
   const queryClient = useQueryClient()
-  const sessionsQuery = useSessions(
-    { app_name: AGUI_APP_NAME, user_id: userId || undefined, page_size: 100 },
-    { enabled: !!userId }
+  // The server keeps the listing to the caller's own `agui` sessions in this
+  // workspace; every page is read, so no thread is dropped.
+  const sessionsQuery = useAllSessions(
+    {
+      app_name: AGUI_APP_NAME,
+      user_id: userId || undefined,
+      workspace_scoped: true,
+      page_size: THREAD_PAGE_SIZE,
+    },
+    { enabled: !!userId && !!selectedWorkspaceId }
   )
   const agentThreadList = useMemo(
     () =>

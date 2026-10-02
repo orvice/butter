@@ -13,6 +13,7 @@ import (
 	"google.golang.org/adk/v2/session"
 
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
+	"go.orx.me/apps/butter/internal/workspace"
 )
 
 // testDB connects to the MongoDB named by BUTTER_TEST_MONGO_URI and hands the
@@ -284,5 +285,52 @@ func TestSetSessionTitleIfEmpty_MissingSessionReturnsNotFound(t *testing.T) {
 	_, _, err := svc.SetSessionTitleIfEmpty(context.Background(), "web", "u1", "does-not-exist", "x")
 	if !errors.Is(err, mongosession.ErrSessionNotFound) {
 		t.Fatalf("expected ErrSessionNotFound, got %v", err)
+	}
+}
+
+func TestListByWorkspace_NarrowsToUserAndApp(t *testing.T) {
+	svc := newService(t, testDB(t))
+	wsAlpha := workspace.WithID(context.Background(), "ws-alpha")
+	wsBeta := workspace.WithID(context.Background(), "ws-beta")
+
+	// Created oldest first; the pause keeps last_update_time distinct at
+	// Mongo's millisecond precision, so the newest-first order is defined.
+	for _, c := range []struct {
+		ctx           context.Context
+		app, user, id string
+	}{
+		{wsAlpha, "agui", "u1", "agui-old"},
+		{wsAlpha, "web-chat", "u1", "chat"},
+		{wsAlpha, "agui", "u2", "agui-other-user"},
+		{wsBeta, "agui", "u1", "agui-other-workspace"},
+		{wsAlpha, "agui", "u1", "agui-new"},
+	} {
+		if _, err := svc.Create(c.ctx, &session.CreateRequest{AppName: c.app, UserID: c.user, SessionID: c.id}); err != nil {
+			t.Fatalf("Create %s: %v", c.id, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	ids := func(userID, appName string) string {
+		t.Helper()
+		sessions, err := svc.ListByWorkspace(context.Background(), "ws-alpha", userID, appName)
+		if err != nil {
+			t.Fatalf("ListByWorkspace(%q, %q): %v", userID, appName, err)
+		}
+		var out []string
+		for _, sess := range sessions {
+			out = append(out, sess.ID())
+		}
+		return fmt.Sprint(out)
+	}
+
+	if got, want := ids("u1", "agui"), "[agui-new agui-old]"; got != want {
+		t.Fatalf("u1 in agui: got %s, want %s", got, want)
+	}
+	if got, want := ids("u1", ""), "[agui-new chat agui-old]"; got != want {
+		t.Fatalf("u1 in any app: got %s, want %s", got, want)
+	}
+	if got, want := ids("", "agui"), "[agui-new agui-other-user agui-old]"; got != want {
+		t.Fatalf("any user in agui: got %s, want %s", got, want)
 	}
 }
