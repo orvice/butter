@@ -41,9 +41,12 @@ func (r *replyTestRunner) ResolveAgentRef(_, agentID string) (string, bool) {
 	return name, ok
 }
 
+// newReplySessionTestService replies as an external app with a workspace
+// API token, into sessions that do not exist yet.
 func newReplySessionTestService(fake *replyTestRunner) *SessionServiceServer {
 	svc := NewSessionServiceServer()
 	svc.runnerSvc = fake
+	svc.SetWorkspaceSessionStore(newFakeWSStore())
 	return svc
 }
 
@@ -52,7 +55,7 @@ func TestReplySession_PartsTextAndImageReachRunner(t *testing.T) {
 	svc := newReplySessionTestService(fake)
 
 	imgData := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 9, 8, 7}
-	resp, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+	resp, err := svc.ReplySession(testAPITokenContext("ws-test"), connect.NewRequest(&agentsv1.ReplySessionRequest{
 		AgentId:   "vision-agent",
 		AppName:   "telegram",
 		UserId:    "u1",
@@ -90,7 +93,7 @@ func TestReplySession_MessageOnlyBackwardCompat(t *testing.T) {
 	fake := &replyTestRunner{response: "done"}
 	svc := newReplySessionTestService(fake)
 
-	resp, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+	resp, err := svc.ReplySession(testAPITokenContext("ws-test"), connect.NewRequest(&agentsv1.ReplySessionRequest{
 		AgentId:   "chat-agent",
 		AppName:   "api",
 		UserId:    "u1",
@@ -112,7 +115,7 @@ func TestReplySession_PartsTakePriorityOverMessage(t *testing.T) {
 	fake := &replyTestRunner{response: "ok"}
 	svc := newReplySessionTestService(fake)
 
-	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+	_, err := svc.ReplySession(testAPITokenContext("ws-test"), connect.NewRequest(&agentsv1.ReplySessionRequest{
 		AgentId:   "chat-agent",
 		AppName:   "api",
 		UserId:    "u1",
@@ -132,7 +135,7 @@ func TestReplySession_UnsupportedMimeTypeRejected(t *testing.T) {
 	fake := &replyTestRunner{}
 	svc := newReplySessionTestService(fake)
 
-	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+	_, err := svc.ReplySession(testAPITokenContext("ws-test"), connect.NewRequest(&agentsv1.ReplySessionRequest{
 		AgentId:   "vision-agent",
 		AppName:   "api",
 		UserId:    "u1",
@@ -151,7 +154,7 @@ func TestReplySession_OversizedMessageRejected(t *testing.T) {
 
 	// The legacy message field carries the same 1 MiB cap as StreamAgent's
 	// message and as a text part, so no input path is unbounded.
-	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+	_, err := svc.ReplySession(testAPITokenContext("ws-test"), connect.NewRequest(&agentsv1.ReplySessionRequest{
 		AgentId:   "chat-agent",
 		AppName:   "api",
 		UserId:    "u1",
@@ -168,7 +171,7 @@ func TestReplySession_ByAgentID(t *testing.T) {
 	fake := &replyTestRunner{response: "resumed", idToName: map[string]string{"chat-v2": "chat-agent"}}
 	svc := newReplySessionTestService(fake)
 
-	resp, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+	resp, err := svc.ReplySession(testAPITokenContext("ws-test"), connect.NewRequest(&agentsv1.ReplySessionRequest{
 		AgentId:   "chat-v2",
 		AppName:   "api",
 		UserId:    "u1",
@@ -190,7 +193,7 @@ func TestReplySession_UnknownAgentIDIsNotFound(t *testing.T) {
 	fake := &replyTestRunner{idToName: map[string]string{}}
 	svc := newReplySessionTestService(fake)
 
-	_, err := svc.ReplySession(context.Background(), connect.NewRequest(&agentsv1.ReplySessionRequest{
+	_, err := svc.ReplySession(testAPITokenContext("ws-test"), connect.NewRequest(&agentsv1.ReplySessionRequest{
 		AgentId:   "ghost",
 		AgentName: "chat-agent", // must not fall back to the legacy name
 		AppName:   "api",

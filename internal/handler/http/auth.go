@@ -192,6 +192,7 @@ func AuthMiddleware(cfg *config.AppConfig, authProvider AuthRepoProvider, apiTok
 				}
 				go touchAPIToken(apiTokenRepo, stored.GetId())
 				ctx := wsctx.WithID(c.Request.Context(), stored.GetWorkspaceId())
+				ctx = auth.WithAPIToken(ctx, stored.GetId())
 				c.Request = c.Request.WithContext(ctx)
 				c.Next()
 				return

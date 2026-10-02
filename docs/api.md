@@ -478,7 +478,7 @@ The header is required for most methods on these app-facing services:
 | `AutomationService` | Workspace automation definitions, runs, and step runs |
 | `CronJobService` | Workspace cron jobs and executions |
 | `ForumService` | Workspace forum threads/posts and agent replies |
-| `APITokenService` | Tokens are created/listed/revoked within the selected workspace |
+| `APITokenService` | Tokens are listed within the selected workspace; only owners/admins create or revoke them |
 | `DaemonService` | Workspace daemon configs, credentials, online daemon/task views |
 | `GitHostService` | Platform Git endpoint allowlist |
 | `WorkspaceRepoBindingService` | Workspace Git repository binding and Agent Content |
@@ -486,9 +486,10 @@ The header is required for most methods on these app-facing services:
 
 The header is not required for `AuthService`, `WorkspaceService`,
 or `DashboardService`. `SessionService` creates, reads, lists,
-and deletes sessions by `app_name` + `user_id` + `session_id`; include
-`X-Workspace-ID` when calling `ReplySession` so the runner resolves agents in
-the intended workspace. `GlobalMCPServerService` list/create/update/delete are
+and deletes sessions by `app_name` + `user_id` + `session_id`; without the
+header a caller reaches only their own sessions (see
+[Session access](#session-access)). Include `X-Workspace-ID` when calling
+`ReplySession` so the runner resolves agents in the intended workspace. `GlobalMCPServerService` list/create/update/delete are
 global/admin operations; `InstallGlobalMCPServer` installs into the current
 workspace unless an admin explicitly passes `workspace_id`.
 
@@ -3088,6 +3089,35 @@ Discord is unsupported in this release. Use `TelegramChannelService` and
 
 Manages agent sessions (conversation state).
 
+#### Session access
+
+A session belongs to one workspace. Who may read, reply into, or delete it:
+
+| Caller | Sessions |
+|--------|----------|
+| Global admin | Every session |
+| Signed-in person | Their own (`user_id` is theirs); with `X-Workspace-ID`, only those in that workspace |
+| Workspace owner or admin | Every session in the `X-Workspace-ID` workspace |
+| Any workspace member | The workspace's automation sessions (`app_name` `cron:<job>` or `automation:<name>`), so a paused run can be read and resumed |
+| Workspace API token | Every session in the token's workspace |
+
+Without `X-Workspace-ID`, a non-admin reaches only their own sessions. A
+session the caller may not see answers `not_found`, exactly like a missing
+one. `CreateSession`, and `ReplySession` on a session that does not exist
+yet, may start a session only for the caller's own `user_id` — or for any
+`user_id` as a global admin, a workspace owner/admin, or an API token — and
+otherwise answer `permission_denied`.
+
+`ListSessions` (without `workspace_scoped`) applies the same rules: with
+`X-Workspace-ID` it returns only that workspace's sessions; a member who
+leaves `user_id` empty gets their own sessions, and one who names another
+person gets `permission_denied`. With `workspace_scoped: true` a person
+always gets their own sessions; admins and API tokens may name any
+`user_id` or leave it empty for everyone.
+
+`UpdateSessionTitle`, `GenerateSessionTitle`, and `MarkSessionRead` act only
+on the caller's own sessions (global admins excepted).
+
 #### CreateSession
 
 ```
@@ -4322,7 +4352,7 @@ does not resolve.
 
 ### APITokenService
 
-Manages API bearer tokens. The plaintext secret is only returned at create time; subsequent reads expose the prefix only. Each token is scoped to one workspace (taken from `X-Workspace-ID` at create time); authentication automatically scopes the request to that workspace.
+Manages API bearer tokens. The plaintext secret is only returned at create time; subsequent reads expose the prefix only. Each token is scoped to one workspace (taken from `X-Workspace-ID` at create time); authentication automatically scopes the request to that workspace. A token is not tied to the person who made it and acts for the whole workspace — it reaches every session there ([Session access](#session-access)) — so `CreateAPIToken` and `RevokeAPIToken` require a workspace owner or admin (or a global admin) and answer `permission_denied` to members; any member may list tokens. A request authenticated by a token cannot mint or revoke tokens.
 
 #### ListAPITokens
 

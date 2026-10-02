@@ -401,6 +401,12 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.authSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 		}
 		h.agentSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		if h.sessionSvcServer != nil {
+			h.sessionSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
+		if h.apiTokenSvcServer != nil {
+			h.apiTokenSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+		}
 		if h.repoBindingSvcServer != nil {
 			h.repoBindingSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 		}

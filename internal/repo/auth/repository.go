@@ -51,10 +51,24 @@ type Repository interface {
 type contextKey string
 
 const (
-	userContextKey    contextKey = "auth_user"
-	sessionContextKey contextKey = "auth_session"
-	adminContextKey   contextKey = "auth_admin"
+	userContextKey     contextKey = "auth_user"
+	sessionContextKey  contextKey = "auth_session"
+	adminContextKey    contextKey = "auth_admin"
+	apiTokenContextKey contextKey = "auth_api_token"
 )
+
+// WithAPIToken tags a context authenticated by a workspace API token. Such a
+// caller has no user: it acts for its token's workspace as a whole.
+func WithAPIToken(ctx context.Context, tokenID string) context.Context {
+	return context.WithValue(ctx, apiTokenContextKey, tokenID)
+}
+
+// APITokenFromContext returns the ID of the API token that authenticated the
+// request, if one did.
+func APITokenFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(apiTokenContextKey).(string)
+	return id, ok && id != ""
+}
 
 func WithAuthenticated(ctx context.Context, user *agentsv1.User, session *Session) context.Context {
 	ctx = context.WithValue(ctx, userContextKey, user)
