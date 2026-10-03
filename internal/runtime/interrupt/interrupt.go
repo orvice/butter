@@ -57,8 +57,7 @@ func Pending(sess session.Session) []Interrupt {
 				continue
 			}
 			if fc := part.FunctionCall; fc != nil && fc.Name == workflow.WorkflowInputFunctionCallName && fc.ID != "" {
-				question, _ := fc.Args[requestInputMessageKey].(string)
-				ordered = append(ordered, Interrupt{InterruptID: fc.ID, Question: question})
+				ordered = append(ordered, Interrupt{InterruptID: fc.ID, Question: QuestionOf(fc)})
 			}
 			if fr := part.FunctionResponse; fr != nil && fr.Name == workflow.WorkflowInputFunctionCallName && fr.ID != "" {
 				answered[fr.ID] = true
@@ -76,6 +75,15 @@ func Pending(sess session.Session) []Interrupt {
 		return nil
 	}
 	return pending
+}
+
+// QuestionOf returns the question a request-input FunctionCall asks.
+func QuestionOf(fc *genai.FunctionCall) string {
+	if fc == nil {
+		return ""
+	}
+	question, _ := fc.Args[requestInputMessageKey].(string)
+	return question
 }
 
 // PendingIDs is the set of Interrupt IDs Pending reports.

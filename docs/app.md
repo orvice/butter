@@ -156,6 +156,7 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - `POST /api/uploads/*`：头像/静态资源 multipart 上传（REST，非 Connect）；见 `docs/storage.md`。
 - `POST /api/agui/:agent_id`：AG-UI 协议入口（仅 `enable_agui: true` 的 Agent），SSE 流式返回 AG-UI 事件；同一 thread 跨 Pod 串行。
 - `GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照，返回该 thread 当前的只读结果卡片与未回答的表单，不运行 Agent。
+- `GET /api/agui/:agent_id/threads/:thread_id/messages`：thread 历史，把会话还原成 AG-UI 消息，并返回仍待回答的 Interrupt，以及每个卡片/表单出自哪条回答。不运行 Agent，鉴权、绑定与加锁规则同 UI 快照。
 
 ### AG-UI Chat 的结果卡片与表单（A2UI v0.9.1，ADR-0014）
 
@@ -467,7 +468,7 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 route/feature 层 boundary。Chat 通过 `SubmitAgentInvocation` + `WatchAgentInvocation` 观察异步执行；同步兼容入口仍可使用 `AgentService.StreamAgent`。头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
 - 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Forum / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Memory / Users / Profile / Integrations / Admin。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
-- AG-UI Chat（`front/src/features/agui-chat`）基于 `@ag-ui/client` HttpAgent + assistant-ui，并用 `@a2ui/react` / `@a2ui/web_core` 0.12.0 按 dashboard 设计系统渲染 `butter-basic-v1`。卡片出现在产生它的回答里，同一卡片的更新原地刷新；无法渲染的 surface 只显示其可读 fallback，不影响文字和工具调用。表单提交中禁用按钮、失败保留草稿并显示字段错误、成功后以一条可读回复出现在对话里并变为不可再提交。当前 thread 按 Workspace + Agent + 用户记住，刷新后先读 UI 快照再接收增量；切换 Workspace/Agent/用户或点 “New thread” 会清掉上一上下文的 UI。左侧（窄屏为抽屉）列出当前用户与所选 Agent 在本 Workspace 的 thread（`agui` 会话中 A2UI binding 匹配的那些；A2UI 之前创建、没有 binding 的 thread 无法归属，不列出），可切换、重命名、删除；删除当前 thread 会先中止进行中的 run，再切到新 thread。完整聊天历史不恢复（切换到旧 thread 同样只恢复卡片与未答表单），未提交草稿也不跨刷新保存。
+- AG-UI Chat（`front/src/features/agui-chat`）基于 `@ag-ui/client` HttpAgent + assistant-ui，并用 `@a2ui/react` / `@a2ui/web_core` 0.12.0 按 dashboard 设计系统渲染 `butter-basic-v1`。卡片出现在产生它的回答里，同一卡片的更新原地刷新；无法渲染的 surface 只显示其可读 fallback，不影响文字和工具调用。表单提交中禁用按钮、失败保留草稿并显示字段错误、成功后以一条可读回复出现在对话里并变为不可再提交。当前 thread 按 Workspace + Agent + 用户记住。打开 thread（包括刷新、切换到旧 thread）时，同时读取历史和 UI 快照：对话文字按顺序还原，工具调用带结果；卡片和未答表单回到产生它的那条回答里；未回答的问题仍是可直接作答的提示。找不到所属回答的卡片单独显示在“Restored from earlier in this conversation”下。之后再接收增量；切换 Workspace/Agent/用户或点 “New thread” 会清掉上一上下文的 UI。左侧（窄屏为抽屉）列出当前用户与所选 Agent 在本 Workspace 的 thread（`agui` 会话中 A2UI binding 匹配的那些；A2UI 之前创建、没有 binding 的 thread 无法归属，不列出），可切换、重命名、删除；删除当前 thread 会先中止进行中的 run，再切到新 thread。未提交的草稿不跨刷新保存。
 
 ## 18.5 Telegram 运维前提
 

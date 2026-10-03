@@ -349,6 +349,37 @@ func (f Form) Fallback() string {
 	return f.Question + "\n\n" + Instructions(f.Fields)
 }
 
+// ReadableAnswer renders an answer to f the way the dashboard shows a form
+// submission in the conversation: the title, then "Label: value" per field,
+// with a choice's label for its value and "—" for an empty value. An answer
+// that is not a JSON object, such as a plain-text reply, is returned as is.
+func (f Form) ReadableAnswer(answer string) string {
+	var values map[string]any
+	if json.Unmarshal([]byte(answer), &values) != nil {
+		return answer
+	}
+	lines := []string{f.Title}
+	for _, field := range f.Fields {
+		value, _ := values[field.Name].(string)
+		lines = append(lines, field.Label+": "+field.displayValue(value))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (field Field) displayValue(value string) string {
+	if value == "" {
+		return "—"
+	}
+	if field.Type == FieldSingleChoice {
+		for _, o := range field.Options {
+			if o.Value == value {
+				return o.Label
+			}
+		}
+	}
+	return value
+}
+
 // Envelopes returns the messages that build the form surface: a card with
 // the title, the question, one input per field, and the submit button. The
 // data model holds only the client's local draft.

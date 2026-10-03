@@ -154,6 +154,41 @@ type aguiSnapshotItem struct {
 	Envelopes []a2ui.Envelope `json:"envelopes"`
 }
 
+// readThread loads the session of the thread a read endpoint names, under the
+// thread's session lease, and answers any error itself (ok false). sess is nil
+// when the thread has no session or is bound to another caller, workspace or
+// agent, so the endpoint answers an empty body without saying which.
+func (h *AGUIHandler) readThread(c *gin.Context) (threadID string, sess session.Session, release func(), ok bool) {
+	workspaceID, agent, ok := h.resolveAgent(c)
+	if !ok {
+		return "", nil, nil, false
+	}
+	ctx := c.Request.Context()
+	threadID = strings.TrimSpace(c.Param("thread_id"))
+	if threadID == "" {
+		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: "threadId is required"})
+		return "", nil, nil, false
+	}
+	svc := h.getSessionService()
+	if svc == nil {
+		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session service unavailable"})
+		return "", nil, nil, false
+	}
+
+	ctxInfo := &agentsv1.ContextInfo{UserId: aguiUserID(ctx), SessionId: aguiSessionPrefix + threadID}
+	// Reads are consistent with writes the same way runs are with each
+	// other: under the thread's session lease. A busy thread is retryable.
+	ctx, release, ok = h.acquireThread(c, ctxInfo)
+	if !ok {
+		return "", nil, nil, false
+	}
+	resp, err := svc.Get(ctx, &session.GetRequest{AppName: aguiAppName, UserID: ctxInfo.GetUserId(), SessionID: ctxInfo.GetSessionId()})
+	if err != nil || !a2ui.Bound(resp.Session, aguiBinding(ctx, workspaceID, agent.GetAgentId(), threadID)) {
+		return threadID, nil, release, true
+	}
+	return threadID, resp.Session, release, true
+}
+
 // UISnapshot handles GET /api/agui/:agent_id/threads/:thread_id/ui: the
 // current read-only cards and unanswered forms of one thread, rebuilt from
 // the persisted session. It never starts a run. A thread without a session,
@@ -161,38 +196,18 @@ type aguiSnapshotItem struct {
 // with an empty snapshot, so the endpoint reveals nothing about threads the
 // caller does not own.
 func (h *AGUIHandler) UISnapshot(c *gin.Context) {
-	workspaceID, agent, ok := h.resolveAgent(c)
-	if !ok {
-		return
-	}
-	ctx := c.Request.Context()
-	threadID := strings.TrimSpace(c.Param("thread_id"))
-	if threadID == "" {
-		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: "threadId is required"})
-		return
-	}
-	svc := h.getSessionService()
-	if svc == nil {
-		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session service unavailable"})
-		return
-	}
-
-	ctxInfo := &agentsv1.ContextInfo{UserId: aguiUserID(ctx), SessionId: aguiSessionPrefix + threadID}
-	// Reads are consistent with writes the same way runs are with each
-	// other: under the thread's session lease. A busy thread is retryable.
-	ctx, release, ok := h.acquireThread(c, ctxInfo)
+	threadID, sess, release, ok := h.readThread(c)
 	if !ok {
 		return
 	}
 	defer release()
 
 	snap := aguiUISnapshot{Version: a2ui.Version, CatalogID: a2ui.CatalogID, ThreadID: threadID, Surfaces: []aguiSnapshotItem{}}
-	resp, err := svc.Get(ctx, &session.GetRequest{AppName: aguiAppName, UserID: ctxInfo.GetUserId(), SessionID: ctxInfo.GetSessionId()})
-	if err != nil || !a2ui.Bound(resp.Session, aguiBinding(ctx, workspaceID, agent.GetAgentId(), threadID)) {
+	if sess == nil {
 		c.JSON(http.StatusOK, snap)
 		return
 	}
-	for _, card := range a2ui.LiveCards(resp.Session.State()) {
+	for _, card := range a2ui.LiveCards(sess.State()) {
 		snap.Surfaces = append(snap.Surfaces, aguiSnapshotItem{
 			SurfaceID: card.ID,
 			Kind:      a2ui.KindCard,
@@ -203,7 +218,7 @@ func (h *AGUIHandler) UISnapshot(c *gin.Context) {
 			Envelopes: card.Envelopes(),
 		})
 	}
-	for _, form := range a2ui.PendingForms(resp.Session) {
+	for _, form := range a2ui.PendingForms(sess) {
 		snap.Surfaces = append(snap.Surfaces, aguiSnapshotItem{
 			SurfaceID: form.SurfaceID,
 			Kind:      a2ui.KindForm,

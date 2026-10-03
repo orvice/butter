@@ -130,6 +130,7 @@ func aguiSessionKey(ctxInfo *agentsv1.ContextInfo) string {
 func (h *AGUIHandler) Register(r *gin.Engine) {
 	r.POST("/api/agui/:agent_id", h.RunAgent)
 	r.GET("/api/agui/:agent_id/threads/:thread_id/ui", h.UISnapshot)
+	r.GET("/api/agui/:agent_id/threads/:thread_id/messages", h.ThreadMessages)
 }
 
 // aguiErrorResponse is the body for failures that happen before the SSE stream

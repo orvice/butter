@@ -93,3 +93,27 @@ two meet in Butter:
   submission appears as a readable reply in the conversation.
 - A per-agent policy for card generation (disable, prefer) and pre-built card
   templates are left for later.
+
+## Amendment: the thread history (#376)
+
+The thread list (#375) made it possible to open any earlier thread, and the UI
+Snapshot alone brought back its cards but none of the messages around them.
+`GET /api/agui/:agent_id/threads/:thread_id/messages` now rebuilds the
+conversation from the same session, under the same binding and lease rules:
+
+- **The format is standard AG-UI `Message[]`**, so any AG-UI client can
+  hydrate with it.
+  - Each run is one assistant message, with real FunctionCall IDs and tool
+    results.
+  - What the live stream hides stays hidden.
+  - Open Interrupts come back as `RUN_FINISHED` reported them.
+  - Tool calls the server would not accept a result for are dropped, so
+    restoring never makes a client cancel them.
+- **Surfaces stay in the snapshot.** The history only says which reply each
+  one belongs to. The dashboard places each surface in that reply and keeps a
+  surface it cannot place in the "restored" block. There is still no second
+  UI store.
+- **An answered Human Input reads as its question and the user's answer.** A
+  form's answer is formatted the way the dashboard showed the submission. An
+  open one returns to the runtime as a pending Interrupt, so it is answered
+  exactly as after a live run.

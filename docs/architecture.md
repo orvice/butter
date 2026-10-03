@@ -508,7 +508,7 @@ HTTP handler 位于 `internal/handler/http`：
 - `POST /api/uploads/*`：头像与静态资源 multipart 上传（见 `docs/storage.md`）；不走 ConnectRPC。
 - `ANY /api/workspaces/:workspace_id/mcp`：工作区范围的 MCP HTTP 端点，转发给工作区 MCP service。
 - `GET /api/mcp/oauth/callback`：MCP OAuth2 授权码回调，由 `MCPServerService.CompleteMCPServerOAuthCallback` 处理后重定向。
-- `POST /api/agui/:agent_id`：AG-UI 入口（`enable_agui`），SSE 流式事件；`GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照（见下文 “AG-UI 上的 A2UI”）。
+- `POST /api/agui/:agent_id`：AG-UI 入口（`enable_agui`），SSE 流式事件；`GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照；`GET /api/agui/:agent_id/threads/:thread_id/messages`：thread 历史（见下文 “AG-UI 上的 A2UI”）。
 
 ### AG-UI 上的 A2UI（issue #350，ADR-0014）
 
@@ -517,6 +517,12 @@ HTTP handler 位于 `internal/handler/http`：
 - **先持久化后发送**：ADK runner 先 `AppendEvent` 再 yield，`render_ui` 通过工具 state delta 写卡片记录；`aguiSink` 只从已存储事件推导 envelope（客户端已有状态 → session 当前状态的转换），并对带表单绑定的 request-input 事件生成表单 envelope，逐条以 `CUSTOM butter.a2ui` 发出。
 - **表单提交**：`resume` 中带 `butterForm` 的条目在 lease 内由 `a2ui.Resolve` 校验（绑定、token、revision、Interrupt 仍 pending、字段规则），通过后替换为按配置顺序编码的 JSON 字符串 payload，其余走 ADR-0002 的普通文本回复；任何拒绝都在打开 SSE 前返回。运行结束时 sink 重读 session：已被回答的表单发 `/status = answered`，带 resume 的运行在 `RUN_FINISHED` 中列出所有仍待回答的 Interrupt。
 - **快照**：`UISnapshot` 在同一 lease 下读 session，用 `a2ui.LiveCards` + `a2ui.PendingForms`（`interrupt.Pending` ∩ 表单绑定）重建，不运行 Agent，不新增集合。
+- **历史**：`ThreadMessages`（`agui_history.go`）与快照共用 `readThread`（相同的鉴权、绑定与 lease），按事件顺序把 session 还原成 AG-UI 消息：
+  - 两次用户输入之间 Agent 产出的内容合成一条 assistant 消息，工具调用沿用 session 的 FunctionCall ID，结果作为 tool 消息跟在后面。
+  - 思考、request-input 握手和 `render_ui` 调用与实时流一样隐藏；卡片按其 state delta 第一次出现的位置、待答表单按其 request-input 事件，定位到所属回答（`surfaces`）。
+  - 已回答的 Human Input 还原为“问题 + 用户回答”，表单答案用 `a2ui.Form.ReadableAnswer` 格式化；仍待回答的按 `RUN_FINISHED` 的格式放进 `interrupts`。
+  - 只保留有结果、或 session 仍在等客户端结果（`interrupt.PendingToolCalls`）的工具调用，避免客户端取消一个服务端不认的调用。
+  - Dashboard 通过 assistant-ui 的 history adapter 加载（`front/src/features/agui-chat/history.ts`），把卡片和表单作为数据片段放回回答里，把待答 Interrupt 挂到最后一条回答上。
 
 RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC（同一 URL 兼容 Connect binary/protobuf、Connect JSON、gRPC-Web 和 gRPC）。Dashboard 浏览器默认 `application/proto`；JSON codec 仍输出 snake_case field names（`connectx.HandlerOptions`）。外部 App 接入约定和可复制示例见 `docs/api.md`。
 

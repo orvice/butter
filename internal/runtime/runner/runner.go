@@ -1305,7 +1305,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 
 	turn.Output = result.String()
 	if turn.Output == "" && latestEventOutput != nil {
-		turn.Output = renderEventOutput(latestEventOutput)
+		turn.Output = RenderEventOutput(latestEventOutput)
 		turn.OutputFromEvent = turn.Output != ""
 	}
 	for _, p := range asked {

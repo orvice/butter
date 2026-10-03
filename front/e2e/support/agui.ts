@@ -7,9 +7,11 @@ import {
 } from './connect'
 
 // AG-UI fixtures: POST /api/agui/:agent_id is answered from a queue of
-// literal SSE bodies (or HTTP errors), and GET .../threads/:id/ui from a
-// queue of UI snapshots. The dashboard's real AG-UI client parses them, so
-// what a test asserts is what a user would see for that wire traffic.
+// literal SSE bodies (or HTTP errors), GET .../threads/:id/ui from a queue of
+// UI snapshots, and GET .../threads/:id/messages from a queue of thread
+// histories (an empty history by default). The dashboard's real AG-UI client
+// parses them, so what a test asserts is what a user would see for that wire
+// traffic.
 
 export function sse(events: Array<Record<string, unknown>>): string {
   return events.map((ev) => `data: ${JSON.stringify(ev)}\n\n`).join('')
@@ -37,8 +39,12 @@ export interface SnapshotResponse {
 export interface AGUIFixture {
   runs: RunResponse[]
   snapshots: SnapshotResponse[]
+  histories: SnapshotResponse[]
+  // historyByThread answers a thread's history by its ID, ahead of the queue.
+  historyByThread?: Record<string, SnapshotResponse>
   requests: Array<Record<string, unknown>>
   snapshotRequests: string[]
+  historyRequests: string[]
 }
 
 export const emptySnapshot = (threadId = 't') => ({
@@ -50,6 +56,10 @@ export const emptySnapshot = (threadId = 't') => ({
   },
 })
 
+export const emptyHistory = (threadId = 't') => ({
+  body: { threadId, messages: [], interrupts: [], surfaces: [] },
+})
+
 export async function setupAGUI(
   page: Page,
   fixture: Partial<AGUIFixture> & { runs: RunResponse[] },
@@ -58,8 +68,11 @@ export async function setupAGUI(
   const state: AGUIFixture = {
     runs: fixture.runs,
     snapshots: fixture.snapshots ?? [],
+    histories: fixture.histories ?? [],
+    historyByThread: fixture.historyByThread,
     requests: fixture.requests ?? [],
     snapshotRequests: fixture.snapshotRequests ?? [],
+    historyRequests: fixture.historyRequests ?? [],
   }
   await setupAuthenticatedConnectRoutes(page, async (route, url) => {
     if (url.includes('AgentService/ListAgents')) {
@@ -95,6 +108,21 @@ export async function setupAGUI(
 
   await page.route('**/api/agui/**', async (route) => {
     const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'GET' && path.endsWith('/messages')) {
+      state.historyRequests.push(request.url())
+      const threadId = decodeURIComponent(path.split('/').at(-2) ?? '')
+      const history: SnapshotResponse =
+        state.historyByThread?.[threadId] ??
+        state.histories.shift() ??
+        emptyHistory(threadId)
+      await route.fulfill({
+        status: history.status ?? 200,
+        contentType: 'application/json',
+        body: JSON.stringify(history.body ?? { error: 'busy' }),
+      })
+      return
+    }
     if (request.method() === 'GET') {
       state.snapshotRequests.push(request.url())
       const snap: SnapshotResponse = state.snapshots.shift() ?? emptySnapshot()
