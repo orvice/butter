@@ -420,15 +420,19 @@ func (s *Service) List(ctx context.Context, req *session.ListRequest) (*session.
 	return &session.ListResponse{Sessions: sessions}, nil
 }
 
-// ListByWorkspace returns sessions owned by the given workspace and user,
-// ordered newest-first. Legacy sessions without workspace_id are excluded.
-func (s *Service) ListByWorkspace(ctx context.Context, workspaceID, userID string) ([]session.Session, error) {
+// ListByWorkspace returns sessions owned by the given workspace, ordered
+// newest-first, narrowed to one user and one app when userID or appName is
+// set. Legacy sessions without workspace_id are excluded.
+func (s *Service) ListByWorkspace(ctx context.Context, workspaceID, userID, appName string) ([]session.Session, error) {
 	logger := log.FromContext(ctx)
-	logger.Debug("listing sessions by workspace", "workspace_id", workspaceID, "user_id", userID)
+	logger.Debug("listing sessions by workspace", "workspace_id", workspaceID, "user_id", userID, "app_name", appName)
 
 	filter := bson.M{"workspace_id": workspaceID}
 	if userID != "" {
 		filter["user_id"] = userID
+	}
+	if appName != "" {
+		filter["app_name"] = appName
 	}
 
 	findOpts := options.Find().SetSort(bson.D{{Key: "last_update_time", Value: -1}})

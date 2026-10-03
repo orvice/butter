@@ -59,7 +59,9 @@ type SessionTitleStore interface {
 // WorkspaceSessionStore provides workspace-scoped session queries that go
 // beyond the generic ADK session.Service interface.
 type WorkspaceSessionStore interface {
-	ListByWorkspace(ctx context.Context, workspaceID, userID string) ([]session.Session, error)
+	// ListByWorkspace returns the workspace's sessions newest first, for
+	// one user and one app; an empty userID or appName matches any.
+	ListByWorkspace(ctx context.Context, workspaceID, userID, appName string) ([]session.Session, error)
 	GetWorkspaceID(ctx context.Context, appName, userID, sessionID string) (string, error)
 }
 
@@ -558,8 +560,9 @@ func (s *SessionServiceServer) ListSessions(ctx context.Context, req *connect.Re
 }
 
 // listSessionsWorkspaceScoped returns sessions scoped to the active workspace
-// and authenticated user. Only workspace-owned sessions are included; legacy
-// sessions without workspace_id are excluded.
+// and authenticated user, and to app_name when the request sets one. Only
+// workspace-owned sessions are included; legacy sessions without
+// workspace_id are excluded.
 func (s *SessionServiceServer) listSessionsWorkspaceScoped(ctx context.Context, req *connect.Request[agentsv1.ListSessionsRequest]) (*connect.Response[agentsv1.ListSessionsResponse], error) {
 	wsID, _ := workspace.FromContext(ctx)
 	if wsID == "" {
@@ -584,7 +587,7 @@ func (s *SessionServiceServer) listSessionsWorkspaceScoped(ctx context.Context, 
 		userID = user.GetId()
 	}
 
-	sessions, err := wsStore.ListByWorkspace(ctx, wsID, userID)
+	sessions, err := wsStore.ListByWorkspace(ctx, wsID, userID, req.Msg.GetAppName())
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}

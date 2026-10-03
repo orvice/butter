@@ -6,6 +6,8 @@ import type { SessionInfo } from '@/types/api'
 // A2UI binding (ADR-0014) — the only place the dashboard can read it from.
 
 export const AGUI_APP_NAME = 'agui'
+// THREAD_PAGE_SIZE is one page of the thread listing, which reads every page.
+export const THREAD_PAGE_SIZE = 100
 const SESSION_PREFIX = 'agui-'
 const BINDING_KEY = 'butter:a2ui:binding'
 

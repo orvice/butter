@@ -111,7 +111,7 @@ function parseTimestamp(s: string | undefined) {
   };
 }
 
-async function listSessions(params: ListSessionsParams): Promise<ListSessionsResponse> {
+async function listSessions(params: ListSessionsParams, signal?: AbortSignal): Promise<ListSessionsResponse> {
   const startTs = parseTimestamp(params.start_time);
   const endTs = parseTimestamp(params.end_time);
   const res = await client.listSessions({
@@ -126,7 +126,7 @@ async function listSessions(params: ListSessionsParams): Promise<ListSessionsRes
     pageSize: params.page_size ?? 0,
     pageToken: params.page_token ?? "",
     workspaceScoped: params.workspace_scoped ?? false,
-  });
+  }, { signal });
   return {
     sessions: res.sessions.map(infoFromProto),
     next_page_token: res.nextPageToken,
@@ -169,6 +169,40 @@ export function useSessions(params: ListSessionsParams = {}, options?: { enabled
   return useQuery({
     queryKey: ["sessions", params],
     queryFn: () => listSessions(params),
+    enabled: options?.enabled ?? true,
+  });
+}
+
+// listAllSessions follows next_page_token until the listing is complete. An
+// aborted signal (the query was cancelled) stops the walk.
+async function listAllSessions(
+  params: Omit<ListSessionsParams, "page_token">,
+  signal?: AbortSignal,
+): Promise<ListSessionsResponse> {
+  // Keyed by session, because a session created mid-walk shifts the offset
+  // cursor and repeats one entry on the next page.
+  const byKey = new Map<string, SessionInfo>();
+  const seenTokens = new Set<string>();
+  let pageToken = "";
+  for (;;) {
+    const page = await listSessions({ ...params, page_token: pageToken }, signal);
+    for (const s of page.sessions ?? []) {
+      byKey.set(`${s.app_name}/${s.user_id}/${s.session_id}`, s);
+    }
+    pageToken = page.next_page_token ?? "";
+    // A cursor the server already returned would loop forever.
+    if (!pageToken || seenTokens.has(pageToken)) break;
+    seenTokens.add(pageToken);
+  }
+  const sessions = [...byKey.values()];
+  return { sessions, total: sessions.length };
+}
+
+// useAllSessions lists every matching session, one page at a time.
+export function useAllSessions(params: Omit<ListSessionsParams, "page_token"> = {}, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["sessions", "all", params],
+    queryFn: ({ signal }) => listAllSessions(params, signal),
     enabled: options?.enabled ?? true,
   });
 }

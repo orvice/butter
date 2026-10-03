@@ -47,21 +47,37 @@ function aguiThread(
 }
 
 interface SessionCalls {
+  lists: Array<{ appName: string; workspaceScoped: boolean; pageToken: string }>
   renames: Array<{ sessionId: string; appName: string; title: string }>
   deletes: Array<{ sessionId: string; appName: string }>
   generated: string[]
 }
 
 async function setupThreads(page: Page, sessions: SessionInfo[]) {
-  const calls: SessionCalls = { renames: [], deletes: [], generated: [] }
+  const calls: SessionCalls = {
+    lists: [],
+    renames: [],
+    deletes: [],
+    generated: [],
+  }
   // Registered after setupAGUI's catch-all, so it answers SessionService.
   await page.route('**/api/agents.v1.SessionService/**', async (route) => {
     const url = route.request().url()
     const body = route.request().postDataBuffer() ?? Buffer.alloc(0)
     if (url.endsWith('/ListSessions')) {
       const req = fromBinary(ListSessionsRequestSchema, body)
+      calls.lists.push({
+        appName: req.appName,
+        workspaceScoped: req.workspaceScoped,
+        pageToken: req.pageToken,
+      })
+      // Pages like the server: an offset cursor, empty on the last page.
+      const matching = sessions.filter((s) => s.appName === req.appName)
+      const offset = Number(req.pageToken || '0')
+      const end = req.pageSize > 0 ? offset + req.pageSize : matching.length
       return fulfillProto(route, ListSessionsResponseSchema, {
-        sessions: sessions.filter((s) => s.appName === req.appName),
+        sessions: matching.slice(offset, end),
+        nextPageToken: end < matching.length ? String(end) : '',
       })
     }
     if (url.endsWith('/UpdateSessionTitle')) {
@@ -161,6 +177,30 @@ test.describe('AG-UI threads', () => {
     await send(page, 'where were we?')
     await expect(page.getByText('Back on the trip.')).toBeVisible()
     expect(fixture.requests[0].threadId).toBe('t-trip')
+  })
+
+  test('lists threads past the first page', async ({ page }) => {
+    await setupAGUI(page, { runs: [] })
+    const calls = await setupThreads(
+      page,
+      Array.from({ length: 101 }, (_, i) =>
+        aguiThread(`t-${i}`, `Thread ${i}`, { agentId: 'streamer-id' }, i + 1)
+      )
+    )
+
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+
+    const list = page.getByRole('complementary', { name: 'Threads' })
+    await expect(list.getByRole('listitem')).toHaveCount(101)
+    await expect(
+      list.getByRole('button', { name: 'Thread 100', exact: true })
+    ).toBeVisible()
+    // The sidebar's chat history lists web-chat too; only the thread list
+    // reads agui. It reached the second page (a dev-mode remount may walk
+    // twice), always scoped to the workspace.
+    const threadLists = calls.lists.filter((c) => c.appName === 'agui')
+    expect(threadLists.map((c) => c.pageToken)).toContain('100')
+    expect(threadLists.every((c) => c.workspaceScoped)).toBe(true)
   })
 
   test('renames a thread and deletes the open one', async ({ page }) => {

@@ -3172,12 +3172,13 @@ Sessions returned newest-first by `last_update_time`. Date filtering is applied 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `app_name` | string | Channel/app name (optional filter) |
+| `app_name` | string | Channel/app name (optional filter; applies with and without `workspace_scoped`) |
 | `user_id` | string | User ID (optional filter) |
 | `start_time` | timestamp | Only sessions with last_update_time ≥ this |
 | `end_time` | timestamp | Only sessions with last_update_time ≤ this |
 | `page_size` | int32 | Page size (default 20) |
 | `page_token` | string | Opaque base64 cursor returned by previous response |
+| `workspace_scoped` | bool | Only sessions owned by the `X-Workspace-ID` workspace (the header is required); who sees whose sessions follows the rules above |
 
 **Response:**
 
