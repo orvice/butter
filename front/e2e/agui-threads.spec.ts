@@ -245,4 +245,109 @@ test.describe('AG-UI threads', () => {
       .poll(() => calls.generated)
       .toEqual([`agui-${newThreadId}`])
   })
+
+  test('restores a thread’s conversation when it opens, and sends only the new message', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, {
+      runs: [reply('Hotels are next.')],
+      historyByThread: { 't-trip': tripHistory() },
+    })
+    await setupThreads(page, [
+      aguiThread('t-trip', 'Trip plan', { agentId: 'streamer-id' }, 1),
+    ])
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+
+    await page
+      .getByRole('complementary', { name: 'Threads' })
+      .getByRole('button', { name: 'Trip plan' })
+      .click()
+    await expect(page.getByText('Booked the 08:10 flight.')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'searchFlights', exact: true })
+    ).toBeVisible()
+    const shown = await page.locator('main').innerText()
+    const order = [
+      'Plan a trip to Tokyo',
+      'Here is the plan.',
+      'Book the morning one',
+      'Booked the 08:10 flight.',
+    ].map((text) => shown.indexOf(text))
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    expect(order.every((i) => i >= 0)).toBe(true)
+
+    // The restored tool call has its result: sending starts exactly one run
+    // that ends on the new message, never a run of tool results first.
+    await send(page, 'And hotels?')
+    await expect(page.getByText('Hotels are next.')).toBeVisible()
+    expect(fixture.requests).toHaveLength(1)
+    expect(fixture.requests[0].threadId).toBe('t-trip')
+    const messages = fixture.requests[0].messages as Array<{
+      role: string
+      content?: unknown
+    }>
+    expect(messages.at(-1)?.role).toBe('user')
+    expect(JSON.stringify(messages.at(-1))).toContain('And hotels?')
+  })
+
+  test('restores an open question so it can be answered', async ({ page }) => {
+    const fixture = await setupAGUI(page, {
+      runs: [reply('Approved and deployed.')],
+      historyByThread: {
+        't-trip': tripHistory({
+          interrupts: [
+            { id: 'int-1', reason: 'human_input', message: 'Approve the booking?' },
+          ],
+        }),
+      },
+    })
+    await setupThreads(page, [
+      aguiThread('t-trip', 'Trip plan', { agentId: 'streamer-id' }, 1),
+    ])
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page
+      .getByRole('complementary', { name: 'Threads' })
+      .getByRole('button', { name: 'Trip plan' })
+      .click()
+
+    await expect(page.getByText('Approve the booking?')).toBeVisible()
+    await page.getByPlaceholder('Type your answer…').fill('yes')
+    await page.getByRole('button', { name: 'Answer' }).click()
+    await expect(page.getByText('Approved and deployed.')).toBeVisible()
+    const resume = fixture.requests[0].resume as Array<Record<string, unknown>>
+    expect(resume).toEqual([
+      { interruptId: 'int-1', status: 'resolved', payload: 'yes' },
+    ])
+  })
 })
+
+// tripHistory is the history of the thread t-trip: two turns, the first with
+// a tool call and its result.
+function tripHistory(extra: Record<string, unknown> = {}) {
+  return {
+    body: {
+      threadId: 't-trip',
+      messages: [
+        { id: 'u1', role: 'user', content: 'Plan a trip to Tokyo' },
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'Here is the plan.',
+          toolCalls: [
+            {
+              id: 'c1',
+              type: 'function',
+              function: { name: 'searchFlights', arguments: '{"to":"NRT"}' },
+            },
+          ],
+        },
+        { id: 'result:c1', role: 'tool', toolCallId: 'c1', content: '{"flights":2}' },
+        { id: 'u2', role: 'user', content: 'Book the morning one' },
+        { id: 'a2', role: 'assistant', content: 'Booked the 08:10 flight.' },
+      ],
+      interrupts: [],
+      surfaces: [],
+      ...extra,
+    },
+  }
+}

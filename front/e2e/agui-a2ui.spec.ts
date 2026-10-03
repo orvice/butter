@@ -512,6 +512,57 @@ test.describe('A2UI recovery', () => {
     await expect(card(page)).toHaveCount(0)
   })
 
+  test('a refresh restores the conversation with the card in the reply that produced it', async ({ page }) => {
+    const fixture = await setupAGUI(page, {
+      runs: [sse([runStarted('r1'), ...cardCreated('card-1'), ...text('a1', 'Here.'), runFinished('r1')])],
+    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await send(page, 'deploy')
+    await expect(card(page)).toHaveCount(1)
+    const threadId = fixture.requests[0].threadId as string
+
+    fixture.historyByThread = {
+      [threadId]: {
+        body: {
+          threadId,
+          messages: [
+            { id: 'u1', role: 'user', content: 'deploy' },
+            { id: 'a1', role: 'assistant', content: 'Here.' },
+          ],
+          interrupts: [],
+          surfaces: [{ surfaceId: 'card-1', messageId: 'a1' }],
+        },
+      },
+    }
+    fixture.snapshots.push({
+      body: {
+        version: V,
+        catalogId: 'butter-basic-v1',
+        threadId,
+        surfaces: [
+          {
+            surfaceId: 'card-1',
+            kind: 'card',
+            revision: 1,
+            fallback: 'Deploy summary (text)',
+            envelopes: [
+              { version: V, createSurface: { surfaceId: 'card-1', catalogId: 'butter-basic-v1' } },
+              { version: V, updateComponents: { surfaceId: 'card-1', components: cardComponents('Healthy', 'success') } },
+              { version: V, updateDataModel: { surfaceId: 'card-1', path: '/', value: { summary: '3 services rolled out.' } } },
+            ],
+          },
+        ],
+      },
+    })
+    await page.reload({ waitUntil: 'networkidle' })
+
+    await expect(page.getByText('deploy', { exact: true })).toBeVisible()
+    await expect(page.getByText('Here.')).toBeVisible()
+    await expect(card(page)).toHaveCount(1)
+    await expect(card(page).getByText('3 services rolled out.')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Restored from this conversation' })).toHaveCount(0)
+  })
+
   test('an answered form does not come back after a refresh', async ({
     page,
   }) => {

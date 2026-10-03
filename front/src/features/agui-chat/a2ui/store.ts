@@ -64,6 +64,7 @@ interface HttpError {
 export class A2UIStore {
   readonly processor: MessageProcessor<ReactComponentImplementation>
   private readonly entries = new Map<string, SurfaceEntry>()
+  private readonly placed = new Set<string>()
   private readonly listeners = new Set<() => void>()
   private version = 0
   private submitter?: SubmitForm
@@ -86,6 +87,17 @@ export class A2UIStore {
 
   entry(id: string): SurfaceEntry | undefined {
     return this.entries.get(id)
+  }
+
+  // markPlaced records the restored surfaces a reply of the thread's history
+  // shows; the others are shown on their own.
+  markPlaced(ids: Iterable<string>) {
+    for (const id of ids) this.placed.add(id)
+    this.notify()
+  }
+
+  isPlaced(id: string): boolean {
+    return this.placed.has(id)
   }
 
   list(): SurfaceEntry[] {

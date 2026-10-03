@@ -16,6 +16,7 @@ import {
   MessagePrimitive,
   ActionBarPrimitive,
   useAuiState,
+  type ThreadHistoryAdapter,
 } from '@assistant-ui/react'
 import {
   useAgUiRuntime,
@@ -39,7 +40,6 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
-import { fetchAGUIUISnapshot } from '@/api/agui'
 import { BASE_URL, authHeaders } from '@/api/client'
 import {
   useAllSessions,
@@ -73,14 +73,10 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ButterAGUIAgent } from './a2ui/agent'
 import { readableReply, submissionPayload } from './a2ui/form'
-import {
-  EVENT_NAME,
-  envelopeOp,
-  isA2UIEventValue,
-  type UISnapshot,
-} from './a2ui/protocol'
+import { EVENT_NAME, envelopeOp, isA2UIEventValue } from './a2ui/protocol'
 import { A2UIStore, useA2UIStore } from './a2ui/store'
 import { A2UISurfaceView } from './a2ui/surface-view'
+import { loadThread, threadRepository } from './history'
 import { ThreadList } from './thread-list'
 import {
   currentThread,
@@ -301,14 +297,10 @@ function useA2UIContext(): A2UIStore {
   return store
 }
 
-// useOwnedA2UIStore creates and owns one thread's surfaces: it feeds every butter.a2ui CUSTOM
-// event to the store in arrival order and restores the thread's persisted
-// cards and unanswered forms from the UI snapshot on mount.
-function useOwnedA2UIStore(
-  httpAgent: ButterAGUIAgent,
-  agentId: string,
-  threadId: string
-) {
+// useOwnedA2UIStore creates and owns one thread's surfaces and feeds every
+// butter.a2ui CUSTOM event to it in arrival order. What the thread already
+// holds arrives with its history (useThreadHistory).
+function useOwnedA2UIStore(httpAgent: ButterAGUIAgent) {
   const [store] = useState(() => new A2UIStore())
 
   useEffect(() => {
@@ -320,41 +312,56 @@ function useOwnedA2UIStore(
     return () => sub.unsubscribe()
   }, [httpAgent, store])
 
-  useEffect(() => {
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const load = async (attempt: number) => {
-      try {
-        const snap = await fetchAGUIUISnapshot<UISnapshot>(
-          agentId,
-          threadId,
-          controller.signal
-        )
-        store.applySnapshot(snap)
-      } catch (err) {
-        if (controller.signal.aborted) return
-        // A run holds the thread (409) or the read failed: retry a few
-        // times; live events keep arriving meanwhile.
-        if (attempt < 5) {
-          timer = setTimeout(() => void load(attempt + 1), 500 * 2 ** attempt)
-        } else {
-          toast.error(
-            `Could not restore this thread's cards and forms: ${
-              err instanceof Error ? err.message : String(err)
-            }`
-          )
-        }
-      }
-    }
-    void load(0)
-    return () => {
-      controller.abort()
-      if (timer) clearTimeout(timer)
-    }
-  }, [agentId, threadId, store])
-
   useEffect(() => () => store.dispose(), [store])
   return store
+}
+
+// useThreadHistory hydrates the runtime with the thread's conversation. Its
+// history and UI snapshot load together: the surfaces land in the store and
+// each reply shows the ones it produced. The runtime loads once per thread,
+// so StrictMode's rehearsal unmount must not cancel the load; leaving the
+// thread only stops retrying.
+function useThreadHistory(
+  agentId: string,
+  threadId: string,
+  store: A2UIStore
+): ThreadHistoryAdapter {
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  return useMemo<ThreadHistoryAdapter>(
+    () => ({
+      async load() {
+        try {
+          const { history, snapshot } = await loadThread(
+            agentId,
+            threadId,
+            () => mounted.current
+          )
+          const { repository, placed } = threadRepository(history, snapshot)
+          store.markPlaced(placed)
+          store.applySnapshot(snapshot)
+          return repository
+        } catch (err) {
+          if (mounted.current) {
+            toast.error(
+              `Could not restore this thread: ${
+                err instanceof Error ? err.message : String(err)
+              }`
+            )
+          }
+          return { messages: [] }
+        }
+      },
+      // The server keeps the conversation; nothing to write back.
+      async append() {},
+    }),
+    [agentId, threadId, store]
+  )
 }
 
 function AGUIChatWithRuntime({
@@ -385,11 +392,13 @@ function AGUIChatWithRuntime({
   onDeleteThread: (session: SessionInfo) => void
   onRunSettled: () => void
 }) {
+  const store = useOwnedA2UIStore(httpAgent)
+  const history = useThreadHistory(agentId, threadId, store)
   const runtime = useAgUiRuntime({
     agent: httpAgent,
     onError: (err) => toast.error(err.message || 'AG-UI request failed'),
+    adapters: { history },
   })
-  const store = useOwnedA2UIStore(httpAgent, agentId, threadId)
   const [threadsOpen, setThreadsOpen] = useState(false)
 
   const runSettledRef = useRef(onRunSettled)
@@ -651,15 +660,16 @@ function A2UIDataPart({ data }: { data: unknown }) {
   )
 }
 
-// RestoredSurfaces shows what the UI snapshot brought back after a refresh:
-// the conversation text itself is not restored, so each surface says where
-// it came from.
+// RestoredSurfaces shows what the UI snapshot brought back but no reply of
+// the restored history shows, so each surface says where it came from.
 function RestoredSurfaces() {
   const store = useA2UIStore(useA2UIContext())
   const locked = useAuiState((s) => s.thread.isRunning)
   const restored = store
     .list()
-    .filter((e) => e.origin === 'snapshot' && !e.deleted)
+    .filter(
+      (e) => e.origin === 'snapshot' && !e.deleted && !store.isPlaced(e.id)
+    )
   if (restored.length === 0) return null
   return (
     <section

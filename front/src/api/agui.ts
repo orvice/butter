@@ -154,17 +154,46 @@ export function applyAGUIStateDelta(
 // cards and unanswered forms — rebuilt from the persisted session, without
 // starting a run. A thread the caller does not own, or one without UI,
 // answers with no surfaces. 409 means a run holds the thread: retry.
-export async function fetchAGUIUISnapshot<T>(
+export function fetchAGUIUISnapshot<T>(
   agentId: string,
   threadId: string,
   signal?: AbortSignal
 ): Promise<T> {
+  return fetchAGUIThread<T>(agentId, threadId, 'ui', 'UI snapshot', signal)
+}
+
+// fetchAGUIThreadHistory reads a thread's conversation as AG-UI messages,
+// with its open Interrupts and the reply each restorable surface belongs
+// to, rebuilt from the persisted session without starting a run. A thread
+// the caller does not own answers with an empty history. 409 means a run
+// holds the thread: retry.
+export function fetchAGUIThreadHistory<T>(
+  agentId: string,
+  threadId: string,
+  signal?: AbortSignal
+): Promise<T> {
+  return fetchAGUIThread<T>(
+    agentId,
+    threadId,
+    'messages',
+    'Thread history',
+    signal
+  )
+}
+
+async function fetchAGUIThread<T>(
+  agentId: string,
+  threadId: string,
+  resource: 'ui' | 'messages',
+  label: string,
+  signal?: AbortSignal
+): Promise<T> {
   const res = await fetch(
-    `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}/threads/${encodeURIComponent(threadId)}/ui`,
+    `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}/threads/${encodeURIComponent(threadId)}/${resource}`,
     { headers: authHeaders(), signal }
   )
   if (!res.ok) {
-    let message = `UI snapshot failed (${res.status})`
+    let message = `${label} failed (${res.status})`
     try {
       const data = (await res.json()) as { error?: string }
       if (data?.error) message = data.error

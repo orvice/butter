@@ -1035,9 +1035,49 @@ no surfaces rather than revealing it. The read takes the thread's session
 lease: a thread with a run in flight answers `409` — retry after it finishes.
 
 The dashboard's AG-UI Chat remembers the current thread per workspace, agent
-and signed-in user, reads the snapshot on load, and shows restored surfaces
-with a note that they come from earlier in the conversation (the text history
-itself is not restored, and neither is an unsent form draft).
+and signed-in user. When it opens a thread it reads the snapshot together with
+the [thread history](#thread-history) and shows each restored surface in the
+reply that produced it. A surface whose reply is not in the history appears on
+its own, with a note that it comes from earlier in the conversation. An unsent
+form draft is not restored.
+
+#### Thread history
+
+```
+GET /api/agui/:agent_id/threads/:thread_id/messages
+```
+
+Returns a thread's conversation as AG-UI messages, rebuilt from the persisted
+session; it never starts a run. A client hydrates its thread with it and keeps
+sending only the trailing message, as before.
+
+```json
+{
+  "threadId": "t-1",
+  "messages": [
+    { "id": "…", "role": "user", "content": "Which tickets expire soon?" },
+    { "id": "…", "role": "assistant", "content": "Two tickets expire this month.",
+      "toolCalls": [{ "id": "call-1", "type": "function", "function": { "name": "queryRecords", "arguments": "{…}" } }] },
+    { "id": "result:call-1", "role": "tool", "toolCallId": "call-1", "content": "{…}" }
+  ],
+  "interrupts": [{ "id": "…", "reason": "human_input", "message": "Approve the refund?" }],
+  "surfaces": [{ "surfaceId": "card-3f2a…", "messageId": "…" }]
+}
+```
+
+- **`messages`** is AG-UI `Message[]`, oldest first.
+  - **Each run is one `assistant` message.** Everything the agent produced between two user turns goes in it, as the run streamed it.
+  - **Tool calls** keep the session's FunctionCall IDs. Each result follows as a `tool` message whose content is the result's JSON.
+  - **Answers to Human Input nodes are `user` messages.** A typed answer is its text. A form's answer is the title, then one `Label: value` line per field. The question it answered is part of the assistant message before it.
+- **Hidden, as in the live stream:** thoughts, the request-input handshake, and `render_ui` calls.
+  - A card shows up through `surfaces` instead.
+  - A tool call appears only with its result, or while the session still waits for a result from the client. So a client that cancels unresolved calls before sending never sends a result the server would reject.
+- **`interrupts`** are the Interrupts still open, exactly as the last run's `RUN_FINISHED` reported them. Attach them to the last assistant message.
+- **`surfaces`** gives, for each surface the UI snapshot restores, the assistant message that produced it (`messageId`).
+
+The same auth, workspace header, `agent_id`, binding and lease rules as the UI
+snapshot apply. A thread the caller does not own answers with an empty
+history, and a thread with a run in flight answers `409`.
 
 #### Not supported yet
 
