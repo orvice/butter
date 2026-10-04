@@ -640,8 +640,8 @@ plus `X-Workspace-ID`. Which agents a caller reaches depends on the token:
 Every other request for an agent returns `404` before the stream opens. An
 agent the runner cannot run (one that is provisioning, being deleted or
 deleted, or not loaded yet) is `404` too, whoever asks. The
-[UI snapshot](#ui-snapshot) and [thread history](#thread-history) endpoints
-follow the same rules.
+[UI snapshot](#ui-snapshot), [thread history](#thread-history) and
+[stop](#stopping-a-run) endpoints follow the same rules.
 
 **Request body** is an AG-UI `RunAgentInput`. Both camelCase and snake_case keys
 are accepted:
@@ -769,21 +769,71 @@ client leaves, with a Butter extension next to `butterA2UI`:
   [Invocation](#invocation-object), with `source` `agui-detached`, `app_name`
   `agui` and the thread-scoped `request_id` `agui:{user}:agui-{threadId}:{runId}`.
   It goes `QUEUED` → `RUNNING` → `SUCCEEDED`, `FAILED` or `CANCELLED`.
-  `CANCELLED` means a person stopped the run. Every operational end is
-  `FAILED`, with its reason in `error`, and the stream's `RUN_ERROR` carries
-  the same reason:
+  `CANCELLED` means a person stopped the run (see
+  [Stopping a run](#stopping-a-run)). Every operational end is `FAILED`, with
+  its reason in `error`, and the stream's `RUN_ERROR` carries the same reason:
   - the run exceeded the maximum run duration (`agui.max_run_duration` in the
     server config, 30 minutes by default);
   - a graceful shutdown of the server (on SIGTERM or SIGINT) ended it;
   - it lost the thread's lease.
 
   A failed run is never rerun: send the message again, as a new run.
-- **Not yet.** A detached run cannot yet be stopped on purpose or re-attached
-  to after its client left: the thread history and the UI snapshot still
-  answer `409` while it runs, and show its result once it ends.
+- **Stop.** Aborting the request only detaches its observer. To end the run
+  on purpose, from any Pod, send a [Stop](#stopping-a-run).
+- **Not yet.** A detached run cannot yet be re-attached to after its client
+  left: the thread history and the UI snapshot still answer `409` while it
+  runs, and show its result once it ends.
 
 Without the opt-in nothing changes: a disconnect cancels the run, and the run
-is recorded as before.
+is recorded as before. A Stop does not reach such a run.
+
+#### Stopping a run
+
+```
+POST /api/agui/:agent_id/threads/:thread_id/stop
+```
+
+Stops the thread's [detached run](#detached-runs), on whichever Pod runs it.
+It takes no body and answers at once; it never waits for the run to end.
+
+- **Checks.** The same auth, workspace header, `agent_id` and binding rules as
+  the [thread history](#thread-history): the caller must reach the agent
+  (`404` otherwise), and the thread must be the caller's, in this workspace,
+  bound to this agent. Any other thread reaches nothing and answers `204`, so
+  the endpoint reveals nothing about threads the caller does not own.
+- **`202 Accepted`** when a detached run is in flight: the Stop is accepted,
+  and the run ends shortly after. The body names the run that will end:
+
+  ```json
+  { "threadId": "t-1", "runId": "run-1", "invocationId": "0199…" }
+  ```
+
+- **`204 No Content`** when no detached run is in flight: the thread is idle,
+  its run already ended, or its run was started without
+  `forwardedProps.butterRun`. A Stop never reaches such a run, which still
+  ends only when its request is aborted.
+- **Idempotent.** A second Stop before the run ends answers `202` again and
+  changes nothing; one after it answers `204`.
+- **The stopped run** cancels its turn (a Pi or Cursor agent aborts its box
+  session) and its [Invocation](#invocation-object) ends `CANCELLED`, with
+  `error` `stopped by user`. A Stop accepted before the run settled always
+  ends it `CANCELLED`, even when its turn had just finished. Its observers
+  receive a `RUN_ERROR` with the stop code, which tells a Stop apart from a
+  failure:
+
+  ```
+  data: {"type":"RUN_ERROR","code":"stopped","message":"stopped by user","runId":"run-1"}
+  ```
+
+- **Only that run.** A Stop reaches the run that held the thread when the
+  Stop was accepted, never a later run on the thread: a Stop sent after a run
+  ended answers `204` and leaves the next run alone.
+- **Errors.** `400` without a `threadId`; `503` when the session store or the
+  run state cannot be reached. Retry those.
+
+[`CancelAgentInvocation`](#cancelagentinvocation) on a detached run's
+Invocation, and [`DeleteSession`](#deletesession) on its thread, stop the run
+the same way.
 
 #### Message content
 
@@ -1810,6 +1860,14 @@ the selected Workspace. Existing synchronous cancellation remains supported.
 
 Covers both synchronous streams and asynchronous dashboard invocations. A
 user-cancelled async invocation ends as `CANCELLED` (distinct from `FAILED`).
+
+A [detached AG-UI run](#detached-runs)'s Invocation (`source`
+`agui-detached`) is cancelled through the [AG-UI Stop](#stopping-a-run),
+which reaches the run on whichever Pod runs it. `cancelled` is `true` once
+the Stop is accepted; the run then ends `CANCELLED` shortly after, without
+the RPC waiting for it. An Invocation whose run already ended stops nothing
+(`cancelled: false`), and never a later run on its thread. When the Stop
+cannot be reached the RPC answers `unavailable`; retry it.
 
 #### SubmitAgentInvocation
 
@@ -3411,6 +3469,16 @@ POST /api/agents.v1.SessionService/DeleteSession
 | `session_id` | string | Session ID |
 
 **Response:** `{}`
+
+Deleting an AG-UI thread (`app_name` `agui`) first stops its
+[detached run](#stopping-a-run), on whichever Pod runs it; the run ends
+`CANCELLED`. The delete then takes the thread's lease itself and deletes
+under it, so no run starts or writes on the thread in between, and drops
+the thread's run state, so a reused `threadId` never reads as running. If
+the lease does not come free within 10 seconds — for instance while a run
+started without `forwardedProps.butterRun` holds the thread, which a Stop
+does not reach — the delete fails with `unavailable` and deletes nothing;
+retry it once that run has ended.
 
 #### ReplySession
 

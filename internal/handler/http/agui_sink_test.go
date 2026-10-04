@@ -217,8 +217,22 @@ func TestAGUISink_RunError(t *testing.T) {
 	rec := runAGUISink(t, nil, "", errors.New("boom"))
 	assertAGUISequence(t, rec.types, []string{"RUN_STARTED", "RUN_ERROR"})
 	runErr, ok := rec.events[1].(*aguievents.RunErrorEvent)
-	if !ok || runErr.Message != "boom" {
+	if !ok || runErr.Message != "boom" || runErr.Code != nil {
 		t.Fatalf("run error = %+v", rec.events[1])
+	}
+}
+
+// A stopped run's RUN_ERROR carries the stop code, so a client tells a Stop
+// apart from a failure without parsing the message (#402).
+func TestAGUISink_StoppedRunErrorCarriesTheStopCode(t *testing.T) {
+	rec := &aguiEventRecorder{}
+	sink := newAGUISink("thread-1", "run-1", "msg-1", rec.emit)
+	if err := sink.Error(errAGUIRunStopped); err != nil {
+		t.Fatalf("Error: %v", err)
+	}
+	runErr, ok := rec.events[len(rec.events)-1].(*aguievents.RunErrorEvent)
+	if !ok || runErr.Message != "stopped by user" || runErr.Code == nil || *runErr.Code != aguiCodeStopped || runErr.RunID() != "run-1" {
+		t.Fatalf("run error = %+v", rec.events[len(rec.events)-1])
 	}
 }
 

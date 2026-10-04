@@ -754,6 +754,11 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	agentSvcServer.SetSessionAuthorizer(sessionSvcServer)
 	// A successful AG-UI run titles an untitled thread on the server.
 	aguiHandler.SetSessionTitler(sessionSvcServer)
+	// CancelAgentInvocation on an AG-UI-owned Invocation, and deleting an
+	// AG-UI thread, go through the AG-UI Stop, which reaches the run on any
+	// Pod (ADR-0016 decisions 4 and 7).
+	agentSvcServer.SetAGUIRunStopper(aguiHandler)
+	sessionSvcServer.SetAGUIThreads(aguiHandler)
 	sessionConnectPath, sessionConnectHandler := agentsv1connect.NewSessionServiceHandler(sessionSvcServer, connectOpts...)
 	cronSvcServer := application.NewCronJobServiceServer()
 	cronConnectPath, cronConnectHandler := agentsv1connect.NewCronJobServiceHandler(cronSvcServer, connectOpts...)

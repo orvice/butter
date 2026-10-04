@@ -24,6 +24,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
+	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -66,9 +67,23 @@ const aguiRunStateEndTimeout = 5 * time.Second
 // as the runner caps its own.
 const aguiRecordTextLimit = 4096
 
+// aguiCodeStopped is the RUN_ERROR code of a run a person stopped (ADR-0016
+// decision 4): a client tells a Stop apart from a failure by it.
+const aguiCodeStopped = "stopped"
+
+// aguiRunError is how a run ended, as its RUN_ERROR reports it: the message,
+// and the code a client tells the end apart by, when it has one.
+type aguiRunError struct {
+	message string
+	code    string
+}
+
+func (e *aguiRunError) Error() string { return e.message }
+
 var (
-	// errAGUIRunStopped ends a Detached Run a person stopped.
-	errAGUIRunStopped = errors.New("stopped by user")
+	// errAGUIRunStopped ends a Detached Run a person stopped, through the
+	// Stop endpoint, CancelAgentInvocation or deleting its thread.
+	errAGUIRunStopped error = &aguiRunError{message: "stopped by user", code: aguiCodeStopped}
 	// errAGUIShutdown ends the Detached Runs in flight at a graceful
 	// shutdown.
 	errAGUIShutdown = errors.New("server shutting down")
@@ -154,6 +169,9 @@ type aguiRun struct {
 	// reqCtx is the request's context.
 	reqCtx  context.Context
 	release func()
+	// leaseToken names the run's hold on its thread: the token of its lease
+	// acquisition, which a Stop's marker holds.
+	leaseToken string
 
 	ui   *aguiUIContext
 	sink *aguiSink
@@ -217,6 +235,7 @@ func (h *AGUIHandler) beginRun(c *gin.Context, rc *aguiRunContext) (*aguiRun, bo
 		return nil, false
 	}
 	run.ctx, run.release = leaseCtx, release
+	run.leaseToken = aguiLeaseToken(leaseCtx, rc.ctxInfo.GetUuid())
 	// Until the stream opens the work is the request's: it ends with the
 	// request even when the run would not.
 	checkCtx, stopChecks := context.WithCancel(leaseCtx)
@@ -482,6 +501,13 @@ type aguiOutcome struct {
 	status agentsv1.InvocationStatus
 	// reason is why a FAILED or CANCELLED run ended, as observers see it.
 	reason string
+	// code is the RUN_ERROR code of the end, if it has one.
+	code string
+}
+
+// err is the end as the run's RUN_ERROR reports it.
+func (o aguiOutcome) err() error {
+	return &aguiRunError{message: o.reason, code: o.code}
 }
 
 // outcome claims the run's terminal state, with asyncrun's precedence: an
@@ -489,12 +515,22 @@ type aguiOutcome struct {
 // SUCCEEDED, even when a shutdown or the deadline raced it; after that come
 // the shutdown, the deadline, a lost lease and the run's own error. Every
 // operational end is FAILED; only a person's Stop is CANCELLED.
+//
+// The claim is made twice: in this process, which closes the window of a
+// shutdown, and on the run state, in one step with which a Stop is accepted
+// on any Pod (ADR-0016 decision 3). A Stop accepted before that claim always
+// ends the run CANCELLED, whether or not the run had heard of it yet; one
+// after it finds nothing running.
 func (r *aguiRun) outcome(runErr error) aguiOutcome {
 	d := r.detached
 	claim := r.h.runs.claim(d.entry)
+	// Claimed in every case, so no Stop is accepted for the run past here.
+	stoppedOnAnyPod := r.claimRunState()
+	stopped := claim.stopped || stoppedOnAnyPod
 	switch {
-	case claim.stopped:
-		return aguiOutcome{status: agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED, reason: errAGUIRunStopped.Error()}
+	case stopped:
+		return aguiOutcome{status: agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED,
+			reason: errAGUIRunStopped.Error(), code: aguiCodeStopped}
 	case runErr == nil:
 		return aguiOutcome{status: agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED}
 	case claim.shutdown:
@@ -527,7 +563,7 @@ func (r *aguiRun) settleDetached(runErr error) {
 		return
 	}
 	r.logFailure(outcome.reason)
-	if err := r.sink.Error(errors.New(outcome.reason)); err != nil {
+	if err := r.sink.Error(outcome.err()); err != nil {
 		log.FromContext(r.ctx).Error("agui failed to emit RUN_ERROR", "err", err)
 	}
 }
@@ -582,8 +618,20 @@ func (r *aguiRun) unregister() {
 
 // --- The run state -----------------------------------------------------------------
 
+// aguiLeaseToken is the token of the lease acquisition that made leaseCtx.
+// Without a guard that names one, the run's Invocation ID, unique to the run,
+// stands in for it.
+func aguiLeaseToken(leaseCtx context.Context, invocationID string) string {
+	if token, ok := sessionguard.Token(leaseCtx); ok {
+		return token
+	}
+	return "invocation:" + invocationID
+}
+
 // keepRunState records the run's state next to its lease and keeps it
-// renewed for as long as the run holds the lease (ADR-0016 decision 6).
+// renewed for as long as the run holds the lease (ADR-0016 decision 6). A
+// Detached Run also learns from it that a Stop was accepted for it, on any
+// Pod, and is cancelled then (decision 4).
 func (r *aguiRun) keepRunState(eventCount int) error {
 	store := r.h.getRunStateStore()
 	if store == nil {
@@ -594,12 +642,43 @@ func (r *aguiRun) keepRunState(eventCount int) error {
 		InvocationID: r.rc.ctxInfo.GetUuid(),
 		EventCount:   eventCount,
 		Detached:     r.detached != nil,
+		LeaseToken:   r.leaseToken,
 	})
 	if err != nil {
 		return err
 	}
 	r.runState = kept
+	if d := r.detached; d != nil {
+		entry, done := d.entry, r.ctx.Done()
+		go func() {
+			select {
+			case <-kept.Stopped():
+				r.h.runs.observeStop(entry)
+			case <-done:
+				// Whatever ended the run, a Stop accepted before its claim
+				// still decides its end there.
+			}
+		}()
+	}
 	return nil
+}
+
+// claimRunState claims the run's end on its run state, in one step with which
+// a Stop is accepted on any Pod, and reports whether one was. A claim that
+// cannot be made leaves the end to what this process saw.
+func (r *aguiRun) claimRunState() bool {
+	if r.runState == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), aguiRunStateEndTimeout)
+	defer cancel()
+	claim, err := r.runState.Claim(ctx)
+	if err != nil {
+		log.FromContext(r.ctx).Warn("agui run could not claim its end on the run state; a Stop from another Pod may be missed",
+			"session_id", r.rc.ctxInfo.GetSessionId(), "err", err)
+		return false
+	}
+	return claim.Stopped
 }
 
 // endRunState removes the run's state, unless another run's replaced it.
@@ -734,7 +813,9 @@ func aguiTruncate(s string, limit int) string {
 // --- The Detached Runs in flight ------------------------------------------------
 
 // aguiRuns tracks this process's Detached Runs in flight: what ends them
-// (a Stop, a shutdown) and the claim on their terminal state.
+// (a Stop they heard of, a shutdown) and this process's claim on their
+// terminal state. A Stop itself is accepted on the run state, on any Pod
+// (runstate.Store.Stop); a run hears of it there.
 type aguiRuns struct {
 	mu           sync.Mutex
 	entries      map[string]*aguiRunEntry // by invocation ID
@@ -746,7 +827,8 @@ type aguiRuns struct {
 type aguiRunEntry struct {
 	invocationID string
 	cancel       context.CancelCauseFunc
-	// stopRequested marks a person's Stop; the run ends CANCELLED.
+	// stopRequested marks a person's Stop the run heard of; the run ends
+	// CANCELLED.
 	stopRequested bool
 	// shutdownRequested marks a graceful shutdown; the run ends FAILED with
 	// a shutdown reason, never CANCELLED, so a person's intent stays
@@ -790,10 +872,10 @@ type aguiTerminalClaim struct {
 	shutdown bool
 }
 
-// claim closes the window in which a Stop or a shutdown can still decide the
-// run's end. A Stop accepted before it always wins; one after it finds
-// nothing running. Within one process; the cross-Pod Stop (#402) makes
-// accepting a Stop and this claim one atomic step on shared state.
+// claim closes the window in which a shutdown, or a Stop the run heard of,
+// can still decide the run's end within this process. The run then claims
+// its end on the run state too, where a Stop from any Pod was accepted or
+// not (aguiRun.outcome).
 func (rs *aguiRuns) claim(e *aguiRunEntry) aguiTerminalClaim {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
@@ -804,20 +886,16 @@ func (rs *aguiRuns) claim(e *aguiRunEntry) aguiTerminalClaim {
 	}
 }
 
-// stop asks the run with this invocation ID to stop: true when it was
-// accepted, which happens only before the run claimed its terminal state.
-// A Stop ends the run CANCELLED. Only this process's runs are reachable;
-// the cross-Pod Stop builds on it (ADR-0016 decision 4).
-func (rs *aguiRuns) stop(invocationID string) bool {
+// observeStop cancels a run that heard a Stop was accepted for it, unless it
+// already claimed its end. The Stop decides the run's end CANCELLED.
+func (rs *aguiRuns) observeStop(e *aguiRunEntry) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	e, ok := rs.entries[invocationID]
-	if !ok || e.finished {
-		return false
+	if e.finished {
+		return
 	}
 	e.stopRequested = true
 	e.cancel(errAGUIRunStopped)
-	return true
 }
 
 // waitForRuns blocks until no Detached Run is in flight. Tests use it.

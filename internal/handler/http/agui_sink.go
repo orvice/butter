@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"sort"
 
@@ -454,7 +455,9 @@ func (s *aguiSink) emitStateDelta(delta map[string]any) error {
 // returns the run error to its caller — so the handler calls this after a
 // failed run, or instead of a held RUN_FINISHED for a run that settled as
 // failed or stopped. Any open message is closed first so the client is not
-// left waiting on a TEXT_MESSAGE_END that never arrives.
+// left waiting on a TEXT_MESSAGE_END that never arrives. The event carries
+// runErr's code when it has one (aguiRunError): a stopped run's code tells it
+// apart from a failure.
 func (s *aguiSink) Error(runErr error) error {
 	s.heldFinished = nil
 	if err := s.closeMessage(); err != nil {
@@ -465,7 +468,11 @@ func (s *aguiSink) Error(runErr error) error {
 	if err := s.emitAnsweredForms(); err != nil {
 		return err
 	}
-	return s.emit(aguievents.NewRunErrorEvent(runErr.Error(), aguievents.WithRunID(s.runID)))
+	opts := []aguievents.RunErrorOption{aguievents.WithRunID(s.runID)}
+	if coded, ok := errors.AsType[*aguiRunError](runErr); ok && coded.code != "" {
+		opts = append(opts, aguievents.WithErrorCode(coded.code))
+	}
+	return s.emit(aguievents.NewRunErrorEvent(runErr.Error(), opts...))
 }
 
 func (s *aguiSink) openMessage() error {
