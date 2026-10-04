@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@/types/api'
+import type { Agent, SessionInfo } from '@/types/api'
 
 // An AG-UI thread is the session `agui-{threadId}` under the ADK app `agui`,
 // keyed by (caller, thread) only. Which workspace and agent a thread belongs
@@ -83,27 +83,72 @@ export function boundAgentId(
   return binding.agentId
 }
 
-// agentThreads keeps the caller's threads with one agent in one workspace,
-// in the order given (ListSessions answers newest first). A thread is listed
-// only when its binding matches its own session ID: reusing a threadId under
-// another agent lands on the same session, and that session is not this
-// agent's conversation. Threads without a binding predate A2UI and cannot be
-// attributed, so they are left out.
-export function agentThreads(
-  sessions: SessionInfo[],
-  workspaceId: string,
+// WorkspaceThread is one of the caller's threads in a workspace, with the
+// agent its binding names.
+export interface WorkspaceThread {
+  session: SessionInfo
+  threadId: string
   agentId: string
-): SessionInfo[] {
-  return sessions.filter((s) => {
-    const threadId = threadIdOf(s)
-    return (
-      threadId !== null && boundAgentId(s, workspaceId, threadId) === agentId
-    )
+}
+
+// workspaceThreads keeps the caller's threads in one workspace, with every
+// agent, in the order given (ListSessions answers newest first). A thread is
+// listed only when its binding is for this workspace and for the thread its
+// session holds. Threads without a binding predate A2UI and cannot be
+// attributed, so they are left out.
+export function workspaceThreads(
+  sessions: readonly SessionInfo[],
+  workspaceId: string
+): WorkspaceThread[] {
+  const threads: WorkspaceThread[] = []
+  for (const session of sessions) {
+    const threadId = threadIdOf(session)
+    if (threadId === null) continue
+    const agentId = boundAgentId(session, workspaceId, threadId)
+    if (agentId) threads.push({ session, threadId, agentId })
+  }
+  return threads
+}
+
+// threadTitle is the title a thread shows: its own, else the name of its
+// agent, else (the agent is unknown) a placeholder.
+export function threadTitle(session: SessionInfo, agentName?: string): string {
+  return session.title?.trim() || agentName?.trim() || 'Untitled thread'
+}
+
+// ThreadRow is a thread as the sidebar lists it: with its agent as the
+// workspace's agent list has it (undefined for one the list lacks), and the
+// title it shows.
+export interface ThreadRow extends WorkspaceThread {
+  agent?: Agent
+  title: string
+}
+
+// threadRows lists the caller's threads in one workspace, each with the agent
+// its binding names, taken from agents.
+export function threadRows(
+  sessions: readonly SessionInfo[],
+  workspaceId: string,
+  agents: readonly Agent[]
+): ThreadRow[] {
+  const byId = new Map<string, Agent>()
+  for (const agent of agents) {
+    if (agent.agent_id) byId.set(agent.agent_id, agent)
+  }
+  return workspaceThreads(sessions, workspaceId).map((thread) => {
+    const agent = byId.get(thread.agentId)
+    return { ...thread, agent, title: threadTitle(thread.session, agent?.name) }
   })
 }
 
-export function threadTitle(session: SessionInfo): string {
-  return session.title?.trim() || 'Untitled thread'
+// searchThreads keeps the rows whose title contains query, ignoring case.
+export function searchThreads(
+  rows: readonly ThreadRow[],
+  query: string
+): readonly ThreadRow[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return rows
+  return rows.filter((row) => row.title.toLowerCase().includes(q))
 }
 
 // ThreadView is what the page shows for the thread the URL names.

@@ -310,7 +310,7 @@ test.describe('AG-UI Chat threads by URL', () => {
     await expect(threadHeader(page, 'Kyoto trip')).toBeVisible()
     await expect(
       page
-        .getByRole('complementary', { name: 'Threads' })
+        .getByRole('navigation', { name: 'AG-UI threads' })
         .getByRole('link', { name: 'Kyoto trip' })
     ).toBeVisible()
     expect(fixture.sessionCalls.renames).toEqual([

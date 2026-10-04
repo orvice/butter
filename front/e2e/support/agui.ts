@@ -80,6 +80,8 @@ export interface AGUIFixture {
   // sessions are the caller's sessions, newest first.
   sessions: SessionInfo[]
   sessionCalls: SessionCalls
+  // agentIcons are icon URLs by agent ID, set as those agents' icon_url.
+  agentIcons?: Record<string, string>
 }
 
 export const emptySnapshot = (threadId = 't') => ({
@@ -97,12 +99,13 @@ export const emptyHistory = (threadId = 't') => ({
 
 // aguiSession is the session of the AG-UI thread threadId. binding is what
 // the server records when it creates the session (null for a thread from
-// before A2UI, which has none).
+// before A2UI, which has none). updated is when it was last updated: a number
+// of minutes ago, or a time.
 export function aguiSession(
   threadId: string,
   title: string,
   binding: { agentId: string; workspaceId?: string } | null,
-  minutesAgo = 0
+  updated: number | Date = 0
 ): SessionInfo {
   return create(SessionInfoSchema, {
     sessionId: `agui-${threadId}`,
@@ -120,7 +123,9 @@ export function aguiSession(
         }
       : {},
     lastUpdateTime: timestampFromDate(
-      new Date(Date.now() - minutesAgo * 60_000)
+      updated instanceof Date
+        ? updated
+        : new Date(Date.now() - updated * 60_000)
     ),
   })
 }
@@ -169,7 +174,13 @@ export async function setupAGUI(
       deletes: [],
       generated: [],
     },
+    agentIcons: fixture.agentIcons,
   }
+  const withIcon = (agentId: string) => {
+    const icon = state.agentIcons?.[agentId]
+    return icon ? { metadata: { icon_url: icon } } : {}
+  }
+
   await setupAuthenticatedConnectRoutes(
     page,
     async (route, url) => {
@@ -206,7 +217,7 @@ export async function setupAGUI(
               enableAgui: true,
               lifecycleStatus: 6,
             },
-          ],
+          ].map((agent) => ({ ...agent, ...withIcon(agent.agentId) })),
           total: 4,
         })
       }

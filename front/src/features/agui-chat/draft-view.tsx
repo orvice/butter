@@ -1,8 +1,7 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { Agent } from '@/types/api'
-import { ArrowUp, PanelLeft } from 'lucide-react'
+import { ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { AgentHero, ChatDisclaimer } from '@/components/chat/thread-states'
 import { agentIconUrl } from '@/features/agents/icon-utils'
 
@@ -13,12 +12,10 @@ export function DraftView({
   agent,
   agentSelector,
   onSend,
-  onOpenThreads,
 }: {
   agent: Agent | null
   agentSelector: ReactNode
   onSend: (message: string) => void
-  onOpenThreads?: () => void
 }) {
   const [draft, setDraft] = useState('')
   const canSend = !!agent && draft.trim().length > 0
@@ -43,17 +40,6 @@ export function DraftView({
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col'>
-      {onOpenThreads && (
-        <Button
-          variant='ghost'
-          size='icon'
-          className='absolute start-2 top-2 size-8 md:hidden'
-          aria-label='Show threads'
-          onClick={onOpenThreads}
-        >
-          <PanelLeft className='size-4' />
-        </Button>
-      )}
       <div className='flex flex-1 items-center justify-center overflow-y-auto px-4 py-8 sm:px-6'>
         <div className='w-full max-w-2xl'>
           {agent ? (

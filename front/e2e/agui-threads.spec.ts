@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
+import { create } from '@bufbuild/protobuf'
+import { SessionInfoSchema } from '../src/gen/agents/v1/agent_service_pb'
 import {
+  USER_ID,
   aguiSession,
   sendMessage as send,
   setupAGUI,
@@ -7,9 +10,10 @@ import {
   threadInURL,
 } from './support/agui'
 
-// The AG-UI thread list reads the caller's `agui` sessions and keeps those
-// whose A2UI binding names the listed agent in the selected workspace. Each
-// row links to its thread with ?thread=.
+// The sidebar lists the caller's AG-UI threads in the selected workspace,
+// across agents: the `agui` sessions whose A2UI binding is for this
+// workspace. Rows are grouped by when the thread was last updated, show
+// their agent's avatar, and link to the thread with ?thread=.
 
 const reply = (text: string) =>
   sse([
@@ -20,74 +24,147 @@ const reply = (text: string) =>
     { type: 'RUN_FINISHED', threadId: 't', runId: 'r' },
   ])
 
-const threadList = (page: Page) =>
-  page.getByRole('complementary', { name: 'Threads' })
+// Each agent has its own icon, so a row's avatar tells its agent, and a row's
+// text is its title alone (without an icon, the avatar is the name's initial).
+const icon = (color: string) =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="${color}"/></svg>`
+  )}`
+const ICONS = { 'streamer-id': icon('#c2410c'), 'second-id': icon('#1d4ed8') }
 
-function threadActions(page: Page, title: string) {
-  const row = threadList(page).getByRole('listitem').filter({ hasText: title })
-  return row.getByRole('button', { name: 'Thread actions' })
+// dayStart is the local start of the day daysAgo days before today, plus
+// minutes. The sidebar groups threads by the local day, so a time measured
+// from the start of a day stays in its group whatever the hour the test runs.
+function dayStart(daysAgo: number, minutes = 0): Date {
+  const day = new Date()
+  day.setHours(0, 0, 0, 0)
+  day.setDate(day.getDate() - daysAgo)
+  return new Date(day.getTime() + minutes * 60_000)
 }
 
-test.describe('AG-UI threads', () => {
-  test('lists only this agent’s threads and opens one by URL', async ({
+const threadList = (page: Page) =>
+  page.getByRole('navigation', { name: 'AG-UI threads' })
+
+// rowLinks are the thread links of the list, or of one of its date groups.
+const rowLinks = (page: Page, group?: string) =>
+  (group
+    ? threadList(page).getByRole('group', { name: group })
+    : threadList(page).getByRole('group')
+  ).getByRole('link')
+
+const threadRow = (page: Page, title: string) =>
+  threadList(page)
+    .locator('[data-sidebar="menu-item"]')
+    .filter({ has: page.getByRole('link', { name: title, exact: true }) })
+
+async function threadAction(
+  page: Page,
+  title: string,
+  action: 'Rename' | 'Delete'
+) {
+  const row = threadRow(page, title)
+  await row.hover()
+  await row.getByRole('button', { name: 'Thread actions' }).click()
+  await page.getByRole('menuitem', { name: action }).click()
+}
+
+// threadHeader is the bar above the open thread, found by its title.
+const threadHeader = (page: Page, title: string) =>
+  page
+    .locator('header')
+    .filter({ has: page.getByRole('heading', { name: title, level: 1 }) })
+
+const trip = () =>
+  aguiSession('t-trip', 'Trip plan', { agentId: 'streamer-id' }, dayStart(0, 2))
+
+test.describe('AG-UI threads in the sidebar', () => {
+  test('lists every thread of the workspace across agents and pages, grouped by date', async ({
     page,
   }) => {
     const fixture = await setupAGUI(page, {
-      runs: [reply('Back on the trip.')],
+      runs: [],
+      agentIcons: ICONS,
       sessions: [
-        aguiSession('t-trip', 'Trip plan', { agentId: 'streamer-id' }, 1),
-        aguiSession('t-second', 'Second agent chat', { agentId: 'second-id' }, 2),
+        aguiSession(
+          't-second',
+          'Second agent chat',
+          { agentId: 'second-id' },
+          dayStart(0, 4)
+        ),
+        aguiSession('t-untitled', '', { agentId: 'second-id' }, dayStart(0, 3)),
+        trip(),
         aguiSession(
           't-ws2',
           'Other workspace',
           { agentId: 'streamer-id', workspaceId: 'ws-2' },
-          3
+          dayStart(0, 1)
         ),
-        aguiSession('t-legacy', 'Before A2UI', null, 4),
-        aguiSession('t-budget', 'Budget', { agentId: 'streamer-id' }, 5),
+        aguiSession('t-legacy', 'Before A2UI', null, dayStart(1)),
+        aguiSession(
+          't-budget',
+          'Budget review',
+          { agentId: 'streamer-id' },
+          dayStart(2)
+        ),
+        // Enough older threads that the listing takes a second page.
+        ...Array.from({ length: 100 }, (_, i) =>
+          aguiSession(
+            `t-old-${i}`,
+            `Old thread ${i}`,
+            { agentId: i % 2 ? 'second-id' : 'streamer-id' },
+            dayStart(30 + i)
+          )
+        ),
+        // Chat's own history, which the sidebar lists apart until cutover.
+        create(SessionInfoSchema, {
+          sessionId: 'chat-1',
+          appName: 'web-chat',
+          userId: USER_ID,
+          title: 'An old chat',
+        }),
       ],
     })
 
-    await page.goto('/agui-chat?agent=streamer-id', {
-      waitUntil: 'networkidle',
-    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
 
-    const list = threadList(page)
-    await expect(list.getByRole('listitem')).toHaveText([
+    await expect(rowLinks(page, 'Today')).toHaveText([
+      'Second agent chat',
+      // An untitled thread shows its agent's name.
+      'Second',
       'Trip plan',
-      'Budget',
     ])
-
-    await list.getByRole('link', { name: 'Trip plan' }).click()
-    await expect(page).toHaveURL(/\/agui-chat\?thread=t-trip$/)
+    await expect(rowLinks(page, 'Previous 7 days')).toHaveText([
+      'Budget review',
+    ])
+    const older = rowLinks(page, 'Older')
+    await expect(older).toHaveCount(100)
+    await expect(older.last()).toHaveText('Old thread 99')
+    // Threads of another workspace, and threads from before A2UI, which
+    // cannot be attributed, are left out; so is Chat's history.
+    await expect(rowLinks(page)).toHaveCount(104)
     await expect(
-      list.getByRole('link', { name: 'Trip plan' })
-    ).toHaveAttribute('aria-current', 'page')
-    await send(page, 'where were we?')
-    await expect(page.getByText('Back on the trip.')).toBeVisible()
-    expect(fixture.requests[0].threadId).toBe('t-trip')
-  })
-
-  test('lists threads past the first page', async ({ page }) => {
-    const fixture = await setupAGUI(page, {
-      runs: [],
-      sessions: Array.from({ length: 101 }, (_, i) =>
-        aguiSession(`t-${i}`, `Thread ${i}`, { agentId: 'streamer-id' }, i + 1)
-      ),
-    })
-
-    await page.goto('/agui-chat?agent=streamer-id', {
-      waitUntil: 'networkidle',
-    })
-
-    const list = threadList(page)
-    await expect(list.getByRole('listitem')).toHaveCount(101)
+      threadList(page).getByRole('link', { name: 'An old chat' })
+    ).toHaveCount(0)
     await expect(
-      list.getByRole('link', { name: 'Thread 100', exact: true })
+      page.locator('[data-sidebar="sidebar"]').getByRole('link', {
+        name: 'An old chat',
+      })
     ).toBeVisible()
-    // The sidebar's chat history lists web-chat too; only the thread list
-    // reads agui. It reached the second page (a dev-mode remount may walk
-    // twice), always scoped to the workspace.
+
+    // Each row shows its agent's avatar.
+    for (const [title, agentId] of [
+      ['Trip plan', 'streamer-id'],
+      ['Second agent chat', 'second-id'],
+      ['Old thread 98', 'streamer-id'],
+      ['Old thread 99', 'second-id'],
+    ] as const) {
+      await expect(
+        threadRow(page, title).locator('img'),
+        title
+      ).toHaveAttribute('src', ICONS[agentId])
+    }
+
+    // Every page was read, always scoped to the workspace.
     const threadLists = fixture.sessionCalls.lists.filter(
       (c) => c.appName === 'agui'
     )
@@ -95,45 +172,184 @@ test.describe('AG-UI threads', () => {
     expect(threadLists.every((c) => c.workspaceScoped)).toBe(true)
   })
 
-  test('renames a thread and deletes the open one', async ({ page }) => {
-    const fixture = await setupAGUI(page, { runs: [reply('Fresh start.')] })
-    fixture.sessions.push(
-      aguiSession('t-trip', 'Trip plan', { agentId: 'streamer-id' }, 1)
+  test('search filters by title', async ({ page }) => {
+    await setupAGUI(page, {
+      runs: [],
+      agentIcons: ICONS,
+      sessions: [
+        trip(),
+        aguiSession('t-untitled', '', { agentId: 'second-id' }, dayStart(0, 1)),
+        aguiSession(
+          't-budget',
+          'Budget review',
+          { agentId: 'streamer-id' },
+          dayStart(2)
+        ),
+      ],
+    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    const search = threadList(page).getByRole('textbox', {
+      name: 'Search threads',
+    })
+
+    await search.fill('BUDGET')
+    await expect(rowLinks(page)).toHaveText(['Budget review'])
+    await expect(
+      threadList(page).getByRole('group', { name: 'Today' })
+    ).toHaveCount(0)
+
+    // An untitled thread is found by the agent name it shows.
+    await search.fill('second')
+    await expect(rowLinks(page)).toHaveText(['Second'])
+
+    await search.fill('nothing like this')
+    await expect(rowLinks(page)).toHaveCount(0)
+    await expect(threadList(page).getByText('No threads found.')).toBeVisible()
+
+    await search.fill('')
+    await expect(rowLinks(page)).toHaveCount(3)
+  })
+
+  test('a row opens its thread and stays highlighted while it is open', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, {
+      runs: [reply('Back on the trip.')],
+      sessions: [
+        trip(),
+        aguiSession(
+          't-second',
+          'Second agent chat',
+          { agentId: 'second-id' },
+          dayStart(0, 1)
+        ),
+      ],
+    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+
+    const tripLink = threadList(page).getByRole('link', { name: 'Trip plan' })
+    const secondLink = threadList(page).getByRole('link', {
+      name: 'Second agent chat',
+    })
+    await expect(tripLink).toHaveAttribute('data-active', 'false')
+
+    await tripLink.click()
+    await expect(page).toHaveURL(/\/agui-chat\?thread=t-trip$/)
+    await expect(threadHeader(page, 'Trip plan')).toContainText('Streamer')
+    await expect(tripLink).toHaveAttribute('aria-current', 'page')
+    await expect(tripLink).toHaveAttribute('data-active', 'true')
+    await expect(secondLink).toHaveAttribute('data-active', 'false')
+    await send(page, 'where were we?')
+    await expect(page.getByText('Back on the trip.')).toBeVisible()
+    expect(fixture.requests[0].threadId).toBe('t-trip')
+    expect(new URL(fixture.runURLs[0]).pathname).toBe('/api/agui/streamer-id')
+
+    // Another agent's thread opens with its own agent.
+    await secondLink.click()
+    await expect(page).toHaveURL(/\/agui-chat\?thread=t-second$/)
+    await expect(threadHeader(page, 'Second agent chat')).toContainText(
+      'Second'
     )
+    await expect(secondLink).toHaveAttribute('data-active', 'true')
+    await expect(tripLink).toHaveAttribute('data-active', 'false')
+    await expect
+      .poll(() => fixture.historyRequests.at(-1))
+      .toContain('/api/agui/second-id/threads/t-second/messages')
+  })
 
+  test('renaming from the sidebar updates the row and the page header', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, { runs: [], sessions: [trip()] })
     await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
-    const list = threadList(page)
+    await expect(threadHeader(page, 'Trip plan')).toBeVisible()
 
-    await threadActions(page, 'Trip plan').click()
-    await page.getByRole('menuitem', { name: 'Rename' }).click()
-    const input = list.getByRole('textbox')
+    await threadAction(page, 'Trip plan', 'Rename')
+    const input = threadList(page).getByRole('textbox', { name: 'Chat title' })
+    await expect(input).toHaveValue('Trip plan')
     await input.fill('Kyoto trip')
     await input.press('Enter')
-    await expect(list.getByRole('link', { name: 'Kyoto trip' })).toBeVisible()
+
+    await expect(
+      threadList(page).getByRole('link', { name: 'Kyoto trip' })
+    ).toBeVisible()
+    await expect(threadHeader(page, 'Kyoto trip')).toBeVisible()
     expect(fixture.sessionCalls.renames).toEqual([
       { sessionId: 'agui-t-trip', appName: 'agui', title: 'Kyoto trip' },
     ])
+  })
 
-    await threadActions(page, 'Kyoto trip').click()
-    await page.getByRole('menuitem', { name: 'Delete' }).click()
-    await page
-      .getByRole('alertdialog')
-      .getByRole('button', { name: 'Delete' })
-      .click()
-    await expect(page.getByText('Thread deleted')).toBeVisible()
+  test('deleting another thread keeps the open one; deleting the open one lands on a new-chat draft', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, {
+      runs: [reply('Fresh start.')],
+      agentIcons: ICONS,
+      sessions: [
+        trip(),
+        aguiSession(
+          't-budget',
+          'Budget review',
+          { agentId: 'second-id' },
+          dayStart(2)
+        ),
+      ],
+    })
+    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+
+    await threadAction(page, 'Budget review', 'Delete')
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toContainText('Budget review')
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+    await expect(rowLinks(page)).toHaveText(['Trip plan'])
+    await expect(page).toHaveURL(/\/agui-chat\?thread=t-trip$/)
+    await expect(threadHeader(page, 'Trip plan')).toBeVisible()
+
+    await threadAction(page, 'Trip plan', 'Delete')
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+    await expect(page.getByText('Thread deleted').first()).toBeVisible()
     expect(fixture.sessionCalls.deletes).toEqual([
+      { sessionId: 'agui-t-budget', appName: 'agui' },
       { sessionId: 'agui-t-trip', appName: 'agui' },
     ])
-    await expect(list.getByText('No threads with this agent yet.')).toBeVisible()
+    await expect(threadList(page).getByText('No threads found.')).toBeVisible()
 
-    // The deleted thread is gone: the page is a new draft with its agent,
-    // and the next message starts a new thread.
-    expect(threadInURL(page)).toBeNull()
+    // The open thread is gone: the page is a new draft with its agent, and
+    // the next message starts a new thread.
+    await expect(page).toHaveURL(/\/agui-chat\?agent=streamer-id$/)
+    await expect(
+      page.getByRole('heading', { name: 'Streamer', exact: true })
+    ).toBeVisible()
     await send(page, 'hello again')
     await expect(page.getByText('Fresh start.')).toBeVisible()
     const newThreadId = fixture.requests[0].threadId as string
     expect(newThreadId).not.toBe('t-trip')
     expect(threadInURL(page)).toBe(newThreadId)
+  })
+
+  test('New thread starts a draft with the open thread’s agent', async ({
+    page,
+  }) => {
+    await setupAGUI(page, {
+      runs: [],
+      sessions: [
+        aguiSession(
+          't-second',
+          'Second agent chat',
+          { agentId: 'second-id' },
+          dayStart(0, 1)
+        ),
+      ],
+    })
+    await page.goto('/agui-chat?thread=t-second', { waitUntil: 'networkidle' })
+    await expect(threadHeader(page, 'Second agent chat')).toBeVisible()
+
+    await threadList(page).getByRole('link', { name: 'New thread' }).click()
+    await expect(page).toHaveURL(/\/agui-chat\?agent=second-id$/)
+    await expect(
+      page.getByRole('heading', { name: 'Second', exact: true })
+    ).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled()
   })
 
   test('shows the title the server gives a new thread, without asking for one', async ({
@@ -145,22 +361,22 @@ test.describe('AG-UI threads', () => {
     await page.goto('/agui-chat?agent=streamer-id', {
       waitUntil: 'networkidle',
     })
-    const list = threadList(page)
-    await expect(list.getByText('No threads with this agent yet.')).toBeVisible()
+    await expect(threadList(page).getByText('No threads found.')).toBeVisible()
 
     await send(page, 'Plan a trip to Kyoto')
     await expect(page.getByText('Here is a plan.')).toBeVisible()
-    // The list read when the run ends shows the thread before its title.
-    await expect(
-      list.getByRole('link', { name: 'Untitled thread' })
-    ).toBeVisible()
+    // The list read when the run ends shows the thread, under its agent's
+    // name until it has a title.
+    const row = threadList(page).getByRole('link', { name: 'Streamer' })
+    await expect(row).toBeVisible()
+    await expect(row).toHaveAttribute('aria-current', 'page')
 
     // The server stores the title after the run; the list and the header
     // catch up.
     fixture.sessions[0].title = 'Kyoto trip'
-    await expect(list.getByRole('link', { name: 'Kyoto trip' })).toBeVisible({
-      timeout: 15_000,
-    })
+    await expect(
+      threadList(page).getByRole('link', { name: 'Kyoto trip' })
+    ).toBeVisible({ timeout: 15_000 })
     await expect(
       page.getByRole('heading', { name: 'Kyoto trip', level: 1 })
     ).toBeVisible()
@@ -174,9 +390,7 @@ test.describe('AG-UI threads', () => {
     const fixture = await setupAGUI(page, {
       runs: [reply('Hotels are next.')],
       historyByThread: { 't-trip': tripHistory() },
-      sessions: [
-        aguiSession('t-trip', 'Trip plan', { agentId: 'streamer-id' }, 1),
-      ],
+      sessions: [trip()],
     })
     await page.goto('/agui-chat?agent=streamer-id', {
       waitUntil: 'networkidle',
@@ -225,9 +439,7 @@ test.describe('AG-UI threads', () => {
           ],
         }),
       },
-      sessions: [
-        aguiSession('t-trip', 'Trip plan', { agentId: 'streamer-id' }, 1),
-      ],
+      sessions: [trip()],
     })
     await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
 
@@ -239,6 +451,57 @@ test.describe('AG-UI threads', () => {
     expect(resume).toEqual([
       { interruptId: 'int-1', status: 'resolved', payload: 'yes' },
     ])
+  })
+})
+
+test.describe('AG-UI threads on a narrow screen', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('threads are reached from the sidebar sheet, not from the page', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, {
+      runs: [],
+      historyByThread: { 't-trip': tripHistory() },
+      sessions: [
+        trip(),
+        aguiSession(
+          't-budget',
+          'Budget review',
+          { agentId: 'second-id' },
+          dayStart(2)
+        ),
+      ],
+    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    // The page has no thread list or drawer of its own.
+    await expect(threadList(page)).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: 'Show threads' })
+    ).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Toggle Sidebar' }).first().click()
+    const sheet = page.getByRole('dialog', { name: 'Sidebar' })
+    const list = sheet.getByRole('navigation', { name: 'AG-UI threads' })
+
+    // A thread is deleted from the sheet too; the sheet stays open.
+    await threadAction(page, 'Budget review', 'Delete')
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Delete' })
+      .click()
+    await expect(list.getByRole('link', { name: 'Budget review' })).toHaveCount(
+      0
+    )
+    expect(fixture.sessionCalls.deletes).toEqual([
+      { sessionId: 'agui-t-budget', appName: 'agui' },
+    ])
+
+    await list.getByRole('link', { name: 'Trip plan' }).click()
+    await expect(page).toHaveURL(/\/agui-chat\?thread=t-trip$/)
+    // Opening a thread closes the sheet on it.
+    await expect(sheet).toHaveCount(0)
+    await expect(page.getByText('Booked the 08:10 flight.')).toBeVisible()
   })
 })
 

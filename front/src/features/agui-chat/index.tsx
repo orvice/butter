@@ -34,12 +34,7 @@ import { ChevronDown, History, Reply, Send, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { BASE_URL, authHeaders } from '@/api/client'
-import {
-  useAllSessions,
-  useDeleteSession,
-  useSessionInfo,
-  useUpdateSessionTitle,
-} from '@/api/sessions'
+import { useSessionInfo, useUpdateSessionTitle } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/context/workspace-provider'
@@ -56,7 +51,6 @@ import {
 } from '@/components/chat/thread-states'
 import { ToolCallView } from '@/components/chat/tool-views'
 import { chatAuiConfig } from '@/components/chat/toolkit'
-import { DeleteDialog } from '@/components/delete-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -83,19 +77,17 @@ import {
   ThreadLoading,
   ThreadNotFound,
 } from './open-thread-states'
+import { useThreadDelete, type SessionAddress } from './thread-delete'
 import { ThreadHeader } from './thread-header'
-import { ThreadsPanel } from './thread-list'
 import {
   AGUI_APP_NAME,
-  THREAD_PAGE_SIZE,
   TITLE_REFRESH_DELAYS_MS,
-  agentThreads,
   newThreadId,
   resolveThreadView,
   sessionIdOf,
   threadIdOf,
-  threadTitle,
 } from './threads'
+import { useThreadSessions } from './use-threads'
 
 function makeHttpAgent(agentId: string, threadId: string): ButterAGUIAgent {
   return new ButterAGUIAgent({
@@ -121,22 +113,6 @@ interface StartedThread {
   firstMessage?: string
 }
 
-// SessionAddress names one session for SessionService.
-interface SessionAddress {
-  app_name: string
-  user_id: string
-  session_id: string
-}
-
-// DeleteTarget is a thread whose deletion is being confirmed.
-interface DeleteTarget {
-  session: SessionAddress
-  title: string
-  // agentId is the agent a new-chat draft starts with if the open thread
-  // goes.
-  agentId: string | null
-}
-
 // AGUIChatPage is AG-UI Chat. The URL is its source of truth: ?thread=<id>
 // opens that thread with the agent its binding names; without it the page is
 // a new-chat draft, whose agent ?agent=<agent_id> preselects. The first
@@ -154,17 +130,8 @@ export function AGUIChatPage() {
   )
   const threadId = search.thread || null
 
-  // The server keeps the listing to the caller's own `agui` sessions in this
-  // workspace; every page is read, so no thread is dropped.
-  const sessionsQuery = useAllSessions(
-    {
-      app_name: AGUI_APP_NAME,
-      user_id: userId || undefined,
-      workspace_scoped: true,
-      page_size: THREAD_PAGE_SIZE,
-    },
-    { enabled: !!userId && !!selectedWorkspaceId }
-  )
+  // The caller's threads, as the sidebar lists them.
+  const sessionsQuery = useThreadSessions()
 
   // A new chat starts with the agent the URL names, else the one picked
   // last in this workspace. A pick is remembered and goes into the URL.
@@ -219,8 +186,9 @@ export function AGUIChatPage() {
   const openAgentId = open?.agentId ?? null
   const openAgent = agents.find((a) => a.agent_id === openAgentId) ?? null
   const openSession = open?.session ?? null
-  // The open thread's AG-UI client, to stop its run before it is deleted.
-  const openClient = useRef<ButterAGUIAgent | null>(null)
+  // Threads are deleted from the header and from the sidebar alike; the
+  // open thread's AG-UI client is held there, so its run stops first.
+  const { requestDelete, openClient } = useThreadDelete()
 
   // A thread the server refused to run, and one whose conversation could
   // not be read, show that instead of the conversation. A retry reads the
@@ -302,19 +270,6 @@ export function AGUIChatPage() {
       replace: true,
     })
 
-  // The in-page list shows the open thread's agent's threads, or the
-  // draft agent's.
-  const listAgentId = openAgentId ?? draft?.agent_id ?? null
-  const listThreads =
-    listAgentId && selectedWorkspaceId
-      ? agentThreads(
-          sessionsQuery.data?.sessions ?? [],
-          selectedWorkspaceId,
-          listAgentId
-        )
-      : []
-  const [threadsOpen, setThreadsOpen] = useState(false)
-
   // After every run: a thread's first run creates its session, so refresh
   // the threads. The server titles a thread that has none once a run on it
   // succeeds, and that title lands after the run ends, so for an untitled
@@ -339,25 +294,6 @@ export function AGUIChatPage() {
     })
   }
 
-  const deleteMutation = useDeleteSession()
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
-  const handleDeleteConfirm = () => {
-    if (!deleteTarget) return
-    const target = deleteTarget
-    const isOpen =
-      !!threadId && target.session.session_id === sessionIdOf(threadId)
-    // Stop a run on the thread before its session goes away.
-    if (isOpen) openClient.current?.abortRun()
-    deleteMutation.mutate(target.session, {
-      onSuccess: () => {
-        toast.success('Thread deleted')
-        setDeleteTarget(null)
-        if (isOpen) startNewChat(target.agentId)
-      },
-      onError: (err) => toast.error(err.message),
-    })
-  }
-
   let header: ReactNode = null
   let content: ReactNode
   if (!threadId) {
@@ -366,7 +302,6 @@ export function AGUIChatPage() {
         agent={draft}
         agentSelector={<AgentSelector selected={draft} onPick={pickAgent} />}
         onSend={startThread}
-        onOpenThreads={() => setThreadsOpen(true)}
       />
     )
   } else if (refused?.threadId === threadId) {
@@ -415,9 +350,8 @@ export function AGUIChatPage() {
         threadId={threadId}
         onRename={(t) => handleRename(address, t)}
         onDelete={() =>
-          setDeleteTarget({ session: address, title, agentId: openAgentId })
+          requestDelete({ session: address, title, agentId: openAgentId })
         }
-        onOpenThreads={() => setThreadsOpen(true)}
       />
     )
     content = (
@@ -441,37 +375,9 @@ export function AGUIChatPage() {
     <>
       <PageHeader />
       <Main fixed fluid className='flex flex-col px-0 py-0'>
-        <div className='flex min-h-0 flex-1'>
-          <ThreadsPanel
-            threads={listThreads}
-            activeThreadId={threadId}
-            isLoading={sessionsQuery.isLoading}
-            agentId={listAgentId}
-            onRename={handleRename}
-            onDelete={(s) =>
-              setDeleteTarget({
-                session: s,
-                title: threadTitle(s),
-                agentId: listAgentId,
-              })
-            }
-            drawerOpen={threadsOpen}
-            onDrawerOpenChange={setThreadsOpen}
-          />
-          <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
-            {header}
-            {content}
-          </div>
-        </div>
+        {header}
+        {content}
       </Main>
-      <DeleteDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title='Delete thread'
-        description={`Delete thread "${deleteTarget?.title ?? ''}"? Its messages, cards and forms are removed. This cannot be undone.`}
-        loading={deleteMutation.isPending}
-        onConfirm={handleDeleteConfirm}
-      />
     </>
   )
 }

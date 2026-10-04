@@ -1,13 +1,15 @@
-import type { SessionInfo } from '@/types/api'
+import type { Agent, SessionInfo } from '@/types/api'
 import { describe, expect, it } from 'vitest'
 import {
-  agentThreads,
   boundAgentId,
   resolveThreadView,
+  searchThreads,
   sessionIdOf,
   threadBinding,
   threadIdOf,
+  threadRows,
   threadTitle,
+  workspaceThreads,
   type ThreadLookup,
 } from './threads'
 
@@ -63,8 +65,8 @@ describe('threadIdOf', () => {
   })
 })
 
-describe('agentThreads', () => {
-  it('keeps only this agent and workspace, in the given order', () => {
+describe('workspaceThreads', () => {
+  it('keeps this workspace’s threads with every agent, in the given order', () => {
     const sessions = [
       bound('t3'),
       bound('t2', 'agent-b'),
@@ -72,8 +74,13 @@ describe('agentThreads', () => {
       bound('t0', 'agent-a', 'ws-2'),
     ]
     expect(
-      agentThreads(sessions, 'ws-1', 'agent-a').map((s) => s.session_id)
-    ).toEqual(['agui-t3', 'agui-t1'])
+      workspaceThreads(sessions, 'ws-1').map((t) => [t.threadId, t.agentId])
+    ).toEqual([
+      ['t3', 'agent-a'],
+      ['t2', 'agent-b'],
+      ['t1', 'agent-a'],
+    ])
+    expect(workspaceThreads(sessions, 'ws-1')[1].session).toBe(sessions[1])
   })
 
   it('drops unbound threads, other apps, and bindings for another thread', () => {
@@ -85,18 +92,83 @@ describe('agentThreads', () => {
     const sessions = [
       aguiSession('t1', undefined),
       { ...bound('t3'), app_name: 'web-chat' },
+      { ...bound('t4'), session_id: 'web-t4' },
       mismatched,
     ]
-    expect(agentThreads(sessions, 'ws-1', 'agent-a')).toEqual([])
+    expect(workspaceThreads(sessions, 'ws-1')).toEqual([])
   })
 })
 
 describe('threadTitle', () => {
-  it('falls back for an untitled thread', () => {
+  it('falls back to the agent’s name for an untitled thread', () => {
     expect(threadTitle({ ...bound('t1'), title: '  Trip plan ' })).toBe(
       'Trip plan'
     )
+    expect(threadTitle({ ...bound('t1'), title: '  ' }, 'Streamer')).toBe(
+      'Streamer'
+    )
     expect(threadTitle(bound('t1'))).toBe('Untitled thread')
+  })
+})
+
+describe('threadRows', () => {
+  const agents: Agent[] = [
+    { name: 'Streamer', agent_id: 'agent-a' },
+    { name: 'Second', agent_id: 'agent-b', metadata: { icon_url: 'b.png' } },
+    // An agent without an ID cannot be named by a binding.
+    { name: 'Nameless' },
+  ]
+
+  it('gives each thread the agent its binding names, and that agent’s name as a fallback title', () => {
+    const rows = threadRows(
+      [
+        { ...bound('t1'), title: 'Trip plan' },
+        bound('t2', 'agent-b'),
+        bound('t3', 'agent-gone'),
+        bound('t0', 'agent-a', 'ws-2'),
+      ],
+      'ws-1',
+      agents
+    )
+    expect(
+      rows.map((r) => [r.threadId, r.agentId, r.agent?.name, r.title])
+    ).toEqual([
+      ['t1', 'agent-a', 'Streamer', 'Trip plan'],
+      ['t2', 'agent-b', 'Second', 'Second'],
+      // The agent list lacks it: the thread is still listed.
+      ['t3', 'agent-gone', undefined, 'Untitled thread'],
+    ])
+    expect(rows[1].agent).toBe(agents[1])
+  })
+})
+
+describe('searchThreads', () => {
+  const rows = threadRows(
+    [
+      { ...bound('t1'), title: 'Trip to Kyoto' },
+      { ...bound('t2'), title: 'Budget' },
+      bound('t3', 'agent-b'),
+    ],
+    'ws-1',
+    [
+      { name: 'Streamer', agent_id: 'agent-a' },
+      { name: 'Second', agent_id: 'agent-b' },
+    ]
+  )
+  const titles = (query: string) =>
+    searchThreads(rows, query).map((r) => r.title)
+
+  it('matches the title a row shows, ignoring case and surrounding space', () => {
+    expect(titles('kyoto')).toEqual(['Trip to Kyoto'])
+    expect(titles('  BUD ')).toEqual(['Budget'])
+    // An untitled thread is found by the agent name it shows.
+    expect(titles('second')).toEqual(['Second'])
+    expect(titles('nothing like it')).toEqual([])
+  })
+
+  it('keeps every row for an empty query', () => {
+    expect(titles('')).toEqual(['Trip to Kyoto', 'Budget', 'Second'])
+    expect(titles('   ')).toHaveLength(3)
   })
 })
 

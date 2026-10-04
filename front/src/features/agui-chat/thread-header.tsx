@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { MoreHorizontal, PanelLeft, Pencil, Trash2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +22,6 @@ export function ThreadHeader({
   threadId,
   onRename,
   onDelete,
-  onOpenThreads,
 }: {
   title: string
   agentName: string
@@ -31,23 +29,12 @@ export function ThreadHeader({
   threadId: string
   onRename: (title: string) => Promise<void>
   onDelete: () => void
-  onOpenThreads?: () => void
 }) {
   const [editing, setEditing] = useState(false)
 
   return (
     <header className='flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background/95 px-2.5 sm:px-4'>
       <div className='flex min-w-0 flex-1 items-center gap-2.5'>
-        {onOpenThreads && (
-          <button
-            type='button'
-            className={cn(ICON_BUTTON, 'md:hidden')}
-            aria-label='Show threads'
-            onClick={onOpenThreads}
-          >
-            <PanelLeft className='size-4' />
-          </button>
-        )}
         <AgentAvatar name={agentName} iconUrl={agentIconUrl} size='sm' />
         <span className='flex max-w-md min-w-0 flex-1 flex-col'>
           {editing ? (
