@@ -26,6 +26,7 @@ import (
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -416,6 +417,9 @@ func (s *SessionServiceServer) CreateSession(ctx context.Context, req *connect.R
 		State:     state,
 	})
 	if err != nil {
+		if errors.Is(err, sessionshare.ErrIDTaken) {
+			return nil, errSessionIDTaken()
+		}
 		logger.Error("create session failed",
 			"app_name", req.Msg.GetAppName(),
 			"user_id", req.Msg.GetUserId(),
@@ -841,7 +845,7 @@ func (s *SessionServiceServer) ReplySession(ctx context.Context, req *connect.Re
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
 		)
-		return nil, connectx.InternalWith(err)
+		return nil, turnError(err)
 	}
 	logger.Info("session reply completed",
 		"agent", agentName,

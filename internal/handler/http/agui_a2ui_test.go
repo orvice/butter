@@ -73,7 +73,7 @@ func (w dropCustomWriter) Write(b []byte) (int, error) {
 // agents. Every agent is AG-UI-enabled; models are served by the fake.
 func newA2UIHarness(t *testing.T, agents []agentsv1.Agent, models ...string) *a2uiHarness {
 	t.Helper()
-	h := &a2uiHarness{t: t, backend: openaifake.New(t), sessions: adksession.InMemoryService(), guard: &fakeSessionGuard{}}
+	h := &a2uiHarness{t: t, backend: openaifake.New(t), sessions: newStoreLikeSessions(), guard: &fakeSessionGuard{}}
 	h.router = h.build(agents, models)
 	return h
 }
@@ -609,11 +609,11 @@ func TestAGUIA2UI_CardSurvivesInSnapshotAndRestart(t *testing.T) {
 	}
 }
 
-// The same caller reusing a threadId under another workspace or agent lands
-// on the same session (its key is caller + thread). The session's UI stays
-// with the context that created it: the other context is offered no
-// render_ui and its snapshot is empty. Another user's snapshot of the same
-// threadId is empty too.
+// The same caller reusing a threadId under another agent lands on the same
+// session (its key is caller + thread). The session's UI stays with the agent
+// that created it: the other agent is offered no render_ui and its snapshot
+// is empty. Reusing the threadId from another workspace, or as another user,
+// is refused before anything runs, and their snapshots are empty too.
 func TestAGUIA2UI_ThreadIDReuseIsIsolated(t *testing.T) {
 	h := newA2UIHarness(t, []agentsv1.Agent{
 		cardAgent(),
@@ -629,32 +629,38 @@ func TestAGUIA2UI_ThreadIDReuseIsIsolated(t *testing.T) {
 		t.Fatalf("setup: card not rendered\n%s", w.Body.String())
 	}
 
+	t.Run("another agent", func(t *testing.T) {
+		w := h.post("other", a2uiBody("t-shared", "hello"))
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+		}
+		if containsString(h.offeredTools("other-model"), "render_ui") {
+			t.Error("render_ui offered to an agent the session is not bound to")
+		}
+		if got := a2uiValues(sseEvents(t, w.Body.String())); len(got) != 0 {
+			t.Errorf("UI leaked to another agent: %+v", got)
+		}
+		if got := h.snapshotSurfaces("other", "t-shared"); len(got) != 0 {
+			t.Errorf("snapshot leaked the card: %+v", got)
+		}
+	})
 	for name, opts := range map[string][]a2uiOpt{
-		"another agent":     nil,
 		"another workspace": {inWorkspace("ws-b")},
+		"another user":      {asUser("u2")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			agentID := "other"
-			if name == "another workspace" {
-				agentID = "carder"
+			calls := h.backend.CallCount("card-model") + h.backend.CallCount("other-model")
+			w := h.post("carder", a2uiBody("t-shared", "hello"), opts...)
+			if w.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, body = %s; want 403", w.Code, w.Body.String())
 			}
-			w := h.post(agentID, a2uiBody("t-shared", "hello"), opts...)
-			if w.Code != http.StatusOK {
-				t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+			if h.backend.CallCount("card-model")+h.backend.CallCount("other-model") != calls {
+				t.Error("a refused thread ran the agent")
 			}
-			if containsString(h.offeredTools("other-model"), "render_ui") {
-				t.Error("render_ui offered in a context the session is not bound to")
-			}
-			if got := a2uiValues(sseEvents(t, w.Body.String())); len(got) != 0 {
-				t.Errorf("UI leaked into another context: %+v", got)
-			}
-			if got := h.snapshotSurfaces(agentID, "t-shared", opts...); len(got) != 0 {
+			if got := h.snapshotSurfaces("carder", "t-shared", opts...); len(got) != 0 {
 				t.Errorf("snapshot leaked the card: %+v", got)
 			}
 		})
-	}
-	if got := h.snapshotSurfaces("carder", "t-shared", asUser("u2")); len(got) != 0 {
-		t.Errorf("another user's snapshot shows the card: %+v", got)
 	}
 	// The owning context still sees its card.
 	if got := h.snapshotSurfaces("carder", "t-shared"); len(got) != 1 {
@@ -1180,7 +1186,8 @@ func TestAGUIA2UI_FormRejectsBadSubmissions(t *testing.T) {
 			m["values"] = map[string]any{"env": "prod", "reason": strings.Repeat("r", 21)}
 		}), status: http.StatusUnprocessableEntity, field: "reason", code: "form_invalid"},
 		{name: "another workspace", payload: sub(func(map[string]any) {}), opts: []a2uiOpt{inWorkspace("ws-b")}, status: http.StatusNotFound},
-		{name: "another user", payload: sub(func(map[string]any) {}), opts: []a2uiOpt{asUser("u2")}, status: http.StatusBadRequest, want: "unknown or expired form", code: "form_unknown"},
+		// Another user holds no session under this threadId and may not take it.
+		{name: "another user", payload: sub(func(map[string]any) {}), opts: []a2uiOpt{asUser("u2")}, status: http.StatusForbidden, want: "threadId is not available"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1590,8 +1597,9 @@ func TestAGUIA2UI_OutcomeListsOpenInterruptsForA2UIClients(t *testing.T) {
 }
 
 // A form is submittable only from the context that owns its thread: the same
-// caller reusing the threadId with another agent, or under another workspace
-// whose agent shares the agent_id, is refused before anything runs.
+// caller reusing the threadId with another agent finds no such form, and
+// under another workspace whose agent shares the agent_id the thread itself
+// is refused. Either way nothing runs.
 func TestAGUIA2UI_FormSubmissionFromAnotherContext(t *testing.T) {
 	agents := approvalWorkflow(deployForm())
 	agents = append(agents,
@@ -1606,13 +1614,15 @@ func TestAGUIA2UI_FormSubmissionFromAnotherContext(t *testing.T) {
 	for name, tc := range map[string]struct {
 		agentID string
 		opts    []a2uiOpt
+		status  int
+		want    string
 	}{
-		"another agent":     {agentID: "other"},
-		"another workspace": {agentID: "approval", opts: []a2uiOpt{inWorkspace("ws-b")}},
+		"another agent":     {agentID: "other", status: http.StatusBadRequest, want: `"code":"form_unknown"`},
+		"another workspace": {agentID: "approval", opts: []a2uiOpt{inWorkspace("ws-b")}, status: http.StatusForbidden, want: "threadId is not available"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := h.post(tc.agentID, resumeBody("t-ctx", "run-x", fx.interruptID, formSubmission(fx.form, fx.surfaceID, validDeployValues())), tc.opts...)
-			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"code":"form_unknown"`) {
+			if w.Code != tc.status || !strings.Contains(w.Body.String(), tc.want) {
 				t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 			}
 		})

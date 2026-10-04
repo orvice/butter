@@ -90,6 +90,7 @@ type AgentServiceServer struct {
 	sessionSvc      adksession.Service
 	sessionExcluder SessionExcluder
 	cutoverSources  *AgentCutoverSources
+	sessionAuth     sessionTurnAuthorizer
 
 	// asyncSubmitMu serializes the short accept transaction (idempotency
 	// lookup, active-session check, optional Session creation, Invocation
@@ -99,6 +100,31 @@ type AgentServiceServer struct {
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
 	return &AgentServiceServer{repo: repo}
+}
+
+// sessionTurnAuthorizer applies the session access policy to a turn on a
+// session that may not exist yet (satisfied by *SessionServiceServer).
+type sessionTurnAuthorizer interface {
+	AuthorizeTurn(ctx context.Context, appName, userID, sessionID string) error
+}
+
+// SetSessionAuthorizer wires the session access policy StreamAgent and
+// InvokeAgent apply before running a turn.
+func (s *AgentServiceServer) SetSessionAuthorizer(a sessionTurnAuthorizer) {
+	s.sessionAuth = a
+}
+
+// authorizeTurn applies the session access policy to a turn: the turn runs
+// with the session's whole history, so it needs the access ReplySession
+// needs. Unwired, it admits only global admins.
+func (s *AgentServiceServer) authorizeTurn(ctx context.Context, appName, userID, sessionID string) error {
+	if s.sessionAuth == nil {
+		if auth.IsAdmin(ctx) {
+			return nil
+		}
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("session access policy not available"))
+	}
+	return s.sessionAuth.AuthorizeTurn(ctx, appName, userID, sessionID)
 }
 
 // SetOperationRepo wires the durable Agent lifecycle operation store used by
@@ -761,10 +787,7 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 	if appName == "" {
 		appName = "api"
 	}
-	userID := req.Msg.GetUserId()
-	if userID == "" {
-		userID = "api"
-	}
+	userID := turnUserID(ctx, req.Msg.GetUserId())
 	sessionID := req.Msg.GetSessionId()
 	if sessionID == "" {
 		sessionID = "invoke-" + uuid.NewString()
@@ -780,6 +803,9 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 	}
 	agentName, err := resolveAgentRunnerRef(s.runnerSvc, wsID, req.Msg.GetAgentId())
 	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizeTurn(ctx, appName, userID, sessionID); err != nil {
 		return nil, err
 	}
 	ctxInfo := &agentsv1.ContextInfo{
@@ -813,7 +839,7 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 			"elapsed_ms", time.Since(start).Milliseconds(),
 			"err", err,
 		)
-		return nil, connectx.InternalWith(err)
+		return nil, turnError(err)
 	}
 	logger.Info("agent invocation completed",
 		"workspace_id", wsID,

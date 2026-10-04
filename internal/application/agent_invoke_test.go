@@ -53,6 +53,7 @@ func (r *invokeTestRunner) GetAgentIdentity(name string) (string, string, bool) 
 func newInvokeTestService(fake *invokeTestRunner) (*AgentServiceServer, context.Context) {
 	svc := NewAgentServiceServer(memory.New())
 	svc.runnerSvc = fake
+	svc.SetSessionAuthorizer(allowAllTurns{})
 	return svc, workspace.WithID(context.Background(), wsTest)
 }
 

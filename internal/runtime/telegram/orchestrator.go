@@ -15,6 +15,7 @@ import (
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	"go.orx.me/apps/butter/internal/repo/telegramprocessing"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/telegramapi"
 	"go.orx.me/apps/butter/internal/telegramqueue"
 	"go.orx.me/apps/butter/internal/telegramsend"
@@ -386,7 +387,10 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 		return err
 	}
 
-	turn, err := o.runner.RunTurnSSE(ctx, agentName, parts, decision.Model, ctxInfo, nil, nil)
+	// The session ID is derived here, never chosen by a caller, and under the
+	// Destination policy every member of the chat holds it: each member's
+	// own session document joins one shared conversation.
+	turn, err := o.runner.RunTurnSSE(sessionshare.Allow(ctx), agentName, parts, decision.Model, ctxInfo, nil, nil)
 	if err != nil {
 		// Report the failure in the originating topic rather than leaving the
 		// user waiting on silence, and mark the record uncertain: an
