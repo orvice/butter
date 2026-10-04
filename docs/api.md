@@ -640,8 +640,9 @@ plus `X-Workspace-ID`. Which agents a caller reaches depends on the token:
 Every other request for an agent returns `404` before the stream opens. An
 agent the runner cannot run (one that is provisioning, being deleted or
 deleted, or not loaded yet) is `404` too, whoever asks. The
-[UI snapshot](#ui-snapshot), [thread history](#thread-history) and
-[stop](#stopping-a-run) endpoints follow the same rules.
+[UI snapshot](#ui-snapshot), [thread history](#thread-history),
+[stop](#stopping-a-run) and [attach](#attaching-to-a-run) endpoints follow the
+same rules.
 
 **Request body** is an AG-UI `RunAgentInput`. Both camelCase and snake_case keys
 are accepted:
@@ -751,14 +752,27 @@ client leaves, with a Butter extension next to `butterA2UI`:
   start a new thread. The thread checks of [Sessions](#sessions) (`403`) and
   every other validation still answer before anything is detached.
 - **The run holds the thread.** The run, not the request, holds the thread's
-  lease, until its terminal state is recorded. Disconnecting, reloading or
-  leaving the page ends only the response: the run goes on to its end, and
-  everything it produces is persisted in the session as usual. A second `POST`
-  on the thread meanwhile is `409`, as for any run. The response is the run's
-  observer: while it stays connected it receives every event up to
-  `RUN_FINISHED` or `RUN_ERROR`, and it ends once the thread is free for the
-  next run. While the run is quiet, the stream carries an SSE comment
-  (`: heartbeat`) every 15 seconds; AG-UI clients skip it.
+  lease, until its terminal state is recorded and its terminal event is in
+  its run log. Disconnecting, reloading or leaving the page ends only the
+  response: the run goes on to its end, and everything it produces is
+  persisted in the session as usual. A second `POST` on the thread meanwhile
+  is `409`, as for any run.
+- **The response observes the run's log.** A detached run's events go to its
+  run log, and the response replays that log from `RUN_STARTED` and follows
+  it: while it stays connected it receives every event up to `RUN_FINISHED`
+  or `RUN_ERROR`, and it ends once the thread is free for the next run. A
+  client that left can follow the run again with
+  [`GET …/run`](#attaching-to-a-run), which serves the same sequence. While
+  the run is quiet, the stream carries an SSE comment (`: heartbeat`) every
+  15 seconds; AG-UI clients skip it. Two things differ from a run without
+  the opt-in:
+  - the stream always opens with a `STATE_SNAPSHOT`, right after
+    `RUN_STARTED`, even when the client's `state` matches the session's;
+  - consecutive `TEXT_MESSAGE_CONTENT` deltas of one message may arrive
+    joined into one, after up to 50 ms.
+
+  When the log cannot carry the run to its end, the stream ends with the
+  [fallback marker](#the-fallback-marker) instead.
 - **One run per `runId`.** `runId` names the request on its thread. A `POST`
   that repeats a `runId` the thread already ran detached is refused **before
   the stream opens** with `409` and `{"error": "…", "code": "run_exists"}`, so
@@ -780,14 +794,15 @@ client leaves, with a Butter extension next to `butterA2UI`:
   A failed run is never rerun: send the message again, as a new run.
 - **Stop.** Aborting the request only detaches its observer. To end the run
   on purpose, from any Pod, send a [Stop](#stopping-a-run).
-- **Not yet.** A detached run cannot yet be re-attached to after its client
-  left. While it runs, the thread history and the UI snapshot answer at once
-  with `running` and the thread as the run found it (see
-  [Reads during a run](#reads-during-a-run)), and they show its result once it
-  ends.
+- **After a reload.** While the run goes on, the thread history and the UI
+  snapshot answer at once with `running` and the thread as the run found it
+  (see [Reads during a run](#reads-during-a-run)), and
+  [attaching](#attaching-to-a-run) streams the rest of the run. The reads
+  show the run's result once it ends.
 
 Without the opt-in nothing changes: a disconnect cancels the run, and the run
-is recorded as before. A Stop does not reach such a run.
+is recorded as before. A Stop does not reach such a run, and it has no log to
+attach to.
 
 #### Stopping a run
 
@@ -836,6 +851,96 @@ It takes no body and answers at once; it never waits for the run to end.
 [`CancelAgentInvocation`](#cancelagentinvocation) on a detached run's
 Invocation, and [`DeleteSession`](#deletesession) on its thread, stop the run
 the same way.
+
+#### Attaching to a run
+
+```
+GET /api/agui/:agent_id/threads/:thread_id/run
+```
+
+Streams the thread's [detached run](#detached-runs) as AG-UI events over SSE,
+from whichever Pod serves the request, so a client that reloaded, or opened
+the thread elsewhere, follows the run again. It never starts a run.
+
+Every detached run writes its events to a **run log**, kept in Redis (in
+memory without Redis). The run's own `POST` response and every attach replay
+that log, so they all see the same sequence.
+
+- **Checks.** The same auth, workspace header, `agent_id` and binding rules
+  as the [thread history](#thread-history). Any other thread answers `204`,
+  so the endpoint reveals nothing about threads the caller does not own.
+- **`204 No Content`** when there is no log to follow:
+  - the thread is idle;
+  - its detached run ended more than 5 minutes ago (the log's retention);
+  - its run was started without `forwardedProps.butterRun`;
+  - the thread was deleted.
+- **`200 OK`** otherwise, with `text/event-stream`:
+  - **Replay, then live.** The stream starts at the run's `RUN_STARTED`,
+    under the run's own `runId`, carries every event the run sent so far,
+    then each new one as it comes, and ends with the run's `RUN_FINISHED` or
+    `RUN_ERROR`. A run that ended within the retention is replayed whole.
+  - **Heartbeats.** While the run is quiet, the stream carries `: heartbeat`
+    every 15 seconds; AG-UI clients skip it.
+  - **Self-contained.** The stream opens with a `STATE_SNAPSHOT`, and its
+    `butter.a2ui` events move the client on from the surfaces as they stood
+    when the run started. That is what the thread reads return during the
+    run (see [Reads during a run](#reads-during-a-run)), so the reads and the
+    replay together rebuild the whole thread. One exception: when the run's
+    first turn answered a form, the snapshot read during the run no longer
+    lists that form, and the replay still ends by marking it answered.
+    Ignore an envelope for a surface you do not hold.
+  - **Observers are independent.** Disconnecting ends only that observer; the
+    run, and every other observer, go on.
+- **Errors.** `400` without a `threadId`; `503` when the session store, the
+  run state or the run log cannot be read. Retry those.
+
+A typical client, after a reload: read the [thread history](#thread-history)
+and the [UI snapshot](#ui-snapshot); when the history reports `running`,
+attach and render the replay as the reply in progress. When attaching answers
+`204`, or the stream ends with the fallback marker, poll the history until
+`running` is gone, then read the history and the UI snapshot again.
+
+##### The fallback marker
+
+An observer that cannot follow the run from `RUN_STARTED` to its end ends its
+stream with a Butter `CUSTOM` event instead of the run's end, and the client
+reads the thread instead:
+
+```
+data: {"type":"CUSTOM","name":"butter.fallback","value":{"threadId":"t-1","runId":"run-1","reason":"truncated"}}
+```
+
+- **`reason`** says why:
+  - `truncated`: the log stopped short of the run's end. The run's events
+    outgrew the log's limits, the log fell behind its store, or the run ended
+    without its last events reaching the log.
+  - `expired`: the log is gone, after its retention or because the thread
+    was deleted.
+  - `lost`: the run lost the thread without its end reaching the log, as
+    when the server running it died; also when the log could not be read for
+    15 seconds.
+- **The run is not affected.** It goes on to its end, and its Invocation
+  record and the thread's session hold everything it produced.
+- **It can end any observer**, the run's own `POST` response included.
+- **Always a valid stream.** A stream that carried no event yet opens with
+  `RUN_STARTED` before the marker.
+- **No `RUN_ERROR` follows** it: the run did not fail.
+
+##### Limits
+
+- **Size.** A run log holds at most 50,000 events and 8 MiB of encoded
+  events. A run that outgrows either goes on; its log ends there, and its
+  observers get the marker (`truncated`).
+- **Text.** Consecutive `TEXT_MESSAGE_CONTENT` deltas of one message are
+  joined in the log, each held at most 50 ms.
+- **Retention.** A log lasts while its run goes on, and 5 minutes after the
+  run ended. The run of a server that died stops renewing its log, which
+  lapses within 5 minutes, as its run state does. Deleting the thread drops
+  the log at once.
+- **The run never waits for the log.** Its events are queued and written in
+  the background. If the log's store falls more than 8 MiB behind, the log
+  stops short (`truncated`). A run that ended waits at most 10 seconds for
+  its last events to reach the log before it frees the thread.
 
 #### Message content
 
@@ -1276,7 +1381,7 @@ sending only the trailing message, as before.
   - A tool call appears only with its result, or while the session still waits for a result from the client. So a client that cancels unresolved calls before sending never sends a result the server would reject.
 - **`interrupts`** are the Interrupts still open, exactly as the last run's `RUN_FINISHED` reported them. Attach them to the last assistant message.
 - **`surfaces`** gives, for each surface the UI snapshot restores, the assistant message that produced it (`messageId`).
-- **`running`** names the run in flight, `{"runId": "…", "invocationId": "…"}`, and is absent when there is none. While it is present, `messages` end with the turn that started the run. The rest of the run comes through the run itself; see [Reads during a run](#reads-during-a-run).
+- **`running`** names the run in flight, `{"runId": "…", "invocationId": "…"}`, and is absent when there is none. While it is present, `messages` end with the turn that started the run. The rest of the run comes through the run itself, which a detached run's client can [attach to](#attaching-to-a-run); see [Reads during a run](#reads-during-a-run).
 - **`lastRun`** reports how the thread's latest run ended when it did not succeed, so a client can show the outcome after a reload and offer the input again: `{"status": "failed", "error": "…", "input": "…"}`.
   - `status` is `failed`, or `cancelled` when a person stopped the run.
   - `error` is the reason the run's [Invocation](#invocation-object) records, meant to be shown as it is.
@@ -1304,7 +1409,8 @@ found, and leaves out what the run has stored so far:
 - **Left out:** everything else the run has stored, though it is already
   persisted. That covers its text, tool calls and results, the Interrupts it
   raised, and the cards it created, changed or deleted. It reaches a client
-  through the run itself, or in the first read after the run ends.
+  through the run itself (for a detached run, also by
+  [attaching](#attaching-to-a-run)), or in the first read after the run ends.
 - **Answered Interrupts:** an Interrupt that the run's first turn answered is
   not in `interrupts`, and its form is not in the snapshot.
 - **The UI snapshot** is cut at the same point: the cards as they stood before
@@ -1313,7 +1419,9 @@ found, and leaves out what the run has stored so far:
   ends while it reads, so it never shows half a run. When a run has just
   started and not yet stored its first turn, the read waits a moment for it,
   under a second in all, then answers without it.
-- **After the run** the reads show everything it stored, and no `running`.
+- **After the run** the reads show everything it stored, and no `running`. A
+  detached run's state is kept, marked ended, as long as its log, so that
+  attaching still finds the run; the reads never take it for a run in flight.
 - **A server that dies mid-run:** its run reads as running until its run
   state lapses with its lease, at most 5 minutes later.
 - **Errors:** `503` when the run state cannot be read, or when runs kept
@@ -3520,7 +3628,8 @@ Deleting an AG-UI thread (`app_name` `agui`) first stops its
 [detached run](#stopping-a-run), on whichever Pod runs it; the run ends
 `CANCELLED`. The delete then takes the thread's lease itself and deletes
 under it, so no run starts or writes on the thread in between, and drops
-the thread's run state, so a reused `threadId` never reads as running. If
+the thread's run state and its run's [log](#attaching-to-a-run), so a reused
+`threadId` never reads as running nor replays the deleted conversation. If
 the lease does not come free within 10 seconds — for instance while a run
 started without `forwardedProps.butterRun` holds the thread, which a Stop
 does not reach — the delete fails with `unavailable` and deletes nothing;

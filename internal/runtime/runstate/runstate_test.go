@@ -189,7 +189,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err := s.Begin(t.Context(), "t", run("b")); err != nil {
 			t.Fatalf("Begin b: %v", err)
 		}
-		if err := s.End(t.Context(), "t", "inv-b"); err != nil {
+		if err := s.End(t.Context(), "t", "inv-b", 0); err != nil {
 			t.Fatalf("End b: %v", err)
 		}
 		if renewed, _, err := s.Renew(t.Context(), "t", "inv-b"); err != nil || renewed {
@@ -209,7 +209,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if renewed, _, err := s.Renew(t.Context(), "t", "inv-a"); err != nil || renewed {
 			t.Fatalf("Renew by a = %v, %v; want refused", renewed, err)
 		}
-		if err := s.End(t.Context(), "t", "inv-a"); err != nil {
+		if err := s.End(t.Context(), "t", "inv-a", 0); err != nil {
 			t.Fatalf("End by a: %v", err)
 		}
 		if st, ok := get(t, s, "t"); !ok || st != run("b") {
@@ -236,15 +236,90 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err := s.Begin(t.Context(), "t", run("a")); err != nil {
 			t.Fatalf("Begin: %v", err)
 		}
-		if err := s.End(t.Context(), "t", "inv-a"); err != nil {
+		if err := s.End(t.Context(), "t", "inv-a", 0); err != nil {
 			t.Fatalf("End: %v", err)
 		}
 		if _, ok := get(t, s, "t"); ok {
 			t.Fatal("an ended run still reads as running")
 		}
 		// Ending again, or ending a thread nobody holds, is harmless.
-		if err := s.End(t.Context(), "t", "inv-a"); err != nil {
+		if err := s.End(t.Context(), "t", "inv-a", 0); err != nil {
 			t.Fatalf("second End: %v", err)
+		}
+	})
+
+	// A Detached Run's state is kept, marked ended, as long as its Run Log
+	// (#404): a late attach still finds the run, which no longer runs.
+
+	t.Run("EndingWithAKeepMarksTheStateEndedForThatLong", func(t *testing.T) {
+		const keep = 400 * time.Millisecond
+		s := factory(t, time.Minute)
+		if err := s.Begin(t.Context(), "t", run("a")); err != nil {
+			t.Fatalf("Begin: %v", err)
+		}
+		if err := s.End(t.Context(), "t", "inv-a", keep); err != nil {
+			t.Fatalf("End: %v", err)
+		}
+		ended := run("a")
+		ended.Ended = true
+		if st, ok := get(t, s, "t"); !ok || st != ended {
+			t.Fatalf("Get = %+v, %v; want run a's state, ended", st, ok)
+		}
+		// Nothing extends it: it lapses one keep after the run ended, well
+		// within the minute a running state lasts.
+		if renewed, _, err := s.Renew(t.Context(), "t", "inv-a"); err != nil || renewed {
+			t.Fatalf("Renew of an ended state = %v, %v; want refused", renewed, err)
+		}
+		if !waitUntil(3*time.Second, func() bool { _, ok := get(t, s, "t"); return !ok }) {
+			t.Fatal("an ended state outlived its keep")
+		}
+	})
+
+	t.Run("AnEndedStateIsNeverStoppedAndTheNextRunReplacesIt", func(t *testing.T) {
+		s := factory(t, time.Minute)
+		nudged, unwatch := s.Watch(t.Context(), "t", "tok-a")
+		defer unwatch()
+		if err := s.Begin(t.Context(), "t", run("a")); err != nil {
+			t.Fatalf("Begin a: %v", err)
+		}
+		if err := s.End(t.Context(), "t", "inv-a", time.Minute); err != nil {
+			t.Fatalf("End a: %v", err)
+		}
+		if _, accepted := stop(t, s, "t", ""); accepted {
+			t.Fatal("a Stop reached an ended run")
+		}
+		if nudgedWithin(nudged, 200*time.Millisecond) {
+			t.Fatal("an ended run was nudged")
+		}
+		// Another run's End leaves it alone.
+		if err := s.End(t.Context(), "t", "inv-b", 0); err != nil {
+			t.Fatalf("End b: %v", err)
+		}
+		if st, ok := get(t, s, "t"); !ok || !st.Ended || st.InvocationID != "inv-a" {
+			t.Fatalf("Get = %+v, %v; want run a's ended state", st, ok)
+		}
+		// The next run replaces it, running.
+		if err := s.Begin(t.Context(), "t", run("b")); err != nil {
+			t.Fatalf("Begin b: %v", err)
+		}
+		if st, ok := get(t, s, "t"); !ok || st != run("b") {
+			t.Fatalf("Get = %+v, %v; want run b's state, running", st, ok)
+		}
+		if renewed, _, err := s.Renew(t.Context(), "t", "inv-b"); err != nil || !renewed {
+			t.Fatalf("Renew b = %v, %v; want renewed", renewed, err)
+		}
+		if _, accepted := stop(t, s, "t", ""); !accepted {
+			t.Fatal("the Stop of the next run was refused")
+		}
+		// Drop removes an ended state too.
+		if err := s.End(t.Context(), "t", "inv-b", time.Minute); err != nil {
+			t.Fatalf("End b: %v", err)
+		}
+		if err := s.Drop(t.Context(), "t"); err != nil {
+			t.Fatalf("Drop: %v", err)
+		}
+		if st, ok := get(t, s, "t"); ok {
+			t.Fatalf("Get after Drop = %+v", st)
 		}
 	})
 
@@ -256,7 +331,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err := s.Begin(t.Context(), "u2:agui-t-1", run("b")); err != nil {
 			t.Fatalf("Begin t-1 of u2: %v", err)
 		}
-		if err := s.End(t.Context(), "u2:agui-t-1", "inv-b"); err != nil {
+		if err := s.End(t.Context(), "u2:agui-t-1", "inv-b", 0); err != nil {
 			t.Fatalf("End: %v", err)
 		}
 		if st, ok := get(t, s, "u1:agui-t-1"); !ok || st.InvocationID != "inv-a" {
@@ -278,14 +353,31 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if st, ok := get(t, s, "t"); !ok || st != kept.State() {
 			t.Fatalf("Get after 3 TTLs = %+v, %v; want the kept state", st, ok)
 		}
-		if err := kept.End(t.Context()); err != nil {
+		if err := kept.End(t.Context(), 0); err != nil {
 			t.Fatalf("End: %v", err)
 		}
 		if _, ok := get(t, s, "t"); ok {
 			t.Fatal("an ended kept state still reads as running")
 		}
-		if err := kept.End(t.Context()); err != nil {
+		if err := kept.End(t.Context(), 0); err != nil {
 			t.Fatalf("second End: %v", err)
+		}
+	})
+
+	t.Run("AKeptStateEndedWithAKeepStaysEnded", func(t *testing.T) {
+		const ttl = 300 * time.Millisecond
+		s := factory(t, ttl)
+		kept, err := Keep(t.Context(), s, "t", run("a"))
+		if err != nil {
+			t.Fatalf("Keep: %v", err)
+		}
+		if err := kept.End(t.Context(), time.Minute); err != nil {
+			t.Fatalf("End: %v", err)
+		}
+		// The renewals stopped, and the state stays past its TTL, ended.
+		time.Sleep(3 * ttl)
+		if st, ok := get(t, s, "t"); !ok || !st.Ended || st.RunID != "run-a" {
+			t.Fatalf("Get after 3 TTLs = %+v, %v; want run a's state, ended", st, ok)
 		}
 	})
 
@@ -297,7 +389,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err != nil {
 			t.Fatalf("Keep: %v", err)
 		}
-		defer func() { _ = kept.End(context.Background()) }()
+		defer func() { _ = kept.End(context.Background(), 0) }()
 		loseLease()
 		if !waitUntil(3*time.Second, func() bool { _, ok := get(t, s, "t"); return !ok }) {
 			t.Fatal("the state outlived the lease it was kept with")
@@ -313,11 +405,11 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err != nil {
 			t.Fatalf("Keep: %v", err)
 		}
-		defer func() { _ = kept.End(context.Background()) }()
+		defer func() { _ = kept.End(context.Background(), 0) }()
 		if err := s.Begin(t.Context(), "t", run("b")); err != nil {
 			t.Fatalf("Begin b: %v", err)
 		}
-		if err := s.End(t.Context(), "t", "inv-b"); err != nil {
+		if err := s.End(t.Context(), "t", "inv-b", 0); err != nil {
 			t.Fatalf("End b: %v", err)
 		}
 		// Several of a's renewal intervals later, a has not brought its
@@ -515,7 +607,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err != nil {
 			t.Fatalf("Keep: %v", err)
 		}
-		defer func() { _ = kept.End(context.Background()) }()
+		defer func() { _ = kept.End(context.Background(), 0) }()
 		if _, accepted := stop(t, s, "t", ""); !accepted {
 			t.Fatal("the Stop was refused")
 		}
@@ -534,7 +626,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err != nil {
 			t.Fatalf("Keep: %v", err)
 		}
-		defer func() { _ = kept.End(context.Background()) }()
+		defer func() { _ = kept.End(context.Background(), 0) }()
 		if _, accepted := stop(t, s, "t", ""); !accepted {
 			t.Fatal("the Stop was refused")
 		}
@@ -552,7 +644,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err != nil {
 			t.Fatalf("Keep: %v", err)
 		}
-		defer func() { _ = kept.End(context.Background()) }()
+		defer func() { _ = kept.End(context.Background(), 0) }()
 		if !nudgedWithin(kept.Stopped(), 5*time.Second) {
 			t.Fatal("a Stop accepted as the run started was lost")
 		}
@@ -567,7 +659,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err != nil {
 			t.Fatalf("Keep: %v", err)
 		}
-		defer func() { _ = kept.End(context.Background()) }()
+		defer func() { _ = kept.End(context.Background(), 0) }()
 		if _, accepted := stop(t, s, "t", ""); accepted {
 			t.Fatal("a Stop reached a run without the opt-in")
 		}
@@ -582,7 +674,7 @@ func runStoreContract(t *testing.T, factory storeFactory) {
 		if err != nil {
 			t.Fatalf("Keep: %v", err)
 		}
-		if err := kept.End(t.Context()); err != nil {
+		if err := kept.End(t.Context(), 0); err != nil {
 			t.Fatalf("End: %v", err)
 		}
 		// The next run on the thread is stopped; the ended one hears nothing.

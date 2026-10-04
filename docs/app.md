@@ -160,6 +160,7 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - `GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照，返回该 thread 当前的只读结果卡片与未回答的表单，不运行 Agent。
 - `GET /api/agui/:agent_id/threads/:thread_id/messages`：thread 历史，把会话还原成 AG-UI 消息，并返回仍待回答的 Interrupt，以及每个卡片/表单出自哪条回答。不运行 Agent，鉴权与绑定规则同 UI 快照。
 - 两个读取都不加锁，也不等运行结束：运行中立即返回 `running`，只给出运行开始前的对话和启动它的那一轮（快照里的卡片与表单也是这一刻的样子），运行的其余内容由运行本身送达。最近一次运行失败或被停止时，历史附带 `lastRun`（状态、原因与用户发送的文字），刷新后仍能看到结果并重新填入输入；之后的运行成功即消失。
+- `GET /api/agui/:agent_id/threads/:thread_id/run`：重新跟随一次 detached run（刷新之后，或在另一台设备、另一个 Pod 上打开 thread 时）。detached run 的事件写进一条有上限、短期保留的 Run Log（有 Redis 时是 Redis Stream），POST 响应和这个端点都从 `RUN_STARTED` 重放它并跟到运行结束，所以实时观看与重放看到的是同一串事件。没有可跟随的日志时返回 204（thread 空闲、运行结束已超过 5 分钟、运行未 opt-in，或 thread 已删除）；跟不到运行结束时（日志超出上限或已过期、运行所在的服务挂掉）以 `CUSTOM butter.fallback` 结束，客户端改为读取 thread。鉴权与绑定规则同 thread 历史；dashboard 尚未使用这个端点（#406、#407）。
 
 ### AG-UI Chat 的结果卡片与表单（A2UI v0.9.1，ADR-0014）
 

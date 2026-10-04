@@ -11,6 +11,12 @@
 // Thread reads use it to answer "running" and to cut the session where the
 // run started (#403).
 //
+// When a run ends, its state ends with it. A run that lived in its request
+// removes it. A Detached Run's is kept, marked ended, as long as the run's Run
+// Log (#404), so a late attach still finds the run and replays it; reads take
+// an ended run for one that is not running, nothing renews it, and the next
+// run on the thread replaces it.
+//
 // A Stop is accepted on that same state, never on the lease, so it never
 // waits behind the run it stops. In one step it marks the state of a Detached
 // Run that has not claimed its end with the run's lease token, and publishes
@@ -53,6 +59,9 @@ type State struct {
 	// (sessionguard.Token). A Stop's marker and nudge hold it, so a Stop
 	// reaches the run that held the thread when the Stop was accepted.
 	LeaseToken string `json:"lease_token,omitempty"`
+	// Ended reports a run that ended, whose state End kept: the run is not
+	// running. Get reports it; Begin never records it.
+	Ended bool `json:"-"`
 }
 
 // Claim is what claiming a run's terminal state found.
@@ -70,30 +79,34 @@ type Claim struct {
 type Store interface {
 	// Begin records st as the thread's run state, replacing whatever the
 	// thread held: only the lease holder begins a run, so a state already
-	// there was left by a run that no longer holds the thread.
+	// there was left by a run that no longer holds the thread, or one that
+	// ended.
 	Begin(ctx context.Context, thread string, st State) error
 	// Renew keeps the thread's run state for one more TTL while it is still
-	// the state of the run with this invocation ID. It never brings back a
-	// state that lapsed or was ended, and never touches another run's:
-	// renewed is false then, and nothing changes. stopped reports that a
-	// Stop was accepted for the run: the marker a run checks at every
-	// renewal, in case its nudge never arrived.
+	// the state of the run with this invocation ID, running. It never brings
+	// back a state that lapsed or was ended, never extends an ended one, and
+	// never touches another run's: renewed is false then, and nothing
+	// changes. stopped reports that a Stop was accepted for the run: the
+	// marker a run checks at every renewal, in case its nudge never arrived.
 	Renew(ctx context.Context, thread, invocationID string) (renewed, stopped bool, err error)
-	// End removes the thread's run state if it is still the one of the run
-	// with this invocation ID. Another run's state is left alone.
-	End(ctx context.Context, thread, invocationID string) error
-	// Get returns the thread's current run state; ok is false when no run
-	// holds the thread.
+	// End ends the thread's run state if it is still the one of the run with
+	// this invocation ID; another run's state is left alone. With keep zero
+	// it removes the state. With keep positive it marks the state ended and
+	// keeps it for keep from now, as long as the run's Run Log: Get then
+	// reports it Ended.
+	End(ctx context.Context, thread, invocationID string, keep time.Duration) error
+	// Get returns the thread's current run state; ok is false when the
+	// thread has none. A state End kept is reported Ended.
 	Get(ctx context.Context, thread string) (st State, ok bool, err error)
 
 	// Stop asks the thread's Detached Run to stop. In one step, while the
 	// thread's state is a Detached Run's that has not claimed its end, it
 	// marks the state with the run's lease token and publishes a nudge for
 	// that token; accepted reports that it did, and st is the stopped run's
-	// state. An idle thread, a run without the opt-in and a run that already
-	// claimed its end are left alone. A non-empty invocationID stops only the
-	// run with that Invocation. Stopping a run again before its claim is
-	// accepted again and changes nothing.
+	// state. An idle thread, a run without the opt-in, a run that already
+	// claimed its end and one that ended are left alone. A non-empty
+	// invocationID stops only the run with that Invocation. Stopping a run
+	// again before its claim is accepted again and changes nothing.
 	Stop(ctx context.Context, thread, invocationID string) (st State, accepted bool, err error)
 	// Claim claims the terminal state of the run with this invocation ID, in
 	// one step on the state a Stop marks: it reports a Stop accepted before
@@ -103,9 +116,10 @@ type Store interface {
 	// accepted for the run whose lease token is token. A nudge can be lost;
 	// the marker Renew reports is the safety net. unwatch ends the watch.
 	Watch(ctx context.Context, thread, token string) (nudged <-chan struct{}, unwatch func())
-	// Drop removes the thread's run state, whichever run's it is. Only the
-	// holder of the thread's lease may drop it: deleting a thread does, so a
-	// reused threadId never reads as a run of the deleted conversation.
+	// Drop removes the thread's run state, whichever run's it is, ended or
+	// not. Only the holder of the thread's lease may drop it: deleting a
+	// thread does, so a reused threadId never reads as a run of the deleted
+	// conversation.
 	Drop(ctx context.Context, thread string) error
 
 	// TTL is how long one write lasts.
@@ -117,7 +131,7 @@ var errNoInvocation = errors.New("run state needs an invocation ID")
 // stoppable reports whether a Stop for invocationID ("" for any run) reaches
 // the run whose state this is.
 func stoppable(st State, claimed bool, invocationID string) bool {
-	return st.Detached && !claimed && (invocationID == "" || st.InvocationID == invocationID)
+	return st.Detached && !st.Ended && !claimed && (invocationID == "" || st.InvocationID == invocationID)
 }
 
 // --- Keeping a run's state -----------------------------------------------------
@@ -182,15 +196,16 @@ func (k *Kept) Claim(ctx context.Context) (Claim, error) {
 	return k.store.Claim(ctx, k.thread, k.st.InvocationID)
 }
 
-// End stops the renewals and the run's watch, and removes the run state,
-// unless another run's state replaced it. Ending again does nothing.
-func (k *Kept) End(ctx context.Context) error {
+// End stops the renewals and the run's watch, and ends the run state unless
+// another run's state replaced it: it removes it, or with keep positive keeps
+// it that long, marked ended (Store.End). Ending again does nothing.
+func (k *Kept) End(ctx context.Context, keep time.Duration) error {
 	var err error
 	k.once.Do(func() {
 		k.stop()
 		<-k.done
 		k.unwatch()
-		err = k.store.End(ctx, k.thread, k.st.InvocationID)
+		err = k.store.End(ctx, k.thread, k.st.InvocationID, keep)
 	})
 	return err
 }
@@ -336,6 +351,7 @@ func (m *Memory) Begin(_ context.Context, thread string, st State) error {
 	if st.InvocationID == "" {
 		return errNoInvocation
 	}
+	st.Ended = false
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.states[thread] = memoryState{st: st, expires: time.Now().Add(m.ttl)}
@@ -347,7 +363,7 @@ func (m *Memory) Renew(_ context.Context, thread, invocationID string) (bool, bo
 	defer m.mu.Unlock()
 	now := time.Now()
 	held, ok := m.current(thread, now)
-	if !ok || held.st.InvocationID != invocationID {
+	if !ok || held.st.InvocationID != invocationID || held.st.Ended {
 		return false, false, nil
 	}
 	held.expires = now.Add(m.ttl)
@@ -355,12 +371,21 @@ func (m *Memory) Renew(_ context.Context, thread, invocationID string) (bool, bo
 	return true, held.stopped, nil
 }
 
-func (m *Memory) End(_ context.Context, thread, invocationID string) error {
+func (m *Memory) End(_ context.Context, thread, invocationID string, keep time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if held, ok := m.current(thread, time.Now()); ok && held.st.InvocationID == invocationID {
-		delete(m.states, thread)
+	now := time.Now()
+	held, ok := m.current(thread, now)
+	if !ok || held.st.InvocationID != invocationID {
+		return nil
 	}
+	if keep <= 0 {
+		delete(m.states, thread)
+		return nil
+	}
+	held.st.Ended = true
+	held.expires = now.Add(keep)
+	m.states[thread] = held
 	return nil
 }
 
@@ -415,11 +440,12 @@ func (m *Memory) TTL() time.Duration { return m.ttl }
 // The run state is a hash: the invocation ID that fences writes, the state
 // itself as JSON, and what the scripts read without decoding it — whether the
 // run detached and its lease token. A Stop adds its marker ('stop', holding
-// the lease token) and the claim its own field ('claimed'); Begin starts from
-// an empty hash, so neither outlives the run they were for. Renewing,
-// ending, stopping and claiming are each one atomic step that checks the
-// invocation ID, so a run that lost its thread can neither renew nor end the
-// state of the run that took it, and a Stop and a claim are ordered.
+// the lease token), the claim its own field ('claimed') and an End that keeps
+// the state its mark ('ended'); Begin starts from an empty hash, so none
+// outlives the run it was for. Renewing, ending, stopping and claiming are
+// each one atomic step that checks the invocation ID, so a run that lost its
+// thread can neither renew nor end the state of the run that took it, and a
+// Stop and a claim are ordered.
 
 var beginScript = redis.NewScript(`
 redis.call('DEL', KEYS[1])
@@ -431,7 +457,7 @@ return 1
 // renewScript answers 0 for a state that is not the run's, 1 when it renewed
 // it, and 2 when it renewed a state a Stop marked.
 var renewScript = redis.NewScript(`
-if redis.call('HGET', KEYS[1], 'invocation_id') ~= ARGV[1] then
+if redis.call('HGET', KEYS[1], 'invocation_id') ~= ARGV[1] or redis.call('HGET', KEYS[1], 'ended') == '1' then
   return 0
 end
 redis.call('PEXPIRE', KEYS[1], ARGV[2])
@@ -441,11 +467,18 @@ end
 return 1
 `)
 
+// endScript ends the run's state: it removes it, or with a keep (ARGV[2] ms)
+// marks it ended and keeps it that long.
 var endScript = redis.NewScript(`
-if redis.call('HGET', KEYS[1], 'invocation_id') == ARGV[1] then
-  return redis.call('DEL', KEYS[1])
+if redis.call('HGET', KEYS[1], 'invocation_id') ~= ARGV[1] then
+  return 0
 end
-return 0
+if tonumber(ARGV[2]) > 0 then
+  redis.call('HSET', KEYS[1], 'ended', '1')
+  redis.call('PEXPIRE', KEYS[1], ARGV[2])
+  return 1
+end
+return redis.call('DEL', KEYS[1])
 `)
 
 // stopScript marks the state of a Detached Run that has not claimed its end,
@@ -460,7 +493,8 @@ end
 if ARGV[1] ~= '' and inv ~= ARGV[1] then
   return {0}
 end
-if redis.call('HGET', KEYS[1], 'detached') ~= '1' or redis.call('HEXISTS', KEYS[1], 'claimed') == 1 then
+if redis.call('HGET', KEYS[1], 'detached') ~= '1' or redis.call('HEXISTS', KEYS[1], 'claimed') == 1
+  or redis.call('HGET', KEYS[1], 'ended') == '1' then
   return {0}
 end
 local token = redis.call('HGET', KEYS[1], 'lease_token') or ''
@@ -550,22 +584,32 @@ func (r *Redis) Renew(ctx context.Context, thread, invocationID string) (bool, b
 	return renewed > 0, renewed == 2, nil
 }
 
-func (r *Redis) End(ctx context.Context, thread, invocationID string) error {
-	if err := endScript.Run(ctx, r.rdb, []string{r.key(thread)}, invocationID).Err(); err != nil {
+func (r *Redis) End(ctx context.Context, thread, invocationID string, keep time.Duration) error {
+	keepMs := int64(0)
+	if keep > 0 {
+		keepMs = max(keep.Milliseconds(), 1)
+	}
+	if err := endScript.Run(ctx, r.rdb, []string{r.key(thread)}, invocationID, keepMs).Err(); err != nil {
 		return fmt.Errorf("end run state: %w", err)
 	}
 	return nil
 }
 
 func (r *Redis) Get(ctx context.Context, thread string) (State, bool, error) {
-	raw, err := r.rdb.HGet(ctx, r.key(thread), "state").Result()
-	if errors.Is(err, redis.Nil) {
-		return State{}, false, nil
-	}
+	fields, err := r.rdb.HMGet(ctx, r.key(thread), "state", "ended").Result()
 	if err != nil {
 		return State{}, false, fmt.Errorf("read run state: %w", err)
 	}
-	return decodeState(raw)
+	raw, ok := fields[0].(string)
+	if !ok {
+		return State{}, false, nil
+	}
+	st, _, err := decodeState(raw)
+	if err != nil {
+		return State{}, false, err
+	}
+	st.Ended = fields[1] == "1"
+	return st, true, nil
 }
 
 func decodeState(raw string) (State, bool, error) {

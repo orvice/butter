@@ -33,6 +33,9 @@ import (
 // ends while the session is read leaves the run state as the read first found
 // it, but it changes the thread's latest Invocation record, which the read
 // compares as well.
+//
+// A Detached Run's state outlives the run, marked ended, as long as its Run
+// Log (#404). A read takes an ended run for one that is not running.
 
 // aguiReadAttempts bounds how many passes one thread read makes: it starts
 // over after a run started or ended while it read the session, and waits for
@@ -263,11 +266,17 @@ func (r *aguiThreadReader) read(ctx context.Context) (aguiReadPass, error) {
 	return aguiReadPass{read: aguiThreadRead{sess: sess, lastRun: lastRun}, stable: true}, nil
 }
 
-func (r *aguiThreadReader) runState(ctx context.Context) (runstate.State, bool, error) {
+// runState reads the thread's run state, and whether it is of a run in
+// flight: one that ended is kept, but no longer runs.
+func (r *aguiThreadReader) runState(ctx context.Context) (st runstate.State, running bool, err error) {
 	if r.runStates == nil {
 		return runstate.State{}, false, nil
 	}
-	return r.runStates.Get(ctx, r.thread)
+	st, held, err := r.runStates.Get(ctx, r.thread)
+	if err != nil {
+		return runstate.State{}, false, err
+	}
+	return st, held && !st.Ended, nil
 }
 
 // aguiRunRecord is the session's latest Invocation record, as one lookup

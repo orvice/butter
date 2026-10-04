@@ -28,6 +28,7 @@ import (
 	linearruntime "go.orx.me/apps/butter/internal/runtime/linear"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryconn"
+	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	telegramruntime "go.orx.me/apps/butter/internal/runtime/telegram"
@@ -242,17 +243,20 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.a2aHandler.SetRunnerService(result.RunnerSvc)
 		h.openAIHandler.SetRunnerService(result.RunnerSvc)
 		h.aguiHandler.SetRunnerService(result.RunnerSvc)
-		// Serialize AG-UI threads across Pods, and record each run's state
-		// next to its thread lease (ADR-0016). Without Redis there is one
-		// process, and the in-process lease and run state serve it.
+		// Serialize AG-UI threads across Pods, record each run's state next
+		// to its thread lease, and keep each Detached Run's Run Log for its
+		// observers on any Pod (ADR-0016). Without Redis there is one
+		// process, and the in-process lease, run state and Run Log serve it.
 		if result.Redis != nil {
 			h.aguiHandler.SetSessionGuard(sessionguard.NewRedis(result.Redis,
 				uuid.NewString(), httpHandler.AGUISessionLeaseKeyPrefix, httpHandler.AGUISessionLeaseTTL))
 			h.aguiHandler.SetRunStateStore(runstate.NewRedis(result.Redis,
 				httpHandler.AGUIRunStateKeyPrefix, httpHandler.AGUISessionLeaseTTL))
+			h.aguiHandler.SetRunLogStore(runlog.NewRedis(result.Redis, httpHandler.AGUIRunLogKeyPrefix))
 		} else {
 			h.aguiHandler.SetSessionGuard(sessionguard.NewMemory())
 			h.aguiHandler.SetRunStateStore(runstate.NewMemory(httpHandler.AGUISessionLeaseTTL))
+			h.aguiHandler.SetRunLogStore(runlog.NewMemory())
 		}
 		if h.cfg != nil {
 			h.aguiHandler.SetMaxRunDuration(h.cfg.AGUI.EffectiveMaxRunDuration())

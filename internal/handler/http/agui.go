@@ -23,6 +23,7 @@ import (
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
+	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
@@ -79,7 +80,11 @@ type AGUIHandler struct {
 	sessionTitler AGUISessionTitler
 	invocations   invocation.Repository
 	runStates     runstate.Store
+	runLogs       runlog.Store
 	maxRun        time.Duration
+	// logLimits bound the Run Logs and pace their writers and observers;
+	// tests shrink them.
+	logLimits aguiRunLogLimits
 	// heartbeat paces the comments a Detached Run's observers send while it
 	// is quiet; tests shorten it.
 	heartbeat time.Duration
@@ -104,6 +109,7 @@ func NewAGUIHandler(repo configrepo.AgentRepository) *AGUIHandler {
 	return &AGUIHandler{
 		agentRepo:    repo,
 		maxRun:       AGUIDefaultMaxRunDuration,
+		logLimits:    defaultAGUIRunLogLimits(),
 		heartbeat:    aguiHeartbeatInterval,
 		deleteWait:   aguiDeleteLeaseWait,
 		readAttempts: aguiReadAttempts,
@@ -188,6 +194,27 @@ func (h *AGUIHandler) getRunStateStore() runstate.Store {
 	return h.runStates
 }
 
+// SetRunLogStore wires where Detached Runs keep their Run Logs, which every
+// observer of a run replays (ADR-0016 decision 5): Redis with several Pods,
+// the in-process store otherwise. Without one, detaching is refused.
+func (h *AGUIHandler) SetRunLogStore(store runlog.Store) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.runLogs = store
+}
+
+func (h *AGUIHandler) getRunLogs() runlog.Store {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.runLogs
+}
+
+func (h *AGUIHandler) runLogLimits() aguiRunLogLimits {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.logLimits
+}
+
 // SetMaxRunDuration bounds a Detached Run: past it the run is cancelled and
 // ends FAILED. A non-positive duration keeps the current bound.
 func (h *AGUIHandler) SetMaxRunDuration(d time.Duration) {
@@ -246,6 +273,7 @@ func (h *AGUIHandler) Register(r *gin.Engine) {
 	r.GET("/api/agui/:agent_id/threads/:thread_id/ui", h.UISnapshot)
 	r.GET("/api/agui/:agent_id/threads/:thread_id/messages", h.ThreadMessages)
 	r.POST("/api/agui/:agent_id/threads/:thread_id/stop", h.StopRun)
+	r.GET("/api/agui/:agent_id/threads/:thread_id/run", h.AttachRun)
 }
 
 // aguiErrorResponse is the body for failures that happen before the SSE stream
@@ -339,11 +367,7 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
-	c.Status(http.StatusOK)
+	aguiStreamHeaders(c)
 
 	if run.detached == nil {
 		// The run lives in its request, as it always has: the sink writes to
@@ -354,13 +378,20 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 		return
 	}
 	// A Detached Run belongs to its own goroutine, which holds the lease
-	// until its terminal state is recorded. The response is only its first
-	// observer: a disconnect detaches the observer, never the run.
-	fanout := run.detached.fanout
-	run.openSink(fanout.emit)
-	observer := fanout.attach()
+	// until its terminal state is recorded and its terminal event is in its
+	// Run Log. Its events go to the log only, and the response is the log's
+	// first observer, as GET …/run makes more: a disconnect detaches the
+	// observer, never the run.
+	run.openSink(run.startLog().emit)
 	go run.execute()
-	h.observe(c, observer)
+	if h.follow(c, run.follower()) {
+		// The stream ends once the thread is free for the client's next
+		// run.
+		select {
+		case <-run.detached.done:
+		case <-c.Request.Context().Done():
+		}
+	}
 }
 
 // acquireThread takes the thread's cross-Pod session lease on ctx, answering
@@ -544,6 +575,10 @@ func (h *AGUIHandler) checkStores(rc *aguiRunContext) *aguiRefusal {
 		// A Stop reaches a Detached Run through its run state.
 		if h.getRunStateStore() == nil {
 			return unavailable("detached runs are not available: run state store unavailable")
+		}
+		// Its observers follow it through its Run Log.
+		if h.getRunLogs() == nil {
+			return unavailable("detached runs are not available: run log store unavailable")
 		}
 	}
 	return nil
