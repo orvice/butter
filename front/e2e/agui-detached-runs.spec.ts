@@ -24,6 +24,13 @@ const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop' })
 const sendButton = (page: Page) => page.getByRole('button', { name: 'Send' })
 const composer = (page: Page) => page.getByRole('textbox', { name: /^Message/ })
 const toasts = (page: Page) => page.locator('[data-sonner-toast]')
+// The message the user sent; the stopped run's notice quotes it too.
+const sent = (page: Page, text: string) =>
+  page
+    .locator('[data-message-role="user"]')
+    .getByText(text, { exact: true })
+const stoppedNotice = (page: Page) =>
+  page.getByRole('status').filter({ hasText: 'Stopped' })
 const threadLink = (page: Page, title: string) =>
   page
     .getByRole('navigation', { name: 'AG-UI threads' })
@@ -145,7 +152,11 @@ test.describe('AG-UI Chat detached runs', () => {
     accepted.resolve()
     await expect(running(page)).toHaveCount(0)
     await expect(sendButton(page)).toBeVisible()
-    await expect(page.getByText('plan the trip', { exact: true })).toBeVisible()
+    // The page shows the run as stopped, quoting the turn it started from.
+    // Whether the turn also stays in the thread depends on which ends the
+    // run here first: its stopped stream, or the local cancel, which takes
+    // a turn with no reply yet back into the composer.
+    await expect(stoppedNotice(page)).toContainText('plan the trip')
     // A stopped run is not a failure.
     await expect(toasts(page)).toHaveCount(0)
     expect(fixture.stopRequests).toHaveLength(1)
@@ -178,7 +189,7 @@ test.describe('AG-UI Chat detached runs', () => {
     expect((await answered).status()).toBe(202)
     // Nothing is left to cancel: the turn stays as it ended.
     await page.waitForTimeout(250)
-    await expect(page.getByText('plan the trip', { exact: true })).toBeVisible()
+    await expect(sent(page, 'plan the trip')).toBeVisible()
     await expect(composer(page)).toHaveValue('')
     await expect(toasts(page)).toHaveCount(0)
     expect(fixture.stopRequests).toHaveLength(1)

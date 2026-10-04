@@ -24,7 +24,6 @@ import {
   Pencil,
   Square,
   Trash2,
-  Undo2,
   X,
 } from 'lucide-react'
 import { useUpdateSessionTitle } from '@/api/sessions'
@@ -41,6 +40,7 @@ import { AgentAvatar } from '@/components/butter/primitives'
 import { ChatAgentContext, type ChatAgent } from '@/components/chat/chat-agent'
 import { MarkdownText } from '@/components/chat/markdown'
 import { ThreadMessages, type PartComponents } from '@/components/chat/messages'
+import { RunNotice } from '@/components/chat/run-notice'
 import {
   AgentHero,
   ChatDisclaimer,
@@ -316,7 +316,7 @@ function ThreadArea({
             )}
           </div>
           {notice && !isRunning && (
-            <InvocationNotice notice={notice} onRestore={onRestore} />
+            <RunNotice notice={notice} onRestore={onRestore} />
           )}
         </ThreadPrimitive.Viewport>
       </ThreadPrimitive.Root>
@@ -461,61 +461,6 @@ function ComposerTextSetter({
     }
   }, [text, setText])
   return null
-}
-
-function InvocationNotice({
-  notice,
-  onRestore,
-}: {
-  notice: TerminalNotice
-  onRestore?: () => void
-}) {
-  const failed = notice.status === 'failed'
-  return (
-    <div
-      role={failed ? 'alert' : 'status'}
-      className={cn(
-        'mb-4 rounded-lg border px-3.5 py-3 text-sm',
-        failed
-          ? 'border-destructive/35 bg-destructive/5'
-          : 'border-border/70 bg-muted/30'
-      )}
-    >
-      {notice.input && (
-        <p className='mb-2 truncate border-l-2 border-border pl-2 text-[0.85rem] text-muted-foreground italic'>
-          {notice.input}
-        </p>
-      )}
-      <p
-        className={cn(
-          'font-medium',
-          failed ? 'text-destructive' : 'text-foreground'
-        )}
-      >
-        {failed ? 'This run failed' : 'Stopped'}
-      </p>
-      <p className='mt-1 text-[0.85rem] leading-5 text-muted-foreground'>
-        {failed
-          ? notice.error || 'The run ended with an error.'
-          : 'You stopped this response before it finished.'}
-      </p>
-      {onRestore && (
-        <div className='mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5'>
-          <button
-            type='button'
-            onClick={onRestore}
-            className='inline-flex touch-manipulation items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium transition-[background-color,scale] hover:bg-muted active:scale-[0.97] motion-reduce:active:scale-100'
-          >
-            <Undo2 className='size-3.5' />
-            Restore input
-          </button>
-          <span className='text-[0.75rem] leading-4 text-muted-foreground/90'>
-            Sending again starts a new run and may repeat external tool actions.
-          </span>
-        </div>
-      )}
-    </div>
-  )
 }
 
 class RuntimeErrorBoundary extends Component<

@@ -24,7 +24,7 @@ function errorMessage(err: unknown): string {
 
 // STOPPED_CODE is the code of the RUN_ERROR that ends a stopped run
 // (docs/api.md "Stopping a run").
-const STOPPED_CODE = 'stopped'
+export const STOPPED_CODE = 'stopped'
 
 // runStopped reports whether err ended a run that a person stopped: from
 // this page's Stop, or from anywhere else. The AG-UI runtime reports a
