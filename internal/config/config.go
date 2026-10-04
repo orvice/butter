@@ -41,6 +41,7 @@ type AppConfig struct {
 	MCPOAuth       MCPOAuthConfig   `yaml:"mcp_oauth"`
 	Git            GitConfig        `yaml:"git"`
 	ChatAsync      ChatAsyncConfig  `yaml:"chat_async"`
+	AGUI           AGUIConfig       `yaml:"agui"`
 	StorageBackend string           `yaml:"storage_backend"` // "mongo" (default) or "memory"
 }
 
@@ -308,6 +309,23 @@ type ChatAsyncConfig struct {
 
 // EffectiveMaxRunDuration returns the configured max duration or the default.
 func (c ChatAsyncConfig) EffectiveMaxRunDuration() time.Duration {
+	if c.MaxRunDuration <= 0 {
+		return 30 * time.Minute
+	}
+	return c.MaxRunDuration
+}
+
+// AGUIConfig configures the AG-UI endpoint.
+type AGUIConfig struct {
+	// MaxRunDuration bounds how long a Detached Run may execute (ADR-0016
+	// decision 3). A run exceeding it is cancelled and recorded FAILED.
+	// Zero uses the default of 30 minutes. Runs without the opt-in end with
+	// their request instead.
+	MaxRunDuration time.Duration `yaml:"max_run_duration"`
+}
+
+// EffectiveMaxRunDuration returns the configured max duration or the default.
+func (c AGUIConfig) EffectiveMaxRunDuration() time.Duration {
 	if c.MaxRunDuration <= 0 {
 		return 30 * time.Minute
 	}

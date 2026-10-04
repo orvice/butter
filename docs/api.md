@@ -705,14 +705,20 @@ to the authenticated user. Consequences:
   existed records no agent and still runs with any agent.
 
 Turns on one session are serialized **across the whole fleet**: a Redis lease
-per `(caller, threadId)` admits one run at a time, on any Pod. While a run is in
+per `(caller, threadId)` admits one run at a time, on any Pod (without Redis,
+an in-process lease does the same within the one process). While a run is in
 flight, a second `POST` for the same thread is rejected **before the stream
 opens** with `409 Conflict` and `{"error": "…"}` — retry after the current run
 finishes. Unrelated callers and threads run concurrently. If the lease
 infrastructure itself is unavailable the request fails with `503` rather than
-running unserialized. A run that loses its lease mid-flight (Pod pause longer
-than the lease TTL) is cancelled and reported in-band as a `RUN_ERROR`
-mentioning the lost lease; the client may retry on the same `threadId`.
+running unserialized. Every check that reads the thread's session (the thread
+checks above, tool results, the shared-state baseline and form submissions)
+runs under that lease, so no other run slips in between. The lease is renewed
+while the run goes on, and a renewal that fails is retried until the lease
+would really have lapsed. A run that loses its lease mid-flight (its renewals
+failed for a whole lease TTL, or another holder took it) is cancelled and
+reported in-band as a `RUN_ERROR` mentioning the lost lease; the client may
+retry on the same `threadId`.
 
 A thread is titled by the server. After a successful run, a session that has
 no title yet gets one in the background, generated as by
@@ -721,6 +727,63 @@ existing title, including one set with `UpdateSessionTitle`, is never
 replaced. Neither the response nor the thread's next run waits for the title,
 so it shows in `ListSessions` (app `agui`) a moment after the run ends.
 Clients need not call `GenerateSessionTitle` for AG-UI threads.
+
+#### Detached runs
+
+By default a run lives inside its request: a client that disconnects (or
+aborts the fetch, which is how AG-UI clients stop a run) cancels the run. A
+client can instead ask for a **detached run**, one that keeps going when its
+client leaves, with a Butter extension next to `butterA2UI`:
+
+```json
+{ "forwardedProps": { "butterRun": { "detach": true } } }
+```
+
+- **Shape.** `butterRun` is an object with a boolean `detach` and nothing
+  else. Any other value, a missing `detach` or an unknown key is `400` before
+  the stream opens. `{"detach": false}`, `null` or no `butterRun` at all is
+  the default run, unchanged.
+- **Bound threads only.** A detached run needs the thread's
+  [UI binding](#a2ui-surfaces-result-cards-and-forms), which every thread the
+  AG-UI endpoint creates carries. On a thread created before bindings existed,
+  detaching is refused **before the stream opens** with `400` and
+  `{"error": "…", "code": "thread_unbound"}`; run it without `butterRun`, or
+  start a new thread. The thread checks of [Sessions](#sessions) (`403`) and
+  every other validation still answer before anything is detached.
+- **The run holds the thread.** The run, not the request, holds the thread's
+  lease, until its terminal state is recorded. Disconnecting, reloading or
+  leaving the page ends only the response: the run goes on to its end, and
+  everything it produces is persisted in the session as usual. A second `POST`
+  on the thread meanwhile is `409`, as for any run. The response is the run's
+  observer: while it stays connected it receives every event up to
+  `RUN_FINISHED` or `RUN_ERROR`, and it ends once the thread is free for the
+  next run. While the run is quiet, the stream carries an SSE comment
+  (`: heartbeat`) every 15 seconds; AG-UI clients skip it.
+- **One run per `runId`.** `runId` names the request on its thread. A `POST`
+  that repeats a `runId` the thread already ran detached is refused **before
+  the stream opens** with `409` and `{"error": "…", "code": "run_exists"}`, so
+  a retried request never runs the agent twice. Send a new `runId` for every
+  run (the server generates one when it is missing); another thread may use
+  the same one.
+- **Invocation record.** A detached run has its own
+  [Invocation](#invocation-object), with `source` `agui-detached`, `app_name`
+  `agui` and the thread-scoped `request_id` `agui:{user}:agui-{threadId}:{runId}`.
+  It goes `QUEUED` → `RUNNING` → `SUCCEEDED`, `FAILED` or `CANCELLED`.
+  `CANCELLED` means a person stopped the run. Every operational end is
+  `FAILED`, with its reason in `error`, and the stream's `RUN_ERROR` carries
+  the same reason:
+  - the run exceeded the maximum run duration (`agui.max_run_duration` in the
+    server config, 30 minutes by default);
+  - a graceful shutdown of the server (on SIGTERM or SIGINT) ended it;
+  - it lost the thread's lease.
+
+  A failed run is never rerun: send the message again, as a new run.
+- **Not yet.** A detached run cannot yet be stopped on purpose or re-attached
+  to after its client left: the thread history and the UI snapshot still
+  answer `409` while it runs, and show its result once it ends.
+
+Without the opt-in nothing changes: a disconnect cancels the run, and the run
+is recorded as before.
 
 #### Message content
 
@@ -1850,7 +1913,7 @@ operational cases, in addition to ordinary run errors:
 | Cause | Behavior |
 |-------|----------|
 | **Timeout** | A run exceeding `chat_async.max_run_duration` (default **30 minutes**) is cancelled and recorded `FAILED` with a deadline-exceeded reason naming the configured duration |
-| **Graceful shutdown** | Process teardown stops process-owned runs and waits (bounded, 15 s) for each to persist `FAILED` with a shutdown reason before exit |
+| **Graceful shutdown** | On SIGTERM or SIGINT, process teardown stops process-owned runs and waits (bounded, 15 s) for each to persist `FAILED` with a shutdown reason before exit |
 | **Process exit** | Every record carries the instance ID of the process that runs it, and every process renews a liveness key in Redis. Once that key lapses, a sweep (at startup and every minute, on any Pod) marks the process's `QUEUED`/`RUNNING` records `FAILED` with a reason that names the lost instance. Another Pod starting never fails a run that is still going. Records written before owner stamps existed are failed only after 24 hours (or `chat_async.max_run_duration`, if longer). Without Redis, startup marks every `QUEUED`/`RUNNING` record left by an earlier process. The sweep only marks records — it never re-invokes the Agent or repeats tool side effects |
 
 Operational errors live only on the `Invocation` record. They are **never**
@@ -2194,15 +2257,16 @@ Endpoints:
 | `app_name` | string | Channel / app the invocation was triggered from |
 | `user_id` | string |  |
 | `session_id` | string |  |
-| `status` | enum | `INVOCATION_STATUS_RUNNING`, `INVOCATION_STATUS_SUCCEEDED`, `INVOCATION_STATUS_FAILED` |
+| `status` | enum | `INVOCATION_STATUS_QUEUED`, `INVOCATION_STATUS_RUNNING`, `INVOCATION_STATUS_SUCCEEDED`, `INVOCATION_STATUS_FAILED`, `INVOCATION_STATUS_CANCELLED` |
 | `input` | string | Truncated to 4096 chars |
 | `output` | string | Truncated to 4096 chars |
-| `error` | string | Set when FAILED |
+| `error` | string | Set when FAILED or CANCELLED |
 | `started_at` | timestamp |  |
 | `finished_at` | timestamp |  |
 | `latency_ms` | int64 |  |
 | `model_override` | string |  |
-| `source` | string | `ContextSource` enum string |
+| `source` | string | Who owns the record: `dashboard-async` for the async chat, `agui-detached` for a [detached AG-UI run](#detached-runs), otherwise the `ContextSource` enum string of a run the runner recorded |
+| `request_id` | string | Client idempotency key of an owned record: the async chat's `request_id`, or a detached AG-UI run's thread-scoped `runId` |
 | `workspace_id` | string | Workspace the invocation ran under |
 
 ---

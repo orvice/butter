@@ -11,6 +11,7 @@ package sessionguard
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -20,80 +21,81 @@ import (
 	"go.orx.me/apps/butter/internal/redislease"
 )
 
+// ErrLeaseLost is the cause of a turn context the guard cancelled because the
+// turn no longer holds its session: the lease lapsed before a renewal got
+// through, or another holder has it.
+var ErrLeaseLost = errors.New("session lease lost")
+
 // Guard serializes turns within one logical session.
 //
 // Acquire returns (turnCtx, release, acquired, err). When acquired, the
 // caller must run the turn on turnCtx — it is cancelled if the lease is lost,
-// so a Pod that was fenced out stops acting instead of racing the new holder —
-// and must call release exactly once when the turn ends, whatever the
-// outcome. acquired=false with a nil error means another turn currently holds
-// the session.
+// with ErrLeaseLost as its cause, so a Pod that was fenced out stops acting
+// instead of racing the new holder — and must call release exactly once when
+// the turn ends, whatever the outcome. acquired=false with a nil error means
+// another turn currently holds the session.
 type Guard interface {
 	Acquire(ctx context.Context, sessionKey string) (context.Context, func(), bool, error)
 }
 
-// Redis is the cross-Pod Guard: a bounded, renewable Redis lease per session
-// key, fenced on a per-acquisition holder token.
-type Redis struct {
-	holder    string
-	keyPrefix string
-	ttl       time.Duration
-	lease     func(sessionKey, leaseHolder string) renewableLease
-}
-
-type renewableLease interface {
+// Lease is one acquisition's renewable lease. redislease.Lease implements it.
+type Lease interface {
 	Acquire(ctx context.Context) (bool, error)
+	// Renew extends the lease; false with a nil error means another holder
+	// has it, or nobody does.
 	Renew(ctx context.Context) (bool, error)
 	Release(ctx context.Context) error
+}
+
+// Leased is the cross-Pod Guard: a bounded, renewable lease per session key,
+// fenced on a per-acquisition holder token. NewRedis builds it over Redis
+// leases.
+type Leased struct {
+	holder string
+	ttl    time.Duration
+	lease  func(sessionKey, leaseHolder string) Lease
 }
 
 // NewRedis builds a Redis guard. `holder` must be unique per process (an
 // instance ID); each acquisition additionally gets its own token so two turns
 // on one Pod can never be mistaken for each other. `ttl` bounds how long a
-// crashed worker blocks one session — it has to exceed a normal turn, or a
-// slow agent would lose its own lease mid-run.
-func NewRedis(rdb *redis.Client, holder, keyPrefix string, ttl time.Duration) *Redis {
+// crashed worker blocks one session: the lease is renewed every ttl/3 while
+// the turn runs, so the TTL only has to cover a few renewals, not a turn.
+func NewRedis(rdb *redis.Client, holder, keyPrefix string, ttl time.Duration) *Leased {
 	if rdb == nil {
 		return nil
 	}
-	g := &Redis{holder: holder, keyPrefix: keyPrefix, ttl: ttl}
-	g.lease = func(sessionKey, leaseHolder string) renewableLease {
-		return redislease.New(rdb, g.keyPrefix+sessionKey, leaseHolder, g.ttl)
-	}
-	return g
+	return NewLeased(holder, ttl, func(sessionKey, leaseHolder string) Lease {
+		return redislease.New(rdb, keyPrefix+sessionKey, leaseHolder, ttl)
+	})
 }
 
-var _ Guard = (*Redis)(nil)
+// NewLeased builds the guard over the leases newLease makes, one per
+// acquisition. NewRedis is NewLeased over Redis leases; tests pass leases
+// whose renewals fail on demand.
+func NewLeased(holder string, ttl time.Duration, newLease func(sessionKey, leaseHolder string) Lease) *Leased {
+	return &Leased{holder: holder, ttl: ttl, lease: newLease}
+}
 
-func (g *Redis) Acquire(ctx context.Context, sessionKey string) (context.Context, func(), bool, error) {
+var _ Guard = (*Leased)(nil)
+
+func (g *Leased) Acquire(ctx context.Context, sessionKey string) (context.Context, func(), bool, error) {
 	lease := g.lease(sessionKey, g.holder+":"+sessionKey+":"+uuid.NewString())
+	acquiredAt := time.Now()
 	ok, err := lease.Acquire(ctx)
 	if err != nil || !ok {
 		return ctx, func() {}, ok, err
 	}
-	leaseCtx, cancel := context.WithCancel(ctx)
+	leaseCtx, cancel := context.WithCancelCause(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(g.ttl / 3)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-leaseCtx.Done():
-				return
-			case <-ticker.C:
-				renewed, renewErr := lease.Renew(leaseCtx)
-				if renewErr != nil || !renewed {
-					cancel()
-					return
-				}
-			}
-		}
+		g.keep(leaseCtx, cancel, lease, acquiredAt)
 	}()
 	var once sync.Once
 	return leaseCtx, func() {
 		once.Do(func() {
-			cancel()
+			cancel(nil)
 			<-done
 			// Release on a detached context: the turn's context may already be
 			// cancelled, and holding the lease until it expires would stall the
@@ -103,6 +105,57 @@ func (g *Redis) Acquire(ctx context.Context, sessionKey string) (context.Context
 			_ = lease.Release(releaseCtx)
 		})
 	}, true, nil
+}
+
+// keep renews the lease every ttl/3 until ctx ends, cancelling ctx with
+// ErrLeaseLost once the turn no longer holds it.
+//
+// A renewal that errors (Redis unreachable, a timeout) is retried until the
+// lease would really have lapsed: one TTL after the last renewal that got
+// through, measured from when that renewal was sent. Until then nobody else
+// can hold the session, so a transient error must not end the turn. Only that
+// lapse, or a renewal answered "not the holder", does.
+func (g *Leased) keep(ctx context.Context, lose context.CancelCauseFunc, lease Lease, renewedAt time.Time) {
+	interval := g.ttl / 3
+	retry := renewRetryInterval(g.ttl)
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		lapse := renewedAt.Add(g.ttl)
+		sent := time.Now()
+		// An attempt never outlives the lease it tries to keep.
+		attemptCtx, cancelAttempt := context.WithDeadline(ctx, lapse)
+		renewed, err := lease.Renew(attemptCtx)
+		cancelAttempt()
+		switch {
+		case ctx.Err() != nil:
+			return
+		case err == nil && renewed:
+			renewedAt = sent
+			timer.Reset(interval)
+		case err == nil:
+			lose(ErrLeaseLost)
+			return
+		default:
+			wait := time.Until(lapse)
+			if wait <= 0 {
+				lose(ErrLeaseLost)
+				return
+			}
+			timer.Reset(min(retry, wait))
+		}
+	}
+}
+
+// renewRetryInterval paces the retries of a renewal that errored: often
+// enough to get several attempts in before the lease would lapse.
+func renewRetryInterval(ttl time.Duration) time.Duration {
+	return max(ttl/10, time.Millisecond)
 }
 
 // Memory serializes sessions within one process. It is the single-Pod

@@ -519,6 +519,14 @@ HTTP handler 位于 `internal/handler/http`：
 - `GET /api/mcp/oauth/callback`：MCP OAuth2 授权码回调，由 `MCPServerService.CompleteMCPServerOAuthCallback` 处理后重定向。
 - `POST /api/agui/:agent_id`：AG-UI 入口（登录用户可访问任何 runner 能运行的 Agent；API token 与 root token 需要 `enable_agui`），SSE 流式事件；`GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照；`GET /api/agui/:agent_id/threads/:thread_id/messages`：thread 历史（见下文 “AG-UI 上的 A2UI”）。
 
+### AG-UI 的 Detached Run（issue #401，ADR-0016）
+
+- **租约与检查**：每次运行都在打开 SSE 之前拿 thread 的 session lease（有 Redis 时跨 Pod，否则进程内），所有读 session 的检查（thread 归属 403、工具结果、shared state 基线、表单提交）都在这一次租约内完成。续租出错会重试，直到距上次成功续租满一个 TTL 才算丢失租约；只有这种失效或“已不是持有者”才取消运行（`sessionguard.ErrLeaseLost`）。
+- **Run state**：每次运行（无论是否 detached）都在租约旁记录 run state（`internal/runtime/runstate`：`runId`、Invocation ID、运行前 session 的事件数、是否 detached）。`runstate.Keep` 只在运行持有租约期间按租约节奏续期，续期与删除都以 Invocation ID 隔离，且只延长仍属于本次运行的 state，绝不重建已过期或已结束的 state；运行丢失租约或 Pod 挂掉时，它随租约一起过期。thread 读取用它在运行起点处截断（#403）；#404 会让结束的 Detached Run 的 state 与其 Run Log 保留同样久。
+- **Detached Run**：客户端带 `forwardedProps.butterRun = {"detach": true}` 时，租约在脱离请求的 context 上获取（上限 `agui.max_run_duration`，默认 30 分钟），由运行 goroutine 持有到终态落库为止；没有 UI 绑定的 thread 在打开流之前以 400 拒绝。事件写入进程内 fan-out（`agui_fanout.go`），POST 响应只是第一个观察者，带 SSE 注释心跳；断开只摘掉这个观察者。#404 会用 Redis Run Log 替换 fan-out。
+- **Invocation 记录**：Detached Run 自己写记录（`source = agui-detached`，`request_id` 为按 thread 限定的 `runId`，重复则 409 `run_exists`），runner 不再记录（`runner.WithoutInvocationRecording`）。状态 QUEUED → RUNNING → SUCCEEDED / FAILED / CANCELLED，终态优先级与 asyncrun 的 `claimTerminal` 相同；超时、优雅关闭（`AGUIHandler.Shutdown`；Butterfly 不会调用 `TeardownFunc`，所以 `cmd/butter` 在收到 SIGTERM/SIGINT 时自己执行 teardown 再退出）、丢失租约都记为 FAILED 并写明原因。sink 先扣住 `RUN_FINISHED`，等记录和 run state 落定后再发出。
+- **默认运行**：不带 opt-in 的运行仍活在请求里，断开即取消，记录仍由 runner 写入。
+
 ### AG-UI 上的 A2UI（issue #350，ADR-0014）
 
 - **模块**：`internal/a2ui` 是 A2UI v0.9.1 层——`butter-basic-v1` catalog 与校验、结果卡片的批处理与 session state 记录（`butter:a2ui:card:<id>`，删除留 tombstone）、UI 绑定（`butter:a2ui:binding`）、Human Input 表单绑定（冻结在 request-input 事件的 `CustomMetadata`）与提交校验。`internal/a2uitool` 提供 `render_ui`，与 `aguitool` 一样挂在每个 LLM Agent 上，但只有 run context 带 `a2ui.Run` 时才出现。

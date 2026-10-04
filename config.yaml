@@ -154,6 +154,15 @@ langfuse:
 #   # Default: 30m.
 #   max_run_duration: 30m
 
+# AG-UI endpoint. A run whose client opts in with
+# forwardedProps.butterRun = {"detach": true} keeps going when its client
+# disconnects (ADR-0016).
+# agui:
+#   # Maximum wall-clock duration of one detached run. A run exceeding it is
+#   # cancelled and recorded FAILED with a deadline-exceeded reason.
+#   # Default: 30m.
+#   max_run_duration: 30m
+
 # Runtime resources are NOT configured here.
 #
 # Agents, Model Providers, MCP Servers, Remote Agents, and Cron Jobs live in the

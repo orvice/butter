@@ -16,14 +16,18 @@ import (
 // Backend is an OpenAI-compatible chat completions endpoint for tests. It
 // records complete requests and derived user input by actual model ID.
 type Backend struct {
-	server          *httptest.Server
-	scripted        map[string]http.HandlerFunc
-	requestScripted map[string]func(http.ResponseWriter, ChatCompletionRequest)
+	server *httptest.Server
 
-	mu                sync.Mutex
+	mu sync.Mutex
+	// scripts answer a model's calls in place of the echo default.
+	scripts           map[string]script
 	inputsByModelID   map[string][]string
 	requestsByModelID map[string][]ChatCompletionRequest
 }
+
+// script answers one call: the HTTP request, whose body is already read, and
+// the decoded request.
+type script func(http.ResponseWriter, *http.Request, ChatCompletionRequest)
 
 type ChatCompletionRequest struct {
 	Model    string                  `json:"model"`
@@ -39,7 +43,7 @@ type ChatCompletionMessage struct {
 func New(t testing.TB) *Backend {
 	t.Helper()
 	b := &Backend{
-		scripted:          make(map[string]http.HandlerFunc),
+		scripts:           make(map[string]script),
 		inputsByModelID:   make(map[string][]string),
 		requestsByModelID: make(map[string][]ChatCompletionRequest),
 	}
@@ -74,19 +78,20 @@ func (b *Backend) handleCompletion(w http.ResponseWriter, r *http.Request) {
 	b.mu.Lock()
 	b.inputsByModelID[req.Model] = append(b.inputsByModelID[req.Model], lastUser)
 	b.requestsByModelID[req.Model] = append(b.requestsByModelID[req.Model], req)
-	handler := b.scripted[req.Model]
-	requestHandler := b.requestScripted[req.Model]
+	answer := b.scripts[req.Model]
 	b.mu.Unlock()
 
-	if requestHandler != nil {
-		requestHandler(w, req)
-		return
-	}
-	if handler != nil {
-		handler(w, r)
+	if answer != nil {
+		answer(w, r, req)
 		return
 	}
 	WriteCompletion(w, req.Model, fmt.Sprintf("%s(%s)", req.Model, lastUser))
+}
+
+func (b *Backend) setScript(model string, answer script) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.scripts[model] = answer
 }
 
 func lastUserInput(messages []ChatCompletionMessage) string {
@@ -123,10 +128,9 @@ func (b *Backend) Answer(model, reply string) {
 
 // Script installs a handler for a model, replacing the echo default.
 func (b *Backend) Script(model string, handler http.HandlerFunc) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	delete(b.requestScripted, model)
-	b.scripted[model] = handler
+	b.setScript(model, func(w http.ResponseWriter, r *http.Request, _ ChatCompletionRequest) {
+		handler(w, r)
+	})
 }
 
 // RequireConcurrent blocks completions until n requests are in flight.
@@ -216,13 +220,16 @@ type ToolCall struct {
 // script can answer differently per turn (e.g. call a tool, then reply once
 // the tool result is in the conversation).
 func (b *Backend) ScriptRequest(model string, handler func(w http.ResponseWriter, req ChatCompletionRequest)) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	delete(b.scripted, model)
-	if b.requestScripted == nil {
-		b.requestScripted = make(map[string]func(http.ResponseWriter, ChatCompletionRequest))
-	}
-	b.requestScripted[model] = handler
+	b.setScript(model, func(w http.ResponseWriter, _ *http.Request, req ChatCompletionRequest) {
+		handler(w, req)
+	})
+}
+
+// ScriptCall is ScriptRequest with the HTTP request as well, whose context
+// ends when the caller gives up on the call — so a script can hold a call
+// open and tell a cancelled call from one it answered.
+func (b *Backend) ScriptCall(model string, handler func(w http.ResponseWriter, r *http.Request, req ChatCompletionRequest)) {
+	b.setScript(model, handler)
 }
 
 // Streaming reports whether the request asked for an SSE chunk stream.

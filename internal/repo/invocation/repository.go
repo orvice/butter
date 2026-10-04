@@ -11,6 +11,12 @@ import (
 // ErrNotFound is returned by Get when an invocation does not exist.
 var ErrNotFound = errors.New("invocation not found")
 
+// SourceAGUIDetached is the source of the Invocation records the AG-UI path
+// owns: those of Detached Runs (ADR-0016 decision 3). The runner records
+// nothing for these runs, so other entry points tell their records apart by
+// it.
+const SourceAGUIDetached = "agui-detached"
+
 // ListFilter narrows results returned by List. AgentID filters by the
 // immutable agent_id; AgentName is the legacy filter kept so historical
 // records written before the Agent ID migration stay reachable.
