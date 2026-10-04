@@ -1,6 +1,6 @@
 # ADR-0016: AG-UI runs outlive their request
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-04
 - Issue: #389 (PRD), #400 (this decision), #401–#408 (implementation),
   #409–#411 (cutover)
