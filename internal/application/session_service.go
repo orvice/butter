@@ -90,6 +90,20 @@ type sessionDeleteCoordinator interface {
 	CancelAndWait(ctx context.Context, invocationID, workspaceID string) bool
 }
 
+// aguiAppName is the app of AG-UI threads' sessions (the AG-UI handler's).
+const aguiAppName = "agui"
+
+// AGUIThreads holds an AG-UI thread while DeleteSession deletes it (ADR-0016
+// decision 7). *httpHandler.AGUIHandler implements it.
+type AGUIThreads interface {
+	// HoldThreadForDelete stops the thread's Detached Run, on any Pod, then
+	// takes the thread's lease, waiting with a bound, and drops the thread's
+	// run state. The delete runs on holdCtx, and release ends the hold. held
+	// is false when the lease did not come free in time: nothing was
+	// changed.
+	HoldThreadForDelete(ctx context.Context, userID, sessionID string) (holdCtx context.Context, release func(), held bool, err error)
+}
+
 // SessionServiceServer implements the generated SessionService ConnectRPC handler.
 type SessionServiceServer struct {
 	mu              sync.RWMutex
@@ -102,6 +116,7 @@ type SessionServiceServer struct {
 	invRepo         invocation.Repository
 	inputPartRepo   inputpart.Repository
 	asyncCoord      sessionDeleteCoordinator
+	aguiThreads     AGUIThreads
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
 
@@ -259,6 +274,23 @@ func (s *SessionServiceServer) getAsyncCoord() sessionDeleteCoordinator {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.asyncCoord
+}
+
+// SetAGUIThreads wires how DeleteSession deletes an AG-UI thread: stopping
+// its Detached Run and holding the thread's lease while it deletes.
+func (s *SessionServiceServer) SetAGUIThreads(threads AGUIThreads) {
+	if threads == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.aguiThreads = threads
+}
+
+func (s *SessionServiceServer) getAGUIThreads() AGUIThreads {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.aguiThreads
 }
 
 // IsSessionDeleting reports whether a deletion is in progress for the given
@@ -725,25 +757,45 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 
 	logger := log.FromContext(ctx)
 	wsID, _ := workspace.FromContext(ctx)
-
-	// Step 1: Mark the session as deleting so new submissions are rejected.
-	s.markDeleting(sessionID)
-	defer s.unmarkDeleting(sessionID)
-
-	// Step 2: Cancel any active invocation and wait for it to finish writing
-	// session events.
 	invRepo := s.getInvRepo()
-	coord := s.getAsyncCoord()
-	if invRepo != nil && wsID != "" {
-		active, activeErr := invRepo.FindActiveBySession(ctx, wsID, sessionID)
-		if activeErr == nil && active != nil {
-			if coord != nil {
-				coord.CancelAndWait(ctx, active.GetId(), wsID)
+
+	if threads := s.getAGUIThreads(); appName == aguiAppName && threads != nil {
+		// Steps 1–2 for an AG-UI thread (ADR-0016 decision 7): its Detached
+		// Run is stopped on whichever Pod runs it, then the thread's lease is
+		// taken and held while the thread is deleted, so no run starts or
+		// writes in between on any Pod. This replaces the process-local
+		// deleting guard. A lease that does not come free in time, as under
+		// a run without the opt-in, fails the delete before anything is
+		// deleted.
+		holdCtx, release, held, err := threads.HoldThreadForDelete(ctx, userID, sessionID)
+		if err != nil {
+			logger.Error("holding the AG-UI thread for its delete failed", "session_id", sessionID, "err", err)
+			return nil, connect.NewError(connect.CodeUnavailable, errors.New("the thread could not be held for its delete; retry later"))
+		}
+		if !held {
+			return nil, connect.NewError(connect.CodeUnavailable, errors.New("a run still holds the thread; retry the delete once it ends"))
+		}
+		defer release()
+		ctx = holdCtx
+	} else {
+		// Step 1: Mark the session as deleting so new submissions are rejected.
+		s.markDeleting(sessionID)
+		defer s.unmarkDeleting(sessionID)
+
+		// Step 2: Cancel any active invocation and wait for it to finish writing
+		// session events.
+		coord := s.getAsyncCoord()
+		if invRepo != nil && wsID != "" {
+			active, activeErr := invRepo.FindActiveBySession(ctx, wsID, sessionID)
+			if activeErr == nil && active != nil {
+				if coord != nil {
+					coord.CancelAndWait(ctx, active.GetId(), wsID)
+				}
+				logger.Info("cancelled active invocation for session deletion",
+					"invocation_id", active.GetId(),
+					"session_id", sessionID,
+				)
 			}
-			logger.Info("cancelled active invocation for session deletion",
-				"invocation_id", active.GetId(),
-				"session_id", sessionID,
-			)
 		}
 	}
 

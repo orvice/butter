@@ -181,6 +181,82 @@ func TestRedisReleaseOnceAfterDisconnect(t *testing.T) {
 	}
 }
 
+// The turn context names its acquisition: it carries the token the lease is
+// held under, a new one for every acquisition (#402), so a Stop bound to one
+// turn's token never reaches the next turn on the session.
+func TestLeasedTurnContextCarriesTheAcquisitionToken(t *testing.T) {
+	var holders []string
+	guard := NewLeased("pod-a", time.Minute, func(_, leaseHolder string) Lease {
+		holders = append(holders, leaseHolder)
+		return &fakeLease{acquireOK: true, renewOK: true}
+	})
+
+	var tokens []string
+	for range 2 {
+		leaseCtx, release, ok, err := guard.Acquire(t.Context(), "session-a")
+		if err != nil || !ok {
+			t.Fatalf("Acquire: ok=%v err=%v", ok, err)
+		}
+		token, ok := Token(leaseCtx)
+		if !ok {
+			t.Fatal("the turn context carries no token")
+		}
+		tokens = append(tokens, token)
+		release()
+	}
+	if len(holders) != 2 || tokens[0] != holders[0] || tokens[1] != holders[1] {
+		t.Fatalf("tokens %v, leases held under %v: the token is not the lease's holder value", tokens, holders)
+	}
+	if tokens[0] == tokens[1] {
+		t.Fatalf("two acquisitions share the token %q", tokens[0])
+	}
+	// A context derived from the turn context still names it.
+	leaseCtx, release, _, _ := guard.Acquire(t.Context(), "session-a")
+	defer release()
+	derived, cancel := context.WithCancel(leaseCtx)
+	defer cancel()
+	if token, _ := Token(derived); token != holders[2] {
+		t.Fatalf("derived context token = %q, want %q", token, holders[2])
+	}
+}
+
+// A busy session, or a context no acquisition made, has no token.
+func TestTokenIsAbsentWithoutAnAcquisition(t *testing.T) {
+	if token, ok := Token(t.Context()); ok || token != "" {
+		t.Fatalf("Token(plain context) = %q, %v", token, ok)
+	}
+	guard := redisGuardWith(&fakeLease{acquireOK: false}, time.Minute)
+	busyCtx, _, ok, err := guard.Acquire(t.Context(), "session-a")
+	if err != nil || ok {
+		t.Fatalf("Acquire: ok=%v err=%v, want busy", ok, err)
+	}
+	if _, ok := Token(busyCtx); ok {
+		t.Fatal("a busy acquisition handed out a token")
+	}
+}
+
+// The in-process guard hands out a token per acquisition too.
+func TestMemoryGuardTurnContextCarriesAToken(t *testing.T) {
+	guard := NewMemory()
+	firstCtx, release, ok, _ := guard.Acquire(t.Context(), "session-a")
+	if !ok {
+		t.Fatal("Acquire failed")
+	}
+	first, ok := Token(firstCtx)
+	if !ok {
+		t.Fatal("the turn context carries no token")
+	}
+	release()
+	secondCtx, release, ok, _ := guard.Acquire(t.Context(), "session-a")
+	if !ok {
+		t.Fatal("Acquire failed")
+	}
+	defer release()
+	if second, _ := Token(secondCtx); second == "" || second == first {
+		t.Fatalf("tokens %q and %q: want a new one per acquisition", first, second)
+	}
+}
+
 func TestMemoryGuardSerializesOneSessionOnly(t *testing.T) {
 	guard := NewMemory()
 

@@ -83,6 +83,9 @@ type AGUIHandler struct {
 	// heartbeat paces the comments a Detached Run's observers send while it
 	// is quiet; tests shorten it.
 	heartbeat time.Duration
+	// deleteWait bounds how long deleting a thread waits for its lease;
+	// tests shorten it.
+	deleteWait time.Duration
 
 	// runs are this process's Detached Runs in flight.
 	runs *aguiRuns
@@ -95,10 +98,11 @@ type AGUIHandler struct {
 // NewAGUIHandler creates an AG-UI handler with the given agent repository.
 func NewAGUIHandler(repo configrepo.AgentRepository) *AGUIHandler {
 	return &AGUIHandler{
-		agentRepo: repo,
-		maxRun:    AGUIDefaultMaxRunDuration,
-		heartbeat: aguiHeartbeatInterval,
-		runs:      newAGUIRuns(),
+		agentRepo:  repo,
+		maxRun:     AGUIDefaultMaxRunDuration,
+		heartbeat:  aguiHeartbeatInterval,
+		deleteWait: aguiDeleteLeaseWait,
+		runs:       newAGUIRuns(),
 	}
 }
 
@@ -162,8 +166,9 @@ func (h *AGUIHandler) getInvocations() invocation.Repository {
 }
 
 // SetRunStateStore wires where every run records its run state next to its
-// thread lease (ADR-0016 decision 6): Redis with several Pods, the
-// in-process store otherwise. Without one, runs record none.
+// thread lease (ADR-0016 decision 6), on which a Stop is accepted (decision
+// 4): Redis with several Pods, the in-process store otherwise. Without one,
+// runs record none and cannot detach.
 func (h *AGUIHandler) SetRunStateStore(store runstate.Store) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -199,6 +204,12 @@ func (h *AGUIHandler) heartbeatInterval() time.Duration {
 	return h.heartbeat
 }
 
+func (h *AGUIHandler) deleteLeaseWait() time.Duration {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.deleteWait
+}
+
 // Shutdown ends the Detached Runs in flight for a graceful process exit. Each
 // is cancelled, ends FAILED with a shutdown reason and releases its thread's
 // lease; Shutdown waits for them until ctx ends. Detached runs requested
@@ -221,6 +232,7 @@ func (h *AGUIHandler) Register(r *gin.Engine) {
 	r.POST("/api/agui/:agent_id", h.RunAgent)
 	r.GET("/api/agui/:agent_id/threads/:thread_id/ui", h.UISnapshot)
 	r.GET("/api/agui/:agent_id/threads/:thread_id/messages", h.ThreadMessages)
+	r.POST("/api/agui/:agent_id/threads/:thread_id/stop", h.StopRun)
 }
 
 // aguiErrorResponse is the body for failures that happen before the SSE stream
@@ -515,6 +527,10 @@ func (h *AGUIHandler) checkStores(rc *aguiRunContext) *aguiRefusal {
 		}
 		if h.getInvocations() == nil {
 			return unavailable("detached runs are not available: invocation store unavailable")
+		}
+		// A Stop reaches a Detached Run through its run state.
+		if h.getRunStateStore() == nil {
+			return unavailable("detached runs are not available: run state store unavailable")
 		}
 	}
 	return nil

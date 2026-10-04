@@ -844,21 +844,17 @@ func TestAGUIRun_RecordsRunStateWhileItRuns(t *testing.T) {
 	}
 }
 
-// A Stop is representable: an accepted one ends the run CANCELLED and tells
-// its observers, and one that comes after the run claimed its end finds
-// nothing running. (The Stop endpoint itself is #402.)
+// A Stop ends the run CANCELLED and tells its observers, and one that comes
+// after the run claimed its end finds nothing running. (Across instances,
+// and through the other entry points, in agui_stop_test.go.)
 func TestAGUIDetached_StopEndsTheRunCancelled(t *testing.T) {
 	d := newDetachHarness(t)
 	model := d.gate("card-model", "too late")
 	post := d.start("carder", detachBody("t-1", "run-1", "hi"))
 	model.waitStarted(t)
 
-	st, ok := d.runState(detachThread)
-	if !ok {
-		t.Fatal("no run state")
-	}
-	if !d.handler.runs.stop(st.InvocationID) {
-		t.Fatal("the Stop was not accepted")
+	if w := stopRun(t, d.router, "carder", "t-1"); w.Code != http.StatusAccepted {
+		t.Fatalf("Stop: status = %d, body = %s; want 202", w.Code, w.Body.String())
 	}
 	w := post.wait(t)
 	if body := w.Body.String(); !strings.Contains(body, `"type":"RUN_ERROR"`) || !strings.Contains(body, "stopped by user") {
@@ -872,8 +868,8 @@ func TestAGUIDetached_StopEndsTheRunCancelled(t *testing.T) {
 	if d.lease.isHeld(detachThread) {
 		t.Fatal("the stopped run kept its lease")
 	}
-	if d.handler.runs.stop(st.InvocationID) {
-		t.Fatal("a Stop after the run ended was accepted")
+	if w := stopRun(t, d.router, "carder", "t-1"); w.Code != http.StatusNoContent {
+		t.Fatalf("a Stop after the run ended: status = %d, want 204", w.Code)
 	}
 }
 

@@ -84,6 +84,7 @@ type AgentServiceServer struct {
 	opRepo          agentoprepo.Repository
 	content         agentContentCoordinator
 	asyncCoord      asyncCoordinator
+	aguiRuns        AGUIRunStopper
 	sessionSvc      adksession.Service
 	sessionExcluder SessionExcluder
 	cutoverSources  *AgentCutoverSources
@@ -902,20 +903,31 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 	}
 
 	var cancelled bool
-	if inv != nil && inv.GetSource() == "dashboard-async" && s.asyncCoord != nil {
-		// The coordinator owns the outer async context. Cancelling only the
-		// runner's nested context would make the coordinator classify Stop as a
-		// generic failure.
-		cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
-	}
-	if !cancelled {
-		cancelled = s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
-	}
-	if !cancelled && inv == nil && s.asyncCoord != nil {
-		// Compatibility fallback for tests or deployments without an Invocation
-		// recorder. Persisted dashboard async Invocations take the authorized path
-		// above.
-		cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
+	if inv != nil && inv.GetSource() == invocation.SourceAGUIDetached {
+		// A Detached AG-UI run owns its record and is stopped through the
+		// AG-UI Stop, which reaches it on any Pod. The runner never
+		// registered it, and would reach only this Pod anyway.
+		stopped, err := s.stopAGUIRun(ctx, inv)
+		if err != nil {
+			return nil, err
+		}
+		cancelled = stopped
+	} else {
+		if inv != nil && inv.GetSource() == "dashboard-async" && s.asyncCoord != nil {
+			// The coordinator owns the outer async context. Cancelling only the
+			// runner's nested context would make the coordinator classify Stop as a
+			// generic failure.
+			cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
+		}
+		if !cancelled {
+			cancelled = s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
+		}
+		if !cancelled && inv == nil && s.asyncCoord != nil {
+			// Compatibility fallback for tests or deployments without an Invocation
+			// recorder. Persisted dashboard async Invocations take the authorized path
+			// above.
+			cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
+		}
 	}
 	log.FromContext(ctx).Info("cancel agent invocation requested",
 		"invocation_id", req.Msg.GetInvocationId(),
@@ -923,6 +935,36 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 		"cancelled", cancelled,
 	)
 	return connect.NewResponse(&agentsv1.CancelAgentInvocationResponse{Cancelled: cancelled}), nil
+}
+
+// AGUIRunStopper stops a Detached AG-UI run on any Pod (ADR-0016 decision
+// 4). *httpHandler.AGUIHandler implements it.
+type AGUIRunStopper interface {
+	// StopInvocation asks the run with this Invocation, on the thread of
+	// this user and session, to stop while it runs; never a later run on the
+	// thread. stopped reports whether the Stop was accepted.
+	StopInvocation(ctx context.Context, userID, sessionID, invocationID string) (stopped bool, err error)
+}
+
+// SetAGUIRunStopper wires the AG-UI Stop, which CancelAgentInvocation uses
+// for AG-UI-owned Invocations.
+func (s *AgentServiceServer) SetAGUIRunStopper(stopper AGUIRunStopper) {
+	s.aguiRuns = stopper
+}
+
+// stopAGUIRun stops the Detached AG-UI run an AG-UI-owned Invocation records.
+// The Stop is accepted at once; the run ends CANCELLED as soon as it has
+// cancelled its turn, on whichever Pod runs it.
+func (s *AgentServiceServer) stopAGUIRun(ctx context.Context, inv *agentsv1.Invocation) (bool, error) {
+	if s.aguiRuns == nil {
+		return false, connect.NewError(connect.CodeFailedPrecondition, errors.New("AG-UI runs cannot be stopped here: the AG-UI Stop is not available"))
+	}
+	stopped, err := s.aguiRuns.StopInvocation(ctx, inv.GetUserId(), inv.GetSessionId(), inv.GetId())
+	if err != nil {
+		log.FromContext(ctx).Error("stopping the AG-UI run failed", "invocation_id", inv.GetId(), "err", err)
+		return false, connect.NewError(connect.CodeUnavailable, errors.New("the AG-UI run could not be stopped; retry later"))
+	}
+	return stopped, nil
 }
 
 func (s *AgentServiceServer) GetAgentRuntimeStatus(ctx context.Context, req *connect.Request[agentsv1.GetAgentRuntimeStatusRequest]) (*connect.Response[agentsv1.GetAgentRuntimeStatusResponse], error) {

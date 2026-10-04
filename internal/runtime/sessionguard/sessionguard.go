@@ -33,9 +33,27 @@ var ErrLeaseLost = errors.New("session lease lost")
 // with ErrLeaseLost as its cause, so a Pod that was fenced out stops acting
 // instead of racing the new holder — and must call release exactly once when
 // the turn ends, whatever the outcome. acquired=false with a nil error means
-// another turn currently holds the session.
+// another turn currently holds the session. turnCtx carries the
+// acquisition's token (Token).
 type Guard interface {
 	Acquire(ctx context.Context, sessionKey string) (context.Context, func(), bool, error)
+}
+
+type tokenKey struct{}
+
+// Token returns the token of the acquisition that made ctx, the turn context
+// Acquire returned, or a context derived from it. Every acquisition gets its
+// own token, and a Redis lease is held under it, so a token names one turn's
+// hold on its session: a Stop bound to it never reaches a later turn
+// (ADR-0016 decision 4). ok is false for a context no acquisition made.
+func Token(ctx context.Context) (token string, ok bool) {
+	token, _ = ctx.Value(tokenKey{}).(string)
+	return token, token != ""
+}
+
+// withToken is ctx carrying an acquisition's token.
+func withToken(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, tokenKey{}, token)
 }
 
 // Lease is one acquisition's renewable lease. redislease.Lease implements it.
@@ -80,13 +98,16 @@ func NewLeased(holder string, ttl time.Duration, newLease func(sessionKey, lease
 var _ Guard = (*Leased)(nil)
 
 func (g *Leased) Acquire(ctx context.Context, sessionKey string) (context.Context, func(), bool, error) {
-	lease := g.lease(sessionKey, g.holder+":"+sessionKey+":"+uuid.NewString())
+	// The lease is held under the acquisition's token, which the turn context
+	// carries.
+	token := g.holder + ":" + sessionKey + ":" + uuid.NewString()
+	lease := g.lease(sessionKey, token)
 	acquiredAt := time.Now()
 	ok, err := lease.Acquire(ctx)
 	if err != nil || !ok {
 		return ctx, func() {}, ok, err
 	}
-	leaseCtx, cancel := context.WithCancelCause(ctx)
+	leaseCtx, cancel := context.WithCancelCause(withToken(ctx, token))
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -179,7 +200,8 @@ func (g *Memory) Acquire(ctx context.Context, sessionKey string) (context.Contex
 	}
 	g.active[sessionKey] = true
 	var once sync.Once
-	return ctx, func() {
+	// Each acquisition gets its own token, as a Redis lease's does.
+	return withToken(ctx, "memory:"+sessionKey+":"+uuid.NewString()), func() {
 		once.Do(func() {
 			g.mu.Lock()
 			defer g.mu.Unlock()
