@@ -20,6 +20,7 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	"go.orx.me/apps/butter/internal/repo/invocation"
+	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
@@ -31,23 +32,27 @@ import (
 // and the RPCs that reach it, with a real runner, a real session store and
 // the fake model. Two instances of the endpoint stand for two Pods: each has
 // its own runner and handler over the same sessions and Invocation records,
-// and they share thread leases and run states — one in-process copy, or,
-// with REDIS_ADDR set, one Redis that each reaches through its own clients.
+// and they share thread leases, run states and Run Logs — one in-process
+// copy, or, with REDIS_ADDR set, one Redis that each reaches through its own
+// clients.
 
 // podStores are what one instance shares its threads through.
 type podStores struct {
 	guard sessionguard.Guard
 	runs  runstate.Store
+	logs  runlog.Store
 }
 
-// memoryPods share one in-process lease guard and run state store.
+// memoryPods share one in-process lease guard, run state store and run log
+// store.
 func memoryPods(*testing.T) func(pod string) podStores {
-	guard, runs := sessionguard.NewMemory(), runstate.NewMemory(time.Minute)
-	return func(string) podStores { return podStores{guard: guard, runs: runs} }
+	guard, runs, logs := sessionguard.NewMemory(), runstate.NewMemory(time.Minute), runlog.NewMemory()
+	return func(string) podStores { return podStores{guard: guard, runs: runs, logs: logs} }
 }
 
-// redisPods give each instance its own lease guard and run state store over
-// one Redis, as two Pods have: a Stop's nudge travels through Redis.
+// redisPods give each instance its own lease guard, run state store and run
+// log store over one Redis, as two Pods have: a Stop's nudge, and a run's
+// events, travel through Redis.
 func redisPods(t *testing.T) func(pod string) podStores {
 	t.Helper()
 	addr := os.Getenv("REDIS_ADDR")
@@ -69,8 +74,12 @@ func redisPods(t *testing.T) func(pod string) podStores {
 	const ttl = 3 * time.Second
 	return func(pod string) podStores {
 		runs := runstate.NewRedis(rdb, prefix+"run:", ttl)
-		t.Cleanup(func() { _ = runs.Close() })
-		return podStores{guard: sessionguard.NewRedis(rdb, pod, prefix+"lease:", ttl), runs: runs}
+		logs := runlog.NewRedis(rdb, prefix+"log:")
+		t.Cleanup(func() {
+			_ = runs.Close()
+			logs.Close()
+		})
+		return podStores{guard: sessionguard.NewRedis(rdb, pod, prefix+"lease:", ttl), runs: runs, logs: logs}
 	}
 }
 
@@ -85,6 +94,7 @@ func onPod(stores podStores) func(*detachHarness) {
 	return func(d *detachHarness) {
 		d.lease = newCountingGuard(stores.guard)
 		d.runStates = stores.runs
+		d.runLogs = stores.logs
 	}
 }
 
@@ -103,6 +113,7 @@ func (d *detachHarness) peer(stores podStores) *aguiPeer {
 	p.handler.SetSessionGuard(stores.guard)
 	p.handler.SetInvocationRepo(d.invocations)
 	p.handler.SetRunStateStore(stores.runs)
+	p.handler.SetRunLogStore(stores.logs)
 	d.t.Cleanup(func() {
 		done := make(chan struct{})
 		go func() {
@@ -222,8 +233,8 @@ func TestAGUIStop_ARunIsStoppedThroughAnotherInstance(t *testing.T) {
 		if !threadFree(t, pods("pod-c").guard, detachThread) {
 			t.Fatal("the stopped run kept its thread's lease")
 		}
-		if st, ok := d.runState(detachThread); ok {
-			t.Fatalf("run state after the Stop = %+v", st)
+		if st, ok := d.runState(detachThread); ok && !st.Ended {
+			t.Fatalf("run state after the Stop = %+v; want it ended", st)
 		}
 	})
 }
@@ -330,7 +341,7 @@ func TestAGUIStop_AnAcceptedStopAlwaysEndsTheRunCancelled(t *testing.T) {
 			acrossPods(t, func(t *testing.T, pods func(string) podStores) {
 				a := pods("pod-a")
 				hook := &claimHook{Store: a.runs}
-				d := newDetachHarness(t, onPod(podStores{guard: a.guard, runs: hook}))
+				d := newDetachHarness(t, onPod(podStores{guard: a.guard, runs: hook, logs: a.logs}))
 				b := d.peer(pods("pod-b"))
 				stopStatus := 0
 				stop := func() { stopStatus = stopRun(t, b.router, "carder", "t-1").Code }
@@ -380,7 +391,7 @@ func TestAGUIStop_AStopRacingTheRunsStartIsNotLost(t *testing.T) {
 	acrossPods(t, func(t *testing.T, pods func(string) podStores) {
 		a := pods("pod-a")
 		hook := &beginHook{Store: a.runs}
-		d := newDetachHarness(t, onPod(podStores{guard: a.guard, runs: hook}))
+		d := newDetachHarness(t, onPod(podStores{guard: a.guard, runs: hook, logs: a.logs}))
 		b := d.peer(pods("pod-b"))
 		stopStatus := 0
 		hook.after = func() { stopStatus = stopRun(t, b.router, "carder", "t-1").Code }
@@ -409,6 +420,7 @@ func TestAGUIStop_ReachesOnlyTheCallersBoundThread(t *testing.T) {
 	d.handler.SetSessionGuard(d.lease)
 	d.handler.SetInvocationRepo(d.invocations)
 	d.handler.SetRunStateStore(d.runStates)
+	d.handler.SetRunLogStore(d.runLogs)
 	model := d.gate("card-model", "never delivered")
 	post := d.start("carder", detachBody("t-1", "run-1", "hi"))
 	model.waitStarted(t)

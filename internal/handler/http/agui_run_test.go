@@ -20,6 +20,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
+	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/testsupport/openaifake"
@@ -48,6 +49,7 @@ type detachHarness struct {
 	lease       *countingGuard
 	invocations *statusLog
 	runStates   runstate.Store
+	runLogs     runlog.Store
 }
 
 func newDetachHarness(t *testing.T, opts ...func(*detachHarness)) *detachHarness {
@@ -57,6 +59,7 @@ func newDetachHarness(t *testing.T, opts ...func(*detachHarness)) *detachHarness
 		lease:       newCountingGuard(sessionguard.NewMemory()),
 		invocations: newStatusLog(invocationmemory.New().WithOwner(detachOwner)),
 		runStates:   runstate.NewMemory(time.Minute),
+		runLogs:     runlog.NewMemory(),
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -66,6 +69,7 @@ func newDetachHarness(t *testing.T, opts ...func(*detachHarness)) *detachHarness
 	d.handler.SetSessionGuard(d.lease)
 	d.handler.SetInvocationRepo(d.invocations)
 	d.handler.SetRunStateStore(d.runStates)
+	d.handler.SetRunLogStore(d.runLogs)
 	// Registered before any gate, so it runs after every gate has opened.
 	t.Cleanup(d.waitForRuns)
 	return d
@@ -124,9 +128,57 @@ func (d *detachHarness) runState(thread string) (runstate.State, bool) {
 
 // pendingPost is a request in flight from a client that can disconnect.
 type pendingPost struct {
-	w          *httptest.ResponseRecorder
+	w *httptest.ResponseRecorder
+	// live is w as the handler writes it, readable meanwhile.
+	live       *liveRecorder
 	disconnect context.CancelFunc
 	done       chan struct{}
+}
+
+// liveRecorder lets a test read a response while the handler still writes
+// it.
+type liveRecorder struct {
+	*httptest.ResponseRecorder
+	mu sync.Mutex
+}
+
+func (r *liveRecorder) Write(b []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ResponseRecorder.Write(b)
+}
+
+func (r *liveRecorder) WriteString(s string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ResponseRecorder.WriteString(s)
+}
+
+func (r *liveRecorder) WriteHeader(code int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ResponseRecorder.WriteHeader(code)
+}
+
+func (r *liveRecorder) Flush() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ResponseRecorder.Flush()
+}
+
+func (r *liveRecorder) body() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.Body.String()
+}
+
+// waitStreamed waits until the response carries RUN_STARTED: the client has
+// seen its run start.
+func (p *pendingPost) waitStreamed(t *testing.T) {
+	t.Helper()
+	eventually(t, "the response streams RUN_STARTED", func() bool {
+		return strings.Contains(p.live.body(), `"type":"RUN_STARTED"`)
+	})
 }
 
 func (d *detachHarness) start(agentID string, body map[string]any, opts ...a2uiOpt) *pendingPost {
@@ -144,10 +196,11 @@ func (d *detachHarness) start(agentID string, body map[string]any, opts ...a2uiO
 	req := httptest.NewRequest(http.MethodPost, "/api/agui/"+agentID, strings.NewReader(string(payload))).WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	ro.apply(req)
-	p := &pendingPost{w: httptest.NewRecorder(), disconnect: cancel, done: make(chan struct{})}
+	live := &liveRecorder{ResponseRecorder: httptest.NewRecorder()}
+	p := &pendingPost{w: live.ResponseRecorder, live: live, disconnect: cancel, done: make(chan struct{})}
 	go func() {
 		defer close(p.done)
-		d.router.ServeHTTP(p.w, req)
+		d.router.ServeHTTP(live, req)
 	}()
 	return p
 }
@@ -325,7 +378,9 @@ func TestAGUIDetached_RunOutlivesItsClient(t *testing.T) {
 	post := d.start("carder", detachBody("t-1", "run-1", "Summarize the deploy"))
 	model.waitStarted(t)
 
-	// The client goes away mid-run: that detaches its observer, nothing more.
+	// The client sees the run start, then goes away mid-run: that detaches
+	// its observer, nothing more.
+	post.waitStreamed(t)
 	post.disconnect()
 	w := post.wait(t)
 	if w.Code != http.StatusOK || !streamed(w.Body.String()) {
@@ -381,12 +436,13 @@ func TestAGUIDetached_RunOutlivesItsClient(t *testing.T) {
 		t.Fatalf("records = %d, want only the AG-UI path's", len(all))
 	}
 
-	// The lease is free and the run state gone.
+	// The lease is free, and the run state is kept, ended, for a late
+	// observer.
 	if acquired, released := d.lease.counts(); d.lease.isHeld(detachThread) || acquired != released {
 		t.Fatalf("lease held = %v, acquired %d, released %d", d.lease.isHeld(detachThread), acquired, released)
 	}
-	if st, ok := d.runState(detachThread); ok {
-		t.Fatalf("run state after the run = %+v", st)
+	if st, ok := d.runState(detachThread); !ok || !st.Ended || st.RunID != "run-1" {
+		t.Fatalf("run state after the run = %+v, %v; want run-1's, ended", st, ok)
 	}
 
 	// The thread was titled after the run, with its client long gone.
@@ -436,6 +492,7 @@ func TestAGUIDetached_SecondPostWhileRunningIsConflict(t *testing.T) {
 
 	first := d.start("carder", detachBody("t-1", "run-1", "first"))
 	model.waitStarted(t)
+	first.waitStreamed(t)
 	first.disconnect()
 	first.wait(t)
 
@@ -475,8 +532,8 @@ func TestAGUIDetached_RepeatedRunIDDoesNotRunAgain(t *testing.T) {
 	if d.lease.isHeld(detachThread) {
 		t.Fatal("the stream ended while the run still held its lease")
 	}
-	if _, ok := d.runState(detachThread); ok {
-		t.Fatal("the stream ended while the run state was still recorded")
+	if st, ok := d.runState(detachThread); ok && !st.Ended {
+		t.Fatal("the stream ended while the run state still read as running")
 	}
 	if inv, _ := d.record("t-1", "run-1"); inv.GetStatus() != agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED {
 		t.Fatalf("the stream ended before the record was terminal: %+v", inv)
@@ -790,7 +847,8 @@ func TestAGUIDetached_ThreadChecksRefuseBeforeDetaching(t *testing.T) {
 
 // Every run, detached or not, records its run state next to its lease while
 // it runs: its runId, its Invocation ID and the session's event count before
-// it. It is gone once the run ends.
+// it. Once the run ends, a run in its request removes it; a Detached Run
+// keeps it, ended, as long as its Run Log.
 func TestAGUIRun_RecordsRunStateWhileItRuns(t *testing.T) {
 	for _, detached := range []bool{false, true} {
 		name := "in its request"
@@ -837,8 +895,12 @@ func TestAGUIRun_RecordsRunStateWhileItRuns(t *testing.T) {
 			model.open()
 			post.wait(t)
 			d.waitForRuns()
-			if st, ok := d.runState(detachThread); ok {
-				t.Fatalf("run state after the run = %+v", st)
+			after, ok := d.runState(detachThread)
+			if detached && (!ok || !after.Ended || after.InvocationID != st.InvocationID) {
+				t.Fatalf("run state after the run = %+v, %v; want run-2's, ended", after, ok)
+			}
+			if !detached && ok {
+				t.Fatalf("run state after the run = %+v", after)
 			}
 		})
 	}
@@ -875,7 +937,7 @@ func TestAGUIDetached_StopEndsTheRunCancelled(t *testing.T) {
 
 // An observer learns that a Detached Run ended only once the end is settled:
 // when RUN_FINISHED reaches the client, the record is terminal and the run
-// state gone, so a read right after it already sees the finished thread.
+// state ended, so a read right after it already sees the finished thread.
 func TestAGUIDetached_ObserversLearnTheEndOnceItIsRecorded(t *testing.T) {
 	d := newDetachHarness(t)
 	d.answer("card-model", "done")
@@ -902,8 +964,11 @@ func TestAGUIDetached_ObserversLearnTheEndOnceItIsRecorded(t *testing.T) {
 		if inv, _ := d.record("t-1", "run-1"); inv.GetStatus() != agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED {
 			t.Fatalf("RUN_FINISHED arrived before the record was terminal: %+v", inv)
 		}
-		if st, ok := d.runState(detachThread); ok {
-			t.Fatalf("RUN_FINISHED arrived while the run state was still recorded: %+v", st)
+		if st, ok := d.runState(detachThread); !ok || !st.Ended {
+			t.Fatalf("RUN_FINISHED arrived while the run state read as running: %+v, %v", st, ok)
+		}
+		if _, read := d.history("carder", "t-1"); read.Running != nil || len(read.Messages) != 2 {
+			t.Fatalf("a read right after RUN_FINISHED = %+v; want the finished thread", read)
 		}
 		return
 	}

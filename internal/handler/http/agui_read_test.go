@@ -19,6 +19,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/a2ui"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
+	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/testsupport/openaifake"
@@ -41,12 +42,14 @@ func newReadHarness(t *testing.T, agents []agentsv1.Agent, models ...string) *de
 		lease:       newCountingGuard(sessionguard.NewMemory()),
 		invocations: newStatusLog(invocationmemory.New().WithOwner(detachOwner)),
 		runStates:   runstate.NewMemory(time.Minute),
+		runLogs:     runlog.NewMemory(),
 	}
 	d.recorder = d.invocations
 	d.router = d.build(agents, models)
 	d.handler.SetSessionGuard(d.lease)
 	d.handler.SetInvocationRepo(d.invocations)
 	d.handler.SetRunStateStore(d.runStates)
+	d.handler.SetRunLogStore(d.runLogs)
 	t.Cleanup(d.waitForRuns)
 	return d
 }
@@ -391,7 +394,7 @@ func TestAGUIRead_ARunStartedFromToolResultsShowsThem(t *testing.T) {
 		{"id": "result:confirm-1", "role": "tool", "content": `{"approved":true}`, "toolCallId": "confirm-1"},
 	})
 
-	if err := d.runStates.End(ctx, detachThread, "inv-2"); err != nil {
+	if err := d.runStates.End(ctx, detachThread, "inv-2", 0); err != nil {
 		t.Fatalf("End: %v", err)
 	}
 	if _, after := d.history("carder", "t-1"); after.Running != nil || len(after.Messages) != 4 ||

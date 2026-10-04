@@ -26,9 +26,9 @@ const aguiInterruptReason = "human_input"
 
 // aguiEmitter delivers one encoded AG-UI event. It is where a run's events
 // leave the sink: straight to the response for a run without the opt-in, and
-// to the run's in-process fan-out for a Detached Run (aguiFanout.emit), which
-// the Run Log replaces later (ADR-0016 decision 5). Tests substitute a
-// recorder so event ordering can be asserted without going through SSE.
+// to the run's Run Log for a Detached Run (aguiLogWriter.emit), which every
+// observer replays (ADR-0016 decision 5). Tests substitute a recorder so
+// event ordering can be asserted without going through SSE.
 type aguiEmitter func(aguievents.Event) error
 
 // newAGUISSEEmitter returns an aguiEmitter writing events to w as SSE frames,

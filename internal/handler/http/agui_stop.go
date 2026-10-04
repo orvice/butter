@@ -47,7 +47,7 @@ type aguiStopAccepted struct {
 // ended, or a thread the caller does not hold. It is idempotent: a second
 // Stop before the run ends is accepted again, and one after it answers 204.
 func (h *AGUIHandler) StopRun(c *gin.Context) {
-	threadID, thread, ok := h.stopTarget(c)
+	threadID, thread, ok := h.boundThread(c)
 	if !ok {
 		return
 	}
@@ -76,14 +76,14 @@ func (h *AGUIHandler) StopRun(c *gin.Context) {
 	c.JSON(http.StatusAccepted, aguiStopAccepted{ThreadID: threadID, RunID: st.RunID, InvocationID: st.InvocationID})
 }
 
-// stopTarget resolves the thread a Stop names, with the checks of the thread
-// reads (resolveThread): the caller reaches the agent in the request's
-// workspace (401, 404, 503 otherwise), and the thread's session carries this
-// caller's binding for that workspace and agent. thread is the thread's key,
-// or "" when the caller does not hold the thread that way, which leaves them
-// nothing to stop and reveals nothing about whose thread it is. It answers
-// any error itself (ok false).
-func (h *AGUIHandler) stopTarget(c *gin.Context) (threadID, thread string, ok bool) {
+// boundThread resolves the thread a Stop or an attach names, with the checks
+// of the thread reads (resolveThread): the caller reaches the agent in the
+// request's workspace (401, 404, 503 otherwise), and the thread's session
+// carries this caller's binding for that workspace and agent. thread is the
+// thread's key, or "" when the caller does not hold the thread that way,
+// which leaves them no run to reach and reveals nothing about whose thread it
+// is. It answers any error itself (ok false).
+func (h *AGUIHandler) boundThread(c *gin.Context) (threadID, thread string, ok bool) {
 	target, ok := h.resolveThread(c)
 	if !ok {
 		return "", "", false
@@ -136,9 +136,10 @@ func (h *AGUIHandler) StopInvocation(ctx context.Context, userID, sessionID, inv
 // HoldThreadForDelete gets an AG-UI thread ready to be deleted (ADR-0016
 // decision 7). It stops the thread's Detached Run, then takes the thread's
 // lease itself, waiting at most a bound while the run lets it go, and drops
-// the thread's run state under it. Holding the lease, the caller deletes the
-// thread on holdCtx, so no run starts or writes in between on any Pod, then
-// calls release.
+// the thread's run state and its run's Run Log under it, so a reused threadId
+// never replays the deleted conversation. Holding the lease, the caller
+// deletes the thread on holdCtx, so no run starts or writes in between on any
+// Pod, then calls release.
 //
 // held is false when the lease did not come free in time — for instance
 // under a run without the opt-in, which a Stop does not reach: nothing was
@@ -167,14 +168,9 @@ func (h *AGUIHandler) HoldThreadForDelete(ctx context.Context, userID, sessionID
 			return nil, nil, false, fmt.Errorf("take the thread's lease: %w", err)
 		}
 		if acquired {
-			if store != nil {
-				// No run holds the thread: what is left belongs to a run that
-				// ended or died, and the deleted thread must not read as
-				// running.
-				if err := store.Drop(leaseCtx, thread); err != nil {
-					releaseLease()
-					return nil, nil, false, fmt.Errorf("drop the thread's run state: %w", err)
-				}
+			if err := h.dropThreadRun(leaseCtx, thread); err != nil {
+				releaseLease()
+				return nil, nil, false, err
 			}
 			return leaseCtx, releaseLease, true, nil
 		}
@@ -193,4 +189,28 @@ func (h *AGUIHandler) HoldThreadForDelete(ctx context.Context, userID, sessionID
 		}
 		pause = min(pause*2, aguiDeleteRetryInterval)
 	}
+}
+
+// dropThreadRun drops what a thread's last run left, under the thread's
+// lease: no run holds the thread, so it belongs to a run that ended or died,
+// and the deleted thread must neither read as running nor be replayed. The
+// log goes first, because only the run state leads to it.
+func (h *AGUIHandler) dropThreadRun(ctx context.Context, thread string) error {
+	store := h.getRunStateStore()
+	if store == nil {
+		return nil
+	}
+	st, held, err := store.Get(ctx, thread)
+	if err != nil {
+		return fmt.Errorf("read the thread's run state: %w", err)
+	}
+	if logs := h.getRunLogs(); held && st.Detached && logs != nil {
+		if err := logs.Drop(ctx, aguiRunLogKey(thread, st.InvocationID)); err != nil {
+			return fmt.Errorf("drop the thread's run log: %w", err)
+		}
+	}
+	if err := store.Drop(ctx, thread); err != nil {
+		return fmt.Errorf("drop the thread's run state: %w", err)
+	}
+	return nil
 }

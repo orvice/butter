@@ -34,9 +34,9 @@ import (
 // (ADR-0016). Every run records its run state next to the thread lease. A run
 // whose client opted in with forwardedProps.butterRun = {"detach": true} is a
 // Detached Run: it holds the lease itself, on a context the request's end
-// does not reach, owns its Invocation record, and runs in its own goroutine
-// while the response only observes it. Any other run lives in its request, as
-// it always has.
+// does not reach, owns its Invocation record, writes its events to its Run
+// Log (agui_runlog.go), and runs in its own goroutine while the response only
+// observes it. Any other run lives in its request, as it always has.
 
 // aguiRunExtensionKey is the forwardedProps key of the Detached Run
 // extension, next to butterA2UI.
@@ -59,8 +59,9 @@ const aguiPostRunTimeout = 15 * time.Second
 // The writes run on contexts the run's end does not reach.
 const aguiRecordTimeout = 10 * time.Second
 
-// aguiRunStateEndTimeout bounds removing a run's state, as releasing its
-// lease is bounded. A state that is not removed lapses on its own.
+// aguiRunStateEndTimeout bounds ending a run's state, as releasing its lease
+// is bounded, and dropping the log of a run that never started. A state or a
+// log that is not ended lapses on its own.
 const aguiRunStateEndTimeout = 5 * time.Second
 
 // aguiRecordTextLimit caps the input and output an Invocation record keeps,
@@ -184,14 +185,19 @@ type aguiRun struct {
 
 // aguiDetachedRun is what a Detached Run has on top of every run: the bounds
 // of its context, its place among the runs in flight, its Invocation record
-// and its observers.
+// and its Run Log.
 type aguiDetachedRun struct {
 	maxRun time.Duration
 	entry  *aguiRunEntry
 	// cancel ends the run's context, which the request's end does not reach.
 	cancel func()
 	inv    *agentsv1.Invocation
-	fanout *aguiFanout
+	// log is the key of the run's Run Log, once it is open, and writer
+	// appends the run's events to it.
+	log    string
+	writer *aguiLogWriter
+	// done is closed once the run let its thread go.
+	done chan struct{}
 }
 
 // beginRun takes the thread's lease and, holding it, runs every check that
@@ -212,7 +218,7 @@ func (h *AGUIHandler) beginRun(c *gin.Context, rc *aguiRunContext) (*aguiRun, bo
 		// The run, not the request, holds the lease: it is taken on a context
 		// the request's end does not reach, bounded by the maximum run
 		// duration (ADR-0016 decision 2).
-		d := &aguiDetachedRun{maxRun: h.maxRunDuration(), fanout: newAGUIFanout()}
+		d := &aguiDetachedRun{maxRun: h.maxRunDuration(), done: make(chan struct{})}
 		ctx, cancel := context.WithCancelCause(context.WithoutCancel(parent))
 		ctx, cancelTimeout := context.WithTimeoutCause(ctx, d.maxRun, errAGUIRunTimedOut)
 		d.cancel = func() {
@@ -242,7 +248,8 @@ func (h *AGUIHandler) beginRun(c *gin.Context, rc *aguiRunContext) (*aguiRun, bo
 	defer stopChecks()
 	defer context.AfterFunc(c.Request.Context(), stopChecks)()
 	if refusal := run.prepare(checkCtx); refusal != nil {
-		run.endRunState()
+		run.endRunState(false)
+		run.dropLog()
 		run.release()
 		run.unregister()
 		refusal.write(c)
@@ -253,8 +260,10 @@ func (h *AGUIHandler) beginRun(c *gin.Context, rc *aguiRunContext) (*aguiRun, bo
 
 // prepare runs, under the lease, every check that reads the session — the
 // thread checks, client tool results against the pending calls, the
-// shared-state baseline and form submissions — then records the run's start.
-// Nothing has run, and no record exists, when it refuses.
+// shared-state baseline and form submissions — then records the run's start:
+// a Detached Run opens its Run Log before its run state exists, so whoever
+// finds the run finds its log. Nothing has run, and no record exists, when it
+// refuses.
 func (r *aguiRun) prepare(ctx context.Context) *aguiRefusal {
 	rc := r.rc
 	ui, refusal := r.h.prepareThread(ctx, rc)
@@ -279,6 +288,10 @@ func (r *aguiRun) prepare(ctx context.Context) *aguiRefusal {
 	if r.detached != nil {
 		if refusal := r.checkRunID(ctx); refusal != nil {
 			return refusal
+		}
+		if err := r.openLog(ctx); err != nil {
+			log.FromContext(r.ctx).Error("agui run log unavailable", "session_id", rc.ctxInfo.GetSessionId(), "err", err)
+			return refuseAGUI(http.StatusServiceUnavailable, errors.New("run log unavailable, retry later"))
 		}
 	}
 	if err := r.keepRunState(aguiEventCount(ui.sess)); err != nil {
@@ -382,7 +395,10 @@ func (r *aguiRun) openSink(emit aguiEmitter) {
 		sink.setFinalSession(r.finalSession(svc))
 	}
 	if rc.stateArmed {
-		sink.setSharedState(rc.stateInitial, rc.stateSnapshot)
+		// A Detached Run always opens with a STATE_SNAPSHOT, so its log
+		// replays on its own to an observer that holds no state (ADR-0016
+		// decision 5).
+		sink.setSharedState(rc.stateInitial, rc.stateSnapshot || r.detached != nil)
 	}
 	if rc.a2uiNegotiated {
 		// An A2UI client's forms track the thread's open Interrupts, so its
@@ -472,7 +488,7 @@ func (r *aguiRun) runTurn(ctx context.Context) (runErr error) {
 // settle ends a run that lives in its request. The runner recorded its
 // Invocation.
 func (r *aguiRun) settle(runErr error) {
-	r.endRunState()
+	r.endRunState(false)
 	if runErr == nil {
 		// The emitter writes to the response; it fails only once the client
 		// has gone, which a run in its request expects.
@@ -548,14 +564,15 @@ func (r *aguiRun) outcome(runErr error) aguiOutcome {
 }
 
 // settleDetached ends a Detached Run: it records the terminal state, ends
-// the run state, and only then tells its observers how the run ended.
+// the run state, and only then tells its observers how the run ended, so a
+// read right after the run's end sees it ended.
 func (r *aguiRun) settleDetached(runErr error) {
 	outcome := r.outcome(runErr)
 	r.recordTerminal(outcome)
-	r.endRunState()
+	r.endRunState(true)
 	if outcome.status == agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED {
-		// The fan-out never fails on an observer; an error here is an event
-		// that could not be encoded.
+		// The log's writer never fails on the store; an error here is an
+		// event that could not be encoded.
 		if err := r.sink.releaseRunFinished(); err != nil {
 			log.FromContext(r.ctx).Error("agui failed to emit RUN_FINISHED", "err", err)
 		}
@@ -590,15 +607,20 @@ func (r *aguiRun) titleAfterSuccess() {
 }
 
 // close releases the thread: the run state ends (settling already ended it,
-// unless a panic cut the run short) and the lease is released. For a
-// Detached Run it then ends the observers' streams, so a client that stayed
-// sees its stream end only once the thread is free for its next run.
+// unless a panic cut the run short), a Detached Run's last events reach its
+// Run Log, and the lease is released. A Detached Run's POST response ends
+// only then, so a client that stayed sees its stream end only once the
+// thread is free for its next run.
 func (r *aguiRun) close() {
-	r.endRunState()
+	r.endRunState(r.detached != nil)
+	if d := r.detached; d != nil && d.writer != nil && !d.writer.close() {
+		log.FromContext(r.ctx).Warn("agui run log does not hold the run's end; its observers read the thread instead",
+			"session_id", r.rc.ctxInfo.GetSessionId(), "invocation_id", r.rc.ctxInfo.GetUuid())
+	}
 	r.release()
 	if r.detached != nil {
-		r.detached.fanout.close()
 		r.unregister()
+		close(r.detached.done)
 	}
 }
 
@@ -681,23 +703,72 @@ func (r *aguiRun) claimRunState() bool {
 	return claim.Stopped
 }
 
-// endRunState removes the run's state, unless another run's replaced it.
-//
-// ADR-0016 decision 6 keeps an ended Detached Run's state, marked ended, as
-// long as its Run Log, so a late attach still finds the run. The Run Log
-// arrives with #404, and with it that retention; until then nothing reads an
-// ended run's state, so it is removed.
-func (r *aguiRun) endRunState() {
+// endRunState ends the run's state, unless another run's replaced it. A
+// Detached Run that ran keeps it, marked ended, as long as its Run Log
+// (ADR-0016 decision 6): a late attach still finds the run, and reads take it
+// for one that is not running. Any other run, and one refused before it
+// started, removes it.
+func (r *aguiRun) endRunState(keepEnded bool) {
 	if r.runState == nil {
 		return
 	}
 	kept := r.runState
 	r.runState = nil
+	keep := time.Duration(0)
+	if keepEnded {
+		keep = r.h.runLogLimits().retention
+	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), aguiRunStateEndTimeout)
 	defer cancel()
-	if err := kept.End(ctx); err != nil {
-		log.FromContext(r.ctx).Warn("agui run state not removed; it lapses on its own",
+	if err := kept.End(ctx, keep); err != nil {
+		log.FromContext(r.ctx).Warn("agui run state not ended; it lapses on its own",
 			"session_id", r.rc.ctxInfo.GetSessionId(), "err", err)
+	}
+}
+
+// --- The Run Log of a Detached Run -------------------------------------------
+
+// openLog opens the run's Run Log, empty, before anything can find the run.
+func (r *aguiRun) openLog(ctx context.Context) error {
+	key := aguiRunLogKey(r.thread, r.rc.ctxInfo.GetUuid())
+	if err := r.h.getRunLogs().Open(ctx, key, r.h.runLogLimits().ttl); err != nil {
+		return err
+	}
+	r.detached.log = key
+	return nil
+}
+
+// dropLog removes the Run Log of a run refused before it started. A log that
+// is not removed lapses on its own.
+func (r *aguiRun) dropLog() {
+	d := r.detached
+	if d == nil || d.log == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.reqCtx), aguiRunStateEndTimeout)
+	defer cancel()
+	if err := r.h.getRunLogs().Drop(ctx, d.log); err != nil {
+		log.FromContext(r.reqCtx).Warn("agui run log not dropped; it lapses on its own", "log", d.log, "err", err)
+	}
+	d.log = ""
+}
+
+// startLog starts the writer that appends the run's events to its Run Log.
+func (r *aguiRun) startLog() *aguiLogWriter {
+	d := r.detached
+	d.writer = newAGUILogWriter(r.h.getRunLogs(), d.log, r.h.runLogLimits())
+	return d.writer
+}
+
+// follower is what the run's own observer, its POST response, follows.
+func (r *aguiRun) follower() aguiFollow {
+	return aguiFollow{
+		log:          r.detached.log,
+		thread:       r.thread,
+		invocationID: r.rc.ctxInfo.GetUuid(),
+		threadID:     r.rc.input.ThreadID,
+		runID:        r.rc.input.RunID,
+		local:        r.detached.done,
 	}
 }
 

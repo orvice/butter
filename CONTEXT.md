@@ -121,7 +121,7 @@ The bounded, short-lived sequence of one Detached Run's AG-UI events, which ever
 _Avoid_: event buffer, run stream, watch hub
 
 **Run State**:
-What an AG-UI run in progress, detached or not, records about itself next to its thread lease: its runId, its Invocation ID, and how many events the thread's session held before it. It lapses with the lease, so a run whose process died stops reading as running within one lease TTL. Thread reads use it to tell that a run is going and where it started.
+What an AG-UI run in progress, detached or not, records about itself next to its thread lease: its runId, its Invocation ID, and how many events the thread's session held before it. It lapses with the lease, so a run whose process died stops reading as running within one lease TTL. Thread reads use it to tell that a run is going and where it started. When a Detached Run ends, its Run State is kept, marked ended, as long as its Run Log, so a late observer still finds the run; an ended run is not running.
 _Avoid_: run status, active run marker
 
 **Stop**:
