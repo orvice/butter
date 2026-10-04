@@ -1,6 +1,6 @@
 import type { Message } from '@ag-ui/client'
 import { runMessages } from './a2ui/agent'
-import { STOPPED_CODE } from './errors'
+import { STOPPED_CODE, type RunErrorEvent } from './errors'
 import type {
   HistoryContentPart,
   HistoryMessage,
@@ -11,7 +11,8 @@ import type {
 // with the turn it started from (ADR-0016 decision 8). The page learns of it
 // three ways:
 //   - live, from the run's RUN_ERROR: a failure, or a Stop from anywhere,
-//     which carries the stop code;
+//     which carries the stop code. That is the stream of a run the page
+//     started, or the log of one it found holding the thread (#407);
 //   - from this page's Stop, which ends the run here, so its stream may never
 //     say so;
 //   - after a reload, from the thread history's lastRun (docs/api.md "Thread
@@ -74,12 +75,24 @@ export function runInput(run: {
   return turnInput(message.content)
 }
 
+// runningInput is the turn the run in flight started from, as a read of the
+// thread during the run has it (docs/api.md "Reads during a run"): the read
+// ends with that turn. A user turn is its text and its images; a run that
+// continues after tool results sent no turn of its own. The read cannot tell
+// an answer to a question from a message, so a run that answered one has
+// that answer as its turn, where its record keeps none.
+export function runningInput(history: ThreadHistory): TurnInput {
+  const messages = history.running ? (history.messages ?? []) : []
+  const last = messages[messages.length - 1]
+  return last?.role === 'user' ? turnInput(last.content) : NO_INPUT
+}
+
 // lastRunOfRunError is the last run a RUN_ERROR reports, given the input its
 // run sent: stopped when it carries the stop code, failed otherwise. The
 // client's own abort ends nothing but the page's view of the run, and gives
 // none.
 export function lastRunOfRunError(
-  event: { message?: string; code?: string },
+  event: RunErrorEvent,
   input: TurnInput
 ): LastRun | null {
   if (event.code === ABORT_CODE) return null

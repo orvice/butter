@@ -5,8 +5,10 @@ import {
   type ThreadMessageLike,
 } from '@assistant-ui/react'
 import {
+  attachAGUIRun,
   fetchAGUIThreadHistory,
   fetchAGUIUISnapshot,
+  type AGUIEvent,
   type AGUIRunningRun,
 } from '@/api/agui'
 import { ApiError } from '@/api/client'
@@ -77,7 +79,7 @@ export interface HistoryInterrupt {
 
 // The AG-UI runtime's metadata namespace: it reads a reply's open
 // Interrupts from metadata.custom.agui.interrupts.
-const AGUI_METADATA_NAMESPACE = 'agui'
+export const AGUI_METADATA_NAMESPACE = 'agui'
 
 interface ToolCallPart {
   type: 'tool-call'
@@ -280,7 +282,9 @@ function parseArgs(text: string): Record<string, unknown> {
     : {}
 }
 
-function parseJSON(text: string): unknown {
+// parseJSON is text's JSON, else the text itself: how a reply shows a tool
+// call's result, from the history or from the run (RunFold).
+export function parseJSON(text: string): unknown {
   try {
     return JSON.parse(text)
   } catch {
@@ -298,6 +302,10 @@ export interface ThreadRead {
 export interface ThreadReads {
   history(signal?: AbortSignal): Promise<ThreadHistory>
   snapshot(signal?: AbortSignal): Promise<UISnapshot>
+  // attach follows the thread's detached run from its log (attachAGUIRun):
+  // its AG-UI events, or null when there is no log to follow. Without it
+  // there is never one.
+  attach?(signal?: AbortSignal): Promise<AsyncIterable<AGUIEvent> | null>
 }
 
 // threadReads reads the thread threadId through agentId. A server without
@@ -316,6 +324,7 @@ export function threadReads(agentId: string, threadId: string): ThreadReads {
       ),
     snapshot: (signal) =>
       fetchAGUIUISnapshot<UISnapshot>(agentId, threadId, signal),
+    attach: (signal) => attachAGUIRun(agentId, threadId, signal),
   }
 }
 

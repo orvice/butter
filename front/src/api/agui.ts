@@ -1,7 +1,9 @@
-// AG-UI protocol client for POST /api/agui/:agent_id.
+// AG-UI protocol client for POST /api/agui/:agent_id, and for its thread
+// endpoints under /api/agui/:agent_id/threads/:thread_id.
 //
 // The endpoint streams AG-UI events as SSE over a POST body, which rules out
-// native EventSource — this is a hand-rolled fetch + ReadableStream parser.
+// native EventSource — this is a hand-rolled fetch + ReadableStream parser,
+// which attaching to a run's log (attachAGUIRun) reads with too.
 // Pre-stream failures arrive as non-200 JSON {error}; once the stream opens,
 // failures arrive in-band as RUN_ERROR events. See docs/api.md.
 import { ApiError, BASE_URL, authHeaders } from './client'
@@ -84,42 +86,52 @@ export async function runAGUIAgent(
   if (!res.body) {
     throw new ApiError('stream', 'response has no body')
   }
+  for await (const event of sseEvents(res.body)) opts.onEvent(event)
+}
 
-  const reader = res.body.getReader()
+// sseEvents reads an SSE body as AG-UI events, one per frame, as they
+// arrive. A frame without data, such as a `: heartbeat` comment, carries no
+// event, and a malformed frame is dropped rather than ending the stream.
+// Leaving the loop early cancels the body.
+async function* sseEvents(
+  body: ReadableStream<Uint8Array>
+): AsyncGenerator<AGUIEvent, void, undefined> {
+  const reader = body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    // SSE frames are separated by a blank line; the trailing partial frame
-    // stays buffered until its terminator arrives.
+  try {
     for (;;) {
-      const sep = buffer.indexOf('\n\n')
-      if (sep < 0) break
-      const frame = buffer.slice(0, sep)
-      buffer = buffer.slice(sep + 2)
-      dispatchFrame(frame, opts.onEvent)
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      // SSE frames are separated by a blank line; the trailing partial frame
+      // stays buffered until its terminator arrives.
+      for (;;) {
+        const sep = buffer.indexOf('\n\n')
+        if (sep < 0) break
+        const event = parseFrame(buffer.slice(0, sep))
+        buffer = buffer.slice(sep + 2)
+        if (event) yield event
+      }
     }
-  }
-  if (buffer.trim() !== '') {
-    dispatchFrame(buffer, opts.onEvent)
+    const last = parseFrame(buffer)
+    if (last) yield last
+  } finally {
+    reader.cancel().catch(() => {})
   }
 }
 
-function dispatchFrame(frame: string, onEvent: (event: AGUIEvent) => void) {
+function parseFrame(frame: string): AGUIEvent | null {
   const dataLines = frame
     .split('\n')
     .filter((line) => line.startsWith('data:'))
     .map((line) => line.slice(5).trimStart())
-  if (dataLines.length === 0) return
+  if (dataLines.length === 0) return null
   try {
     const parsed = JSON.parse(dataLines.join('\n')) as AGUIEvent
-    if (parsed && typeof parsed.type === 'string') {
-      onEvent(parsed)
-    }
+    return parsed && typeof parsed.type === 'string' ? parsed : null
   } catch {
-    // A malformed frame is dropped rather than killing the stream.
+    return null
   }
 }
 
@@ -219,6 +231,35 @@ export async function stopAGUIRun(
   return (await res.json()) as AGUIStoppedRun
 }
 
+// AGUI_FALLBACK_EVENT names the CUSTOM event that ends a stream of a
+// detached run's log when it cannot follow the run to its end (docs/api.md
+// "The fallback marker"): the log was truncated, expired or lost. The run is
+// not affected, and the client reads the thread instead.
+export const AGUI_FALLBACK_EVENT = 'butter.fallback'
+
+// attachAGUIRun follows the thread's detached run, on whichever Pod runs it
+// (GET /api/agui/:agent_id/threads/:thread_id/run, ADR-0016 decision 5). It
+// resolves with the run's AG-UI events as they arrive: replayed from
+// RUN_STARTED under the run's own runId, then each new one, up to the run's
+// RUN_FINISHED or RUN_ERROR, or the fallback marker in their place. It
+// resolves null when there is no log to follow (204): the thread is idle, its
+// run ended over 5 minutes ago, or it did not detach. Aborting signal ends
+// this observer only; the run goes on.
+export async function attachAGUIRun(
+  agentId: string,
+  threadId: string,
+  signal?: AbortSignal
+): Promise<AsyncGenerator<AGUIEvent, void, undefined> | null> {
+  const res = await fetch(aguiThreadURL(agentId, threadId, 'run'), {
+    headers: { Accept: 'text/event-stream', ...authHeaders() },
+    signal,
+  })
+  if (res.status === 204) return null
+  if (!res.ok) throw await aguiFailure(res, 'Attach')
+  if (!res.body) throw new ApiError('stream', 'response has no body')
+  return sseEvents(res.body)
+}
+
 async function fetchAGUIThread<T>(
   agentId: string,
   threadId: string,
@@ -237,7 +278,7 @@ async function fetchAGUIThread<T>(
 function aguiThreadURL(
   agentId: string,
   threadId: string,
-  resource: 'ui' | 'messages' | 'stop'
+  resource: 'ui' | 'messages' | 'stop' | 'run'
 ): string {
   return `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}/threads/${encodeURIComponent(threadId)}/${resource}`
 }

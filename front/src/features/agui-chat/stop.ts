@@ -2,15 +2,18 @@
 // its request, so aborting the request would only detach this page from a
 // run that keeps going. Stop asks the server to stop the run first, then
 // cancels it here, which ends its stream at once instead of waiting for the
-// run to wind down. A run the page waits out instead of streaming, one it
-// found holding the thread when it opened it, has no stream here: Stop then
-// waits until the thread shows the run ended (#406).
+// run to wind down. A run the page found holding the thread when it opened it
+// streams from its log (#407), and Stop ends that stream the same way. When
+// the page waits such a run out instead, because its log cannot be followed,
+// it has no stream here: Stop then waits until the thread shows the run
+// ended (#406).
 
 // LocalRun is the open thread's run as this page follows it.
 export interface LocalRun {
   // canCancel reports whether there is a run here to cancel.
   canCancel(): boolean
-  // cancel ends the run here: it aborts the request and settles the reply.
+  // cancel ends the run here: it aborts the request, or the stream of the
+  // run's log, and settles the reply.
   cancel(): void
   // untilEnded is the end of a run the page waits out: the page reads the
   // thread again at once, and the promise resolves once it shows the run
