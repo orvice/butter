@@ -13,10 +13,9 @@ import { useSearch } from '@tanstack/react-router'
 import type { Agent, SessionInfo } from '@/types/api'
 import {
   AssistantRuntimeProvider,
+  AuiIf,
   ThreadPrimitive,
   ComposerPrimitive,
-  MessagePrimitive,
-  ActionBarPrimitive,
   useAui,
   useAuiState,
   type ThreadHistoryAdapter,
@@ -29,7 +28,6 @@ import {
 } from '@assistant-ui/react-ag-ui'
 import {
   ChevronDown,
-  Copy,
   History,
   MessageSquarePlus,
   PanelLeft,
@@ -37,10 +35,7 @@ import {
   Reply,
   Send,
   Square,
-  Wrench,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { BASE_URL, authHeaders } from '@/api/client'
@@ -67,12 +62,24 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { ChatAgentContext, type ChatAgent } from '@/components/chat/chat-agent'
+import { ThreadErrorBoundary } from '@/components/chat/error-boundary'
+import { MarkdownText } from '@/components/chat/markdown'
+import { ThreadMessages, type PartComponents } from '@/components/chat/messages'
+import {
+  AgentHero,
+  ChatDisclaimer,
+  ThreadSkeleton,
+} from '@/components/chat/thread-states'
+import { ToolCallView } from '@/components/chat/tool-views'
+import { chatAuiConfig } from '@/components/chat/toolkit'
 import { DeleteDialog } from '@/components/delete-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { agentIconUrl } from '@/features/agents/icon-utils'
 import { ButterAGUIAgent } from './a2ui/agent'
 import { readableReply, submissionPayload } from './a2ui/form'
 import { EVENT_NAME, envelopeOp, isA2UIEventValue } from './a2ui/protocol'
@@ -439,7 +446,7 @@ function AGUIChatWithRuntime({
   )
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
+    <AssistantRuntimeProvider runtime={runtime} config={chatAuiConfig}>
       <A2UIStoreContext.Provider value={store}>
         <FormSubmitBridge store={store} httpAgent={httpAgent} />
         <PageHeader />
@@ -465,7 +472,11 @@ function AGUIChatWithRuntime({
               {threadList}
             </aside>
             <div className='flex min-w-0 flex-1 flex-col'>
-              <ThreadArea httpAgent={httpAgent} onSendError={reportError} />
+              <ThreadArea
+                agent={agents.find((a) => a.agent_id === agentId)}
+                httpAgent={httpAgent}
+                onSendError={reportError}
+              />
               <SharedStatePanel />
               <ComposerArea httpAgent={httpAgent} onSendError={reportError} />
             </div>
@@ -623,61 +634,6 @@ function AgentBar({
   )
 }
 
-function GenericToolCallView(props: {
-  toolName: string
-  args: Record<string, unknown>
-  result?: unknown
-  status: { type: string }
-}) {
-  const [open, setOpen] = useState(false)
-  const argsStr = JSON.stringify(props.args, null, 2)
-  const resultStr =
-    props.result !== undefined ? JSON.stringify(props.result, null, 2) : null
-  const pending =
-    props.status.type === 'running' || props.status.type === 'requires-action'
-
-  return (
-    <div className='max-w-[85%] rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs'>
-      <button
-        type='button'
-        className='flex items-center gap-1.5 font-mono'
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Wrench className='size-3.5 text-muted-foreground' />
-        {props.toolName}
-        {pending && <span className='text-muted-foreground'>(pending)</span>}
-        <ChevronDown
-          className={cn('size-3 transition-transform', !open && '-rotate-90')}
-        />
-      </button>
-      {open && (
-        <div className='mt-1 space-y-1'>
-          {argsStr !== '{}' && (
-            <pre className='overflow-x-auto rounded bg-background/60 p-1.5'>
-              {argsStr}
-            </pre>
-          )}
-          {resultStr !== null && (
-            <pre className='overflow-x-auto rounded bg-background/60 p-1.5'>
-              {resultStr}
-            </pre>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// RenderUIToolView keeps the render_ui call out of the way: its card is the
-// visible result. A rejected call still shows the tool error.
-function RenderUIToolView(props: Parameters<typeof GenericToolCallView>[0]) {
-  const result = props.result as { error?: unknown } | undefined
-  if (result && typeof result === 'object' && 'error' in result) {
-    return <GenericToolCallView {...props} />
-  }
-  return null
-}
-
 // A2UIDataPart places a surface where its create event arrived in the
 // message; later updates of the same surface re-render it in place.
 function A2UIDataPart({ data }: { data: unknown }) {
@@ -699,16 +655,31 @@ function A2UIDataPart({ data }: { data: unknown }) {
   )
 }
 
-// RestoredSurfaces shows what the UI snapshot brought back but no reply of
-// the restored history shows, so each surface says where it came from.
-function RestoredSurfaces() {
-  const store = useA2UIStore(useA2UIContext())
-  const locked = useAuiState((s) => s.thread.isRunning)
-  const restored = store
+// The parts of a reply: Markdown text, tool calls (the shared toolkit draws
+// render_ui and adk_request_input, ToolCallView the rest), and each A2UI
+// surface where its create event landed.
+const REPLY_PARTS: PartComponents = {
+  Text: MarkdownText,
+  tools: { Fallback: ToolCallView },
+  data: { by_name: { [EVENT_NAME]: A2UIDataPart } },
+}
+
+// restoredSurfaces lists what the UI snapshot brought back that no reply of
+// the restored history shows.
+function restoredSurfaces(store: A2UIStore) {
+  return store
     .list()
     .filter(
       (e) => e.origin === 'snapshot' && !e.deleted && !store.isPlaced(e.id)
     )
+}
+
+// RestoredSurfaces shows the restored surfaces no reply shows, so each
+// surface says where it came from.
+function RestoredSurfaces() {
+  const store = useA2UIStore(useA2UIContext())
+  const locked = useAuiState((s) => s.thread.isRunning)
+  const restored = restoredSurfaces(store)
   if (restored.length === 0) return null
   return (
     <section
@@ -733,83 +704,68 @@ function RestoredSurfaces() {
   )
 }
 
+// The runtime starts loading a thread's history only after it mounts, so
+// for a moment every thread looks empty, and a quick load shows its skeleton
+// only briefly. The skeleton and the hero fade in after a short delay, so
+// neither flashes.
+const FADE_IN_LATE = 'animate-in fade-in fill-mode-both delay-150 duration-300'
+
+// ThreadArea shows the conversation. Each reply carries the agent's avatar
+// and name; a skeleton stands in while the history loads, and a thread
+// without messages introduces the agent.
 function ThreadArea({
+  agent,
   httpAgent,
   onSendError,
 }: {
+  agent: Agent | undefined
   httpAgent: ButterAGUIAgent
   onSendError: (err: unknown) => void
 }) {
+  const chatAgent = useMemo<ChatAgent>(
+    () => ({
+      name: agent?.name || 'Agent',
+      iconUrl: (agent && agentIconUrl(agent)) || undefined,
+    }),
+    [agent]
+  )
   return (
-    <ThreadPrimitive.Root className='flex-1 overflow-y-auto px-4 py-4'>
-      <ThreadPrimitive.Viewport className='mx-auto flex max-w-3xl flex-col gap-3'>
-        <RestoredSurfaces />
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage: UserMessageView,
-            AssistantMessage: AssistantMessageView,
-          }}
-        />
-        <InterruptPrompts httpAgent={httpAgent} onSendError={onSendError} />
-        <ThreadPrimitive.If running>
-          <p className='text-xs text-muted-foreground'>Running…</p>
-        </ThreadPrimitive.If>
-      </ThreadPrimitive.Viewport>
-    </ThreadPrimitive.Root>
+    <ChatAgentContext.Provider value={chatAgent}>
+      <ThreadErrorBoundary>
+        <ThreadPrimitive.Root className='flex-1 overflow-y-auto px-4 py-4'>
+          <ThreadPrimitive.Viewport className='mx-auto flex max-w-3xl flex-col gap-3'>
+            <AuiIf condition={(s) => s.thread.isLoading}>
+              <ThreadSkeleton className={FADE_IN_LATE} />
+            </AuiIf>
+            <AuiIf condition={(s) => s.thread.isEmpty}>
+              <EmptyThread agent={chatAgent} />
+            </AuiIf>
+            <RestoredSurfaces />
+            <div>
+              <ThreadMessages replyParts={REPLY_PARTS} />
+            </div>
+            <InterruptPrompts httpAgent={httpAgent} onSendError={onSendError} />
+            <AuiIf condition={(s) => s.thread.isRunning}>
+              <p className='text-xs text-muted-foreground'>Running…</p>
+            </AuiIf>
+          </ThreadPrimitive.Viewport>
+        </ThreadPrimitive.Root>
+      </ThreadErrorBoundary>
+    </ChatAgentContext.Provider>
   )
 }
 
-function UserMessageView() {
+// EmptyThread introduces the agent of a thread without messages, unless
+// cards restored from the thread are shown instead.
+function EmptyThread({ agent }: { agent: ChatAgent }) {
+  const store = useA2UIStore(useA2UIContext())
+  if (restoredSurfaces(store).length > 0) return null
   return (
-    <MessagePrimitive.Root className='ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm whitespace-pre-wrap text-primary-foreground'>
-      <MessagePrimitive.Content
-        components={{
-          Text: ({ text }) => <>{text}</>,
-        }}
-      />
-    </MessagePrimitive.Root>
-  )
-}
-
-const REMARK_PLUGINS = [remarkGfm]
-
-function AssistantMessageView() {
-  return (
-    <MessagePrimitive.Root className='max-w-[85%] rounded-lg border border-border bg-card px-3 py-2 text-sm'>
-      <MessagePrimitive.Content
-        components={{
-          Text: MarkdownText,
-          tools: {
-            by_name: { render_ui: RenderUIToolView },
-            Fallback: GenericToolCallView,
-          },
-          data: { by_name: { [EVENT_NAME]: A2UIDataPart } },
-        }}
-      />
-      <MessagePrimitive.If lastOrHover>
-        <div className='mt-1 flex items-center gap-0.5'>
-          <ActionBarPrimitive.Root>
-            <ActionBarPrimitive.Copy asChild>
-              <button
-                type='button'
-                className='inline-flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-                aria-label='Copy message'
-              >
-                <Copy className='size-3.5' />
-              </button>
-            </ActionBarPrimitive.Copy>
-          </ActionBarPrimitive.Root>
-        </div>
-      </MessagePrimitive.If>
-    </MessagePrimitive.Root>
-  )
-}
-
-function MarkdownText({ text }: { text: string }) {
-  return (
-    <div className='space-y-2 [&_a]:text-primary [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-xs [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-medium [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-muted [&_pre]:p-2 [&_pre_code]:bg-transparent [&_pre_code]:px-0 [&_table]:text-xs [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_ul]:list-disc [&_ul]:pl-5'>
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{text}</ReactMarkdown>
-    </div>
+    <AgentHero
+      name={agent.name}
+      iconUrl={agent.iconUrl}
+      className={FADE_IN_LATE}
+    />
   )
 }
 
@@ -968,21 +924,22 @@ function ComposerArea({
           rows={2}
           className='min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring'
         />
-        <ThreadPrimitive.If running>
+        <AuiIf condition={(s) => s.thread.isRunning}>
           <ComposerPrimitive.Cancel asChild>
             <Button variant='outline' size='icon' aria-label='Stop'>
               <Square className='size-4' />
             </Button>
           </ComposerPrimitive.Cancel>
-        </ThreadPrimitive.If>
-        <ThreadPrimitive.If running={false}>
+        </AuiIf>
+        <AuiIf condition={(s) => !s.thread.isRunning}>
           <ComposerPrimitive.Send asChild onClick={sendAsAnswer}>
             <Button size='icon' aria-label='Send'>
               <Send className='size-4' />
             </Button>
           </ComposerPrimitive.Send>
-        </ThreadPrimitive.If>
+        </AuiIf>
       </ComposerPrimitive.Root>
+      <ChatDisclaimer className='mx-auto max-w-3xl' />
     </div>
   )
 }
