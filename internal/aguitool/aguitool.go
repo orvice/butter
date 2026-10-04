@@ -20,7 +20,9 @@ import (
 	"context"
 
 	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/tool"
+	"google.golang.org/adk/v2/tool/toolutils"
 	"google.golang.org/genai"
 )
 
@@ -74,9 +76,10 @@ func (Toolset) Tools(ctx agent.ReadonlyContext) ([]tool.Tool, error) {
 }
 
 // clientTool satisfies ADK's structural FunctionTool shape
-// (internal/toolinternal): Declaration() feeds the model request, and Run
-// returning (nil, nil) with IsLongRunning() true is the pause — no
-// FunctionResponse is generated and the run ends with the call pending.
+// (internal/toolinternal): ProcessRequest packs Declaration() into the model
+// request, and Run returning (nil, nil) with IsLongRunning() true is the
+// pause — no FunctionResponse is generated and the run ends with the call
+// pending.
 type clientTool struct {
 	decl Declaration
 }
@@ -91,6 +94,12 @@ func (t *clientTool) Declaration() *genai.FunctionDeclaration {
 		Description:          t.decl.Description,
 		ParametersJsonSchema: t.decl.Parameters,
 	}
+}
+
+// ProcessRequest adds the declaration to the model request. ADK runs it for
+// every tool before each model call and refuses a tool without it.
+func (t *clientTool) ProcessRequest(_ agent.Context, req *model.LLMRequest) error {
+	return toolutils.PackTool(req, t)
 }
 
 func (t *clientTool) Run(agent.Context, any) (map[string]any, error) {
