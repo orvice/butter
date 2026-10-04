@@ -679,7 +679,11 @@ to the authenticated user. Two consequences:
 
 - Only the **trailing user message** of `messages` is sent to the agent. The rest
   is the client's own history; replaying it would duplicate the conversation.
-- Two users may reuse the same `threadId` without sharing history.
+- A `threadId` belongs to whoever first ran it, in the workspace they ran it in.
+  A run on a `threadId` another user holds, or on your own thread from another
+  workspace, is refused **before the stream opens** with `403` and
+  `{"error": "threadId is not available; start a new thread"}`; nothing runs.
+  Generate a fresh `threadId` (a UUID) for every new thread.
 
 Turns on one session are serialized **across the whole fleet**: a Redis lease
 per `(caller, threadId)` admits one run at a time, on any Pod. While a run is in
@@ -1550,7 +1554,7 @@ One-shot agent run. If `session_id` is empty an ephemeral id `invoke-<uuid>` is 
 | `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `input` | string | Required input text |
 | `app_name` | string | Defaults to `"api"` |
-| `user_id` | string | Defaults to `"api"` |
+| `user_id` | string | Defaults to the signed-in person; to `"api"` for an API token |
 | `session_id` | string | Reuse an existing session; empty creates a new one |
 | `model_override` | string | Optional model alias or full name |
 
@@ -1587,7 +1591,7 @@ Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
 | `agent_name` | string | Ignored. Retained on the wire for backward compatibility only |
 | `message` | string | User prompt. Required when `parts` is empty; ignored when `parts` is set |
 | `app_name` | string | ADK app name; defaults to `"api"` |
-| `user_id` | string | ADK user id; defaults to `"api"` |
+| `user_id` | string | ADK user id; defaults to the signed-in person, or `"api"` for an API token |
 | `session_id` | string | Reuse an existing session; empty creates `chat-<uuid>` |
 | `model_override` | string | Optional model alias or full name |
 | `parts` | `InputPart[]` | Multimodal input (text + inline images). When non-empty it is used as the user input and `message` is ignored; when empty, `message` is used as before |
@@ -3155,8 +3159,21 @@ person gets `permission_denied`. With `workspace_scoped: true` a person
 always gets their own sessions; admins and API tokens may name any
 `user_id` or leave it empty for everyone.
 
+`AgentService.StreamAgent` and `InvokeAgent` run a turn with the session's
+whole history, so they follow the `ReplySession` rules for the session their
+`app_name`, `user_id` and `session_id` address: a denied session answers
+`not_found`, and starting one for someone else `permission_denied`. A
+signed-in person who leaves `user_id` empty acts as themselves.
+
 `UpdateSessionTitle`, `GenerateSessionTitle`, and `MarkSessionRead` act only
 on the caller's own sessions (global admins excepted).
+
+Within one `app_name`, a `session_id` belongs to the user who created it.
+Creating a session, or starting a turn (`ReplySession`, `StreamAgent`,
+`InvokeAgent`), under an ID another user already holds answers
+`already_exists`; pick another ID or leave it empty to have one generated.
+The one exception is a Telegram Destination session, which Butter names
+itself and every member of the Destination shares.
 
 #### CreateSession
 

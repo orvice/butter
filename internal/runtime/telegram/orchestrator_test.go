@@ -18,6 +18,7 @@ import (
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/telegramapi/telegramtest"
 	"go.orx.me/apps/butter/internal/telegramqueue"
@@ -38,6 +39,7 @@ type fakeAgentRunner struct {
 type fakeAgentCall struct {
 	agentName string
 	sessionID string
+	shared    bool // the turn may join a session ID other users hold
 	model     string
 	text      string
 }
@@ -54,7 +56,7 @@ func (r *fakeAgentRunner) SupportsModelOverride(_ string, agentID string) (bool,
 	return !r.modelOverrideLocked[agentID], true
 }
 
-func (r *fakeAgentRunner) RunTurnSSE(_ context.Context, agentName string, parts []*genai.Part,
+func (r *fakeAgentRunner) RunTurnSSE(ctx context.Context, agentName string, parts []*genai.Part,
 	model string, ctxInfo *agentsv1.ContextInfo, _ runner.EventCallback,
 	_ runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.mu.Lock()
@@ -65,6 +67,7 @@ func (r *fakeAgentRunner) RunTurnSSE(_ context.Context, agentName string, parts 
 	}
 	r.calls = append(r.calls, fakeAgentCall{
 		agentName: agentName, sessionID: ctxInfo.GetSessionId(), model: model, text: text,
+		shared: sessionshare.Allowed(ctx),
 	})
 	if r.failErr != nil {
 		return &runner.TurnResult{}, r.failErr
@@ -153,6 +156,11 @@ func TestOneAcceptedUpdateReachesTheAgentOnceAndRepliesInTheTopic(t *testing.T) 
 	call := fx.agents.calls[0]
 	if call.agentName != "Support Agent" || call.text != "hello" {
 		t.Errorf("unexpected invocation: %+v", call)
+	}
+	// Every member of a Destination holds its session ID, so the turn must
+	// be allowed to join a session another member started.
+	if !call.shared {
+		t.Error("the Telegram turn must be allowed to share its session ID")
 	}
 
 	// A placeholder acknowledges the message, then becomes the answer: one

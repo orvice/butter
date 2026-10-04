@@ -15,12 +15,16 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"google.golang.org/adk/v2/session"
 
+	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/workspace"
 )
 
 const (
 	sessionsCollection = "adk_sessions"
 	eventsCollection   = "adk_events"
+
+	// exclusiveHolderIndex allows one exclusive holder per session ID.
+	exclusiveHolderIndex = "app_name_session_id_exclusive"
 )
 
 // ErrSessionNotFound is wrapped into errors returned when a session addressed
@@ -37,9 +41,15 @@ type sessionDoc struct {
 	Title          string         `bson:"title,omitempty"`
 	WorkspaceID    string         `bson:"workspace_id,omitempty"`
 	LastReadAt     *time.Time     `bson:"last_read_at,omitempty"`
+	// Exclusive marks a session created without sessionshare.Allow: no other
+	// user may join its session ID later. Documents written before the field
+	// existed carry no mark.
+	Exclusive bool `bson:"exclusive,omitempty"`
 }
 
-// eventDoc is the MongoDB document for an event.
+// eventDoc is the MongoDB document for an event. Events are keyed by
+// (app_name, session_id), not by user: every holder of a session ID shares
+// them (see sessionshare).
 type eventDoc struct {
 	SessionID    string    `bson:"session_id"`
 	AppName      string    `bson:"app_name"`
@@ -216,6 +226,32 @@ func (s *Service) ensureIndexes(ctx context.Context) error {
 		return err
 	}
 
+	// Who else holds a session ID: the lookup Create runs before inserting.
+	_, err = s.sessions.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "app_name", Value: 1},
+			{Key: "session_id", Value: 1},
+			{Key: "user_id", Value: 1},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// An atomic guard so two exclusive holders of one ID cannot both win a
+	// race. The lookup already refuses a taken ID, so a store without
+	// partial indexes runs without the guard rather than not at all.
+	if _, err := s.sessions.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "app_name", Value: 1}, {Key: "session_id", Value: 1}},
+		Options: options.Index().
+			SetName(exclusiveHolderIndex).
+			SetUnique(true).
+			SetPartialFilterExpression(bson.M{"exclusive": true}),
+	}); err != nil {
+		logger.Warn("exclusive session id index unavailable; racing creations of one session id are not guarded",
+			"index", exclusiveHolderIndex, "err", err)
+	}
+
 	logger.Debug("mongodb indexes ensured")
 	return nil
 }
@@ -235,6 +271,24 @@ func (s *Service) Create(ctx context.Context, req *session.CreateRequest) (*sess
 
 	wsID, _ := workspace.FromContext(ctx)
 
+	// Events are shared by every holder of a session ID, so a caller-chosen
+	// ID must not land on a conversation someone else already holds.
+	shared := sessionshare.Allowed(ctx)
+	if req.SessionID != "" {
+		taken, err := s.heldByOther(ctx, req.AppName, req.UserID, sid, shared)
+		if err != nil {
+			return nil, err
+		}
+		if taken {
+			logger.Warn("refusing a session id another user holds",
+				"app_name", req.AppName,
+				"user_id", req.UserID,
+				"session_id", sid,
+			)
+			return nil, fmt.Errorf("%w: %s/%s", sessionshare.ErrIDTaken, req.AppName, sid)
+		}
+	}
+
 	doc := sessionDoc{
 		SessionID:      sid,
 		AppName:        req.AppName,
@@ -242,6 +296,7 @@ func (s *Service) Create(ctx context.Context, req *session.CreateRequest) (*sess
 		State:          state,
 		LastUpdateTime: time.Now(),
 		WorkspaceID:    wsID,
+		Exclusive:      !shared,
 	}
 
 	logger.Info("creating session",
@@ -252,6 +307,13 @@ func (s *Service) Create(ctx context.Context, req *session.CreateRequest) (*sess
 	)
 
 	if _, err := s.sessions.InsertOne(ctx, doc); err != nil {
+		// A duplicate is either this user's own document or another user
+		// who took the ID first; only the second is ErrIDTaken.
+		if mongo.IsDuplicateKeyError(err) {
+			if taken, checkErr := s.heldByOther(ctx, req.AppName, req.UserID, sid, shared); checkErr == nil && taken {
+				return nil, fmt.Errorf("%w: %s/%s", sessionshare.ErrIDTaken, req.AppName, sid)
+			}
+		}
 		logger.Error("failed to insert session",
 			"app_name", req.AppName,
 			"session_id", sid,
@@ -272,6 +334,25 @@ func (s *Service) Create(ctx context.Context, req *session.CreateRequest) (*sess
 
 	logger.Debug("session created", "app_name", req.AppName, "session_id", sid)
 	return &session.CreateResponse{Session: sess}, nil
+}
+
+// heldByOther reports whether a user other than userID holds sessionID in
+// appName. Joining a shared conversation refuses only a holder created
+// exclusive; any other creation refuses every holder.
+func (s *Service) heldByOther(ctx context.Context, appName, userID, sessionID string, shared bool) (bool, error) {
+	filter := bson.M{
+		"app_name":   appName,
+		"session_id": sessionID,
+		"user_id":    bson.M{"$ne": userID},
+	}
+	if shared {
+		filter["exclusive"] = true
+	}
+	n, err := s.sessions.CountDocuments(ctx, filter, options.Count().SetLimit(1))
+	if err != nil {
+		return false, fmt.Errorf("checking session id holders: %w", err)
+	}
+	return n > 0, nil
 }
 
 func (s *Service) Get(ctx context.Context, req *session.GetRequest) (*session.GetResponse, error) {

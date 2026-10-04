@@ -81,6 +81,7 @@ func newStreamAgentTestClient(t *testing.T, fake *streamTestRunner) agentsv1conn
 	t.Helper()
 	svc := NewAgentServiceServer(memory.New())
 	svc.runnerSvc = fake
+	svc.SetSessionAuthorizer(allowAllTurns{})
 	path, handler := agentsv1connect.NewAgentServiceHandler(svc, connectx.HandlerOptions()...)
 	mux := http.NewServeMux()
 	mux.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

@@ -12,6 +12,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/repo/auth"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
+	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
 )
@@ -237,6 +238,41 @@ func (s *SessionServiceServer) authorizeReply(ctx context.Context, appName, user
 		return s.authorizeExisting(ctx, appName, userID, wsID)
 	}
 	return s.authorizeNew(ctx, userID)
+}
+
+// AuthorizeTurn applies the policy to a turn another service runs on a
+// session that may not exist yet (StreamAgent, InvokeAgent): the rules of
+// ReplySession.
+func (s *SessionServiceServer) AuthorizeTurn(ctx context.Context, appName, userID, sessionID string) error {
+	return s.authorizeReply(ctx, appName, userID, sessionID)
+}
+
+// turnUserID is the user a turn runs as. A request that names none runs as
+// the signed-in person, so it stays inside their own sessions; an API token
+// or system caller keeps the shared "api" user.
+func turnUserID(ctx context.Context, requested string) string {
+	if requested != "" {
+		return requested
+	}
+	if user, ok := auth.UserFromContext(ctx); ok && user.GetId() != "" {
+		return user.GetId()
+	}
+	return "api"
+}
+
+// errSessionIDTaken answers a request for a session ID another user holds
+// in that app (see sessionshare).
+func errSessionIDTaken() error {
+	return connect.NewError(connect.CodeAlreadyExists, errors.New("session id is already in use"))
+}
+
+// turnError maps a turn that failed to run: a session ID another user holds
+// is the caller's to fix, anything else is internal.
+func turnError(err error) error {
+	if errors.Is(err, sessionshare.ErrIDTaken) {
+		return errSessionIDTaken()
+	}
+	return connectx.InternalWith(err)
 }
 
 // sessionListScope narrows an unscoped listing to what the caller may see.

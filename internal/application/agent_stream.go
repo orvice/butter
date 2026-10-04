@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
@@ -56,7 +57,7 @@ func (s *AgentServiceServer) StreamAgent(
 	agentID, _, _ := s.runnerSvc.GetAgentIdentity(agentName)
 	ctxInfo, err := streamorch.NewContextInfo(streamorch.ContextInfoInput{
 		AppName:       req.Msg.GetAppName(),
-		UserID:        req.Msg.GetUserId(),
+		UserID:        turnUserID(ctx, req.Msg.GetUserId()),
 		SessionID:     req.Msg.GetSessionId(),
 		SessionPrefix: "chat-",
 		WorkspaceID:   workspaceID,
@@ -67,6 +68,9 @@ func (s *AgentServiceServer) StreamAgent(
 	})
 	if err != nil {
 		return connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	if err := s.authorizeTurn(ctx, ctxInfo.GetChannelName(), ctxInfo.GetUserId(), ctxInfo.GetSessionId()); err != nil {
+		return err
 	}
 
 	logger := log.FromContext(ctx)
@@ -259,6 +263,9 @@ func streamAgentError(err error) *connect.Error {
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return connect.NewError(connect.CodeDeadlineExceeded, err)
+	}
+	if errors.Is(err, sessionshare.ErrIDTaken) {
+		return connect.NewError(connect.CodeAlreadyExists, errors.New("session id is already in use"))
 	}
 	return connect.NewError(connect.CodeInternal, err)
 }

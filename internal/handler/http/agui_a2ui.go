@@ -10,6 +10,7 @@ import (
 	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/a2ui"
+	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -45,12 +46,17 @@ func aguiBinding(ctx context.Context, workspaceID, agentID, threadID string) a2u
 	}
 }
 
+// errThreadUnavailable refuses a run on a threadId the caller may not use:
+// another user's, or the caller's own from another workspace.
+var errThreadUnavailable = errors.New("threadId is not available; start a new thread")
+
 // prepareUI loads the session under the lease and, for a thread that has no
-// session yet, creates it carrying this caller's binding. An existing
-// session keeps whatever binding it has: one created before A2UI existed has
-// none and exposes no UI, and one bound to another workspace or agent (the
-// same caller reusing a threadId) is left alone. Text chat is unaffected
-// either way.
+// session yet, creates it carrying this caller's binding. A threadId another
+// user holds, or one whose session lives in another workspace, is refused
+// before anything runs. Otherwise an existing session keeps whatever binding
+// it has: one created before A2UI existed has none and exposes no UI, and one
+// bound to another agent (the same caller reusing a threadId) is left alone.
+// Text chat is unaffected either way.
 func (h *AGUIHandler) prepareUI(ctx context.Context, rc *aguiRunContext) (*aguiUIContext, int, error) {
 	svc := h.getSessionService()
 	if svc == nil {
@@ -66,7 +72,7 @@ func (h *AGUIHandler) prepareUI(ctx context.Context, rc *aguiRunContext) (*aguiU
 		SessionID: rc.ctxInfo.GetSessionId(),
 	}
 	if resp, err := svc.Get(ctx, get); err == nil {
-		return &aguiUIContext{sess: resp.Session, bound: a2ui.Bound(resp.Session, binding)}, 0, nil
+		return existingThread(resp.Session, rc, binding)
 	}
 	created, err := svc.Create(ctx, &session.CreateRequest{
 		AppName:   aguiAppName,
@@ -75,13 +81,27 @@ func (h *AGUIHandler) prepareUI(ctx context.Context, rc *aguiRunContext) (*aguiU
 		State:     map[string]any{a2ui.BindingKey: binding.StateValue()},
 	})
 	if err != nil {
+		if errors.Is(err, sessionshare.ErrIDTaken) {
+			return nil, http.StatusForbidden, errThreadUnavailable
+		}
 		// A concurrent first request may have created it in between.
 		if resp, getErr := svc.Get(ctx, get); getErr == nil {
-			return &aguiUIContext{sess: resp.Session, bound: a2ui.Bound(resp.Session, binding)}, 0, nil
+			return existingThread(resp.Session, rc, binding)
 		}
 		return nil, http.StatusServiceUnavailable, errors.New("session store unavailable, retry later")
 	}
 	return &aguiUIContext{sess: created.Session, bound: true}, 0, nil
+}
+
+// existingThread admits a run on a thread whose session already exists, as
+// long as that session belongs to the request's workspace.
+func existingThread(sess session.Session, rc *aguiRunContext, binding a2ui.Binding) (*aguiUIContext, int, error) {
+	if ws, ok := sess.(interface{ WorkspaceID() string }); ok {
+		if id := ws.WorkspaceID(); id != "" && id != rc.ctxInfo.GetWorkspaceId() {
+			return nil, http.StatusForbidden, errThreadUnavailable
+		}
+	}
+	return &aguiUIContext{sess: sess, bound: a2ui.Bound(sess, binding)}, 0, nil
 }
 
 // aguiFormError is the pre-stream body of a rejected form submission. The
