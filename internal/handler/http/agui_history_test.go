@@ -331,8 +331,20 @@ func TestAGUIHistory_EndpointRestoresTheThread(t *testing.T) {
 		}
 	}
 
+	// Reads take no lease (ADR-0016 decision 6): a thread whose lease is held
+	// reads the same, and no read acquired it.
 	h.guard.busy = true
-	if code, _ := h.history("carder", "t-hist"); code != http.StatusConflict {
-		t.Errorf("busy thread: status %d, want 409", code)
+	if code, again := h.history("carder", "t-hist"); code != http.StatusOK || !reflect.DeepEqual(again, got) {
+		t.Errorf("held lease: status %d, history %+v; want the same history", code, again)
 	}
+	if acquired := h.guard.acquisitions(); acquired != 1 {
+		t.Errorf("lease acquisitions = %d, want only the run's", acquired)
+	}
+}
+
+// acquisitions counts the guard's Acquire calls, held or not.
+func (g *fakeSessionGuard) acquisitions() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return len(g.keys)
 }

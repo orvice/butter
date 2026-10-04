@@ -158,7 +158,8 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
   - **谁能访问哪个 Agent**：登录的 dashboard 用户可以访问 Workspace 内任何 runner 能运行的 Agent，不需要 `enable_agui`，所以 AG-UI Chat 能打开任何 Agent。API token 和 root token 只能访问 `enable_agui: true` 的 Agent：这个开关表示程序化 AG-UI 访问，与 `enable_a2a`、`enable_openai_api` 一样。其余情况，以及 runner 无法运行的 Agent（创建中、删除中、已删除或尚未加载），都在打开流之前返回 404。
   - **thread 跟随它的 Agent**：thread 首次运行时绑定该 Agent，之后通过其他 Agent 的路由运行它，会在打开流之前返回 403（“threadId belongs to another agent; start a new thread”），不运行，也不追加任何事件。A2UI 之前创建、没有绑定的 thread 不记录 Agent，仍可用任何 Agent 运行。
 - `GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照，返回该 thread 当前的只读结果卡片与未回答的表单，不运行 Agent。
-- `GET /api/agui/:agent_id/threads/:thread_id/messages`：thread 历史，把会话还原成 AG-UI 消息，并返回仍待回答的 Interrupt，以及每个卡片/表单出自哪条回答。不运行 Agent，鉴权、绑定与加锁规则同 UI 快照。
+- `GET /api/agui/:agent_id/threads/:thread_id/messages`：thread 历史，把会话还原成 AG-UI 消息，并返回仍待回答的 Interrupt，以及每个卡片/表单出自哪条回答。不运行 Agent，鉴权与绑定规则同 UI 快照。
+- 两个读取都不加锁，也不等运行结束：运行中立即返回 `running`，只给出运行开始前的对话和启动它的那一轮（快照里的卡片与表单也是这一刻的样子），运行的其余内容由运行本身送达。最近一次运行失败或被停止时，历史附带 `lastRun`（状态、原因与用户发送的文字），刷新后仍能看到结果并重新填入输入；之后的运行成功即消失。
 
 ### AG-UI Chat 的结果卡片与表单（A2UI v0.9.1，ADR-0014）
 

@@ -31,6 +31,11 @@ type aguiThreadHistory struct {
 	// Surfaces places each restorable A2UI surface in the assistant message
 	// that produced it. The surfaces themselves come from the UI snapshot.
 	Surfaces []aguiHistorySurface `json:"surfaces"`
+	// Running names the run in flight. The messages then end with the turn
+	// it started from; what it produced comes through the run itself.
+	Running *aguiRunning `json:"running,omitempty"`
+	// LastRun reports the thread's latest run when it failed or was stopped.
+	LastRun *aguiLastRun `json:"lastRun,omitempty"`
 }
 
 type aguiHistorySurface struct {
@@ -40,16 +45,19 @@ type aguiHistorySurface struct {
 
 // ThreadMessages handles GET /api/agui/:agent_id/threads/:thread_id/messages:
 // the thread's conversation rebuilt from its persisted session. Like the UI
-// snapshot it never starts a run and reads under the thread's session lease;
-// a thread without a session, or bound to another caller, workspace or agent,
-// answers an empty history.
+// snapshot it never starts a run and never waits for one: during a run it
+// answers with the conversation up to the turn the run started from, and the
+// run (readThread). A thread without a session, or bound to another caller,
+// workspace or agent, answers an empty history.
 func (h *AGUIHandler) ThreadMessages(c *gin.Context) {
-	threadID, sess, release, ok := h.readThread(c)
+	read, ok := h.readThread(c)
 	if !ok {
 		return
 	}
-	defer release()
-	c.JSON(http.StatusOK, aguiHistory(threadID, sess))
+	history := aguiHistory(read.threadID, read.sess)
+	history.Running = read.running
+	history.LastRun = read.lastRun
+	c.JSON(http.StatusOK, history)
 }
 
 // aguiHistory rebuilds a thread's conversation from its session events in the
@@ -166,7 +174,7 @@ func (b *aguiHistoryBuilder) add(ev *session.Event) {
 	if ev == nil || ev.Partial {
 		return
 	}
-	if ev.Author == "user" {
+	if ev.Author == aguiUserAuthor {
 		b.addUser(ev)
 		return
 	}

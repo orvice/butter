@@ -9,7 +9,6 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"github.com/gin-gonic/gin"
-	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/a2ui"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -78,45 +77,34 @@ func (h *AGUIHandler) StopRun(c *gin.Context) {
 }
 
 // stopTarget resolves the thread a Stop names, with the checks of the thread
-// reads: the caller reaches the agent in the request's workspace (401, 404,
-// 503 otherwise), and the thread's session carries this caller's binding for
-// that workspace and agent. thread is the thread's key, or "" when the caller
-// does not hold the thread that way, which leaves them nothing to stop and
-// reveals nothing about whose thread it is. It answers any error itself (ok
-// false).
+// reads (resolveThread): the caller reaches the agent in the request's
+// workspace (401, 404, 503 otherwise), and the thread's session carries this
+// caller's binding for that workspace and agent. thread is the thread's key,
+// or "" when the caller does not hold the thread that way, which leaves them
+// nothing to stop and reveals nothing about whose thread it is. It answers
+// any error itself (ok false).
 func (h *AGUIHandler) stopTarget(c *gin.Context) (threadID, thread string, ok bool) {
-	target, ok := h.resolveAgent(c)
+	target, ok := h.resolveThread(c)
 	if !ok {
 		return "", "", false
 	}
-	threadID = strings.TrimSpace(c.Param("thread_id"))
-	if threadID == "" {
-		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: "threadId is required"})
-		return "", "", false
-	}
-	svc := h.getSessionService()
-	if svc == nil {
-		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session service unavailable"})
-		return "", "", false
-	}
 	ctx := c.Request.Context()
-	ctxInfo := &agentsv1.ContextInfo{UserId: aguiUserID(ctx), SessionId: aguiSessionPrefix + threadID}
 	// The binding lives in the session's state: one recent event is enough.
-	resp, err := svc.Get(ctx, &session.GetRequest{
-		AppName: aguiAppName, UserID: ctxInfo.GetUserId(), SessionID: ctxInfo.GetSessionId(), NumRecentEvents: 1,
-	})
+	get := *target.request
+	get.NumRecentEvents = 1
+	resp, err := target.sessions.Get(ctx, &get)
 	if err != nil {
 		if aguiSessionMissing(err) {
-			return threadID, "", true
+			return target.threadID, "", true
 		}
-		log.FromContext(ctx).Error("agui stop could not read the thread", "thread_id", threadID, "err", err)
+		log.FromContext(ctx).Error("agui stop could not read the thread", "thread_id", target.threadID, "err", err)
 		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session store unavailable, retry later"})
 		return "", "", false
 	}
-	if !a2ui.Bound(resp.Session, aguiBinding(ctx, target.workspaceID, target.agent.GetAgentId(), threadID)) {
-		return threadID, "", true
+	if !a2ui.Bound(resp.Session, target.binding) {
+		return target.threadID, "", true
 	}
-	return threadID, aguiSessionKey(ctxInfo), true
+	return target.threadID, target.thread, true
 }
 
 // aguiSessionMissing reports whether a session read failed because the

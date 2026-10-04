@@ -86,6 +86,10 @@ type AGUIHandler struct {
 	// deleteWait bounds how long deleting a thread waits for its lease;
 	// tests shorten it.
 	deleteWait time.Duration
+	// readAttempts and readBackoff pace how a thread read starts over
+	// (agui_read.go); tests change them.
+	readAttempts int
+	readBackoff  time.Duration
 
 	// runs are this process's Detached Runs in flight.
 	runs *aguiRuns
@@ -98,11 +102,13 @@ type AGUIHandler struct {
 // NewAGUIHandler creates an AG-UI handler with the given agent repository.
 func NewAGUIHandler(repo configrepo.AgentRepository) *AGUIHandler {
 	return &AGUIHandler{
-		agentRepo:  repo,
-		maxRun:     AGUIDefaultMaxRunDuration,
-		heartbeat:  aguiHeartbeatInterval,
-		deleteWait: aguiDeleteLeaseWait,
-		runs:       newAGUIRuns(),
+		agentRepo:    repo,
+		maxRun:       AGUIDefaultMaxRunDuration,
+		heartbeat:    aguiHeartbeatInterval,
+		deleteWait:   aguiDeleteLeaseWait,
+		readAttempts: aguiReadAttempts,
+		readBackoff:  aguiReadBackoff,
+		runs:         newAGUIRuns(),
 	}
 }
 
@@ -167,8 +173,9 @@ func (h *AGUIHandler) getInvocations() invocation.Repository {
 
 // SetRunStateStore wires where every run records its run state next to its
 // thread lease (ADR-0016 decision 6), on which a Stop is accepted (decision
-// 4): Redis with several Pods, the in-process store otherwise. Without one,
-// runs record none and cannot detach.
+// 4): Redis with several Pods, the in-process store otherwise. Thread reads
+// read it to tell a run in flight. Without one, runs record none and cannot
+// detach, and reads never see a run.
 func (h *AGUIHandler) SetRunStateStore(store runstate.Store) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -208,6 +215,12 @@ func (h *AGUIHandler) deleteLeaseWait() time.Duration {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.deleteWait
+}
+
+func (h *AGUIHandler) readRetry() (attempts int, backoff time.Duration) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return max(h.readAttempts, 1), h.readBackoff
 }
 
 // Shutdown ends the Detached Runs in flight for a graceful process exit. Each

@@ -4,18 +4,17 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/a2ui"
-	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 // A2UI over AG-UI: the handler's share. It binds a new session to the
 // caller's full context, resolves form submissions inside the session lease,
-// and serves the read-only UI snapshot. See internal/a2ui and docs/api.md.
+// and serves the read-only UI snapshot, which takes no lease (agui_read.go).
+// See internal/a2ui and docs/api.md.
 
 // aguiFormEntry is one resume entry that submits a form. Its FunctionResponse
 // payload is filled in only after the submission is validated against the
@@ -124,6 +123,9 @@ type aguiUISnapshot struct {
 	CatalogID string             `json:"catalogId"`
 	ThreadID  string             `json:"threadId"`
 	Surfaces  []aguiSnapshotItem `json:"surfaces"`
+	// Running names the run in flight. The surfaces are then those the run
+	// found, less the forms its first turn answered.
+	Running *aguiRunning `json:"running,omitempty"`
 }
 
 // aguiSnapshotItem is one surface in its current, authoritative form: the
@@ -139,55 +141,27 @@ type aguiSnapshotItem struct {
 	Envelopes []a2ui.Envelope `json:"envelopes"`
 }
 
-// readThread loads the session of the thread a read endpoint names, under the
-// thread's session lease, and answers any error itself (ok false). sess is nil
-// when the thread has no session or is bound to another caller, workspace or
-// agent, so the endpoint answers an empty body without saying which.
-func (h *AGUIHandler) readThread(c *gin.Context) (threadID string, sess session.Session, release func(), ok bool) {
-	target, ok := h.resolveAgent(c)
-	if !ok {
-		return "", nil, nil, false
-	}
-	ctx := c.Request.Context()
-	threadID = strings.TrimSpace(c.Param("thread_id"))
-	if threadID == "" {
-		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: "threadId is required"})
-		return "", nil, nil, false
-	}
-	svc := h.getSessionService()
-	if svc == nil {
-		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "session service unavailable"})
-		return "", nil, nil, false
-	}
-
-	ctxInfo := &agentsv1.ContextInfo{UserId: aguiUserID(ctx), SessionId: aguiSessionPrefix + threadID}
-	// Reads are consistent with writes the same way runs are with each
-	// other: under the thread's session lease. A busy thread is retryable.
-	ctx, release, ok = h.acquireThread(ctx, c, ctxInfo)
-	if !ok {
-		return "", nil, nil, false
-	}
-	resp, err := svc.Get(ctx, &session.GetRequest{AppName: aguiAppName, UserID: ctxInfo.GetUserId(), SessionID: ctxInfo.GetSessionId()})
-	if err != nil || !a2ui.Bound(resp.Session, aguiBinding(ctx, target.workspaceID, target.agent.GetAgentId(), threadID)) {
-		return threadID, nil, release, true
-	}
-	return threadID, resp.Session, release, true
-}
-
 // UISnapshot handles GET /api/agui/:agent_id/threads/:thread_id/ui: the
 // current read-only cards and unanswered forms of one thread, rebuilt from
-// the persisted session. It never starts a run. A thread without a session,
-// without a binding, or bound to another caller, workspace or agent answers
-// with an empty snapshot, so the endpoint reveals nothing about threads the
-// caller does not own.
+// the persisted session. It never starts a run, and never waits for one:
+// during a run it answers with the surfaces as the run found them, and the
+// run (readThread). A thread without a session, without a binding, or bound
+// to another caller, workspace or agent answers with an empty snapshot, so
+// the endpoint reveals nothing about threads the caller does not own.
 func (h *AGUIHandler) UISnapshot(c *gin.Context) {
-	threadID, sess, release, ok := h.readThread(c)
+	read, ok := h.readThread(c)
 	if !ok {
 		return
 	}
-	defer release()
 
-	snap := aguiUISnapshot{Version: a2ui.Version, CatalogID: a2ui.CatalogID, ThreadID: threadID, Surfaces: []aguiSnapshotItem{}}
+	snap := aguiUISnapshot{
+		Version:   a2ui.Version,
+		CatalogID: a2ui.CatalogID,
+		ThreadID:  read.threadID,
+		Surfaces:  []aguiSnapshotItem{},
+		Running:   read.running,
+	}
+	sess := read.sess
 	if sess == nil {
 		c.JSON(http.StatusOK, snap)
 		return
