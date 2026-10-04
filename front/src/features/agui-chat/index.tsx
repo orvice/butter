@@ -81,7 +81,9 @@ import {
 import { AttachImagesButton, ComposerImages } from './composer-attachments'
 import { DraftView, type DraftMessage } from './draft-view'
 import { errorReporter, runStopped, threadRefusal } from './errors'
-import { loadThread, threadRepository } from './history'
+import { loadThread, threadRepository, type ThreadHistory } from './history'
+import type { LastRun } from './last-run'
+import { LastRunNotice } from './last-run-notice'
 import {
   ThreadLoadFailed,
   ThreadLoading,
@@ -98,6 +100,7 @@ import {
   sessionIdOf,
   threadIdOf,
 } from './threads'
+import { useLastRun } from './use-last-run'
 import { useThreadSessions } from './use-threads'
 
 function makeHttpAgent(agentId: string, threadId: string): ButterAGUIAgent {
@@ -426,12 +429,14 @@ function useOwnedA2UIStore(httpAgent: ButterAGUIAgent) {
 // each reply shows the ones it produced. The runtime loads once per thread,
 // so StrictMode's rehearsal unmount must not cancel the load; leaving the
 // thread only stops retrying. A failed load goes to onFailed, and the page
-// offers Retry.
+// offers Retry. The history also tells how the thread's last run ended, if
+// it failed or was stopped (readingLastRun, useLastRun).
 function useThreadHistory(
   agentId: string,
   threadId: string,
   store: A2UIStore,
-  onFailed: (err: unknown) => void
+  onFailed: (err: unknown) => void,
+  readingLastRun: () => (history: ThreadHistory) => void
 ): ThreadHistoryAdapter {
   const mounted = useRef(true)
   useEffect(() => {
@@ -444,6 +449,7 @@ function useThreadHistory(
     () => ({
       async load() {
         try {
+          const read = readingLastRun()
           const { history, snapshot } = await loadThread(
             agentId,
             threadId,
@@ -452,6 +458,7 @@ function useThreadHistory(
           const { repository, placed } = threadRepository(history, snapshot)
           store.markPlaced(placed)
           store.applySnapshot(snapshot)
+          read(history)
           return repository
         } catch (err) {
           if (mounted.current) onFailed(err)
@@ -461,7 +468,7 @@ function useThreadHistory(
       // The server keeps the conversation; nothing to write back.
       async append() {},
     }),
-    [agentId, threadId, store, onFailed]
+    [agentId, threadId, store, onFailed, readingLastRun]
   )
 }
 
@@ -547,7 +554,16 @@ function AGUIChatWithRuntime({
   // The runtime reads the thread once, when it starts.
   const [readsHistory] = useState(!fresh)
   const store = useOwnedA2UIStore(httpAgent)
-  const history = useThreadHistory(agentId, threadId, store, onHistoryFailed)
+  // The thread's last run when it failed or was stopped, shown under the
+  // conversation.
+  const { lastRun, stopped, reading } = useLastRun(httpAgent)
+  const history = useThreadHistory(
+    agentId,
+    threadId,
+    store,
+    onHistoryFailed,
+    reading
+  )
   const reportError = useRunErrorReporter(onThreadRefused)
   // The composer takes images through the adapter, whose limits count the
   // images the composer holds once the runtime is up.
@@ -586,9 +602,18 @@ function AGUIChatWithRuntime({
       if (openRunRef.current === localRun) openRunRef.current = null
     }
   }, [openRunRef, localRun])
+  // A Stop that ends the run here shows it as stopped: its stream may end
+  // before it says so.
   const stop = useMemo(
-    () => stopper(() => stopAGUIRun(agentId, threadId), localRun),
-    [agentId, threadId, localRun]
+    () =>
+      stopper(() => stopAGUIRun(agentId, threadId), {
+        canCancel: localRun.canCancel,
+        cancel: () => {
+          localRun.cancel()
+          stopped()
+        },
+      }),
+    [agentId, threadId, localRun, stopped]
   )
 
   const runSettledRef = useRef(onRunSettled)
@@ -613,6 +638,7 @@ function AGUIChatWithRuntime({
           <ThreadArea
             agent={agent}
             httpAgent={httpAgent}
+            lastRun={lastRun}
             onSendError={reportError}
           />
           <SharedStatePanel />
@@ -783,14 +809,17 @@ const FADE_IN_LATE = 'animate-in fade-in fill-mode-both delay-150 duration-300'
 
 // ThreadArea shows the conversation. Each reply carries the agent's avatar
 // and name; a skeleton stands in while the history loads, and a thread
-// without messages introduces the agent.
+// without messages introduces the agent. A last run that failed or was
+// stopped shows under it.
 function ThreadArea({
   agent,
   httpAgent,
+  lastRun,
   onSendError,
 }: {
   agent: Agent | undefined
   httpAgent: ButterAGUIAgent
+  lastRun: LastRun | null
   onSendError: (err: unknown) => void
 }) {
   const chatAgent = useMemo<ChatAgent>(
@@ -816,6 +845,7 @@ function ThreadArea({
               <ThreadMessages replyParts={REPLY_PARTS} />
             </div>
             <InterruptPrompts httpAgent={httpAgent} onSendError={onSendError} />
+            <LastRunNotice lastRun={lastRun} />
             <AuiIf condition={(s) => s.thread.isRunning}>
               <p className='text-xs text-muted-foreground'>Running…</p>
             </AuiIf>

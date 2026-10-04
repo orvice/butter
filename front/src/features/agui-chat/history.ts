@@ -23,6 +23,20 @@ export interface ThreadHistory {
   messages: HistoryMessage[]
   interrupts: HistoryInterrupt[]
   surfaces: Array<{ surfaceId: string; messageId: string }>
+  // lastRun is how the thread's latest run ended when it failed or was
+  // stopped (last-run.ts).
+  lastRun?: HistoryLastRun
+}
+
+// HistoryLastRun is the thread's latest run when it did not succeed, from
+// its Invocation record (docs/api.md "Thread history"): status "failed", or
+// "cancelled" when a person stopped it, the error the record keeps, and the
+// text the user sent, cut to its first 4096 bytes. It is absent while a run
+// is in flight and once a later run succeeds.
+export interface HistoryLastRun {
+  status: string
+  error?: string
+  input?: string
 }
 
 export interface HistoryMessage {

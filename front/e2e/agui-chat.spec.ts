@@ -330,6 +330,13 @@ test.describe('AG-UI chat', () => {
     await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'hi')
 
-    await expect(page.getByText('model exploded')).toBeVisible()
+    // A toast reports the failure, and the notice under the conversation
+    // keeps it.
+    await expect(
+      page.locator('[data-sonner-toast]').filter({ hasText: 'model exploded' })
+    ).toBeVisible()
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'This run failed' })
+    ).toContainText('model exploded')
   })
 })
