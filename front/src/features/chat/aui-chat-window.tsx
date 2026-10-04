@@ -1,26 +1,23 @@
 import {
   Component,
-  type ComponentProps,
   type ErrorInfo,
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
 import type { SessionInfo } from '@/types/api'
 import {
   AssistantRuntimeProvider,
+  AuiIf,
   ThreadPrimitive,
   ComposerPrimitive,
-  MessagePrimitive,
-  ActionBarPrimitive,
   unstable_useComposerInput,
 } from '@assistant-ui/react'
 import {
   ArrowUp,
-  ChevronDown,
-  Copy,
   Loader2,
   MoreHorizontal,
   Paperclip,
@@ -28,11 +25,8 @@ import {
   Square,
   Trash2,
   Undo2,
-  Wrench,
   X,
 } from 'lucide-react'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { useUpdateSessionTitle } from '@/api/sessions'
 import { sessionTitle } from '@/lib/session-title'
 import { cn } from '@/lib/utils'
@@ -43,12 +37,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Skeleton } from '@/components/ui/skeleton'
 import { AgentAvatar } from '@/components/butter/primitives'
+import { ChatAgentContext, type ChatAgent } from '@/components/chat/chat-agent'
+import { MarkdownText } from '@/components/chat/markdown'
+import { ThreadMessages, type PartComponents } from '@/components/chat/messages'
+import {
+  AgentHero,
+  ChatDisclaimer,
+  ThreadSkeleton,
+} from '@/components/chat/thread-states'
+import { ToolCallView } from '@/components/chat/tool-views'
+import { chatAuiConfig } from '@/components/chat/toolkit'
 import { InlineTitleInput } from '@/components/inline-title-input'
 import { useButterRuntime, type TerminalNotice } from './butter-runtime'
 
-const REMARK_PLUGINS = [remarkGfm]
+// A reply's parts: Markdown text, and tool calls (the shared toolkit draws
+// adk_request_input, ToolCallView the rest).
+const REPLY_PARTS: PartComponents = {
+  Text: MarkdownText,
+  tools: { Fallback: ToolCallView },
+}
 
 interface AUIChatWindowProps {
   session: SessionInfo | null
@@ -141,7 +149,7 @@ function AUIChatWindowInner({
   const activeNotice = notice && notice.sessionId === sessionId ? notice : null
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
+    <AssistantRuntimeProvider runtime={runtime} config={chatAuiConfig}>
       <div
           className={cn(
             'flex min-h-0 flex-1 flex-col bg-background',
@@ -274,134 +282,45 @@ function ThreadArea({
   notice: TerminalNotice | null
   onRestore?: () => void
 }) {
+  const chatAgent = useMemo<ChatAgent>(
+    () => ({ name: agentName ?? 'agent' }),
+    [agentName]
+  )
+
   if (isLoading) {
     return (
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <div className='mx-auto w-full max-w-4xl px-3.5 sm:px-5 lg:px-6'>
-          <div className='space-y-6 py-8'>
-            <div className='flex gap-3'>
-              <Skeleton className='size-8 shrink-0 rounded-md' />
-              <div className='w-full max-w-xl space-y-2'>
-                <Skeleton className='h-3 w-28' />
-                <Skeleton className='h-4 w-full' />
-                <Skeleton className='h-4 w-4/5' />
-              </div>
-            </div>
-            <Skeleton className='ml-auto h-14 w-1/2 max-w-md rounded-lg' />
-          </div>
+          <ThreadSkeleton />
         </div>
       </div>
     )
   }
 
   return (
-    <ThreadPrimitive.Root className='min-h-0 flex-1 overflow-y-auto'>
-      <ThreadPrimitive.Viewport className='mx-auto w-full max-w-4xl px-3.5 sm:px-5 lg:px-6'>
-        <ThreadPrimitive.Empty>
-          <div className='flex min-h-[50vh] flex-col items-center justify-center text-center'>
-            <AgentAvatar name={agentName ?? '?'} size='lg' />
-            <h2 className='mt-3 text-lg font-semibold'>
-              {agentName ?? 'Unknown agent'}
-            </h2>
-            <p className='mt-1 max-w-sm text-sm text-pretty text-muted-foreground'>
-              Send a message below to start the conversation.
-            </p>
-          </div>
-        </ThreadPrimitive.Empty>
-        <div className='py-4 sm:py-6'>
-          <ThreadPrimitive.Messages
-            components={{
-              UserMessage: UserMessageView,
-              AssistantMessage: () => (
-                <AssistantMessageView agentName={agentName ?? 'agent'} />
-              ),
-            }}
-          />
-          {isRunning && (
-            <div className='grid grid-cols-[2rem_minmax(0,1fr)] gap-3 py-2'>
-              <span />
-              <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                <Loader2 className='size-3 animate-spin' /> Thinking…
+    <ChatAgentContext.Provider value={chatAgent}>
+      <ThreadPrimitive.Root className='min-h-0 flex-1 overflow-y-auto'>
+        <ThreadPrimitive.Viewport className='mx-auto w-full max-w-4xl px-3.5 sm:px-5 lg:px-6'>
+          <AuiIf condition={(s) => s.thread.isEmpty}>
+            <AgentHero name={agentName} />
+          </AuiIf>
+          <div className='py-4 sm:py-6'>
+            <ThreadMessages replyParts={REPLY_PARTS} />
+            {isRunning && (
+              <div className='grid grid-cols-[2rem_minmax(0,1fr)] gap-3 py-2'>
+                <span />
+                <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+                  <Loader2 className='size-3 animate-spin' /> Thinking…
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-        {notice && !isRunning && (
-          <InvocationNotice notice={notice} onRestore={onRestore} />
-        )}
-      </ThreadPrimitive.Viewport>
-    </ThreadPrimitive.Root>
-  )
-}
-
-function UserMessageView() {
-  return (
-    <MessagePrimitive.Root className='flex flex-col items-end py-3 sm:py-4'>
-      <div className='max-w-[92%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground sm:max-w-[min(80%,48rem)]'>
-        <MessagePrimitive.Content
-          components={{
-            Text: ({ text }) => (
-              <ReactMarkdown
-                remarkPlugins={REMARK_PLUGINS}
-                components={MARKDOWN_COMPONENTS}
-              >
-                {text}
-              </ReactMarkdown>
-            ),
-          }}
-        />
-      </div>
-    </MessagePrimitive.Root>
-  )
-}
-
-function AssistantMessageView({ agentName }: { agentName: string }) {
-  return (
-    <MessagePrimitive.Root className='group/message grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2.5 pt-4 pb-2 sm:grid-cols-[2rem_minmax(0,1fr)] sm:gap-3'>
-      <div className='pt-0.5'>
-        <AgentAvatar name={agentName} size='sm' />
-      </div>
-      <div className='min-w-0'>
-        <div className='mb-1 flex min-h-5 items-center gap-2'>
-          <span className='text-sm font-medium'>{agentName}</span>
-        </div>
-        <div className='text-[0.9rem] leading-6 text-foreground'>
-          <MessagePrimitive.Content
-            components={{
-              Text: MarkdownText,
-              tools: { Fallback: ToolCallFallback },
-            }}
-          />
-        </div>
-        <MessagePrimitive.If lastOrHover>
-          <div className='mt-1 flex min-h-6 items-center gap-0.5 text-muted-foreground opacity-100 transition-opacity sm:opacity-0 sm:group-hover/message:opacity-100 sm:focus-within:opacity-100'>
-            <ActionBarPrimitive.Root>
-              <ActionBarPrimitive.Copy asChild>
-                <button
-                  type='button'
-                  title='Copy message'
-                  aria-label='Copy message'
-                  className='inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground'
-                >
-                  <Copy className='size-3.5' />
-                </button>
-              </ActionBarPrimitive.Copy>
-            </ActionBarPrimitive.Root>
+            )}
           </div>
-        </MessagePrimitive.If>
-      </div>
-    </MessagePrimitive.Root>
-  )
-}
-
-function MarkdownText({ text }: { text: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
-      components={MARKDOWN_COMPONENTS}
-    >
-      {text}
-    </ReactMarkdown>
+          {notice && !isRunning && (
+            <InvocationNotice notice={notice} onRestore={onRestore} />
+          )}
+        </ThreadPrimitive.Viewport>
+      </ThreadPrimitive.Root>
+    </ChatAgentContext.Provider>
   )
 }
 
@@ -489,7 +408,7 @@ function ChatComposer({
             rows={1}
             className='max-h-40 min-h-10 flex-1 resize-none bg-transparent py-2.5 text-[0.9rem] leading-5 outline-none placeholder:text-muted-foreground/75'
           />
-          <ThreadPrimitive.If running>
+          <AuiIf condition={(s) => s.thread.isRunning}>
             <ComposerPrimitive.Cancel asChild>
               <button
                 type='button'
@@ -499,8 +418,8 @@ function ChatComposer({
                 <Square className='size-4 fill-current' />
               </button>
             </ComposerPrimitive.Cancel>
-          </ThreadPrimitive.If>
-          <ThreadPrimitive.If running={false}>
+          </AuiIf>
+          <AuiIf condition={(s) => !s.thread.isRunning}>
             <ComposerPrimitive.Send asChild>
               <button
                 type='button'
@@ -510,12 +429,9 @@ function ChatComposer({
                 <ArrowUp className='size-4' />
               </button>
             </ComposerPrimitive.Send>
-          </ThreadPrimitive.If>
+          </AuiIf>
         </ComposerPrimitive.Root>
-        <p className='mt-1.5 px-2 text-center text-[0.7rem] leading-4 text-muted-foreground/80'>
-          Butter can make mistakes. Verify important actions before running
-          them.
-        </p>
+        <ChatDisclaimer />
       </div>
       <ComposerTextSetter
         text={pendingRestoreText}
@@ -628,232 +544,4 @@ class RuntimeErrorBoundary extends Component<
     if (this.state.error) return null
     return this.props.children
   }
-}
-
-const HUMAN_INPUT_TOOL = 'adk_request_input'
-
-function ToolCallFallback({
-  toolName,
-  args,
-  result,
-  status,
-}: {
-  toolName: string
-  args?: Record<string, unknown>
-  result?: unknown
-  status?: { type: string }
-}) {
-  const isHumanInput = toolName === HUMAN_INPUT_TOOL
-  const isRunning = status?.type === 'running'
-  const hasResult = result !== undefined
-
-  if (isHumanInput) {
-    return (
-      <HumanInputView
-        args={args}
-        result={result}
-        isRunning={isRunning}
-        hasResult={hasResult}
-      />
-    )
-  }
-
-  return (
-    <details className='group/tool my-2 max-w-[72ch] overflow-hidden rounded-md border border-border/60 bg-muted/20'>
-      <summary className='flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-muted/45 [&::-webkit-details-marker]:hidden'>
-        <Wrench className='size-3.5 shrink-0 text-muted-foreground' />
-        <span className='truncate font-mono text-xs text-foreground/85'>
-          {toolName}
-        </span>
-        {isRunning && !hasResult && (
-          <Loader2 className='size-3 shrink-0 animate-spin text-muted-foreground' />
-        )}
-        {hasResult && (
-          <span className='shrink-0 text-[0.7rem] text-muted-foreground'>
-            done
-          </span>
-        )}
-        <ChevronDown className='ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform group-open/tool:rotate-180' />
-      </summary>
-      <div className='space-y-2 border-t border-border/60 px-2.5 py-2'>
-        {args && Object.keys(args).length > 0 && (
-          <div>
-            <div className='mb-1 text-[0.68rem] text-muted-foreground'>
-              Arguments
-            </div>
-            <pre className='max-h-64 scrollbar-thin overflow-auto rounded bg-muted/55 p-2 font-mono text-xs leading-5'>
-              {formatJson(args)}
-            </pre>
-          </div>
-        )}
-        {hasResult && (
-          <div>
-            <div className='mb-1 text-[0.68rem] text-muted-foreground'>
-              Result
-            </div>
-            <pre className='max-h-64 scrollbar-thin overflow-auto rounded bg-muted/55 p-2 font-mono text-xs leading-5'>
-              {formatJson(result)}
-            </pre>
-          </div>
-        )}
-      </div>
-    </details>
-  )
-}
-
-function HumanInputView({
-  args,
-  result,
-  isRunning,
-  hasResult,
-}: {
-  args?: Record<string, unknown>
-  result?: unknown
-  isRunning: boolean
-  hasResult: boolean
-}) {
-  const question =
-    typeof args?.question === 'string'
-      ? args.question
-      : typeof args?.message === 'string'
-        ? args.message
-        : formatJson(args)
-
-  return (
-    <div
-      className={cn(
-        'my-2 max-w-[72ch] rounded-lg border px-3.5 py-3 text-sm',
-        isRunning && !hasResult
-          ? 'border-amber-500/35 bg-amber-500/5'
-          : 'border-border/70 bg-muted/30'
-      )}
-    >
-      <p className='font-medium text-foreground'>
-        {isRunning && !hasResult ? 'Waiting for input' : 'Human Input'}
-      </p>
-      <p className='mt-1 text-[0.85rem] leading-5 text-muted-foreground'>
-        {question}
-      </p>
-      {hasResult && (
-        <p className='mt-2 border-l-2 border-border pl-2 text-[0.85rem] text-foreground'>
-          {typeof result === 'string' ? result : formatJson(result)}
-        </p>
-      )}
-      {isRunning && !hasResult && (
-        <p className='mt-2 text-[0.75rem] text-amber-600 dark:text-amber-400'>
-          Send a message below to answer this question.
-        </p>
-      )}
-    </div>
-  )
-}
-
-function formatJson(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  try {
-    return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
-}
-
-const MARKDOWN_COMPONENTS: Components = {
-  a: MarkdownLink,
-  code: MarkdownCode,
-  pre: MarkdownPre,
-  table: MarkdownTable,
-  th: MarkdownTableHeader,
-  td: MarkdownTableCell,
-  p: ({ children }) => (
-    <p className='my-2 max-w-[72ch] first:mt-0 last:mb-0'>{children}</p>
-  ),
-  ul: ({ children }) => (
-    <ul className='my-2 max-w-[72ch] list-disc space-y-1 pl-5 first:mt-0 last:mb-0'>
-      {children}
-    </ul>
-  ),
-  ol: ({ children }) => (
-    <ol className='my-2 max-w-[72ch] list-decimal space-y-1 pl-5 first:mt-0 last:mb-0'>
-      {children}
-    </ol>
-  ),
-  li: ({ children }) => <li className='pl-1'>{children}</li>,
-  blockquote: ({ children }) => (
-    <blockquote className='my-2 max-w-[72ch] border-l-2 border-border pl-3 text-muted-foreground italic first:mt-0 last:mb-0'>
-      {children}
-    </blockquote>
-  ),
-  hr: () => <hr className='my-3 border-border' />,
-  h1: ({ children }) => (
-    <h1 className='my-3 max-w-[72ch] text-lg font-semibold first:mt-0 last:mb-0'>
-      {children}
-    </h1>
-  ),
-  h2: ({ children }) => (
-    <h2 className='my-3 max-w-[72ch] text-base font-semibold first:mt-0 last:mb-0'>
-      {children}
-    </h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className='my-2 max-w-[72ch] text-sm font-semibold first:mt-0 last:mb-0'>
-      {children}
-    </h3>
-  ),
-}
-
-function MarkdownLink(props: ComponentProps<'a'>) {
-  return (
-    <a
-      {...props}
-      target='_blank'
-      rel='noopener noreferrer'
-      className='font-medium underline underline-offset-2 hover:opacity-80'
-    />
-  )
-}
-
-function MarkdownCode({ children, className }: ComponentProps<'code'>) {
-  const isInline = !className
-  if (isInline) {
-    return (
-      <code className='rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground'>
-        {children}
-      </code>
-    )
-  }
-  return <code className={cn('font-mono text-xs', className)}>{children}</code>
-}
-
-function MarkdownPre({ children }: ComponentProps<'pre'>) {
-  return (
-    <pre className='my-2 max-w-full scrollbar-thin overflow-x-auto rounded-md border border-border/70 bg-muted/35 p-3 text-foreground first:mt-0 last:mb-0'>
-      {children}
-    </pre>
-  )
-}
-
-function MarkdownTable({ children }: ComponentProps<'table'>) {
-  return (
-    <div className='my-3 max-w-full scrollbar-thin overflow-x-auto rounded-md border border-border/70 first:mt-0 last:mb-0'>
-      <table className='w-full min-w-[42rem] border-separate border-spacing-0 text-left text-xs'>
-        {children}
-      </table>
-    </div>
-  )
-}
-
-function MarkdownTableHeader({ children }: ComponentProps<'th'>) {
-  return (
-    <th className='border-b border-border bg-muted/55 px-3 py-2 font-semibold whitespace-nowrap text-foreground'>
-      {children}
-    </th>
-  )
-}
-
-function MarkdownTableCell({ children }: ComponentProps<'td'>) {
-  return (
-    <td className='border-b border-border/50 px-3 py-2 align-top leading-5 last:border-r-0'>
-      {children}
-    </td>
-  )
 }
