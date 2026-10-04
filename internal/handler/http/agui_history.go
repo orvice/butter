@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"sort"
@@ -53,9 +54,11 @@ func (h *AGUIHandler) ThreadMessages(c *gin.Context) {
 
 // aguiHistory rebuilds a thread's conversation from its session events in the
 // shapes its runs streamed (aguiSink):
-//   - A user turn's text is a user message. So is an answer to a Human Input
-//     node, typed or implicit (ADR-0002); a form's answer reads as the
-//     dashboard showed the submission.
+//   - A user turn is a user message: its text, or, once it carried images,
+//     AG-UI content parts with the images inline, so an image-only turn is
+//     kept too. So is an answer to a Human Input node, typed or implicit
+//     (ADR-0002); a form's answer reads as the dashboard showed the
+//     submission.
 //   - Everything the agent produced between two user turns is one assistant
 //     message, as each run streamed one: its text, the question of every
 //     Interrupt it raised that is answered by now, and its tool calls, each
@@ -170,33 +173,71 @@ func (b *aguiHistoryBuilder) add(ev *session.Event) {
 	b.addAgent(ev)
 }
 
-// addUser closes the run before it: the user's text, a Human Input answer,
-// or a client tool's result all start the next one.
+// addUser closes the run before it: the user's text and images, a Human
+// Input answer, or a client tool's result all start the next one.
 func (b *aguiHistoryBuilder) addUser(ev *session.Event) {
 	if ev.Content == nil {
 		return
 	}
-	var text []string
+	var content []aguitypes.InputContent
 	var results []aguitypes.Message
 	for _, part := range ev.Content.Parts {
 		switch {
 		case part == nil || part.Thought:
 		case part.FunctionResponse != nil && part.FunctionResponse.Name == workflow.WorkflowInputFunctionCallName:
 			if answer := b.answerText(part.FunctionResponse); answer != "" {
-				text = append(text, answer)
+				content = append(content, aguiTextContent(answer))
 			}
 		case part.FunctionResponse != nil:
 			if b.kept[part.FunctionResponse.ID] {
 				results = append(results, aguiToolResultMessage(part.FunctionResponse))
 			}
 		case part.Text != "":
-			text = append(text, part.Text)
+			content = append(content, aguiTextContent(part.Text))
+		case aguiIsImage(part.InlineData):
+			content = append(content, aguiImageContent(part.InlineData))
 		}
 	}
 	b.flush()
 	b.messages = append(b.messages, results...)
-	if len(text) > 0 {
-		b.messages = append(b.messages, aguitypes.Message{ID: ev.ID, Role: aguitypes.RoleUser, Content: strings.Join(text, "\n\n")})
+	if len(content) > 0 {
+		b.messages = append(b.messages, aguitypes.Message{ID: ev.ID, Role: aguitypes.RoleUser, Content: aguiUserMessageContent(content)})
+	}
+}
+
+// aguiUserMessageContent is a user message's content: plain text, its parts
+// joined, while the turn carried only text, and AG-UI content parts in the
+// order sent once it carried an image.
+func aguiUserMessageContent(content []aguitypes.InputContent) any {
+	text := make([]string, 0, len(content))
+	for _, c := range content {
+		if c.Type != aguitypes.InputContentTypeText {
+			return content
+		}
+		text = append(text, c.Text)
+	}
+	return strings.Join(text, "\n\n")
+}
+
+func aguiTextContent(text string) aguitypes.InputContent {
+	return aguitypes.InputContent{Type: aguitypes.InputContentTypeText, Text: text}
+}
+
+// aguiIsImage reports whether inline data is an image a user sent.
+func aguiIsImage(blob *genai.Blob) bool {
+	return blob != nil && len(blob.Data) > 0 && strings.HasPrefix(blob.MIMEType, "image/")
+}
+
+// aguiImageContent is an image as a client sends one: inline, as a base64
+// data source.
+func aguiImageContent(blob *genai.Blob) aguitypes.InputContent {
+	return aguitypes.InputContent{
+		Type: aguitypes.InputContentTypeImage,
+		Source: &aguitypes.InputContentSource{
+			Type:     aguitypes.InputContentSourceTypeData,
+			Value:    base64.StdEncoding.EncodeToString(blob.Data),
+			MimeType: blob.MIMEType,
+		},
 	}
 }
 

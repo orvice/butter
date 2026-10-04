@@ -677,8 +677,9 @@ the stream and return a normal status with `{"error": "…"}`.
 authoritative (AG-UI "stateful" mode) and is derived as `agui-{threadId}`, scoped
 to the authenticated user. Two consequences:
 
-- Only the **trailing user message** of `messages` is sent to the agent. The rest
-  is the client's own history; replaying it would duplicate the conversation.
+- Only the **trailing user message** of `messages` is sent to the agent, its
+  text and images (see [Message content](#message-content)). The rest is the
+  client's own history; replaying it would duplicate the conversation.
 - A `threadId` belongs to whoever first ran it, in the workspace they ran it in.
   A run on a `threadId` another user holds, or on your own thread from another
   workspace, is refused **before the stream opens** with `403` and
@@ -702,6 +703,59 @@ existing title, including one set with `UpdateSessionTitle`, is never
 replaced. Neither the response nor the thread's next run waits for the title,
 so it shows in `ListSessions` (app `agui`) a moment after the run ends.
 Clients need not call `GenerateSessionTitle` for AG-UI threads.
+
+#### Message content
+
+The trailing user message's `content` is a string or an array of AG-UI content
+parts. A string is one text part. Each part of an array becomes one part of
+the turn, in order:
+
+| Part | Shape |
+|---|---|
+| Text | `{"type": "text", "text": "…"}`. Blank text is dropped. |
+| Image | `{"type": "image", "source": {"type": "data", "value": "<base64>", "mimeType": "image/png"}}` |
+| Image, legacy shape | `{"type": "binary", "mimeType": "image/png", "data": "<base64>"}` |
+
+```json
+{
+  "id": "m1",
+  "role": "user",
+  "content": [
+    { "type": "text", "text": "What is in this picture?" },
+    { "type": "image", "source": { "type": "data", "value": "iVBORw0KGgo…", "mimeType": "image/png" } }
+  ]
+}
+```
+
+This is how `@assistant-ui/react-ag-ui` sends image attachments. A message with
+only an image is a valid turn.
+
+The limits are the ones [`StreamAgent`](#streamagent) applies to `parts`:
+
+- `mimeType` is `image/jpeg`, `image/png`, `image/gif` or `image/webp`;
+- an image is at most 10 MiB once decoded, and a message carries at most 10;
+- a text part, string content included, is at most 1 MiB;
+- a message is at most 20 MiB, its text plus its decoded image bytes.
+
+A message that breaks a limit is a `400` before the stream opens, and nothing
+runs. These parts are a `400` too:
+
+- an image with a `url` source: the server never fetches a URL, so send the
+  image inline as a `data` source;
+- a `binary` part without `data`, which is a `url` or `id` reference;
+- `audio`, `video` and `document` parts.
+
+**Request size.** The request body is capped at 32 MiB. One message at the
+limits fits, with its images base64-encoded. A larger body is a `413` with
+`{"error": "request body exceeds 33554432 bytes; send only the trailing message"}`
+before anything runs.
+
+Only the trailing message is read, so send only that: the trailing user
+message, or the trailing tool results. A client that re-sends the whole
+transcript also re-sends every earlier image, and a thread with enough of them
+outgrows the cap. `@assistant-ui/react-ag-ui` does re-send it on every run:
+its `resumeTranscript: "appended"` option trims only the runs that answer an
+Interrupt. Trim `messages` before the request goes out.
 
 #### Human-in-the-loop
 
@@ -1078,6 +1132,7 @@ sending only the trailing message, as before.
 ```
 
 - **`messages`** is AG-UI `Message[]`, oldest first.
+  - **A user turn is a `user` message.** Its `content` is the text while the turn was only text. A turn that carried images has AG-UI content parts instead, its text and its images in the order sent. Each image is inline, as a `data` source in the shape a client sends (see [Message content](#message-content)), so an image-only turn is kept, and a thread with many images makes a large response.
   - **Each run is one `assistant` message.** Everything the agent produced between two user turns goes in it, as the run streamed it.
   - **Tool calls** keep the session's FunctionCall IDs. Each result follows as a `tool` message whose content is the result's JSON.
   - **Answers to Human Input nodes are `user` messages.** A typed answer is its text. A form's answer is the title, then one `Label: value` line per field. The question it answered is part of the assistant message before it.
@@ -1099,10 +1154,13 @@ believes a capability took effect:
 | Field | Reason |
 |---|---|
 | `resume[].status: "cancelled"` | Butter cannot abandon a pending Interrupt or tool call; the workflow would stay paused forever |
+| Content parts with a `url` source, and `binary` parts without `data` | The server never fetches a URL; send images inline |
+| `audio`, `video` and `document` content parts | Only text and images reach the agent |
 
 A missing `threadId`, a `resume` entry without `interruptId`, a nameless or
 duplicate tool declaration, and a `messages` array with no trailing user
-message (or tool results) are also `400`.
+message (or tool results) are also `400`, and so is a message past the
+[content limits](#message-content). A request body over 32 MiB is `413`.
 
 ---
 

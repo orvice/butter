@@ -183,6 +183,46 @@ func TestAGUIHistory_TypedAnswerIsTheUsersText(t *testing.T) {
 	})
 }
 
+// A user turn that carried images reads back as AG-UI content parts, its text
+// and its images inline in the order sent, so an image-only turn is kept. A
+// turn of only text stays a string.
+func TestAGUIHistory_UserImagesComeBackInline(t *testing.T) {
+	jpeg := []byte{0xff, 0xd8, 0xff}
+	ask := userEvent(&genai.Part{Text: "What is this?"}, genai.NewPartFromBytes(testPNG, "image/png"))
+	cat := agentEvent(&genai.Part{Text: "A cat."})
+	look := userEvent(genai.NewPartFromBytes(jpeg, "image/jpeg"))
+	dog := agentEvent(&genai.Part{Text: "A dog."})
+	thanks := userEvent(&genai.Part{Text: "Thanks"})
+
+	got := aguiHistory("t1", historySession(t, ask, cat, look, dog, thanks))
+
+	requireJSON(t, "messages", got.Messages, []map[string]any{
+		{"id": ask.ID, "role": "user", "content": []map[string]any{
+			textContent("What is this?"), imageContent("image/png", testPNG),
+		}},
+		{"id": cat.ID, "role": "assistant", "content": "A cat."},
+		{"id": look.ID, "role": "user", "content": []map[string]any{imageContent("image/jpeg", jpeg)}},
+		{"id": dog.ID, "role": "assistant", "content": "A dog."},
+		{"id": thanks.ID, "role": "user", "content": "Thanks"},
+	})
+}
+
+// A typed answer that carried an image, as an implicit resume stores it,
+// keeps both: the answer's text, then the image.
+func TestAGUIHistory_AnswerWithAnImageKeepsBoth(t *testing.T) {
+	paused := agentEvent(askPart("ask-1", "Which photo?"))
+	answered := userEvent(answerPart("ask-1", "this one"), genai.NewPartFromBytes(testPNG, "image/png"))
+
+	got := aguiHistory("t1", historySession(t, paused, answered))
+
+	requireJSON(t, "messages", got.Messages, []map[string]any{
+		{"id": paused.ID, "role": "assistant", "content": "Which photo?"},
+		{"id": answered.ID, "role": "user", "content": []map[string]any{
+			textContent("this one"), imageContent("image/png", testPNG),
+		}},
+	})
+}
+
 // A tool call stays only with its result, or while the session still awaits
 // one from the client. A call nobody will answer is dropped: restoring it
 // would make a client cancel it, and the server rejects a result for a call

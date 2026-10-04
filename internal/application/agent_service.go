@@ -26,16 +26,13 @@ import (
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/transport/connectx"
+	"go.orx.me/apps/butter/internal/userinput"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-// maxInvokeAgentInputBytes caps the size of a single InvokeAgent input to
-// protect the runner and session storage from oversized requests.
-const maxInvokeAgentInputBytes = 1 << 20 // 1 MiB
 
 // agentRunner is the subset of *runner.Service the agent service depends
 // on; tests substitute a fake implementation.
@@ -778,9 +775,11 @@ func (s *AgentServiceServer) InvokeAgent(ctx context.Context, req *connect.Reque
 	if req.Msg.GetInput() == "" {
 		return nil, connectx.RequiredArgument("input")
 	}
-	if len(req.Msg.GetInput()) > maxInvokeAgentInputBytes {
+	// The same cap as a text part, so the runner and session storage never
+	// take a larger single input.
+	if len(req.Msg.GetInput()) > userinput.MaxTextBytes {
 		return nil, connectx.InvalidArgument("input",
-			"exceeds maximum allowed size of "+strconv.Itoa(maxInvokeAgentInputBytes)+" bytes")
+			"exceeds maximum allowed size of "+strconv.Itoa(userinput.MaxTextBytes)+" bytes")
 	}
 
 	appName := req.Msg.GetAppName()

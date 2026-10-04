@@ -141,7 +141,8 @@ func TestAGUIRun_SendsOnlyTrailingUserMessage(t *testing.T) {
 	}
 }
 
-// Multimodal content fragments are accepted; Phase 1 keeps the text.
+// Multimodal content is accepted: each text part stays a text part, in order,
+// and a blank one is dropped.
 func TestAGUIRun_AcceptsContentFragments(t *testing.T) {
 	mock := &mockRunner{runResult: "ok"}
 	router := setupAGUIRouter(aguiEnabledRepo(), mock, true)
@@ -149,12 +150,13 @@ func TestAGUIRun_AcceptsContentFragments(t *testing.T) {
 	body := minimalAGUIBody("t-1", "")
 	body["messages"] = []map[string]any{{"id": "m1", "role": "user", "content": []map[string]any{
 		{"type": "text", "text": "line one"},
+		{"type": "text", "text": "  "},
 		{"type": "text", "text": "line two"},
 	}}}
 	if w := postAGUI(t, router, "writer", body); w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
-	if len(mock.lastParts) != 1 || mock.lastParts[0].Text != "line one\nline two" {
+	if len(mock.lastParts) != 2 || mock.lastParts[0].Text != "line one" || mock.lastParts[1].Text != "line two" {
 		t.Fatalf("parts = %+v", mock.lastParts)
 	}
 }
