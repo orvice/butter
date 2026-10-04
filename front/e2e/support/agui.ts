@@ -60,6 +60,15 @@ export const emptyHistory = (threadId = 't') => ({
   body: { threadId, messages: [], interrupts: [], surfaces: [] },
 })
 
+// resumeEntries lists every resume entry the page sent, in request order.
+export function resumeEntries(
+  requests: Array<Record<string, unknown>>
+): Array<Record<string, unknown>> {
+  return requests.flatMap(
+    (r) => (r.resume as Array<Record<string, unknown>> | undefined) ?? []
+  )
+}
+
 export async function setupAGUI(
   page: Page,
   fixture: Partial<AGUIFixture> & { runs: RunResponse[] },
