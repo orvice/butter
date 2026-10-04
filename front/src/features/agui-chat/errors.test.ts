@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { errorReporter, threadRefusal } from './errors'
+import { errorReporter, runStopped, threadRefusal } from './errors'
 
 // httpError is how the AG-UI client rejects a run the server answered with
 // a non-2xx status: the status and the parsed JSON body ride on the Error.
@@ -39,6 +39,27 @@ describe('threadRefusal', () => {
     ).toBeNull()
     expect(threadRefusal(new Error('threadId is not available'))).toBeNull()
     expect(threadRefusal(undefined)).toBeNull()
+  })
+})
+
+// runError is how the AG-UI runtime reports a run that ended in RUN_ERROR:
+// an Error with the event's message, carrying its code when it has one.
+function runError(message: string, code?: string) {
+  return Object.assign(new Error(message), code === undefined ? {} : { code })
+}
+
+describe('runStopped', () => {
+  it('names a run a person stopped', () => {
+    expect(runStopped(runError('stopped by user', 'stopped'))).toBe(true)
+  })
+
+  it('leaves every failure alone', () => {
+    expect(runStopped(runError('model exploded'))).toBe(false)
+    expect(runStopped(runError('lease lost', 'lease_lost'))).toBe(false)
+    expect(runStopped(httpError(409, { code: 'stopped' }))).toBe(false)
+    expect(runStopped({ code: 'stopped' })).toBe(false)
+    expect(runStopped('stopped')).toBe(false)
+    expect(runStopped(undefined)).toBe(false)
   })
 })
 

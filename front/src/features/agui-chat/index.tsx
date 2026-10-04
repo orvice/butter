@@ -35,6 +35,7 @@ import {
 import { ChevronDown, History, Reply, Send, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
+import { stopAGUIRun } from '@/api/agui'
 import { BASE_URL, authHeaders } from '@/api/client'
 import { useSessionInfo, useUpdateSessionTitle } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
@@ -79,13 +80,14 @@ import {
 } from './attachments'
 import { AttachImagesButton, ComposerImages } from './composer-attachments'
 import { DraftView, type DraftMessage } from './draft-view'
-import { errorReporter, threadRefusal } from './errors'
+import { errorReporter, runStopped, threadRefusal } from './errors'
 import { loadThread, threadRepository } from './history'
 import {
   ThreadLoadFailed,
   ThreadLoading,
   ThreadNotFound,
 } from './open-thread-states'
+import { stopper, type LocalRun } from './stop'
 import { useThreadDelete, type SessionAddress } from './thread-delete'
 import { ThreadHeader } from './thread-header'
 import {
@@ -196,8 +198,8 @@ export function AGUIChatPage() {
   const openAgent = agents.find((a) => a.agent_id === openAgentId) ?? null
   const openSession = open?.session ?? null
   // Threads are deleted from the header and from the sidebar alike; the
-  // open thread's AG-UI client is held there, so its run stops first.
-  const { requestDelete, openClient } = useThreadDelete()
+  // open thread's run is held there, so the page stops following it first.
+  const { requestDelete, openRun } = useThreadDelete()
 
   // A thread the server refused to run, and one whose conversation could
   // not be read, show that instead of the conversation. A retry reads the
@@ -366,7 +368,7 @@ export function AGUIChatPage() {
     content = (
       <AGUIChatWithRuntime
         key={runtimeKey}
-        clientRef={openClient}
+        openRunRef={openRun}
         agentId={view.agentId}
         agent={openAgent ?? undefined}
         threadId={threadId}
@@ -465,7 +467,8 @@ function useThreadHistory(
 
 // useRunErrorReporter shows each failed run once, as a toast. A run the
 // server refused because the thread cannot be used from here goes to
-// onRefused instead, and the page shows the thread as not found.
+// onRefused instead, and the page shows the thread as not found. A run a
+// person stopped did not fail, and is not reported.
 function useRunErrorReporter(onRefused: (message: string) => void) {
   const refusedRef = useRef(onRefused)
   useEffect(() => {
@@ -474,6 +477,7 @@ function useRunErrorReporter(onRefused: (message: string) => void) {
   const [report] = useState(() => {
     const toastOnce = errorReporter((message) => toast.error(message))
     return (err: unknown) => {
+      if (runStopped(err)) return
       const refusal = threadRefusal(err)
       if (refusal === null) toastOnce(err)
       else refusedRef.current(refusal)
@@ -510,9 +514,11 @@ function useFirstMessage(
 
 // AGUIChatWithRuntime is one thread's conversation and composer, with its own
 // AG-UI client. The page keys it by thread, so it lives exactly as long as
-// that thread is open; clientRef holds its client meanwhile.
+// that thread is open; openRunRef holds its run meanwhile. Every run outlives
+// its request, so unmounting it, as switching thread, New thread and leaving
+// the page do, only detaches the page from a run: the run goes on.
 function AGUIChatWithRuntime({
-  clientRef,
+  openRunRef,
   agentId,
   agent,
   threadId,
@@ -523,7 +529,7 @@ function AGUIChatWithRuntime({
   onThreadRefused,
   onHistoryFailed,
 }: {
-  clientRef: RefObject<ButterAGUIAgent | null>
+  openRunRef: RefObject<LocalRun | null>
   agentId: string
   // agent is the thread's agent as the agent list has it, for its name and
   // avatar.
@@ -538,12 +544,6 @@ function AGUIChatWithRuntime({
   onHistoryFailed: (err: unknown) => void
 }) {
   const [httpAgent] = useState(() => makeHttpAgent(agentId, threadId))
-  useEffect(() => {
-    clientRef.current = httpAgent
-    return () => {
-      if (clientRef.current === httpAgent) clientRef.current = null
-    }
-  }, [clientRef, httpAgent])
   // The runtime reads the thread once, when it starts.
   const [readsHistory] = useState(!fresh)
   const store = useOwnedA2UIStore(httpAgent)
@@ -568,6 +568,28 @@ function AGUIChatWithRuntime({
     imageAdapter.serve(() => runtime.thread.composer.getState().attachments)
   }, [imageAdapter, runtime])
   useFirstMessage(runtime, firstMessage, onFirstMessageSent, reportError)
+
+  // The run as this page follows it. Cancelling it through the runtime
+  // aborts its request, which detaches the page, and ends the reply as
+  // cancelled. Deleting the thread does only that; Stop ends the run on the
+  // server first.
+  const localRun = useMemo<LocalRun>(
+    () => ({
+      canCancel: () => runtime.thread.composer.getState().canCancel,
+      cancel: () => runtime.thread.composer.cancel(),
+    }),
+    [runtime]
+  )
+  useEffect(() => {
+    openRunRef.current = localRun
+    return () => {
+      if (openRunRef.current === localRun) openRunRef.current = null
+    }
+  }, [openRunRef, localRun])
+  const stop = useMemo(
+    () => stopper(() => stopAGUIRun(agentId, threadId), localRun),
+    [agentId, threadId, localRun]
+  )
 
   const runSettledRef = useRef(onRunSettled)
   useEffect(() => {
@@ -598,6 +620,7 @@ function AGUIChatWithRuntime({
             httpAgent={httpAgent}
             imageAdapter={imageAdapter}
             onSendError={reportError}
+            onStop={stop}
           />
         </ComposerPrimitive.AttachmentDropzone>
       </A2UIStoreContext.Provider>
@@ -929,15 +952,18 @@ function SharedStatePanel() {
 // is reported with why. While questions are open the runtime refuses an
 // ordinary send, so the message goes out as a plain message instead, and the
 // server takes its text as the answer to its earliest open question
-// (ADR-0002), its images going with it. A hint says so.
+// (ADR-0002), its images going with it. A hint says so. While a run goes on,
+// Stop takes Send's place.
 function ComposerArea({
   httpAgent,
   imageAdapter,
   onSendError,
+  onStop,
 }: {
   httpAgent: ButterAGUIAgent
   imageAdapter: ImageAttachmentAdapter
   onSendError: (err: unknown) => void
+  onStop: () => Promise<void>
 }) {
   const answering = useAgUiInterrupts().length > 0
   const replies = useReplies(httpAgent, onSendError)
@@ -1000,11 +1026,7 @@ function ComposerArea({
           className='min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring'
         />
         <AuiIf condition={(s) => s.thread.isRunning}>
-          <ComposerPrimitive.Cancel asChild>
-            <Button variant='outline' size='icon' aria-label='Stop'>
-              <Square className='size-4' />
-            </Button>
-          </ComposerPrimitive.Cancel>
+          <StopButton onStop={onStop} />
         </AuiIf>
         <AuiIf condition={(s) => !s.thread.isRunning}>
           <ComposerPrimitive.Send asChild onClick={sendAsAnswer}>
@@ -1016,5 +1038,35 @@ function ComposerArea({
       </ComposerPrimitive.Root>
       <ChatDisclaimer className='mx-auto max-w-3xl' />
     </div>
+  )
+}
+
+// StopButton stops the run: on the server, then here (stopper). It is
+// disabled while the Stop is under way. A Stop the server refused is
+// reported, and the run goes on.
+function StopButton({ onStop }: { onStop: () => Promise<void> }) {
+  const canCancel = useAuiState((s) => s.composer.canCancel)
+  const [stopping, setStopping] = useState(false)
+  const [reportFailure] = useState(() =>
+    errorReporter((message) =>
+      toast.error(`Could not stop the run: ${message}`)
+    )
+  )
+  return (
+    <Button
+      type='button'
+      variant='outline'
+      size='icon'
+      aria-label='Stop'
+      disabled={stopping || !canCancel}
+      onClick={() => {
+        setStopping(true)
+        onStop()
+          .catch(reportFailure)
+          .finally(() => setStopping(false))
+      }}
+    >
+      <Square className='size-4' />
+    </Button>
   )
 }

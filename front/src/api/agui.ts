@@ -181,6 +181,34 @@ export function fetchAGUIThreadHistory<T>(
   )
 }
 
+// AGUIStoppedRun is the run a Stop reached. It ends shortly after, and its
+// stream ends with a RUN_ERROR whose code is "stopped".
+export interface AGUIStoppedRun {
+  threadId: string
+  runId: string
+  invocationId: string
+}
+
+// stopAGUIRun stops the thread's detached run, on whichever Pod runs it
+// (POST /api/agui/:agent_id/threads/:thread_id/stop, ADR-0016 decision 4).
+// The server answers at once and never waits for the run to end. The answer
+// is the run that will end, or null when no detached run is in flight: the
+// thread is idle, or its run already ended.
+export async function stopAGUIRun(
+  agentId: string,
+  threadId: string,
+  signal?: AbortSignal
+): Promise<AGUIStoppedRun | null> {
+  const res = await fetch(aguiThreadURL(agentId, threadId, 'stop'), {
+    method: 'POST',
+    headers: authHeaders(),
+    signal,
+  })
+  if (res.status === 204) return null
+  if (!res.ok) throw await aguiFailure(res, 'Stop')
+  return (await res.json()) as AGUIStoppedRun
+}
+
 async function fetchAGUIThread<T>(
   agentId: string,
   threadId: string,
@@ -188,19 +216,31 @@ async function fetchAGUIThread<T>(
   label: string,
   signal?: AbortSignal
 ): Promise<T> {
-  const res = await fetch(
-    `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}/threads/${encodeURIComponent(threadId)}/${resource}`,
-    { headers: authHeaders(), signal }
-  )
-  if (!res.ok) {
-    let message = `${label} failed (${res.status})`
-    try {
-      const data = (await res.json()) as { error?: string }
-      if (data?.error) message = data.error
-    } catch {
-      // Non-JSON error body; keep the status message.
-    }
-    throw new ApiError(String(res.status), message)
-  }
+  const res = await fetch(aguiThreadURL(agentId, threadId, resource), {
+    headers: authHeaders(),
+    signal,
+  })
+  if (!res.ok) throw await aguiFailure(res, label)
   return (await res.json()) as T
+}
+
+function aguiThreadURL(
+  agentId: string,
+  threadId: string,
+  resource: 'ui' | 'messages' | 'stop'
+): string {
+  return `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}/threads/${encodeURIComponent(threadId)}/${resource}`
+}
+
+// aguiFailure is the error a failed request answers with: the server's
+// {error} message, else the status.
+async function aguiFailure(res: Response, label: string): Promise<ApiError> {
+  let message = `${label} failed (${res.status})`
+  try {
+    const data = (await res.json()) as { error?: string }
+    if (data?.error) message = data.error
+  } catch {
+    // Non-JSON error body; keep the status message.
+  }
+  return new ApiError(String(res.status), message)
 }
