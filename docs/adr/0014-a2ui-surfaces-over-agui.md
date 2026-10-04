@@ -92,7 +92,7 @@ two meet in Butter:
   require (every open interrupt) with the form's single entry, so the
   submission appears as a readable reply in the conversation.
 - A per-agent policy for card generation (disable, prefer) and pre-built card
-  templates are left for later.
+  templates are left for later (#381).
 
 ## Amendment: the thread history (#376)
 

@@ -106,6 +106,10 @@ _Avoid_: session owner
 A thread's current Result Cards and unanswered Human Input Forms, rebuilt from the persisted session without running the agent.
 _Avoid_: UI cache, UI history
 
+**Thread History**:
+A thread's conversation rebuilt from the persisted session without running the agent. It holds the user turns and one reply per run, with that run's tool calls and results and the Human Input questions it asked. Each Surface of the UI Snapshot sits in the reply that produced it.
+_Avoid_: transcript, chat log, message history
+
 ### Skills
 
 **Skill**:
