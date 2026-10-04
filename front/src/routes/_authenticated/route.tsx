@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { WorkspaceProvider } from '@/context/workspace-provider'
 import { AuthenticatedLayout } from '@/components/layout/authenticated-layout'
 import { WorkspaceGate } from '@/components/layout/workspace-gate'
+import { ThreadDeleteProvider } from '@/features/agui-chat/thread-delete'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: ({ location }) => {
@@ -27,13 +28,16 @@ function AuthenticatedGuard() {
     void auth.restore()
   }, [auth])
 
+  // AG-UI threads are deleted from the sidebar and from AG-UI Chat alike.
   return (
     <WorkspaceProvider>
-      <AuthenticatedLayout>
-        <WorkspaceGate>
-          <Outlet />
-        </WorkspaceGate>
-      </AuthenticatedLayout>
+      <ThreadDeleteProvider>
+        <AuthenticatedLayout>
+          <WorkspaceGate>
+            <Outlet />
+          </WorkspaceGate>
+        </AuthenticatedLayout>
+      </ThreadDeleteProvider>
     </WorkspaceProvider>
   )
 }

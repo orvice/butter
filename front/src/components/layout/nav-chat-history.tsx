@@ -10,6 +10,7 @@ import {
 } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
 import { CHAT_APP_NAME } from '@/lib/constants'
+import { groupByRecency } from '@/lib/recency-groups'
 import { sessionAgentName, sessionTitle } from '@/lib/session-title'
 import { cn } from '@/lib/utils'
 import {
@@ -30,28 +31,6 @@ import {
 import { AgentAvatar } from '@/components/butter/primitives'
 import { DeleteDialog } from '@/components/delete-dialog'
 import { InlineTitleInput } from '@/components/inline-title-input'
-
-type SessionGroupKey = 'today' | 'week' | 'older'
-
-function sessionGroup(session: SessionInfo): SessionGroupKey {
-  if (!session.last_update_time) return 'older'
-  const updated = new Date(session.last_update_time)
-  const now = new Date()
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  )
-  if (updated >= startOfToday) return 'today'
-  if (now.getTime() - updated.getTime() < 7 * 24 * 60 * 60 * 1000) return 'week'
-  return 'older'
-}
-
-const GROUP_TITLES: Record<SessionGroupKey, string> = {
-  today: 'Today',
-  week: 'Previous 7 days',
-  older: 'Older',
-}
 
 export function NavChatHistory() {
   const user = useAuthStore((state) => state.auth.user)
@@ -83,11 +62,7 @@ export function NavChatHistory() {
   }, [sessionsQuery.data, query])
 
   const groups = useMemo(
-    () =>
-      (['today', 'week', 'older'] as const).map((key) => ({
-        key,
-        items: filtered.filter((s) => sessionGroup(s) === key),
-      })),
+    () => groupByRecency(filtered, (s) => s.last_update_time, new Date()),
     [filtered]
   )
 
@@ -146,29 +121,26 @@ export function NavChatHistory() {
             : 'No conversations found.'}
         </p>
       ) : (
-        groups.map(
-          ({ key, items }) =>
-            items.length > 0 && (
-              <div key={key}>
-                <div className='px-2.5 pt-2.5 pb-1 text-[0.7rem] font-medium text-muted-foreground'>
-                  {GROUP_TITLES[key]}
-                </div>
-                <SidebarMenu>
-                  {items.map((s) => (
-                    <ConversationRow
-                      key={s.session_id}
-                      session={s}
-                      active={s.session_id === activeSessionId}
-                      renaming={s.session_id === renamingSessionId}
-                      onRenameStart={() => setRenamingSessionId(s.session_id)}
-                      onRenameEnd={() => setRenamingSessionId(null)}
-                      onDelete={() => setDeleteTarget(s)}
-                    />
-                  ))}
-                </SidebarMenu>
-              </div>
-            )
-        )
+        groups.map(({ key, title, items }) => (
+          <div key={key}>
+            <div className='px-2.5 pt-2.5 pb-1 text-[0.7rem] font-medium text-muted-foreground'>
+              {title}
+            </div>
+            <SidebarMenu>
+              {items.map((s) => (
+                <ConversationRow
+                  key={s.session_id}
+                  session={s}
+                  active={s.session_id === activeSessionId}
+                  renaming={s.session_id === renamingSessionId}
+                  onRenameStart={() => setRenamingSessionId(s.session_id)}
+                  onRenameEnd={() => setRenamingSessionId(null)}
+                  onDelete={() => setDeleteTarget(s)}
+                />
+              ))}
+            </SidebarMenu>
+          </div>
+        ))
       )}
       <DeleteDialog
         open={!!deleteTarget}

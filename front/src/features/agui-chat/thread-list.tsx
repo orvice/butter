@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import type { SessionInfo } from '@/types/api'
-import { MessageSquarePlus, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, Search, SquarePen, Trash2 } from 'lucide-react'
+import { useAgents } from '@/api/agents'
+import { useUpdateSessionTitle } from '@/api/sessions'
+import { groupByRecency } from '@/lib/recency-groups'
 import { cn } from '@/lib/utils'
+import { useWorkspace } from '@/context/workspace-provider'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,159 +14,246 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import { AgentAvatar } from '@/components/butter/primitives'
 import { InlineTitleInput } from '@/components/inline-title-input'
-import { threadIdOf, threadTitle } from './threads'
+import { agentIconUrl } from '@/features/agents/icon-utils'
+import { useThreadDelete } from './thread-delete'
+import { searchThreads, threadRows, type ThreadRow } from './threads'
+import { useAGUIChatSearch, useThreadSessions } from './use-threads'
 
-interface ThreadListProps {
-  threads: SessionInfo[]
-  activeThreadId: string | null
-  isLoading: boolean
-  // agentId is the agent whose threads are listed, if one is chosen.
-  agentId: string | null
-  onRename: (session: SessionInfo, title: string) => Promise<void>
-  onDelete: (session: SessionInfo) => void
-}
-
-// ThreadsPanel holds the in-page thread list until the sidebar lists threads
-// (#398): a column beside the chat on wide screens, a drawer on narrow ones.
-// Its New thread link opens a new-chat draft with the listed agent.
-export function ThreadsPanel({
-  drawerOpen,
-  onDrawerOpenChange,
-  ...props
-}: ThreadListProps & {
-  drawerOpen: boolean
-  onDrawerOpenChange: (open: boolean) => void
-}) {
-  const close = () => onDrawerOpenChange(false)
-  const content = (
-    <>
-      <div className='px-1.5 pt-1.5'>
-        <Link
-          to='/agui-chat'
-          search={props.agentId ? { agent: props.agentId } : {}}
-          onClick={close}
-          className='flex h-9 w-full items-center gap-2 rounded-md border border-border/70 px-2.5 text-sm font-medium transition-colors hover:bg-muted'
-        >
-          <MessageSquarePlus className='size-4' />
-          New thread
-        </Link>
-      </div>
-      <ThreadList {...props} onNavigate={close} />
-    </>
+// NavThreads lists the caller's AG-UI threads in the sidebar: every thread
+// in this workspace, whatever its agent, grouped by when it was last updated
+// the way Chat's history is, with title search. Each row shows its agent's
+// avatar and title and links to its thread; the thread AG-UI Chat has open is
+// highlighted. On narrow screens it lives in the sidebar's sheet, which a
+// row or New thread closes.
+export function NavThreads() {
+  const { selectedWorkspaceId } = useWorkspace()
+  const { setOpenMobile } = useSidebar()
+  const chat = useAGUIChatSearch()
+  const sessionsQuery = useThreadSessions()
+  // The agents give each row its avatar and the name an untitled thread
+  // shows. AG-UI Chat reads the same list.
+  const agentsQuery = useAgents(
+    { page_size: 200 },
+    { enabled: !!selectedWorkspaceId }
   )
+  const renameMutation = useUpdateSessionTitle()
+  const { requestDelete } = useThreadDelete()
+  const [query, setQuery] = useState('')
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const labelId = useId()
+
+  const rows = useMemo(
+    () =>
+      threadRows(
+        sessionsQuery.data?.sessions ?? [],
+        selectedWorkspaceId,
+        agentsQuery.data?.agents ?? []
+      ),
+    [sessionsQuery.data, selectedWorkspaceId, agentsQuery.data]
+  )
+  const groups = useMemo(
+    () =>
+      groupByRecency(
+        searchThreads(rows, query),
+        (row) => row.session.last_update_time,
+        new Date()
+      ),
+    [rows, query]
+  )
+  const loading = sessionsQuery.isLoading || agentsQuery.isLoading
+
+  const activeThreadId = chat?.thread ?? null
+  // New thread keeps the agent in use: the open thread's, or the draft's.
+  const newThreadAgent = !chat
+    ? undefined
+    : chat.thread
+      ? rows.find((row) => row.threadId === chat.thread)?.agentId
+      : chat.agent
+  const closeSheet = () => setOpenMobile(false)
+
+  let note = 'No threads found.'
+  if (loading) note = 'Loading threads…'
+  else if (sessionsQuery.isError) note = 'Failed to load threads.'
+
   return (
-    <>
-      <aside
-        aria-label='Threads'
-        className='hidden w-60 shrink-0 overflow-y-auto border-e border-border/60 md:block'
-      >
-        {content}
-      </aside>
-      <Sheet open={drawerOpen} onOpenChange={onDrawerOpenChange}>
-        <SheetContent side='left' className='w-72 gap-0 p-0'>
-          <SheetHeader className='border-b border-border/60'>
-            <SheetTitle>Threads</SheetTitle>
-          </SheetHeader>
-          <div className='overflow-y-auto'>{content}</div>
-        </SheetContent>
-      </Sheet>
-    </>
+    <SidebarGroup
+      role='navigation'
+      aria-labelledby={labelId}
+      className='py-1 group-data-[collapsible=icon]:hidden'
+    >
+      <SidebarGroupLabel id={labelId}>AG-UI threads</SidebarGroupLabel>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            asChild
+            className='h-9 border border-sidebar-border bg-background/60 font-medium shadow-none'
+          >
+            <Link
+              to='/agui-chat'
+              search={newThreadAgent ? { agent: newThreadAgent } : {}}
+              onClick={closeSheet}
+            >
+              <SquarePen />
+              <span>New thread</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <div className='relative px-1 py-1.5'>
+        <Search className='pointer-events-none absolute start-3.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground' />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search threads'
+          aria-label='Search threads'
+          className='h-9 w-full rounded-md border border-sidebar-border bg-background/60 py-0 ps-8 pe-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-sidebar-ring/10'
+        />
+      </div>
+      {loading || groups.length === 0 ? (
+        <p className='px-3 py-4 text-center text-xs text-muted-foreground'>
+          {note}
+        </p>
+      ) : (
+        groups.map(({ key, title, items }) => (
+          <div key={key} role='group' aria-labelledby={`${labelId}-${key}`}>
+            <div
+              id={`${labelId}-${key}`}
+              className='px-2.5 pt-2.5 pb-1 text-[0.7rem] font-medium text-muted-foreground'
+            >
+              {title}
+            </div>
+            <SidebarMenu>
+              {items.map((row) => (
+                <ThreadRowItem
+                  key={row.session.session_id}
+                  row={row}
+                  active={row.threadId === activeThreadId}
+                  renaming={row.session.session_id === renamingId}
+                  onNavigate={closeSheet}
+                  onRenameStart={() => setRenamingId(row.session.session_id)}
+                  onRenameEnd={() => setRenamingId(null)}
+                  onRename={async (title) => {
+                    await renameMutation.mutateAsync({
+                      app_name: row.session.app_name,
+                      user_id: row.session.user_id,
+                      session_id: row.session.session_id,
+                      title,
+                    })
+                  }}
+                  onDelete={() =>
+                    requestDelete({
+                      session: {
+                        app_name: row.session.app_name,
+                        user_id: row.session.user_id,
+                        session_id: row.session.session_id,
+                      },
+                      title: row.title,
+                      agentId: row.agentId,
+                    })
+                  }
+                />
+              ))}
+            </SidebarMenu>
+          </div>
+        ))
+      )}
+    </SidebarGroup>
   )
 }
 
-// ThreadList shows the caller's threads with one agent, newest first. Each
-// row links to its thread (?thread=). A new thread has no session until its
-// first run, so it appears here only after that.
-export function ThreadList({
-  threads,
-  activeThreadId,
-  isLoading,
-  agentId,
+function ThreadRowItem({
+  row,
+  active,
+  renaming,
   onNavigate,
+  onRenameStart,
+  onRenameEnd,
   onRename,
   onDelete,
-}: ThreadListProps & { onNavigate?: () => void }) {
-  const [renamingId, setRenamingId] = useState<string | null>(null)
+}: {
+  row: ThreadRow
+  active: boolean
+  renaming: boolean
+  onNavigate: () => void
+  onRenameStart: () => void
+  onRenameEnd: () => void
+  onRename: (title: string) => Promise<void>
+  onDelete: () => void
+}) {
+  const avatar = (
+    <AgentAvatar
+      name={row.agent?.name ?? ''}
+      iconUrl={(row.agent && agentIconUrl(row.agent)) || undefined}
+      size='sm'
+      className='size-4 shrink-0 rounded text-[0.6rem]'
+    />
+  )
 
-  if (threads.length === 0) {
-    let note = 'No threads with this agent yet.'
-    if (!agentId) note = 'Choose an agent to see its threads.'
-    else if (isLoading) note = 'Loading threads…'
+  if (renaming) {
     return (
-      <p className='px-3 py-4 text-center text-xs text-muted-foreground'>
-        {note}
-      </p>
+      <SidebarMenuItem>
+        <div className='flex h-10 items-center gap-2 rounded-md bg-sidebar-accent/60 px-2.5'>
+          {avatar}
+          <InlineTitleInput
+            initial={row.title}
+            onSave={onRename}
+            onClose={onRenameEnd}
+          />
+        </div>
+      </SidebarMenuItem>
     )
   }
 
   return (
-    <ul className='flex flex-col gap-0.5 p-1.5'>
-      {threads.map((s) => {
-        const threadId = threadIdOf(s)
-        if (!threadId) return null
-        const active = threadId === activeThreadId
-        if (renamingId === s.session_id) {
-          return (
-            <li
-              key={s.session_id}
-              className='flex h-9 items-center rounded-md bg-muted/60 px-2'
-            >
-              <InlineTitleInput
-                initial={s.title?.trim() ?? ''}
-                onSave={(title) => onRename(s, title)}
-                onClose={() => setRenamingId(null)}
-                className='text-sm'
-              />
-            </li>
-          )
-        }
-        return (
-          <li key={s.session_id} className='group/row relative'>
-            <Link
-              to='/agui-chat'
-              search={{ thread: threadId }}
-              onClick={onNavigate}
-              title={threadTitle(s)}
-              className={cn(
-                'flex h-9 w-full items-center rounded-md ps-2.5 pe-9 text-start text-sm transition-colors hover:bg-muted',
-                active
-                  ? 'bg-muted font-medium text-foreground'
-                  : 'text-muted-foreground'
-              )}
-            >
-              <span className='truncate'>{threadTitle(s)}</span>
-            </Link>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label='Thread actions'
-                className='absolute end-0.5 top-0.5 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 hover:bg-background hover:text-foreground md:opacity-0 md:group-focus-within/row:opacity-100 md:group-hover/row:opacity-100 md:data-[state=open]:opacity-100'
-              >
-                <MoreHorizontal className='size-4' />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='start' sideOffset={4}>
-                <DropdownMenuItem onClick={() => setRenamingId(s.session_id)}>
-                  <Pencil />
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant='destructive'
-                  onClick={() => onDelete(s)}
-                >
-                  <Trash2 />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </li>
-        )
-      })}
-    </ul>
+    <SidebarMenuItem className='group/row'>
+      <SidebarMenuButton
+        asChild
+        isActive={active}
+        className={cn(
+          'h-10 ps-2.5 pe-10',
+          !active && 'text-sidebar-foreground/75'
+        )}
+      >
+        <Link
+          to='/agui-chat'
+          search={{ thread: row.threadId }}
+          onClick={onNavigate}
+        >
+          {avatar}
+          <span className='truncate'>{row.title}</span>
+        </Link>
+      </SidebarMenuButton>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction
+            aria-label='Thread actions'
+            className='end-0.5 top-0.5 size-9 opacity-100 md:opacity-0 md:group-focus-within/row:opacity-100 md:group-hover/row:opacity-100 md:data-[state=open]:opacity-100'
+          >
+            <MoreHorizontal className='size-4' />
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='start' sideOffset={4}>
+          <DropdownMenuItem onClick={onRenameStart}>
+            <Pencil />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant='destructive' onClick={onDelete}>
+            <Trash2 />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
   )
 }
