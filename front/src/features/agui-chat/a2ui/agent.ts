@@ -1,5 +1,6 @@
 import {
   HttpAgent,
+  type Message,
   type RunAgentInput,
   type RunAgentParameters,
 } from '@ag-ui/client'
@@ -41,11 +42,29 @@ export function wireResume(next: NextRun): ResumeEntry[] | undefined {
   return next.kind === 'answer' ? [next.entry] : undefined
 }
 
+// runMessages is the part of the transcript a run's request carries: what
+// the server reads of it (docs/api.md "Message content"). A run that
+// continues after frontend tool calls ends on their results, and those are
+// sent; any other run sends the last user message. The server keeps the
+// conversation, and the client re-sends its whole transcript on every run,
+// every earlier image included, which a thread with enough of them pushes
+// past the server's 32 MiB body cap.
+export function runMessages(messages: readonly Message[]): Message[] {
+  let start = messages.length
+  while (start > 0 && messages[start - 1].role === 'tool') start--
+  if (start < messages.length) return messages.slice(start)
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return [messages[i]]
+  }
+  return []
+}
+
 // ButterAGUIAgent is the dashboard's HttpAgent. Every run declares A2UI
 // support in forwardedProps, which selects the server's built-in catalog and
 // makes the run's RUN_FINISHED list every Interrupt still open. A run armed
 // while Interrupts are open answers one of them: the one it addresses, or the
-// server's oldest.
+// server's oldest. A request carries only the messages the server reads
+// (runMessages); the client keeps the whole transcript.
 //
 // The AG-UI client and the assistant-ui runtime both assume a resume
 // resolves every open interrupt at once: the client refuses to start a run
@@ -91,6 +110,7 @@ export class ButterAGUIAgent extends HttpAgent {
   protected requestInit(input: RunAgentInput): RequestInit {
     const run: RunInput = {
       ...(input as RunInput),
+      messages: runMessages(input.messages),
       forwardedProps: {
         ...((input.forwardedProps as Record<string, unknown> | undefined) ??
           {}),

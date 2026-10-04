@@ -145,6 +145,127 @@ describe('threadRepository', () => {
     })
   })
 
+  it('shows a turn that carried images as the composer sent it: its text, and its images as attachments', () => {
+    const { repository } = threadRepository(
+      history({
+        messages: [
+          {
+            id: 'u1',
+            role: 'user',
+            content: [
+              { type: 'text', text: 'What is in these?' },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: 'iVBORw0K',
+                  mimeType: 'image/png',
+                },
+              },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: '/9j/4AAQ',
+                  mimeType: 'image/jpeg',
+                },
+              },
+            ],
+          },
+          { id: 'a1', role: 'assistant', content: 'A cat and a dog.' },
+        ],
+      }),
+      snapshot()
+    )
+    const turn = repository.messages[0].message
+    expect(turn.role).toBe('user')
+    expect(turn.content).toEqual([{ type: 'text', text: 'What is in these?' }])
+    expect(turn.role === 'user' && turn.attachments).toEqual([
+      {
+        id: 'u1:image-1',
+        type: 'image',
+        name: 'Image 1',
+        contentType: 'image/png',
+        status: { type: 'complete' },
+        content: [{ type: 'image', image: 'data:image/png;base64,iVBORw0K' }],
+      },
+      {
+        id: 'u1:image-2',
+        type: 'image',
+        name: 'Image 2',
+        contentType: 'image/jpeg',
+        status: { type: 'complete' },
+        content: [{ type: 'image', image: 'data:image/jpeg;base64,/9j/4AAQ' }],
+      },
+    ])
+    expect(repository.messages[1].message.content).toEqual([
+      { type: 'text', text: 'A cat and a dog.' },
+    ])
+  })
+
+  it('shows a turn of images alone without text, and leaves out what is not an inline image', () => {
+    const { repository } = threadRepository(
+      history({
+        messages: [
+          {
+            id: 'u1',
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://example.com/a.png' },
+              },
+              { type: 'document', source: { type: 'data', value: 'JVBE' } },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: 'R0lGOD',
+                  mimeType: 'image/gif',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      snapshot()
+    )
+    const turn = repository.messages[0].message
+    expect(turn.content).toEqual([])
+    expect(
+      turn.role === 'user' && turn.attachments.map((a) => a.content)
+    ).toEqual([[{ type: 'image', image: 'data:image/gif;base64,R0lGOD' }]])
+  })
+
+  it('reads several text parts as paragraphs, as the server writes a turn of text', () => {
+    const { repository } = threadRepository(
+      history({
+        messages: [
+          {
+            id: 'u1',
+            role: 'user',
+            content: [
+              { type: 'text', text: 'First.' },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: 'UklGR',
+                  mimeType: 'image/webp',
+                },
+              },
+              { type: 'text', text: 'Second.' },
+            ],
+          },
+        ],
+      }),
+      snapshot()
+    )
+    expect(repository.messages[0].message.content).toEqual([
+      { type: 'text', text: 'First.\n\nSecond.' },
+    ])
+  })
+
   it('gives open Interrupts a reply of their own when the history has none', () => {
     const interrupts = [
       { id: 'ask-1', reason: 'human_input', message: 'Approve?' },

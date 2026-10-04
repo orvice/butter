@@ -4,10 +4,10 @@ import type { InputPart, InputPartSchema } from "@/gen/agents/v1/content_pb";
 // Init shape for agents.v1.InputPart accepted by the Connect clients.
 export type InputPartInit = MessageInitShape<typeof InputPartSchema>;
 
-// Client-side mirror of the backend multimodal input limits enforced in
-// internal/application/input_parts.go, so users get immediate feedback
-// instead of a round-trip invalid_argument error. The backend remains the
-// source of truth.
+// Client-side mirror of the backend multimodal input limits every entry
+// point enforces (internal/userinput: the RPCs' InputParts and AG-UI content
+// parts), so users get immediate feedback instead of a round-trip rejection.
+// The backend remains the source of truth.
 export const ALLOWED_IMAGE_MIME_TYPES = [
   "image/jpeg",
   "image/png",

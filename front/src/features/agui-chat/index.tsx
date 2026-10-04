@@ -20,8 +20,10 @@ import {
   ThreadPrimitive,
   ComposerPrimitive,
   useAui,
+  useAuiEvent,
   useAuiState,
   type AssistantRuntime,
+  type CreateAppendMessage,
   type ThreadHistoryAdapter,
 } from '@assistant-ui/react'
 import {
@@ -69,7 +71,14 @@ import {
   readLastAgent,
   rememberLastAgent,
 } from './agents'
-import { DraftView } from './draft-view'
+import {
+  ImageAttachmentAdapter,
+  attachmentRefusal,
+  imageAttachment,
+  sendAll,
+} from './attachments'
+import { AttachImagesButton, ComposerImages } from './composer-attachments'
+import { DraftView, type DraftMessage } from './draft-view'
 import { errorReporter, threadRefusal } from './errors'
 import { loadThread, threadRepository } from './history'
 import {
@@ -110,7 +119,7 @@ interface StartedThread {
   workspaceId: string
   userId: string
   agentId: string
-  firstMessage?: string
+  firstMessage?: DraftMessage
 }
 
 // AGUIChatPage is AG-UI Chat. The URL is its source of truth: ?thread=<id>
@@ -247,7 +256,7 @@ export function AGUIChatPage() {
 
   // The first message of a draft names a new thread and moves the page to
   // it; the thread's runtime sends the message.
-  const startThread = (message: string) => {
+  const startThread = (message: DraftMessage) => {
     const agentId = draft?.agent_id
     if (!agentId || !selectedWorkspaceId || !userId) return
     const id = newThreadId()
@@ -474,19 +483,29 @@ function useRunErrorReporter(onRefused: (message: string) => void) {
 }
 
 // useFirstMessage sends the message that started the thread from the draft
-// once its runtime is up, as if typed into the composer.
+// once its runtime is up, as the composer sends one: its text, and its
+// images read into attachments. A failure is reported instead of lost.
 function useFirstMessage(
   runtime: AssistantRuntime,
-  message: string | undefined,
-  onSent: () => void
+  message: DraftMessage | undefined,
+  onSent: () => void,
+  onError: (err: unknown) => void
 ) {
   const sent = useRef(false)
   useEffect(() => {
     if (!message || sent.current) return
     sent.current = true
-    runtime.thread.append(message)
     onSent()
-  }, [runtime, message, onSent])
+    void Promise.all(message.images.map(imageAttachment))
+      .then((attachments) =>
+        runtime.thread.append({
+          role: 'user',
+          content: message.text ? [{ type: 'text', text: message.text }] : [],
+          attachments,
+        })
+      )
+      .catch(onError)
+  }, [runtime, message, onSent, onError])
 }
 
 // AGUIChatWithRuntime is one thread's conversation and composer, with its own
@@ -512,7 +531,7 @@ function AGUIChatWithRuntime({
   threadId: string
   // fresh is a thread started on this page: it has no conversation to read.
   fresh: boolean
-  firstMessage?: string
+  firstMessage?: DraftMessage
   onFirstMessageSent: () => void
   onRunSettled: () => void
   onThreadRefused: (message: string) => void
@@ -530,12 +549,25 @@ function AGUIChatWithRuntime({
   const store = useOwnedA2UIStore(httpAgent)
   const history = useThreadHistory(agentId, threadId, store, onHistoryFailed)
   const reportError = useRunErrorReporter(onThreadRefused)
+  // The composer takes images through the adapter, whose limits count the
+  // images the composer holds once the runtime is up.
+  const [imageAdapter] = useState(() => new ImageAttachmentAdapter())
+  const adapters = useMemo(
+    () =>
+      readsHistory
+        ? { history, attachments: imageAdapter }
+        : { attachments: imageAdapter },
+    [readsHistory, history, imageAdapter]
+  )
   const runtime = useAgUiRuntime({
     agent: httpAgent,
     onError: reportError,
-    adapters: readsHistory ? { history } : {},
+    adapters,
   })
-  useFirstMessage(runtime, firstMessage, onFirstMessageSent)
+  useEffect(() => {
+    imageAdapter.serve(() => runtime.thread.composer.getState().attachments)
+  }, [imageAdapter, runtime])
+  useFirstMessage(runtime, firstMessage, onFirstMessageSent, reportError)
 
   const runSettledRef = useRef(onRunSettled)
   useEffect(() => {
@@ -554,13 +586,20 @@ function AGUIChatWithRuntime({
     <AssistantRuntimeProvider runtime={runtime} config={chatAuiConfig}>
       <A2UIStoreContext.Provider value={store}>
         <FormSubmitBridge store={store} httpAgent={httpAgent} />
-        <ThreadArea
-          agent={agent}
-          httpAgent={httpAgent}
-          onSendError={reportError}
-        />
-        <SharedStatePanel />
-        <ComposerArea httpAgent={httpAgent} onSendError={reportError} />
+        {/* Images dropped anywhere on the conversation go to the composer. */}
+        <ComposerPrimitive.AttachmentDropzone className='flex min-h-0 flex-1 flex-col data-[dragging=true]:ring-2 data-[dragging=true]:ring-ring/50 data-[dragging=true]:ring-inset'>
+          <ThreadArea
+            agent={agent}
+            httpAgent={httpAgent}
+            onSendError={reportError}
+          />
+          <SharedStatePanel />
+          <ComposerArea
+            httpAgent={httpAgent}
+            imageAdapter={imageAdapter}
+            onSendError={reportError}
+          />
+        </ComposerPrimitive.AttachmentDropzone>
       </A2UIStoreContext.Provider>
     </AssistantRuntimeProvider>
   )
@@ -606,7 +645,7 @@ function useReplies(
   onError: (err: unknown) => void
 ) {
   const steerAway = useAgUiSteerAway()
-  const steer = async (reply: string) => {
+  const steer = async (reply: CreateAppendMessage) => {
     try {
       await steerAway(reply)
     } catch (err) {
@@ -621,11 +660,12 @@ function useReplies(
       httpAgent.resumeNextRunWith(interruptId, text)
       return steer(text)
     },
-    // answerOldest sends text as a plain message, which the server takes as
-    // the answer to its oldest open Interrupt (ADR-0002).
-    answerOldest(text: string) {
+    // answerOldest sends a plain message, which the server takes as the
+    // answer to its oldest open Interrupt (ADR-0002): its text is the
+    // answer, and its images go with it.
+    answerOldest(reply: CreateAppendMessage) {
       httpAgent.sendNextRunAsMessage()
-      return steer(text)
+      return steer(reply)
     },
   }
 }
@@ -884,15 +924,19 @@ function SharedStatePanel() {
   )
 }
 
-// ComposerArea sends the user's messages. While questions are open the
-// runtime refuses an ordinary send, so the text goes out as a plain message
-// instead, and the server takes it as the answer to its earliest open
-// question (ADR-0002). A hint says so.
+// ComposerArea sends the user's messages, with the images attached to them:
+// picked, pasted, or dropped on the conversation. A file the adapter refuses
+// is reported with why. While questions are open the runtime refuses an
+// ordinary send, so the message goes out as a plain message instead, and the
+// server takes its text as the answer to its earliest open question
+// (ADR-0002), its images going with it. A hint says so.
 function ComposerArea({
   httpAgent,
+  imageAdapter,
   onSendError,
 }: {
   httpAgent: ButterAGUIAgent
+  imageAdapter: ImageAttachmentAdapter
   onSendError: (err: unknown) => void
 }) {
   const answering = useAgUiInterrupts().length > 0
@@ -900,14 +944,35 @@ function ComposerArea({
   const aui = useAui()
   const hintId = useId()
 
+  useAuiEvent('composer.attachmentAddError', (event) => {
+    toast.error(attachmentRefusal(event))
+  })
+
   // Takes over Enter (the form's submit) and the Send button.
   const sendAsAnswer = (e: SyntheticEvent) => {
     if (!answering) return
     e.preventDefault()
-    const text = aui.composer.getState().text.trim()
-    if (text === '') return
+    const { text, attachments } = aui.composer.getState()
+    const answer = text.trim()
+    if (answer === '') {
+      // The server takes a message's text as the answer, so images alone
+      // answer nothing.
+      if (attachments.length > 0) {
+        toast.error('Type your answer; the images are sent with it.')
+      }
+      return
+    }
     aui.composer.setText('')
-    void replies.answerOldest(text)
+    void aui.composer.clearAttachments()
+    void sendAll(imageAdapter, attachments).then(
+      (sent) =>
+        replies.answerOldest({
+          role: 'user',
+          content: [{ type: 'text', text: answer }],
+          attachments: sent,
+        }),
+      onSendError
+    )
   }
 
   return (
@@ -921,10 +986,12 @@ function ComposerArea({
           Sending answers the earliest open question.
         </p>
       )}
+      <ComposerImages className='mx-auto mb-3 max-w-3xl' />
       <ComposerPrimitive.Root
         onSubmit={sendAsAnswer}
         className='mx-auto flex max-w-3xl items-end gap-2'
       >
+        <AttachImagesButton className='size-9' />
         <ComposerPrimitive.Input
           autoFocus
           placeholder='Message the agent over AG-UI…'
