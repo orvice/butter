@@ -15,13 +15,35 @@ import (
 
 // Store is a thread-safe in-memory implementation of invocation.Repository.
 type Store struct {
-	mu      sync.RWMutex
-	byID    map[string]*agentsv1.Invocation
-	ordered []string // insertion order (oldest first); newest at end
+	*records
+	// owner is the instance ID stamped on the records this store creates.
+	owner string
 }
 
+// records is the data every view of one Store shares.
+type records struct {
+	mu      sync.RWMutex
+	byID    map[string]*agentsv1.Invocation
+	owners  map[string]string // invocation ID → owner stamp
+	ordered []string          // insertion order (oldest first); newest at end
+}
+
+var _ invocation.Repository = (*Store)(nil)
+
+// New returns an empty store whose records carry no owner stamp.
 func New() *Store {
-	return &Store{byID: make(map[string]*agentsv1.Invocation)}
+	return &Store{records: &records{
+		byID:   make(map[string]*agentsv1.Invocation),
+		owners: make(map[string]string),
+	}}
+}
+
+// WithOwner returns a view of the same records that stamps each record it
+// creates with owner: the instance ID of the process that runs it. Each
+// process opens one; tests open several over one store to stand in for
+// processes that share a database.
+func (s *Store) WithOwner(owner string) *Store {
+	return &Store{records: s.records, owner: owner}
 }
 
 func (s *Store) Save(_ context.Context, inv *agentsv1.Invocation) error {
@@ -30,6 +52,9 @@ func (s *Store) Save(_ context.Context, inv *agentsv1.Invocation) error {
 	id := inv.GetId()
 	if _, exists := s.byID[id]; !exists {
 		s.ordered = append(s.ordered, id)
+		if s.owner != "" {
+			s.owners[id] = s.owner
+		}
 	}
 	s.byID[id] = proto.Clone(inv).(*agentsv1.Invocation)
 	return nil
@@ -155,21 +180,65 @@ func (s *Store) FindActiveBySession(_ context.Context, workspaceID, sessionID st
 	return nil, invocation.ErrNotFound
 }
 
-func (s *Store) MarkStaleRunning(_ context.Context, reason string) (int64, error) {
+func (s *Store) ActiveOwners(_ context.Context) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	seen := make(map[string]bool)
+	owners := []string{}
+	for id, inv := range s.byID {
+		owner := s.owners[id]
+		if owner == "" || seen[owner] || !isActive(inv.GetStatus()) {
+			continue
+		}
+		seen[owner] = true
+		owners = append(owners, owner)
+	}
+	sort.Strings(owners)
+	return owners, nil
+}
+
+func (s *Store) MarkStaleRunning(_ context.Context, sel invocation.StaleSelection) (int64, error) {
+	lost := make(map[string]bool, len(sel.LostOwners))
+	for _, owner := range sel.LostOwners {
+		lost[owner] = true
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var count int64
-	for _, inv := range s.byID {
-		st := inv.GetStatus()
-		if st == agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED ||
-			st == agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING {
-			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-			inv.Error = reason
-			inv.FinishedAt = timestamppb.Now()
-			count++
+	for id, inv := range s.byID {
+		if !isActive(inv.GetStatus()) {
+			continue
 		}
+		owner := s.owners[id]
+		if owner != "" && !lost[owner] {
+			continue
+		}
+		if owner == "" && !startedBefore(inv, sel.LegacyBefore) {
+			continue
+		}
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = ""
+		if sel.Reason != nil {
+			inv.Error = sel.Reason(owner)
+		}
+		inv.FinishedAt = timestamppb.Now()
+		count++
 	}
 	return count, nil
+}
+
+func isActive(st agentsv1.InvocationStatus) bool {
+	return st == agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED ||
+		st == agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING
+}
+
+// startedBefore reports whether inv started before cutoff. A record with no
+// start time counts as older than any cutoff; the zero cutoff matches none.
+func startedBefore(inv *agentsv1.Invocation, cutoff time.Time) bool {
+	if cutoff.IsZero() {
+		return false
+	}
+	return inv.GetStartedAt() == nil || inv.GetStartedAt().AsTime().Before(cutoff)
 }
 
 func (s *Store) FindLatestBySession(_ context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error) {

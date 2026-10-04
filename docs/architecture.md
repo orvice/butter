@@ -113,10 +113,13 @@ Persistence
 - `runtime.go` 初始化 MongoDB、Redis 和 Langfuse plugin。
 - `channels.go` 创建 ADK session/memory、runner、cron scheduler、automation engine/scheduler、system agent 和 channel manager。
 - `cron.go` 创建 cron repository 和 scheduler。
+- `invocations.go` 发布本进程的存活键，并启动 Invocation 遗留清理（见下文"Invocation 的 owner 与遗留清理"）。
 - `automation` runtime 创建 MongoDB-backed definition/run/step-run repositories，`Engine` 负责手动/调度执行与 step lifecycle（step 输入支持 `{{ selector }}` 模板插值，见 `template.go`），`Scheduler` 负责注册 enabled schedule-triggered automations。多 Pod 语义由 `internal/redislease` 承载：scheduler leader lease（`butter:automation:lease:scheduler`）保证一个 schedule 只由一个 Pod 触发；每个 automation 的 run lease（`butter:automation:lease:run:*`，`redislease.Guard`，续租 TTL/3、丢锁即取消 run context）把 SKIP/QUEUE 并发策略扩展到跨实例（REPLACE 跨实例退化为 QUEUE）。`RunAutomationNow` 异步执行：同步落 RUNNING 记录后在 engine base context 上后台执行。启动时 `ReconcileStaleRuns` 把超过 `StaleRunAge`（24h）仍 RUNNING 的 run 标记为 FAILED；完成的 run/step-run 由 `finished_at` TTL 索引保留 30 天。
 - `system_agent.go` 注册内置系统 agent。
 
 启动时先创建 HTTP/ConnectRPC handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。
+
+**Invocation 的 owner 与遗留清理（#390，ADR-0016 决策 3）**：每个进程启动时生成一个 instance ID，在 Redis 写入存活键 `butter:instance:{id}`（TTL 30s，`liveness.Keep` 每 10s 续期，直到进程退出），并且先于任何 Invocation 记录的写入完成发布。invocation 仓库（`WithOwner`）在**创建**每条记录时把这个 ID 记为 owner；之后任何进程的保存（终态、redact）都保留它。owner 只存在于 Mongo 文档的顶层 `owner` 字段，不进 `Invocation` proto，不会出现在 API 响应里。`invocation.StaleSweeper` 在启动时运行一次，此后每分钟运行一次：只有当 owner 的存活键已消失时，才把它的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，原因里写明丢失的 instance；另一个 Pod 启动本身不会让任何记录失败，清理进程也从不把自己的记录判为遗留。本变更之前写入、没有 owner 的记录，只有超过 `LegacyStaleAge`（24h；`chat_async.max_run_duration` 更长时取后者）才会失败。读不到存活状态时这一轮什么都不改；失败操作只改与读取时完全一致的记录，读取之后又被保存过的记录留给下一轮判断。清理只改记录，从不重放 Agent。没有 Redis 时只有一个进程，内存版 registry 只含本进程：启动清理把所有不属于本进程的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，与之前一致，之后不再周期清理。
 
 启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation / forum 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
 
@@ -244,7 +247,7 @@ input parts + ContextInfo
 
 ## 异步 Invocation 与只读观察流（issue #243 系列）
 
-Dashboard chat 的文本轮次通过 `AgentService.SubmitAgentInvocation` 异步执行：请求在输入持久化（`QUEUED` Invocation 落库）后立即返回，`internal/runtime/asyncrun.Coordinator` 在后台 goroutine 中驱动执行（`QUEUED → RUNNING → SUCCEEDED/FAILED/CANCELLED`），生命周期与浏览器连接完全解耦。执行复用共享编排 `streamorch.Run`（与 `StreamAgent` 同一条路径），不引入第二套执行实现。提交要求客户端幂等 `request_id`；同一 session 同时只允许一个活跃 Invocation。首个版本为单实例：进程重启时 `asyncrun.ReconcileStale` 把遗留的 `QUEUED/RUNNING` 记录标记为 `FAILED`，不自动重放。
+Dashboard chat 的文本轮次通过 `AgentService.SubmitAgentInvocation` 异步执行：请求在输入持久化（`QUEUED` Invocation 落库）后立即返回，`internal/runtime/asyncrun.Coordinator` 在后台 goroutine 中驱动执行（`QUEUED → RUNNING → SUCCEEDED/FAILED/CANCELLED`），生命周期与浏览器连接完全解耦。执行复用共享编排 `streamorch.Run`（与 `StreamAgent` 同一条路径），不引入第二套执行实现。提交要求客户端幂等 `request_id`；同一 session 同时只允许一个活跃 Invocation。首个版本为单实例：执行、取消和观察者都在进程内。遗留的 `QUEUED/RUNNING` 记录由 invocation 层的遗留清理（`invocation.StaleSweeper`）在其 owner 进程退出后标记为 `FAILED`，不自动重放。
 
 **观察与执行分离**（`WatchAgentInvocation`，只读 server stream）：
 
@@ -263,7 +266,7 @@ WatchAgentInvocation handler（internal/application/agent_watch.go）
 
 任意数量的授权观察者可同时 attach；断开任何/全部观察者不影响执行。每个观察者持有有界 channel（256 帧），发布侧永不阻塞——落后的观察者被摘除并以 `resource_exhausted` 断开，客户端回读持久化 session events 与权威 Invocation 状态后重新 attach（token 级增量不做持久重放，ADR 精神同 #243 PRD）。鉴权与 `GetAgentInvocation` 一致：workspace 隔离 + `dashboard-async` 来源的私有会话仅提交者本人可见（含 watch 帧），全局 admin 保留支持通道；`GetAgentInvocation` 亦支持按 `session_id` 查活跃 Invocation（重连路径），`latest` 参数返回会话最近一次 Invocation（reload 后内联渲染失败/停止用），`include_input_parts` 返回失败/取消 Invocation 保留的 Input Parts（显式重试恢复输入用）。前端 `chat-window.tsx` 以 submit + watch 渲染实时输出，不再依赖高频全量 session 轮询；显式 Stop 走 `CancelAgentInvocation`（终态 `CANCELLED`），导航/关页仅断开观察者。
 
-**失败语义（诚实终态，首版单实例）**：async 执行为单实例进程内模型，部署不得多副本依赖 dashboard async chat。三类运维性失败均记录可行动的 `Invocation.error`，且**绝不**写入 Agent 署名的 session events：(1) **超时** —— 超过 `chat_async.max_run_duration`（默认 30 分钟）的运行被取消并记 `FAILED`（原因含配置时长）；(2) **优雅停机** —— `Coordinator.Shutdown`（`cmd/butter/main.go` TeardownFunc 接线，15 s 上限）取消进程内运行并等待各自持久化 `FAILED` 停机原因；(3) **进程重启** —— 启动时 `asyncrun.ReconcileStale` 将上一进程遗留的 `QUEUED`/`RUNNING` 记录标为 `FAILED`（重启原因），只标记、绝不自动重放 Agent 或重复工具副作用。用户显式 Stop 恒为 `CANCELLED`（前端呈现为"已停止"而非失败），即使与停机竞争。重试始终显式：前端恢复原始输入（文本 + Input Parts，失败/取消时保留）供用户审阅编辑，重新发送使用全新 `request_id` 创建全新 Invocation，UI 明示可能重复外部工具副作用。
+**失败语义（诚实终态，首版单实例）**：async 执行为单实例进程内模型，部署不得多副本依赖 dashboard async chat。三类运维性失败均记录可行动的 `Invocation.error`，且**绝不**写入 Agent 署名的 session events：(1) **超时** —— 超过 `chat_async.max_run_duration`（默认 30 分钟）的运行被取消并记 `FAILED`（原因含配置时长）；(2) **优雅停机** —— `Coordinator.Shutdown`（`cmd/butter/main.go` TeardownFunc 接线，15 s 上限）取消进程内运行并等待各自持久化 `FAILED` 停机原因；(3) **进程退出** —— 运行它的进程退出后（存活键过期），遗留清理把它的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，原因里写明丢失的 instance；只标记、绝不自动重放 Agent 或重复工具副作用。用户显式 Stop 恒为 `CANCELLED`（前端呈现为"已停止"而非失败），即使与停机竞争。重试始终显式：前端恢复原始输入（文本 + Input Parts，失败/取消时保留）供用户审阅编辑，重新发送使用全新 `request_id` 创建全新 Invocation，UI 明示可能重复外部工具副作用。
 
 ## Session 标题生成（LLM）
 

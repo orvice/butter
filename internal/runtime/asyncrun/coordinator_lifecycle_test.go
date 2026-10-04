@@ -226,35 +226,3 @@ func TestCoordinator_EnqueueAfterShutdownFailsImmediately(t *testing.T) {
 		t.Fatalf("runner calls = %d, want 0", fr.calls)
 	}
 }
-
-func TestReconcileStale_RecordsHonestReasonAndNeverReplays(t *testing.T) {
-	repo := memory.New()
-	repo.Save(context.Background(), &agentsv1.Invocation{
-		Id:          "stale-running",
-		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
-		WorkspaceId: "ws-1",
-		StartedAt:   timestamppb.Now(),
-	})
-
-	n, err := ReconcileStale(context.Background(), repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Fatalf("expected 1 stale, got %d", n)
-	}
-
-	got, _ := repo.GetAcrossWorkspaces(context.Background(), "stale-running")
-	if got.GetStatus() != agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED {
-		t.Fatalf("status = %v, want FAILED", got.GetStatus())
-	}
-	if !strings.Contains(got.GetError(), "restart") || !strings.Contains(got.GetError(), "resubmit") {
-		t.Fatalf("error = %q, want an honest restart reason with a resubmit hint", got.GetError())
-	}
-	if got.GetFinishedAt() == nil {
-		t.Fatal("finished_at not set on reconciled record")
-	}
-	// ReconcileStale takes only the repository: reconciliation marks records
-	// and, by construction, cannot re-invoke the Agent or repeat tool side
-	// effects.
-}

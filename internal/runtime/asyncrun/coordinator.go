@@ -366,7 +366,7 @@ func (c *Coordinator) CancelAndWait(ctx context.Context, invocationID, workspace
 // replayed automatically, and the user's recovery path is an explicit
 // resubmission. Reasons are surfaced verbatim in the dashboard beside the
 // submitted turn.
-const noReplaySuffix = "; no work was replayed automatically. Review your message and resubmit to retry."
+const noReplaySuffix = invocation.NoReplaySuffix
 
 // shutdownFailureReason is the honest terminal error recorded when a graceful
 // process shutdown interrupts an async run (or rejects one submitted while
@@ -435,18 +435,6 @@ func BuildContextInfo(workspaceID, userID, sessionID, invocationID string) *agen
 		Source:      agentsv1.ContextSource_CONTEXT_SOURCE_API,
 		ChatType:    agentsv1.ChatType_CHAT_TYPE_PRIVATE,
 	}
-}
-
-// staleFailureReason is the honest terminal error recorded for QUEUED/RUNNING
-// invocations orphaned by a previous process exit. Startup reconciliation
-// only marks records — it never re-invokes the Agent or repeats tool side
-// effects.
-const staleFailureReason = "interrupted by a service restart before it could finish" + noReplaySuffix
-
-// ReconcileStale marks orphaned QUEUED/RUNNING invocations as FAILED on
-// startup. Returns the number of affected records.
-func ReconcileStale(ctx context.Context, repo invocation.Repository) (int64, error) {
-	return repo.MarkStaleRunning(ctx, staleFailureReason)
 }
 
 // Ensure Coordinator satisfies a minimal interface for type checking.

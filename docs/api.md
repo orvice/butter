@@ -1681,8 +1681,9 @@ Durably accepts one dashboard chat turn as an **asynchronous Invocation** and
 returns immediately; the agent runs server-side, independent of the browser
 connection. Creates a workspace-owned session when `session_id` is empty.
 Dashboard-session auth only (not exposed to API tokens); requires
-`X-Workspace-ID`. Single-instance in the first release: on process restart,
-stale `QUEUED`/`RUNNING` records are marked `FAILED` and never replayed.
+`X-Workspace-ID`. Single-instance in the first release. A `QUEUED`/`RUNNING`
+record whose process has stopped is marked `FAILED` and never replayed (see
+**Process exit** below).
 
 **Request:**
 
@@ -1773,7 +1774,7 @@ operational cases, in addition to ordinary run errors:
 |-------|----------|
 | **Timeout** | A run exceeding `chat_async.max_run_duration` (default **30 minutes**) is cancelled and recorded `FAILED` with a deadline-exceeded reason naming the configured duration |
 | **Graceful shutdown** | Process teardown stops process-owned runs and waits (bounded, 15 s) for each to persist `FAILED` with a shutdown reason before exit |
-| **Process restart** | On startup, stale `QUEUED`/`RUNNING` records from the previous process are marked `FAILED` with a restart reason. Reconciliation only marks records — it never re-invokes the Agent or repeats tool side effects |
+| **Process exit** | Every record carries the instance ID of the process that runs it, and every process renews a liveness key in Redis. Once that key lapses, a sweep (at startup and every minute, on any Pod) marks the process's `QUEUED`/`RUNNING` records `FAILED` with a reason that names the lost instance. Another Pod starting never fails a run that is still going. Records written before owner stamps existed are failed only after 24 hours (or `chat_async.max_run_duration`, if longer). Without Redis, startup marks every `QUEUED`/`RUNNING` record left by an earlier process. The sweep only marks records — it never re-invokes the Agent or repeats tool side effects |
 
 Operational errors live only on the `Invocation` record. They are **never**
 appended as Agent-authored session events, so a failure cannot poison the

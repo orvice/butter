@@ -190,9 +190,11 @@ configurable `chat_async.max_run_duration` bounds a run, with a default of 30
 minutes. Workflow Human Input is not an indefinitely running invocation: the
 turn ends successfully and the session becomes `WAITING_INPUT`.
 
-The first release is process-local. On startup, stale `QUEUED` or `RUNNING`
-dashboard invocations left by a previous process are marked `FAILED`; they are
-not retried automatically because Agent tools may have external side effects.
+The first release is process-local. A `QUEUED` or `RUNNING` dashboard
+invocation left behind by a process that stopped is marked `FAILED` once that
+process's liveness key lapses, never because another process started (#390).
+It is not retried automatically because Agent tools may have external side
+effects.
 
 ## Frontend Runtime Behavior
 
