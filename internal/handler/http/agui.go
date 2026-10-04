@@ -51,12 +51,17 @@ const AGUISessionLeaseKeyPrefix = "butter:agui:lease:session:"
 // recovery; it has to exceed a renewal interval comfortably, not a whole turn.
 const AGUISessionLeaseTTL = 5 * time.Minute
 
-// AGUIRunnerService is the subset of runner.Service the AG-UI handler needs.
-// It matches streamorch.Runner so the orchestrator can be driven directly.
-type AGUIRunnerService = streamorch.Runner
+// AGUIRunnerService is the subset of runner.Service the AG-UI handler needs:
+// streamorch.Runner, so the orchestrator can be driven directly, and the
+// registry lookup that maps an agent_id to the name it runs under.
+type AGUIRunnerService interface {
+	streamorch.Runner
+	ResolveAgentRef(workspaceID, agentID string) (string, bool)
+}
 
-// AGUIHandler serves the AG-UI protocol endpoint for agents that opted in via
-// enable_agui.
+// AGUIHandler serves the AG-UI protocol endpoint: to signed-in dashboard users
+// for every agent the runner can run, and to API and root tokens for the
+// agents that opted in via enable_agui.
 //
 // The endpoint is stateful in AG-UI terms: the server-side session is
 // authoritative, so the client's message history is not replayed into the
@@ -148,6 +153,7 @@ type aguiErrorResponse struct {
 type aguiRunContext struct {
 	input       aguitypes.RunAgentInput
 	agent       *agentsv1.Agent
+	agentName   string // the name the runner registers agent under
 	svc         AGUIRunnerService
 	parts       []*genai.Part
 	ctxInfo     *agentsv1.ContextInfo
@@ -180,7 +186,7 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 	logger := log.FromContext(c.Request.Context())
 	logger.Info("agui run started",
 		"workspace_id", rc.ctxInfo.GetWorkspaceId(),
-		"agent", rc.agent.GetName(),
+		"agent", rc.agentName,
 		"agent_id", rc.agent.GetAgentId(),
 		"thread_id", rc.input.ThreadID,
 		"run_id", rc.input.RunID,
@@ -263,7 +269,7 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 	}
 
 	runErr := streamorch.Run(runCtx, rc.svc,
-		streamorch.AgentRef{Name: rc.agent.GetName(), ID: rc.agent.GetAgentId()},
+		streamorch.AgentRef{Name: rc.agentName, ID: rc.agent.GetAgentId()},
 		rc.parts, "", rc.ctxInfo, sink)
 	if runErr == nil {
 		// A successful run titles a thread that has none, in the background:
@@ -318,22 +324,60 @@ func (h *AGUIHandler) acquireThread(c *gin.Context, ctxInfo *agentsv1.ContextInf
 	return leaseCtx, release, true
 }
 
-// resolveAgent finds the AG-UI-enabled agent the route addresses in the
-// request's workspace, answering 401 or 404 itself when there is none.
-func (h *AGUIHandler) resolveAgent(c *gin.Context) (string, *agentsv1.Agent, bool) {
+// aguiTarget is the agent a request addresses, resolved for its caller: the
+// workspace it lives in, its config, and the runner that runs it under name.
+type aguiTarget struct {
+	workspaceID string
+	agent       *agentsv1.Agent
+	runner      AGUIRunnerService
+	name        string
+}
+
+// resolveAgent finds the agent the route addresses in the request's workspace,
+// answering 401, 404 or 503 itself when the caller cannot reach it.
+//
+// A signed-in dashboard user reaches every agent in the workspace. Any other
+// caller, an API token or the root token, reaches only an agent with
+// enable_agui: like enable_a2a and enable_openai_api for their protocols, the
+// flag opts an agent in to programmatic access. Either way an agent the runner
+// cannot run (provisioning, being deleted, deleted, or not loaded) is refused
+// here, as resolveAgentRunnerRef refuses it on AgentService, instead of
+// opening a stream that can only fail.
+func (h *AGUIHandler) resolveAgent(c *gin.Context) (aguiTarget, bool) {
 	ctx := c.Request.Context()
 	workspaceID, hasWorkspace := wsctx.FromContext(ctx)
 	if !hasWorkspace {
 		c.JSON(http.StatusUnauthorized, aguiErrorResponse{Error: "workspace required (set X-Workspace-ID header)"})
-		return "", nil, false
+		return aguiTarget{}, false
 	}
 	agentID := c.Param("agent_id")
+	notFound := aguiErrorResponse{Error: "agent not found: " + agentID}
 	agent, err := h.agentRepo.GetAgent(ctx, workspaceID, agentID)
-	if err != nil || agent == nil || !agent.GetEnableAgui() {
-		c.JSON(http.StatusNotFound, aguiErrorResponse{Error: "agent not found: " + agentID})
-		return "", nil, false
+	if err != nil || agent == nil || !aguiReachable(ctx, agent) {
+		c.JSON(http.StatusNotFound, notFound)
+		return aguiTarget{}, false
 	}
-	return workspaceID, agent, true
+	svc := h.getRunner()
+	if svc == nil {
+		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "runner not available"})
+		return aguiTarget{}, false
+	}
+	name, ok := svc.ResolveAgentRef(workspaceID, agentID)
+	if !ok {
+		c.JSON(http.StatusNotFound, notFound)
+		return aguiTarget{}, false
+	}
+	return aguiTarget{workspaceID: workspaceID, agent: agent, runner: svc, name: name}, true
+}
+
+// aguiReachable reports whether the request's caller may address agent: a
+// signed-in dashboard user may address any agent, other callers only one that
+// enabled AG-UI.
+func aguiReachable(ctx context.Context, agent *agentsv1.Agent) bool {
+	if _, signedIn := auth.UserFromContext(ctx); signedIn {
+		return true
+	}
+	return agent.GetEnableAgui()
 }
 
 // validateAndPrepare resolves the workspace, agent and runner, decodes and
@@ -342,14 +386,8 @@ func (h *AGUIHandler) resolveAgent(c *gin.Context) (string, *agentsv1.Agent, boo
 func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool) {
 	ctx := c.Request.Context()
 
-	workspaceID, agent, ok := h.resolveAgent(c)
+	target, ok := h.resolveAgent(c)
 	if !ok {
-		return nil, false
-	}
-
-	svc := h.getRunner()
-	if svc == nil {
-		c.JSON(http.StatusServiceUnavailable, aguiErrorResponse{Error: "runner not available"})
 		return nil, false
 	}
 
@@ -376,7 +414,7 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		UserID:        aguiUserID(ctx),
 		SessionID:     aguiSessionPrefix + input.ThreadID,
 		SessionPrefix: aguiSessionPrefix,
-		WorkspaceID:   workspaceID,
+		WorkspaceID:   target.workspaceID,
 		HasWorkspace:  true,
 		IsAdmin:       auth.IsAdmin(ctx),
 		Source:        agentsv1.ContextSource_CONTEXT_SOURCE_API,
@@ -395,8 +433,9 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 
 	rc := &aguiRunContext{
 		input:          input,
-		agent:          agent,
-		svc:            svc,
+		agent:          target.agent,
+		agentName:      target.name,
+		svc:            target.runner,
 		parts:          parts,
 		ctxInfo:        ctxInfo,
 		clientTools:    clientToolDeclarations(input.Tools),

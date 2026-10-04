@@ -50,13 +50,16 @@ func aguiBinding(ctx context.Context, workspaceID, agentID, threadID string) a2u
 // another user's, or the caller's own from another workspace.
 var errThreadUnavailable = errors.New("threadId is not available; start a new thread")
 
+// errThreadOfAnotherAgent refuses a run on the caller's own thread when the
+// thread is bound to another agent, so one thread's history is one agent's.
+var errThreadOfAnotherAgent = errors.New("threadId belongs to another agent; start a new thread")
+
 // prepareUI loads the session under the lease and, for a thread that has no
 // session yet, creates it carrying this caller's binding. A threadId another
-// user holds, or one whose session lives in another workspace, is refused
-// before anything runs. Otherwise an existing session keeps whatever binding
-// it has: one created before A2UI existed has none and exposes no UI, and one
-// bound to another agent (the same caller reusing a threadId) is left alone.
-// Text chat is unaffected either way.
+// user holds, or one whose session lives in another workspace or is bound to
+// another agent, is refused before anything runs. A session created before
+// A2UI existed has no binding: it runs with any agent, as text chat with no
+// UI.
 func (h *AGUIHandler) prepareUI(ctx context.Context, rc *aguiRunContext) (*aguiUIContext, int, error) {
 	svc := h.getSessionService()
 	if svc == nil {
@@ -94,11 +97,22 @@ func (h *AGUIHandler) prepareUI(ctx context.Context, rc *aguiRunContext) (*aguiU
 }
 
 // existingThread admits a run on a thread whose session already exists, as
-// long as that session belongs to the request's workspace.
+// long as that session belongs to the request's workspace and, when it
+// carries a binding, the binding names the route's agent.
 func existingThread(sess session.Session, rc *aguiRunContext, binding a2ui.Binding) (*aguiUIContext, int, error) {
 	if ws, ok := sess.(interface{ WorkspaceID() string }); ok {
 		if id := ws.WorkspaceID(); id != "" && id != rc.ctxInfo.GetWorkspaceId() {
 			return nil, http.StatusForbidden, errThreadUnavailable
+		}
+	}
+	if held, ok := a2ui.BindingOf(sess.State()); ok {
+		// An agent_id is unique only within its workspace, so the binding's
+		// workspace is checked too, for a store that does not report one.
+		if held.WorkspaceID != binding.WorkspaceID {
+			return nil, http.StatusForbidden, errThreadUnavailable
+		}
+		if held.AgentID != binding.AgentID {
+			return nil, http.StatusForbidden, errThreadOfAnotherAgent
 		}
 	}
 	return &aguiUIContext{sess: sess, bound: a2ui.Bound(sess, binding)}, 0, nil
@@ -133,7 +147,7 @@ func resolveFormSubmissions(rc *aguiRunContext, ui *aguiUIContext) (int, *aguiFo
 		return 0, nil
 	}
 	if !ui.bound {
-		// Unbound or bound elsewhere: this context has no forms at all.
+		// A thread without a binding (created before A2UI) has no forms.
 		unknown := aguiFormErrorCodes[a2ui.SubmitUnknown]
 		return unknown.status, &aguiFormError{Error: "unknown or expired form", Code: unknown.code}
 	}
@@ -179,7 +193,7 @@ type aguiSnapshotItem struct {
 // when the thread has no session or is bound to another caller, workspace or
 // agent, so the endpoint answers an empty body without saying which.
 func (h *AGUIHandler) readThread(c *gin.Context) (threadID string, sess session.Session, release func(), ok bool) {
-	workspaceID, agent, ok := h.resolveAgent(c)
+	target, ok := h.resolveAgent(c)
 	if !ok {
 		return "", nil, nil, false
 	}
@@ -203,7 +217,7 @@ func (h *AGUIHandler) readThread(c *gin.Context) (threadID string, sess session.
 		return "", nil, nil, false
 	}
 	resp, err := svc.Get(ctx, &session.GetRequest{AppName: aguiAppName, UserID: ctxInfo.GetUserId(), SessionID: ctxInfo.GetSessionId()})
-	if err != nil || !a2ui.Bound(resp.Session, aguiBinding(ctx, workspaceID, agent.GetAgentId(), threadID)) {
+	if err != nil || !a2ui.Bound(resp.Session, aguiBinding(ctx, target.workspaceID, target.agent.GetAgentId(), threadID)) {
 		return threadID, nil, release, true
 	}
 	return threadID, resp.Session, release, true

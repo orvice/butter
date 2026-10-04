@@ -49,6 +49,24 @@ func aguiEnabledRepo() *stubAgentRepo {
 	}}
 }
 
+// ResolveAgentRef makes mockRunner a runner that can run every agent, each
+// under its agent_id. registryRunner narrows it to named agents.
+func (m *mockRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	return agentID, agentID != ""
+}
+
+// registryRunner resolves only the agents in names (agent_id to runtime name),
+// as the runner's registry resolves only the agents it could load.
+type registryRunner struct {
+	AGUIRunnerService
+	names map[string]string
+}
+
+func (r registryRunner) ResolveAgentRef(_, agentID string) (string, bool) {
+	name, ok := r.names[agentID]
+	return name, ok
+}
+
 // postAGUI issues a run request and returns the recorder.
 func postAGUI(t *testing.T, router *gin.Engine, agentID string, body any) *httptest.ResponseRecorder {
 	t.Helper()
@@ -84,7 +102,8 @@ func minimalAGUIBody(threadID, text string) map[string]any {
 
 func TestAGUIRun_StreamsEventsForEnabledAgent(t *testing.T) {
 	mock := &mockRunner{runResult: "hello there"}
-	router := setupAGUIRouter(aguiEnabledRepo(), mock, true)
+	runnerSvc := registryRunner{AGUIRunnerService: mock, names: map[string]string{"writer": "Writer"}}
+	router := setupAGUIRouter(aguiEnabledRepo(), runnerSvc, true)
 
 	w := postAGUI(t, router, "writer", minimalAGUIBody("t-1", "hi"))
 	if w.Code != http.StatusOK {
@@ -228,8 +247,14 @@ func TestAGUIRun_Rejections(t *testing.T) {
 			runner: &mockRunner{}, wantStatus: http.StatusNotFound,
 		},
 		{
+			// The caller is not a signed-in user, so enable_agui gates it.
 			name: "agent not opted in", agentID: "hidden", body: valid,
 			runner: &mockRunner{}, wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "agent the runner cannot run", agentID: "writer", body: valid,
+			runner:     registryRunner{AGUIRunnerService: &mockRunner{}, names: map[string]string{"hidden": "Hidden"}},
+			wantStatus: http.StatusNotFound, wantError: "agent not found",
 		},
 		{
 			name: "no workspace", agentID: "writer", body: valid,
