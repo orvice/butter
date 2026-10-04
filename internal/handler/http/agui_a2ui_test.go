@@ -1274,7 +1274,8 @@ func TestAGUIA2UI_FormDuplicateSubmission(t *testing.T) {
 }
 
 // While a run holds the thread, a submission is refused with 409 before the
-// stream opens and consumes nothing.
+// stream opens and consumes nothing. The snapshot takes no lease, so it still
+// answers, with the form open.
 func TestAGUIA2UI_FormSubmissionOnBusyThread(t *testing.T) {
 	h := newA2UIHarness(t, approvalWorkflow(deployForm()), "drafter", "publisher")
 	h.echoModels("drafter", "publisher")
@@ -1285,8 +1286,8 @@ func TestAGUIA2UI_FormSubmissionOnBusyThread(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
-	if code, _ := h.snapshot("approval", "t-busy"); code != http.StatusConflict {
-		t.Errorf("snapshot on a busy thread = %d, want 409", code)
+	if got := h.snapshotSurfaces("approval", "t-busy"); len(got) != 1 || got[0]["surfaceId"] != fx.surfaceID {
+		t.Errorf("snapshot on a busy thread = %+v, want the open form", got)
 	}
 	h.guard.busy = false
 	if len(h.storedAnswers("t-busy")) != 0 || len(h.snapshotSurfaces("approval", "t-busy")) != 1 {

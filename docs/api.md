@@ -781,8 +781,10 @@ client leaves, with a Butter extension next to `butterA2UI`:
 - **Stop.** Aborting the request only detaches its observer. To end the run
   on purpose, from any Pod, send a [Stop](#stopping-a-run).
 - **Not yet.** A detached run cannot yet be re-attached to after its client
-  left: the thread history and the UI snapshot still answer `409` while it
-  runs, and show its result once it ends.
+  left. While it runs, the thread history and the UI snapshot answer at once
+  with `running` and the thread as the run found it (see
+  [Reads during a run](#reads-during-a-run)), and they show its result once it
+  ends.
 
 Without the opt-in nothing changes: a disconnect cancels the run, and the run
 is recorded as before. A Stop does not reach such a run.
@@ -1229,8 +1231,9 @@ rule makes the two safe to combine).
 Each surface's `envelopes` rebuild it from nothing. The same auth, workspace
 header and `agent_id` rules as `POST` apply; a thread without a session,
 without a binding, or bound to another user, workspace or agent answers with
-no surfaces rather than revealing it. The read takes the thread's session
-lease: a thread with a run in flight answers `409` — retry after it finishes.
+no surfaces rather than revealing it. The read takes no lease and never waits
+for a run: while one is in flight it answers with `running` and the surfaces
+as the run found them (see [Reads during a run](#reads-during-a-run)).
 
 The dashboard's AG-UI Chat opens the thread its URL names (`?thread=<id>`),
 with the agent the thread's binding names. When it opens a thread it reads the
@@ -1273,10 +1276,53 @@ sending only the trailing message, as before.
   - A tool call appears only with its result, or while the session still waits for a result from the client. So a client that cancels unresolved calls before sending never sends a result the server would reject.
 - **`interrupts`** are the Interrupts still open, exactly as the last run's `RUN_FINISHED` reported them. Attach them to the last assistant message.
 - **`surfaces`** gives, for each surface the UI snapshot restores, the assistant message that produced it (`messageId`).
+- **`running`** names the run in flight, `{"runId": "…", "invocationId": "…"}`, and is absent when there is none. While it is present, `messages` end with the turn that started the run. The rest of the run comes through the run itself; see [Reads during a run](#reads-during-a-run).
+- **`lastRun`** reports how the thread's latest run ended when it did not succeed, so a client can show the outcome after a reload and offer the input again: `{"status": "failed", "error": "…", "input": "…"}`.
+  - `status` is `failed`, or `cancelled` when a person stopped the run.
+  - `error` is the reason the run's [Invocation](#invocation-object) records, meant to be shown as it is.
+  - `input` is the text the user sent, as the record keeps it: a longer text is cut to its first 4096 bytes and ends with `…`, and a turn with no text, such as a form answer, tool results or only images, has none.
+  - It comes from the run's Invocation record: a detached run's own, or the runner's for a run without the opt-in, where a client that disconnected reads as `failed`.
+  - It is absent while a run is in flight, and once a later run succeeds.
 
-The same auth, workspace header, `agent_id`, binding and lease rules as the UI
-snapshot apply. A thread the caller does not own answers with an empty
-history, and a thread with a run in flight answers `409`.
+The same auth, workspace header, `agent_id` and binding rules as the UI
+snapshot apply, and like it the read takes no lease. A thread the caller does
+not own answers with an empty history, with neither `running` nor `lastRun`.
+
+#### Reads during a run
+
+The UI snapshot and the thread history never wait for a run. While a run
+holds the thread, detached or not, each answers `200` at once with the run it
+found, and leaves out what the run has stored so far:
+
+```json
+{ "running": { "runId": "run-2", "invocationId": "0199b2c4-…" } }
+```
+
+- **Kept:** the events from before the run, and the turn the run started
+  from: the user's message, a Human Input answer or tool results. A client
+  already shows that turn, and a reply it resumes belongs under it.
+- **Left out:** everything else the run has stored, though it is already
+  persisted. That covers its text, tool calls and results, the Interrupts it
+  raised, and the cards it created, changed or deleted. It reaches a client
+  through the run itself, or in the first read after the run ends.
+- **Answered Interrupts:** an Interrupt that the run's first turn answered is
+  not in `interrupts`, and its form is not in the snapshot.
+- **The UI snapshot** is cut at the same point: the cards as they stood before
+  the run, and the forms still open after its first turn.
+- **Consistency:** a read holds no lock. It starts over when a run starts or
+  ends while it reads, so it never shows half a run. When a run has just
+  started and not yet stored its first turn, the read waits a moment for it,
+  under a second in all, then answers without it.
+- **After the run** the reads show everything it stored, and no `running`.
+- **A server that dies mid-run:** its run reads as running until its run
+  state lapses with its lease, at most 5 minutes later.
+- **Errors:** `503` when the run state cannot be read, or when runs kept
+  starting and ending through every attempt of one read. Retry.
+
+The history and the snapshot are separate reads. A client that loads both
+together, as AG-UI Chat does, can compare their `running` to tell whether a
+run started or ended in between. Runs without the opt-in are read the same
+way: their threads no longer answer `409` to reads either.
 
 #### Not supported yet
 

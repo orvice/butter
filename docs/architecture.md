@@ -527,6 +527,7 @@ HTTP handler 位于 `internal/handler/http`：
 - **Invocation 记录**：Detached Run 自己写记录（`source = agui-detached`，`request_id` 为按 thread 限定的 `runId`，重复则 409 `run_exists`），runner 不再记录（`runner.WithoutInvocationRecording`）。状态 QUEUED → RUNNING → SUCCEEDED / FAILED / CANCELLED，终态优先级与 asyncrun 的 `claimTerminal` 相同；超时、优雅关闭（`AGUIHandler.Shutdown`；Butterfly 不会调用 `TeardownFunc`，所以 `cmd/butter` 在收到 SIGTERM/SIGINT 时自己执行 teardown 再退出）、丢失租约都记为 FAILED 并写明原因。sink 先扣住 `RUN_FINISHED`，等记录和 run state 落定后再发出。
 - **默认运行**：不带 opt-in 的运行仍活在请求里，断开即取消，记录仍由 runner 写入。
 - **Stop（issue #402，决定 3、4、7）**：`POST /api/agui/:agent_id/threads/:thread_id/stop`（`agui_stop.go`）做与 thread 读取相同的鉴权、工作区与绑定检查，从不拿租约：`runstate.Store.Stop` 一步之内在仍未认领终态的 Detached Run 的 run state 上写入绑定其租约 token 的标记，并在该 thread 的频道上发布 nudge（Redis 为 Lua 脚本 + `PUBLISH`，每个进程用一条 pattern 订阅分发给本进程的运行；进程内实现直接唤醒）。运行在 run state 存在之前就订阅 nudge，并在每次续期时检查标记，兜底丢失的 nudge；`sessionguard.Token` 暴露租约获取 token，所以标记永远到不了同一 thread 的后续运行。运行收到后取消本轮（Pi/Cursor 走 `AbortSession`），在同一 run state 上一步认领终态：认领前已接受的 Stop 一律记为 CANCELLED，`RUN_ERROR` 带 `code: "stopped"`；认领后的 Stop 什么也找不到（204）。`CancelAgentInvocation` 把 `agui-detached` 记录交给同一个 Stop；`DeleteSession` 删除 AG-UI thread 时先 Stop，再自己限时（10 秒）拿 thread 租约并在租约下删除、清掉 run state，拿不到（例如未 opt-in 的运行占着 thread）就以 `unavailable` 失败且什么都不删；这取代了进程内的 deleting 标记。
+- **运行中的读取（#403）**：thread 历史与 UI 快照不拿 lease，也不等运行结束（`agui_read.go`）。运行中立即返回 `running: {runId, invocationId}`，并按 run state 记下的事件数截断：保留运行之前的事件和启动这次运行的那一轮（用户消息、Human Input 回答或工具结果），运行已写入的其余事件不返回；卡片按截断点之前事件的 state delta 还原，因为 session state 已含本次运行写入的卡片。读取不加锁：读 session 前后各读一次 run state，不一致就重读；没有运行时再比较该 session 最新的 Invocation 记录（运行在写第一个事件之前写记录：Detached Run 总会，runner 除非写入失败），以发现在读取期间开始又结束的运行。运行刚开始、还没写入第一轮时，读取稍等片刻（合计不到一秒）。没有运行时，若该 thread 最近一次运行为 FAILED 或 CANCELLED，历史附带取自 Invocation 记录的 `lastRun: {status, error, input}`；只认本 app、本调用者的记录。
 
 ### AG-UI 上的 A2UI（issue #350，ADR-0014）
 
@@ -534,8 +535,8 @@ HTTP handler 位于 `internal/handler/http`：
 - **协商与绑定**：handler 读 `forwardedProps.butterA2UI`；在拿到 session lease 之后，若 thread 还没有 session，就以调用者的 `{principal, workspace, agent_id, thread_id}` 绑定创建它。已有 session 绑定的是其他 Workspace 或 Agent 时，运行在打开流之前被拒绝（403）；历史 session 没有绑定时 A2UI 不生效，文字聊天照常。协商成功且绑定匹配才把 `a2ui.Run`（thread/run/message ID）放进 run context。
 - **先持久化后发送**：ADK runner 先 `AppendEvent` 再 yield，`render_ui` 通过工具 state delta 写卡片记录；`aguiSink` 只从已存储事件推导 envelope（客户端已有状态 → session 当前状态的转换），并对带表单绑定的 request-input 事件生成表单 envelope，逐条以 `CUSTOM butter.a2ui` 发出。
 - **表单提交**：`resume` 中带 `butterForm` 的条目在 lease 内由 `a2ui.Resolve` 校验（绑定、token、revision、Interrupt 仍 pending、字段规则），通过后替换为按配置顺序编码的 JSON 字符串 payload，其余走 ADR-0002 的普通文本回复；任何拒绝都在打开 SSE 前返回。运行结束时 sink 重读 session：已被回答的表单发 `/status = answered`，带 resume 的运行在 `RUN_FINISHED` 中列出所有仍待回答的 Interrupt。
-- **快照**：`UISnapshot` 在同一 lease 下读 session，用 `a2ui.LiveCards` + `a2ui.PendingForms`（`interrupt.Pending` ∩ 表单绑定）重建，不运行 Agent，不新增集合。
-- **历史**：`ThreadMessages`（`agui_history.go`）与快照共用 `readThread`（相同的鉴权、绑定与 lease），按事件顺序把 session 还原成 AG-UI 消息：
+- **快照**：`UISnapshot` 经 `readThread`（`agui_read.go`，不拿 lease）读 session，用 `a2ui.LiveCards` + `a2ui.PendingForms`（`interrupt.Pending` ∩ 表单绑定）重建，不运行 Agent，不新增集合。
+- **历史**：`ThreadMessages`（`agui_history.go`）与快照共用 `readThread`（相同的鉴权与绑定，不拿 lease），按事件顺序把 session 还原成 AG-UI 消息：
   - 两次用户输入之间 Agent 产出的内容合成一条 assistant 消息，工具调用沿用 session 的 FunctionCall ID，结果作为 tool 消息跟在后面。
   - 思考、request-input 握手和 `render_ui` 调用与实时流一样隐藏；卡片按其 state delta 第一次出现的位置、待答表单按其 request-input 事件，定位到所属回答（`surfaces`）。
   - 已回答的 Human Input 还原为“问题 + 用户回答”，表单答案用 `a2ui.Form.ReadableAnswer` 格式化；仍待回答的按 `RUN_FINISHED` 的格式放进 `interrupts`。
