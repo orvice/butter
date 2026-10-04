@@ -28,6 +28,7 @@ import (
 	linearruntime "go.orx.me/apps/butter/internal/runtime/linear"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryconn"
+	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	telegramruntime "go.orx.me/apps/butter/internal/runtime/telegram"
 	"go.orx.me/apps/butter/internal/secretbox"
@@ -185,6 +186,16 @@ func (h *Handlers) ShutdownAsync(ctx context.Context) error {
 	return h.asyncCoordinator.Shutdown(ctx)
 }
 
+// ShutdownAGUI ends this process's Detached AG-UI runs for a graceful process
+// exit: each ends FAILED with a shutdown reason and releases its thread's
+// lease. The call blocks until they have, or ctx expires.
+func (h *Handlers) ShutdownAGUI(ctx context.Context) error {
+	if h == nil || h.aguiHandler == nil {
+		return nil
+	}
+	return h.aguiHandler.Shutdown(ctx)
+}
+
 // apiTokenRepoFromHolder returns the currently wired apitoken repository, if any.
 func (h *Handlers) apiTokenRepoFromHolder() apitoken.Repository {
 	if h == nil {
@@ -231,11 +242,20 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.a2aHandler.SetRunnerService(result.RunnerSvc)
 		h.openAIHandler.SetRunnerService(result.RunnerSvc)
 		h.aguiHandler.SetRunnerService(result.RunnerSvc)
-		// Serialize AG-UI threads across Pods; without Redis the runner's
-		// in-process turn lock is the only serialization, as before.
+		// Serialize AG-UI threads across Pods, and record each run's state
+		// next to its thread lease (ADR-0016). Without Redis there is one
+		// process, and the in-process lease and run state serve it.
 		if result.Redis != nil {
 			h.aguiHandler.SetSessionGuard(sessionguard.NewRedis(result.Redis,
 				uuid.NewString(), httpHandler.AGUISessionLeaseKeyPrefix, httpHandler.AGUISessionLeaseTTL))
+			h.aguiHandler.SetRunStateStore(runstate.NewRedis(result.Redis,
+				httpHandler.AGUIRunStateKeyPrefix, httpHandler.AGUISessionLeaseTTL))
+		} else {
+			h.aguiHandler.SetSessionGuard(sessionguard.NewMemory())
+			h.aguiHandler.SetRunStateStore(runstate.NewMemory(httpHandler.AGUISessionLeaseTTL))
+		}
+		if h.cfg != nil {
+			h.aguiHandler.SetMaxRunDuration(h.cfg.AGUI.EffectiveMaxRunDuration())
 		}
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
@@ -248,6 +268,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if h.dashboardSvcServer != nil {
 			h.dashboardSvcServer.SetInvocationRepo(result.InvocationRepo)
 		}
+		// A Detached AG-UI run owns its Invocation record; the store stamps
+		// it with this process as its owner.
+		h.aguiHandler.SetInvocationRepo(result.InvocationRepo)
 	}
 	if result.InputPartRepo != nil {
 		h.agentSvcServer.SetInputPartRepo(result.InputPartRepo)

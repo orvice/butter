@@ -21,7 +21,9 @@ import (
 	"go.orx.me/apps/butter/internal/aguitool"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/repo/invocation"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
+	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
 	"go.orx.me/apps/butter/internal/runtime/streamorch"
 	wsctx "go.orx.me/apps/butter/internal/workspace"
@@ -49,6 +51,7 @@ const AGUISessionLeaseKeyPrefix = "butter:agui:lease:session:"
 // AGUISessionLeaseTTL bounds how long a crashed Pod blocks one AG-UI thread.
 // The lease is renewed during the run, so the TTL only matters for crash
 // recovery; it has to exceed a renewal interval comfortably, not a whole turn.
+// The run state recorded next to the lease lasts as long.
 const AGUISessionLeaseTTL = 5 * time.Minute
 
 // AGUIRunnerService is the subset of runner.Service the AG-UI handler needs:
@@ -74,6 +77,15 @@ type AGUIHandler struct {
 	sessionGuard  sessionguard.Guard
 	sessionSvc    session.Service
 	sessionTitler AGUISessionTitler
+	invocations   invocation.Repository
+	runStates     runstate.Store
+	maxRun        time.Duration
+	// heartbeat paces the comments a Detached Run's observers send while it
+	// is quiet; tests shorten it.
+	heartbeat time.Duration
+
+	// runs are this process's Detached Runs in flight.
+	runs *aguiRuns
 
 	// titles tracks background thread titles in flight, so tests can wait
 	// for them.
@@ -82,7 +94,12 @@ type AGUIHandler struct {
 
 // NewAGUIHandler creates an AG-UI handler with the given agent repository.
 func NewAGUIHandler(repo configrepo.AgentRepository) *AGUIHandler {
-	return &AGUIHandler{agentRepo: repo}
+	return &AGUIHandler{
+		agentRepo: repo,
+		maxRun:    AGUIDefaultMaxRunDuration,
+		heartbeat: aguiHeartbeatInterval,
+		runs:      newAGUIRuns(),
+	}
 }
 
 // SetRunnerService sets the runner service after bootstrap completes.
@@ -128,6 +145,69 @@ func (h *AGUIHandler) getSessionService() session.Service {
 	return h.sessionSvc
 }
 
+// SetInvocationRepo wires the store of Invocation records. A Detached Run
+// owns its record there (ADR-0016 decision 3); the store stamps each record
+// it creates with this process as its owner. Without it, detaching is
+// refused.
+func (h *AGUIHandler) SetInvocationRepo(repo invocation.Repository) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.invocations = repo
+}
+
+func (h *AGUIHandler) getInvocations() invocation.Repository {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.invocations
+}
+
+// SetRunStateStore wires where every run records its run state next to its
+// thread lease (ADR-0016 decision 6): Redis with several Pods, the
+// in-process store otherwise. Without one, runs record none.
+func (h *AGUIHandler) SetRunStateStore(store runstate.Store) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.runStates = store
+}
+
+func (h *AGUIHandler) getRunStateStore() runstate.Store {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.runStates
+}
+
+// SetMaxRunDuration bounds a Detached Run: past it the run is cancelled and
+// ends FAILED. A non-positive duration keeps the current bound.
+func (h *AGUIHandler) SetMaxRunDuration(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.maxRun = d
+}
+
+func (h *AGUIHandler) maxRunDuration() time.Duration {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.maxRun
+}
+
+func (h *AGUIHandler) heartbeatInterval() time.Duration {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.heartbeat
+}
+
+// Shutdown ends the Detached Runs in flight for a graceful process exit. Each
+// is cancelled, ends FAILED with a shutdown reason and releases its thread's
+// lease; Shutdown waits for them until ctx ends. Detached runs requested
+// afterwards are refused with 503. Runs without the opt-in end with their
+// requests.
+func (h *AGUIHandler) Shutdown(ctx context.Context) error {
+	return h.runs.shutdown(ctx)
+}
+
 // aguiSessionKey identifies one caller's AG-UI thread for serialization. The
 // user ID is part of the key for the same reason it is part of the ADK session
 // key: two users sharing a threadId are two conversations, not one.
@@ -148,6 +228,29 @@ func (h *AGUIHandler) Register(r *gin.Engine) {
 type aguiErrorResponse struct {
 	Error string `json:"error"`
 }
+
+// aguiCodedError is the body of a pre-stream rejection a client tells apart
+// by code without parsing the message: a rejected form submission, whose
+// client keeps the draft and shows the message and per-field errors, and the
+// Detached Run refusals.
+type aguiCodedError struct {
+	Error       string            `json:"error"`
+	Code        string            `json:"code,omitempty"`
+	FieldErrors map[string]string `json:"fieldErrors,omitempty"`
+}
+
+// aguiRefusal is a rejection before the stream opens: the status and the
+// JSON body to answer with.
+type aguiRefusal struct {
+	status int
+	body   any
+}
+
+func refuseAGUI(status int, err error) *aguiRefusal {
+	return &aguiRefusal{status: status, body: aguiErrorResponse{Error: err.Error()}}
+}
+
+func (r *aguiRefusal) write(c *gin.Context) { c.JSON(r.status, r.body) }
 
 // aguiRunContext is the validated, prepared state for one AG-UI run.
 type aguiRunContext struct {
@@ -174,6 +277,13 @@ type aguiRunContext struct {
 	// formEntries are the resume entries that submit forms; they are
 	// validated under the lease, before the run starts.
 	formEntries []aguiFormEntry
+	// toolResults are the trailing tool-role messages; they are validated
+	// against the session's pending calls under the lease, and their parts
+	// follow the resume parts.
+	toolResults []aguitypes.Message
+	// detach is set when the client asked for a Detached Run
+	// (forwardedProps.butterRun).
+	detach bool
 }
 
 // RunAgent handles POST /api/agui/:agent_id.
@@ -183,52 +293,25 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 		return
 	}
 
-	logger := log.FromContext(c.Request.Context())
-	logger.Info("agui run started",
+	log.FromContext(c.Request.Context()).Info("agui run started",
 		"workspace_id", rc.ctxInfo.GetWorkspaceId(),
 		"agent", rc.agentName,
 		"agent_id", rc.agent.GetAgentId(),
 		"thread_id", rc.input.ThreadID,
 		"run_id", rc.input.RunID,
 		"session_id", rc.ctxInfo.GetSessionId(),
+		"invocation_id", rc.ctxInfo.GetUuid(),
 		"resume_entries", len(rc.input.Resume),
+		"detached", rc.detach,
 	)
 
 	// One turn per (caller, thread) at a time across the whole fleet. The
 	// lease is taken before the stream opens so a busy thread is an HTTP
-	// error the client can retry, not a stream that dies mid-run. Client
-	// disconnect cancels the request context, which ends the run and releases
-	// the lease through the same defer.
-	runCtx, release, ok := h.acquireThread(c, rc.ctxInfo)
+	// error the client can retry, not a stream that dies mid-run, and every
+	// check that reads the session runs under it.
+	run, ok := h.beginRun(c, rc)
 	if !ok {
 		return
-	}
-	defer release()
-
-	// Under the lease: bind a new session to this caller, and check form
-	// submissions against the session they claim to answer. Both still
-	// happen before the stream opens, so a rejection is an HTTP error and
-	// nothing runs.
-	ui, status, err := h.prepareUI(runCtx, rc)
-	if err != nil {
-		c.JSON(status, aguiErrorResponse{Error: err.Error()})
-		return
-	}
-	if status, formErr := resolveFormSubmissions(rc, ui); formErr != nil {
-		c.JSON(status, formErr)
-		return
-	}
-	messageID := uuid.NewString()
-	uiLive := rc.a2uiNegotiated && ui.bound
-	if uiLive {
-		runCtx = a2ui.WithRun(runCtx, &a2ui.Run{ThreadID: rc.input.ThreadID, RunID: rc.input.RunID, MessageID: messageID})
-	}
-
-	// Client-declared frontend tools ride the run context: the aguitool
-	// toolset resolves them per invocation, so the agent sees them for this
-	// run only.
-	if len(rc.clientTools) > 0 {
-		runCtx = aguitool.WithClientTools(runCtx, rc.clientTools)
 	}
 
 	c.Header("Content-Type", "text/event-stream")
@@ -237,75 +320,29 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 
-	sink := newAGUISink(rc.input.ThreadID, rc.input.RunID, messageID,
-		newAGUISSEEmitter(c.Request.Context(), c.Writer, c.Writer.Flush))
-	if svc := h.getSessionService(); svc != nil {
-		// The final fetch runs on the request context, not the lease context:
-		// it must still work when the run was cancelled.
-		reqCtx := c.Request.Context()
-		sink.setFinalSession(func() (session.Session, bool) {
-			resp, err := svc.Get(reqCtx, &session.GetRequest{
-				AppName:   aguiAppName,
-				UserID:    rc.ctxInfo.GetUserId(),
-				SessionID: rc.ctxInfo.GetSessionId(),
-			})
-			if err != nil {
-				return nil, false
-			}
-			return resp.Session, true
-		})
-	}
-	if rc.stateArmed {
-		sink.setSharedState(rc.stateInitial, rc.stateSnapshot)
-	}
-	if rc.a2uiNegotiated {
-		// An A2UI client's forms track the thread's open Interrupts, so its
-		// runs end by reporting every one still open — not only those they
-		// raised — however the others were answered.
-		sink.reportPendingInterrupts()
-	}
-	if uiLive {
-		sink.setA2UI(ui.sess)
-	}
-
-	runErr := streamorch.Run(runCtx, rc.svc,
-		streamorch.AgentRef{Name: rc.agentName, ID: rc.agent.GetAgentId()},
-		rc.parts, "", rc.ctxInfo, sink)
-	if runErr == nil {
-		// A successful run titles a thread that has none, in the background:
-		// the client need not stay for it, and the next run on the thread
-		// need not wait for it.
-		if !aguiThreadTitled(ui.sess) {
-			h.titleThread(c.Request.Context(), rc.ctxInfo)
-		}
+	if run.detached == nil {
+		// The run lives in its request, as it always has: the sink writes to
+		// the response, and a client disconnect cancels the request context,
+		// which ends the run and releases the lease.
+		run.openSink(newAGUISSEEmitter(c.Request.Context(), c.Writer, c.Writer.Flush))
+		run.execute()
 		return
 	}
-	// A cancelled lease context with a live request means the lease was lost
-	// (fenced out by expiry or takeover); name it instead of reporting a bare
-	// context cancellation.
-	if errors.Is(runErr, context.Canceled) && c.Request.Context().Err() == nil {
-		runErr = errors.New("session lease lost, the run was cancelled")
-	}
-
-	logger.Error("agui run failed",
-		"workspace_id", rc.ctxInfo.GetWorkspaceId(),
-		"agent_id", rc.agent.GetAgentId(),
-		"thread_id", rc.input.ThreadID,
-		"err", runErr,
-	)
-	// The status and headers are already committed, so the failure is reported
-	// in-band as RUN_ERROR rather than as an HTTP error.
-	if err := sink.Error(runErr); err != nil {
-		logger.Error("agui failed to emit RUN_ERROR", "err", err)
-	}
+	// A Detached Run belongs to its own goroutine, which holds the lease
+	// until its terminal state is recorded. The response is only its first
+	// observer: a disconnect detaches the observer, never the run.
+	fanout := run.detached.fanout
+	run.openSink(fanout.emit)
+	observer := fanout.attach()
+	go run.execute()
+	h.observe(c, observer)
 }
 
-// acquireThread takes the thread's cross-Pod session lease for the rest of
-// the request, answering 503 (lease infrastructure down) or 409 (busy)
-// itself when it cannot. Without a guard it is a no-op. The returned context
-// is cancelled if the lease is lost.
-func (h *AGUIHandler) acquireThread(c *gin.Context, ctxInfo *agentsv1.ContextInfo) (context.Context, func(), bool) {
-	ctx := c.Request.Context()
+// acquireThread takes the thread's cross-Pod session lease on ctx, answering
+// 503 (lease infrastructure down) or 409 (busy) itself when it cannot.
+// Without a guard it is a no-op. The returned context is cancelled if the
+// lease is lost, and ends with ctx.
+func (h *AGUIHandler) acquireThread(ctx context.Context, c *gin.Context, ctxInfo *agentsv1.ContextInfo) (context.Context, func(), bool) {
 	guard := h.getSessionGuard()
 	if guard == nil {
 		return ctx, func() {}, true
@@ -408,6 +445,11 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: err.Error()})
 		return nil, false
 	}
+	detach, err := negotiateDetach(input.ForwardedProps)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: err.Error()})
+		return nil, false
+	}
 
 	ctxInfo, err := streamorch.NewContextInfo(streamorch.ContextInfoInput{
 		AppName:       aguiAppName,
@@ -425,9 +467,9 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		return nil, false
 	}
 
-	parts, formEntries, status, err := h.aguiInputParts(ctx, &input, ctxInfo)
+	parts, formEntries, toolResults, err := aguiInputParts(&input)
 	if err != nil {
-		c.JSON(status, aguiErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: err.Error()})
 		return nil, false
 	}
 
@@ -441,51 +483,64 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		clientTools:    clientToolDeclarations(input.Tools),
 		a2uiNegotiated: negotiated,
 		formEntries:    formEntries,
+		toolResults:    toolResults,
+		detach:         detach,
 	}
-	if status, err := h.prepareSharedState(ctx, rc); err != nil {
-		c.JSON(status, aguiErrorResponse{Error: err.Error()})
+	if refusal := h.checkStores(rc); refusal != nil {
+		refusal.write(c)
 		return nil, false
 	}
 	return rc, true
 }
 
-// prepareSharedState resolves the run's shared-state baseline.
+// checkStores refuses, before the lease, what the handler cannot serve
+// without the stores it depends on, instead of leaving a client believing a
+// capability took effect.
+func (h *AGUIHandler) checkStores(rc *aguiRunContext) *aguiRefusal {
+	unavailable := func(msg string) *aguiRefusal {
+		return refuseAGUI(http.StatusServiceUnavailable, errors.New(msg))
+	}
+	hasSessions := h.getSessionService() != nil
+	if !hasSessions {
+		if clientState, _ := rc.input.State.(map[string]any); len(clientState) > 0 {
+			return unavailable("shared state is not accepted: session service unavailable")
+		}
+		if len(rc.toolResults) > 0 {
+			return unavailable("tool results are not accepted: session service unavailable")
+		}
+	}
+	if rc.detach {
+		if !hasSessions {
+			return unavailable("detached runs are not available: session service unavailable")
+		}
+		if h.getInvocations() == nil {
+			return unavailable("detached runs are not available: invocation store unavailable")
+		}
+	}
+	return nil
+}
+
+// prepareSharedState resolves the run's shared-state baseline from the
+// session as the run starts from it, read under the lease.
 //
 // Ownership model: the server-side session owns state; the client holds a
 // mirror. The client's RunAgentInput.State is used for validation only —
 // when it is absent or diverges from the authoritative state, the run opens
 // with a corrective STATE_SNAPSHOT rather than adopting client changes, so a
 // client edit is answered visibly instead of being silently kept or dropped.
-// Without a session store the feature is off; a client that nonetheless
-// sends state is refused rather than left believing its mirror is validated.
-func (h *AGUIHandler) prepareSharedState(ctx context.Context, rc *aguiRunContext) (int, error) {
+// Without a session store the feature is off (checkStores refuses a client
+// state then).
+func (rc *aguiRunContext) prepareSharedState(sess session.Session) {
 	clientState, _ := rc.input.State.(map[string]any)
-	svc := h.getSessionService()
-	if svc == nil {
-		if len(clientState) > 0 {
-			return http.StatusServiceUnavailable, errors.New("shared state is not accepted: session service unavailable")
-		}
-		return 0, nil
-	}
-
-	authoritative := map[string]any{}
-	if resp, err := svc.Get(ctx, &session.GetRequest{
-		AppName:   aguiAppName,
-		UserID:    rc.ctxInfo.GetUserId(),
-		SessionID: rc.ctxInfo.GetSessionId(),
-	}); err == nil {
-		authoritative = aguiVisibleState(sessionStateMap(resp.Session))
-	}
-
+	authoritative := aguiVisibleState(sessionStateMap(sess))
 	rc.stateArmed = true
 	rc.stateInitial = authoritative
 	if len(clientState) == 0 {
 		// No mirror yet: baseline the client when there is anything to see.
 		rc.stateSnapshot = len(authoritative) > 0
-		return 0, nil
+		return
 	}
 	rc.stateSnapshot = !aguiStatesEqual(authoritative, aguiVisibleState(clientState))
-	return 0, nil
 }
 
 // validateAGUIInput enforces the endpoint's contract. Everything the endpoint
@@ -547,15 +602,16 @@ func clientToolDeclarations(tools []aguitypes.Tool) []aguitool.Declaration {
 	return decls
 }
 
-// aguiInputParts builds the run's input parts and, on failure, the HTTP
-// status the rejection maps to.
+// aguiInputParts builds the run's input parts. Any error is a 400.
 //
 // A resume request answers pending Interrupts by ID. Because
 // interrupt.Resume passes parts through untouched once they carry a
 // FunctionResponse, the client's explicit addressing takes precedence over
 // butter's implicit oldest-first resume (ADR-0002). Trailing tool-role
 // messages answer pending frontend tool calls the same way and may be
-// combined with resume entries in one request.
+// combined with resume entries in one request. They are returned as
+// toolResults: they become parts only once validated against the session's
+// pending calls under the lease (toolResultParts), after the resume parts.
 //
 // Otherwise only the trailing user message is sent, its text and images
 // (aguiUserParts): RunAgentInput.Messages is the client's full history, but
@@ -565,14 +621,14 @@ func clientToolDeclarations(tools []aguitypes.Tool) []aguitool.Declaration {
 // A resume entry whose payload is an A2UI form submission (butterForm) is
 // returned as a form entry: its answer is only known once the submission is
 // validated against the session under the lease (resolveFormSubmissions).
-func (h *AGUIHandler) aguiInputParts(ctx context.Context, input *aguitypes.RunAgentInput, ctxInfo *agentsv1.ContextInfo) ([]*genai.Part, []aguiFormEntry, int, error) {
+func aguiInputParts(input *aguitypes.RunAgentInput) ([]*genai.Part, []aguiFormEntry, []aguitypes.Message, error) {
 	var parts []*genai.Part
 	var forms []aguiFormEntry
 	for _, entry := range input.Resume {
 		payload := entry.Payload
 		sub, isForm, err := a2ui.SubmissionOf(entry.Payload)
 		if err != nil {
-			return nil, nil, http.StatusBadRequest, err
+			return nil, nil, nil, err
 		}
 		if isForm {
 			forms = append(forms, aguiFormEntry{partIndex: len(parts), interruptID: entry.InterruptID, submission: sub})
@@ -591,24 +647,17 @@ func (h *AGUIHandler) aguiInputParts(ctx context.Context, input *aguitypes.RunAg
 
 	results, err := trailingToolResults(input.Messages)
 	if err != nil {
-		return nil, nil, http.StatusBadRequest, err
+		return nil, nil, nil, err
 	}
-	if len(results) > 0 {
-		toolParts, status, err := h.toolResultParts(ctx, results, ctxInfo)
-		if err != nil {
-			return nil, nil, status, err
-		}
-		parts = append(parts, toolParts...)
-	}
-	if len(parts) > 0 {
-		return parts, forms, 0, nil
+	if len(parts) > 0 || len(results) > 0 {
+		return parts, forms, results, nil
 	}
 
 	userParts, err := aguiUserParts(input.Messages)
 	if err != nil {
-		return nil, nil, http.StatusBadRequest, err
+		return nil, nil, nil, err
 	}
-	return userParts, nil, 0, nil
+	return userParts, nil, nil, nil
 }
 
 // trailingToolResults returns the tool-role messages that terminate the
@@ -647,23 +696,16 @@ func trailingToolResults(messages []aguitypes.Message) ([]aguitypes.Message, err
 }
 
 // toolResultParts validates client tool results against the pending calls
-// recorded on the session and converts them into the FunctionResponse parts
-// ADK resumes on. Pairing is by FunctionCall ID; the name comes from the
-// session's own record of the call, never from the client.
-func (h *AGUIHandler) toolResultParts(ctx context.Context, results []aguitypes.Message, ctxInfo *agentsv1.ContextInfo) ([]*genai.Part, int, error) {
-	svc := h.getSessionService()
-	if svc == nil {
-		return nil, http.StatusServiceUnavailable, errors.New("tool results are not accepted: session service unavailable")
+// recorded on the thread's session, read under the lease, and converts them
+// into the FunctionResponse parts ADK resumes on. Pairing is by FunctionCall
+// ID; the name comes from the session's own record of the call, never from
+// the client. A nil session (a thread with none yet) waits on nothing. Any
+// error is a 400.
+func toolResultParts(sess session.Session, results []aguitypes.Message) ([]*genai.Part, error) {
+	if sess == nil {
+		return nil, errors.New("no pending tool calls for this thread")
 	}
-	resp, err := svc.Get(ctx, &session.GetRequest{
-		AppName:   aguiAppName,
-		UserID:    ctxInfo.GetUserId(),
-		SessionID: ctxInfo.GetSessionId(),
-	})
-	if err != nil {
-		return nil, http.StatusBadRequest, errors.New("no pending tool calls for this thread")
-	}
-	pending := interrupt.PendingToolCalls(resp.Session)
+	pending := interrupt.PendingToolCalls(sess)
 	names := make(map[string]string, len(pending))
 	for _, call := range pending {
 		names[call.ID] = call.Name
@@ -673,7 +715,7 @@ func (h *AGUIHandler) toolResultParts(ctx context.Context, results []aguitypes.M
 	for _, msg := range results {
 		name, ok := names[msg.ToolCallID]
 		if !ok {
-			return nil, http.StatusBadRequest, errors.New("unknown or already answered toolCallId: " + msg.ToolCallID)
+			return nil, errors.New("unknown or already answered toolCallId: " + msg.ToolCallID)
 		}
 		parts = append(parts, &genai.Part{
 			FunctionResponse: &genai.FunctionResponse{
@@ -683,7 +725,7 @@ func (h *AGUIHandler) toolResultParts(ctx context.Context, results []aguitypes.M
 			},
 		})
 	}
-	return parts, 0, nil
+	return parts, nil
 }
 
 // toolResultResponse shapes one client tool result as the FunctionResponse

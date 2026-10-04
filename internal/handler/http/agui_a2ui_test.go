@@ -55,6 +55,8 @@ type a2uiHarness struct {
 	guard    *fakeSessionGuard
 	// titler, when set before build, titles threads after successful runs.
 	titler AGUISessionTitler
+	// recorder, when set before build, records the runner's Invocations.
+	recorder runner.InvocationRecorder
 	// dropCustom makes every CUSTOM frame fail to send, as a client that
 	// disconnects mid-stream would, after the server already persisted it.
 	dropCustom bool
@@ -100,6 +102,9 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 		nil, nil, nil, h.sessions, nil, nil, adkrunner.PluginConfig{})
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
+	}
+	if h.recorder != nil {
+		svc.SetInvocationRecorder(h.recorder)
 	}
 	repo := &wsAgentRepo{}
 	for i := range agents {
@@ -1218,7 +1223,7 @@ func TestAGUIA2UI_FormRejectsBadSubmissions(t *testing.T) {
 			if strings.Contains(w.Body.String(), "RUN_STARTED") {
 				t.Fatal("a rejected submission opened a stream")
 			}
-			var body aguiFormError
+			var body aguiCodedError
 			_ = json.Unmarshal(w.Body.Bytes(), &body)
 			if tc.want != "" && !strings.Contains(body.Error, tc.want) {
 				t.Errorf("error = %q, want it to mention %q", body.Error, tc.want)

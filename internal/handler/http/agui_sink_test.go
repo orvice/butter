@@ -288,6 +288,47 @@ func TestAGUISink_SSEEncoding(t *testing.T) {
 	}
 }
 
+// A sink that holds RUN_FINISHED keeps it out of the stream until the run has
+// settled: finish sends it once, and a run that settles otherwise sends
+// RUN_ERROR in its place, never both.
+func TestAGUISink_HeldRunFinished(t *testing.T) {
+	newHeld := func() (*aguiSink, *aguiEventRecorder) {
+		rec := &aguiEventRecorder{}
+		sink := newAGUISink("thread-1", "run-1", "msg-1", rec.emit)
+		sink.holdRunFinished()
+		return sink, rec
+	}
+	id := streamorch.RunIdentity{InvocationID: "inv-1"}
+	body := []string{"RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END"}
+
+	sink, rec := newHeld()
+	if err := sink.Started(id); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.Final(id, "all done"); err != nil {
+		t.Fatal(err)
+	}
+	assertAGUISequence(t, rec.types, body)
+	if sink.response != "all done" {
+		t.Fatalf("response = %q", sink.response)
+	}
+	for range 2 {
+		if err := sink.releaseRunFinished(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertAGUISequence(t, rec.types, append(body, "RUN_FINISHED"))
+
+	sink, rec = newHeld()
+	_ = sink.Started(id)
+	_ = sink.Final(id, "all done")
+	if err := sink.Error(errors.New("stopped by user")); err != nil {
+		t.Fatal(err)
+	}
+	_ = sink.releaseRunFinished()
+	assertAGUISequence(t, rec.types, append(body, "RUN_ERROR"))
+}
+
 // aguiPauseEvent builds the event ADK emits when a Workflow Agent's Human
 // Input node pauses: the RequestedInput signal plus the adk_request_input
 // FunctionCall that carries the handshake.

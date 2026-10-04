@@ -23,8 +23,11 @@ import (
 // "human_input" names what the pause actually is.
 const aguiInterruptReason = "human_input"
 
-// aguiEmitter delivers one encoded AG-UI event. Tests substitute a recorder so
-// event ordering can be asserted without going through SSE.
+// aguiEmitter delivers one encoded AG-UI event. It is where a run's events
+// leave the sink: straight to the response for a run without the opt-in, and
+// to the run's in-process fan-out for a Detached Run (aguiFanout.emit), which
+// the Run Log replaces later (ADR-0016 decision 5). Tests substitute a
+// recorder so event ordering can be asserted without going through SSE.
 type aguiEmitter func(aguievents.Event) error
 
 // newAGUISSEEmitter returns an aguiEmitter writing events to w as SSE frames,
@@ -94,6 +97,15 @@ type aguiSink struct {
 	// that negotiated A2UI; others keep the in-stream-only outcome.
 	reportPending bool
 
+	// holdFinished makes Final keep its RUN_FINISHED in heldFinished instead
+	// of emitting it, so the handler can settle the run (its record, its run
+	// state) before observers learn it ended, and still end it otherwise.
+	// releaseRunFinished emits the held event; Error drops it.
+	holdFinished bool
+	heldFinished aguievents.Event
+	// response is the turn's final text, as Final received it.
+	response string
+
 	// ui is non-nil when A2UI is live for this run.
 	ui *aguiSinkUI
 }
@@ -128,6 +140,22 @@ func (s *aguiSink) setFinalSession(fetch func() (session.Session, bool)) {
 // reportPendingInterrupts makes the outcome list every open Interrupt.
 func (s *aguiSink) reportPendingInterrupts() {
 	s.reportPending = true
+}
+
+// holdRunFinished makes Final hold its RUN_FINISHED until
+// releaseRunFinished.
+func (s *aguiSink) holdRunFinished() {
+	s.holdFinished = true
+}
+
+// releaseRunFinished emits the RUN_FINISHED that Final held, if any.
+func (s *aguiSink) releaseRunFinished() error {
+	ev := s.heldFinished
+	s.heldFinished = nil
+	if ev == nil {
+		return nil
+	}
+	return s.emit(ev)
 }
 
 // setA2UI makes A2UI live for this run. sess is the session as it stood
@@ -346,6 +374,7 @@ func (s *aguiSink) outcomeInterrupts() []aguitypes.Interrupt {
 }
 
 func (s *aguiSink) Final(_ streamorch.RunIdentity, response string) error {
+	s.response = response
 	// streamorch streams TextDelta only for *partial* events, so a
 	// non-streaming turn carries its whole answer in response. Emit it so the
 	// client is not left with an empty message.
@@ -381,12 +410,19 @@ func (s *aguiSink) Final(_ streamorch.RunIdentity, response string) error {
 	if err := s.emitAnsweredForms(); err != nil {
 		return err
 	}
+	var finished aguievents.Event
 	if interrupts := s.outcomeInterrupts(); len(interrupts) > 0 {
-		return s.emit(aguievents.NewRunFinishedEventWithOptions(
-			s.threadID, s.runID, aguievents.WithInterruptOutcome(interrupts)))
+		finished = aguievents.NewRunFinishedEventWithOptions(
+			s.threadID, s.runID, aguievents.WithInterruptOutcome(interrupts))
+	} else {
+		finished = aguievents.NewRunFinishedEventWithOptions(
+			s.threadID, s.runID, aguievents.WithSuccessOutcome())
 	}
-	return s.emit(aguievents.NewRunFinishedEventWithOptions(
-		s.threadID, s.runID, aguievents.WithSuccessOutcome()))
+	if s.holdFinished {
+		s.heldFinished = finished
+		return nil
+	}
+	return s.emit(finished)
 }
 
 // emitStateDelta translates one batch of state changes into a STATE_DELTA
@@ -416,9 +452,11 @@ func (s *aguiSink) emitStateDelta(delta map[string]any) error {
 
 // Error emits RUN_ERROR. streamorch.Sink has no error frame — streamorch.Run
 // returns the run error to its caller — so the handler calls this after a
-// failed run. Any open message is closed first so the client is not left
-// waiting on a TEXT_MESSAGE_END that never arrives.
+// failed run, or instead of a held RUN_FINISHED for a run that settled as
+// failed or stopped. Any open message is closed first so the client is not
+// left waiting on a TEXT_MESSAGE_END that never arrives.
 func (s *aguiSink) Error(runErr error) error {
+	s.heldFinished = nil
 	if err := s.closeMessage(); err != nil {
 		return err
 	}

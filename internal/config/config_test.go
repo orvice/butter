@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -56,5 +57,20 @@ channels:
 	}
 	if n := len(cfg.Channels); n != 0 {
 		t.Errorf("expected channels to be ignored, got %d", n)
+	}
+}
+
+// The AG-UI maximum run duration loads from agui.max_run_duration and falls
+// back to 30 minutes, as the async chat's does.
+func TestAGUIMaxRunDuration(t *testing.T) {
+	var cfg AppConfig
+	if err := yaml.Unmarshal([]byte("agui:\n  max_run_duration: 45m\n"), &cfg); err != nil {
+		t.Fatalf("unmarshal config: %v", err)
+	}
+	if got := cfg.AGUI.EffectiveMaxRunDuration(); got != 45*time.Minute {
+		t.Fatalf("configured max run duration = %v, want 45m", got)
+	}
+	if got := (AGUIConfig{}).EffectiveMaxRunDuration(); got != 30*time.Minute {
+		t.Fatalf("default max run duration = %v, want 30m", got)
 	}
 }

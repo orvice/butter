@@ -10,7 +10,6 @@ import (
 	"google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/a2ui"
-	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -54,77 +53,26 @@ var errThreadUnavailable = errors.New("threadId is not available; start a new th
 // thread is bound to another agent, so one thread's history is one agent's.
 var errThreadOfAnotherAgent = errors.New("threadId belongs to another agent; start a new thread")
 
-// prepareUI loads the session under the lease and, for a thread that has no
-// session yet, creates it carrying this caller's binding. A threadId another
-// user holds, or one whose session lives in another workspace or is bound to
-// another agent, is refused before anything runs. A session created before
-// A2UI existed has no binding: it runs with any agent, as text chat with no
-// UI.
-func (h *AGUIHandler) prepareUI(ctx context.Context, rc *aguiRunContext) (*aguiUIContext, int, error) {
-	svc := h.getSessionService()
-	if svc == nil {
-		if len(rc.formEntries) > 0 {
-			return nil, http.StatusServiceUnavailable, errors.New("form submissions are not accepted: session service unavailable")
-		}
-		return &aguiUIContext{}, 0, nil
-	}
-	binding := aguiBinding(ctx, rc.ctxInfo.GetWorkspaceId(), rc.agent.GetAgentId(), rc.input.ThreadID)
-	get := &session.GetRequest{
-		AppName:   aguiAppName,
-		UserID:    rc.ctxInfo.GetUserId(),
-		SessionID: rc.ctxInfo.GetSessionId(),
-	}
-	if resp, err := svc.Get(ctx, get); err == nil {
-		return existingThread(resp.Session, rc, binding)
-	}
-	created, err := svc.Create(ctx, &session.CreateRequest{
-		AppName:   aguiAppName,
-		UserID:    rc.ctxInfo.GetUserId(),
-		SessionID: rc.ctxInfo.GetSessionId(),
-		State:     map[string]any{a2ui.BindingKey: binding.StateValue()},
-	})
-	if err != nil {
-		if errors.Is(err, sessionshare.ErrIDTaken) {
-			return nil, http.StatusForbidden, errThreadUnavailable
-		}
-		// A concurrent first request may have created it in between.
-		if resp, getErr := svc.Get(ctx, get); getErr == nil {
-			return existingThread(resp.Session, rc, binding)
-		}
-		return nil, http.StatusServiceUnavailable, errors.New("session store unavailable, retry later")
-	}
-	return &aguiUIContext{sess: created.Session, bound: true}, 0, nil
-}
-
 // existingThread admits a run on a thread whose session already exists, as
 // long as that session belongs to the request's workspace and, when it
 // carries a binding, the binding names the route's agent.
-func existingThread(sess session.Session, rc *aguiRunContext, binding a2ui.Binding) (*aguiUIContext, int, error) {
+func existingThread(sess session.Session, rc *aguiRunContext, binding a2ui.Binding) (*aguiUIContext, *aguiRefusal) {
 	if ws, ok := sess.(interface{ WorkspaceID() string }); ok {
 		if id := ws.WorkspaceID(); id != "" && id != rc.ctxInfo.GetWorkspaceId() {
-			return nil, http.StatusForbidden, errThreadUnavailable
+			return nil, refuseAGUI(http.StatusForbidden, errThreadUnavailable)
 		}
 	}
 	if held, ok := a2ui.BindingOf(sess.State()); ok {
 		// An agent_id is unique only within its workspace, so the binding's
 		// workspace is checked too, for a store that does not report one.
 		if held.WorkspaceID != binding.WorkspaceID {
-			return nil, http.StatusForbidden, errThreadUnavailable
+			return nil, refuseAGUI(http.StatusForbidden, errThreadUnavailable)
 		}
 		if held.AgentID != binding.AgentID {
-			return nil, http.StatusForbidden, errThreadOfAnotherAgent
+			return nil, refuseAGUI(http.StatusForbidden, errThreadOfAnotherAgent)
 		}
 	}
-	return &aguiUIContext{sess: sess, bound: a2ui.Bound(sess, binding)}, 0, nil
-}
-
-// aguiFormError is the pre-stream body of a rejected form submission. The
-// client keeps the draft and shows the message (and per-field errors); Code
-// says what happened without parsing the message.
-type aguiFormError struct {
-	Error       string            `json:"error"`
-	Code        string            `json:"code,omitempty"`
-	FieldErrors map[string]string `json:"fieldErrors,omitempty"`
+	return &aguiUIContext{sess: sess, bound: a2ui.Bound(sess, binding)}, nil
 }
 
 // Form rejection codes, by submit error kind.
@@ -141,30 +89,33 @@ var aguiFormErrorCodes = map[a2ui.SubmitErrorKind]struct {
 // resolveFormSubmissions validates every form submission in the request
 // against the session and fills in the answer each one delivers. A rejected
 // submission fails the whole request before the stream opens: nothing is
-// appended and the agent does not run.
-func resolveFormSubmissions(rc *aguiRunContext, ui *aguiUIContext) (int, *aguiFormError) {
+// appended and the agent does not run. The client keeps the draft and shows
+// the message and per-field errors; the code says what happened.
+func resolveFormSubmissions(rc *aguiRunContext, ui *aguiUIContext) *aguiRefusal {
 	if len(rc.formEntries) == 0 {
-		return 0, nil
+		return nil
 	}
 	if !ui.bound {
 		// A thread without a binding (created before A2UI) has no forms.
 		unknown := aguiFormErrorCodes[a2ui.SubmitUnknown]
-		return unknown.status, &aguiFormError{Error: "unknown or expired form", Code: unknown.code}
+		return &aguiRefusal{status: unknown.status, body: aguiCodedError{Error: "unknown or expired form", Code: unknown.code}}
 	}
 	for _, entry := range rc.formEntries {
 		answer, err := a2ui.Resolve(ui.sess, entry.interruptID, entry.submission)
 		if err != nil {
 			var submitErr *a2ui.SubmitError
 			if !errors.As(err, &submitErr) {
-				return http.StatusInternalServerError, &aguiFormError{Error: err.Error()}
+				return &aguiRefusal{status: http.StatusInternalServerError, body: aguiCodedError{Error: err.Error()}}
 			}
 			kind := aguiFormErrorCodes[submitErr.Kind]
-			return kind.status, &aguiFormError{Error: submitErr.Message, Code: kind.code, FieldErrors: submitErr.FieldErrors}
+			return &aguiRefusal{status: kind.status, body: aguiCodedError{
+				Error: submitErr.Message, Code: kind.code, FieldErrors: submitErr.FieldErrors,
+			}}
 		}
 		fr := rc.parts[entry.partIndex].FunctionResponse
 		fr.Response = map[string]any{aguiRequestInputPayloadKey: answer}
 	}
-	return 0, nil
+	return nil
 }
 
 // aguiUISnapshot is the body of GET /api/agui/:agent_id/threads/:thread_id/ui.
@@ -212,7 +163,7 @@ func (h *AGUIHandler) readThread(c *gin.Context) (threadID string, sess session.
 	ctxInfo := &agentsv1.ContextInfo{UserId: aguiUserID(ctx), SessionId: aguiSessionPrefix + threadID}
 	// Reads are consistent with writes the same way runs are with each
 	// other: under the thread's session lease. A busy thread is retryable.
-	ctx, release, ok = h.acquireThread(c, ctxInfo)
+	ctx, release, ok = h.acquireThread(ctx, c, ctxInfo)
 	if !ok {
 		return "", nil, nil, false
 	}
