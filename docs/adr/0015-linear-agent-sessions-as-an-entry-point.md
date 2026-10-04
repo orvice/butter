@@ -184,6 +184,12 @@ Several existing seams do **not** carry over as they are:
    - **Record**: a stopped turn ends `CANCELLED`. It is not dead-lettered,
      since the user chose it. This cross-Pod cancel is scoped to Linear. Dashboard
      async cancel stays in-process.
+   - **Generalized by ADR-0016**: AG-UI runs that outlive their request are
+     stopped by this same mechanism, a marker bound to the run's lease token
+     plus a nudge, with the holder subscribing before it checks the marker.
+     ADR-0016 also retires the in-process dashboard async cancel, together
+     with `asyncrun`, when AG-UI Chat becomes the dashboard's only chat
+     (#389, #410).
 
 8. **The retry boundary is ADR-0009's.**
    - **Record**: each accepted delivery gets one Linear processing record

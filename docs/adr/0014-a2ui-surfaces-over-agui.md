@@ -117,3 +117,14 @@ conversation from the same session, under the same binding and lease rules:
   form's answer is formatted the way the dashboard showed the submission. An
   open one returns to the runtime as a pending Interrupt, so it is answered
   exactly as after a live run.
+
+## Amendment: reads during a run (ADR-0016)
+
+ADR-0016 lets an AG-UI run outlive its request, so a thread is often opened
+while a run is still going. It takes the UI Snapshot (decision 4) and the
+thread history (the amendment above) off the session lease:
+
+- During a run they answer at once and report the run as `running`.
+- They stop where the run began, keeping the turn that started it.
+- The run's own Surfaces reach the client through the replay of its Run Log,
+  so none of them shows twice.
