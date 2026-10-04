@@ -1,10 +1,19 @@
 import { expect, test, type Page } from '@playwright/test'
-import { resumeEntries, setupAGUI, sse } from './support/agui'
+import {
+  resumeEntries,
+  sendMessage as send,
+  setupAGUI,
+  sse,
+  threadInURL,
+} from './support/agui'
 
 // A2UI in AG-UI Chat. Every fixture below is the wire traffic the Butter
 // server produces (internal/handler/http/agui_a2ui_test.go pins the server
 // side): butter.a2ui CUSTOM events carrying one A2UI v0.9.1 envelope each,
-// and the UI snapshot for a thread.
+// and the UI snapshot for a thread. Each test starts from a new-chat draft
+// with Streamer.
+
+const NEW_CHAT = '/agui-chat?agent=streamer-id'
 
 const V = 'v0.9.1'
 
@@ -64,13 +73,7 @@ const text = (messageId: string, delta: string) => [
   { type: 'TEXT_MESSAGE_END', messageId },
 ]
 
-async function send(page: Page, message: string) {
-  const composer = page.getByPlaceholder(/Message the agent over AG-UI/)
-  await composer.fill(message)
-  await composer.press('Enter')
-}
-
-const card = (page: Page) => page.locator('[data-a2ui-surface]')
+const card =(page: Page) => page.locator('[data-a2ui-surface]')
 
 test.describe('A2UI result cards', () => {
   test('renders a card beside text and tool calls, updates it in place, ignores stale replays, and removes it', async ({ page }) => {
@@ -116,7 +119,7 @@ test.describe('A2UI result cards', () => {
       ],
     })
 
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'deploy')
 
     const deployCard = card(page)
@@ -173,7 +176,7 @@ test.describe('A2UI result cards', () => {
       ],
     })
 
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'show me')
 
     await expect(page.getByText('Plain version of the foreign card.')).toBeVisible()
@@ -268,7 +271,7 @@ function butterForm(request: Record<string, unknown>) {
 test.describe('A2UI Human Input forms', () => {
   test('validates fields, submits a structured answer to its own interrupt, then locks', async ({ page }) => {
     const fixture = await setupAGUI(page, { runs: [pausedRun, answeredRun] })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
 
     await expect(form(page)).toBeVisible()
@@ -331,7 +334,7 @@ test.describe('A2UI Human Input forms', () => {
         answeredRun,
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
 
     await form(page).getByRole('radio', { name: 'Staging' }).check()
@@ -359,7 +362,7 @@ test.describe('A2UI Human Input forms', () => {
     await setupAGUI(page, {
       runs: [pausedRun, { status: 409, body: { error: 'this form was already submitted', code: 'form_answered' } }],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
     await form(page).getByRole('radio', { name: 'Production' }).check()
     await form(page).getByLabel('Reason').fill('hotfix')
@@ -374,7 +377,7 @@ test.describe('A2UI Human Input forms', () => {
     const fixture = await setupAGUI(page, {
       runs: [pausedRun, { delayMs: 1500, sse: answeredRun }],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
     await form(page).getByRole('radio', { name: 'Production' }).check()
     await form(page).getByLabel('Reason').fill('hotfix')
@@ -413,7 +416,7 @@ test.describe('A2UI Human Input forms', () => {
         ]),
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
 
     await expect(form(page)).toBeVisible()
@@ -444,7 +447,7 @@ test.describe('A2UI Human Input forms', () => {
 
   test('can be filled and submitted with the keyboard alone', async ({ page }) => {
     const fixture = await setupAGUI(page, { runs: [pausedRun, answeredRun] })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
 
     // Start keyboard navigation at the form, as clicking its heading would.
@@ -504,13 +507,16 @@ test.describe('A2UI recovery', () => {
       },
     }
     const fixture = await setupAGUI(page, { runs: [pausedRun, answeredRun] })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
     await expect(form(page)).toBeVisible()
     const threadId = fixture.requests[0].threadId as string
 
-    // After the refresh the thread is busy once (409), then the snapshot
-    // arrives.
+    // The URL keeps the thread. After the refresh the thread is busy once
+    // (409), then the snapshot arrives; a thread started on the page had
+    // nothing to read before.
+    expect(threadInURL(page)).toBe(threadId)
+    expect(fixture.snapshotRequests).toEqual([])
     fixture.snapshots.push({ status: 409, body: { error: 'a run is in progress' } }, restored, restored)
     await page.reload({ waitUntil: 'networkidle' })
 
@@ -519,7 +525,7 @@ test.describe('A2UI recovery', () => {
     await expect(region.getByText('Restored summary.')).toBeVisible()
     await expect(region.getByText('Degraded')).toBeVisible()
     await expect(region.getByText('Waiting for your answer')).toBeVisible()
-    expect(fixture.snapshotRequests.length).toBeGreaterThanOrEqual(3)
+    expect(fixture.snapshotRequests.length).toBeGreaterThanOrEqual(2)
     for (const url of fixture.snapshotRequests) {
       expect(url).toContain(`/api/agui/streamer-id/threads/${threadId}/ui`)
     }
@@ -534,42 +540,66 @@ test.describe('A2UI recovery', () => {
     await expect(form(page).getByText('Submitted')).toBeVisible()
   })
 
-  test('switching agent or starting a new thread clears the previous UI', async ({ page }) => {
+  test('a new thread with another agent starts without the previous UI, and going back restores it', async ({ page }) => {
     const fixture = await setupAGUI(page, {
-      runs: [sse([runStarted('r1'), ...cardCreated('card-1'), ...text('a1', 'Here.'), runFinished('r1')])],
+      runs: [
+        sse([runStarted('r1'), ...cardCreated('card-1'), ...text('a1', 'Here.'), runFinished('r1')]),
+        sse([runStarted('r2'), ...text('a2', 'Second here.'), runFinished('r2')]),
+      ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'deploy')
     await expect(card(page)).toHaveCount(1)
     const firstThread = fixture.requests[0].threadId as string
 
-    await page.getByRole('combobox').click()
-    await page.getByRole('option', { name: 'Second' }).click()
+    // A new thread is a draft: nothing of the previous thread is shown.
+    await page.getByRole('link', { name: 'New thread' }).click()
+    expect(threadInURL(page)).toBeNull()
     await expect(card(page)).toHaveCount(0)
     await expect(page.getByText('Here.')).toHaveCount(0)
-    await expect.poll(() => fixture.snapshotRequests.some((u) => u.includes('/api/agui/second-id/threads/'))).toBe(true)
-    const secondURL = fixture.snapshotRequests.find((u) => u.includes('/second-id/'))!
-    expect(secondURL).not.toContain(firstThread)
 
-    // Back on the first agent the same thread is resumed (its snapshot is
-    // read again); a new thread starts empty with a fresh id.
-    const firstThreadReads = () => fixture.snapshotRequests.filter((u) => u.includes(firstThread)).length
-    const readsBefore = firstThreadReads()
-    await page.getByRole('combobox').click()
-    await page.getByRole('option', { name: 'Streamer' }).click()
-    await expect.poll(firstThreadReads).toBeGreaterThan(readsBefore)
-    await page.getByRole('button', { name: 'New thread' }).click()
-    await expect
-      .poll(() => fixture.snapshotRequests.some((u) => u.includes('/streamer-id/') && !u.includes(firstThread)))
-      .toBe(true)
+    // Another agent gets a thread of its own.
+    await page.getByTestId('agent-selector-trigger').click()
+    await page.getByRole('option', { name: /^Second/ }).click()
+    await send(page, 'hello')
+    await expect(page.getByText('Second here.')).toBeVisible()
+    expect(fixture.requests[1].threadId).not.toBe(firstThread)
+    expect(new URL(fixture.runURLs[1]).pathname).toBe('/api/agui/second-id')
     await expect(card(page)).toHaveCount(0)
+
+    // Going back reopens the first thread: its card comes back with it.
+    fixture.snapshots.push({
+      body: {
+        version: V,
+        catalogId: 'butter-basic-v1',
+        threadId: firstThread,
+        surfaces: [
+          {
+            surfaceId: 'card-1',
+            kind: 'card',
+            revision: 1,
+            fallback: 'Deploy summary (text)',
+            envelopes: [
+              { version: V, createSurface: { surfaceId: 'card-1', catalogId: 'butter-basic-v1' } },
+              { version: V, updateComponents: { surfaceId: 'card-1', components: cardComponents('Healthy', 'success') } },
+              { version: V, updateDataModel: { surfaceId: 'card-1', path: '/', value: { summary: '3 services rolled out.' } } },
+            ],
+          },
+        ],
+      },
+    })
+    await page.goBack()
+    expect(threadInURL(page)).toBe(firstThread)
+    await expect(card(page).getByText('3 services rolled out.')).toBeVisible()
+    await expect(page.getByText('Second here.')).toHaveCount(0)
+    expect(fixture.snapshotRequests.at(-1)).toContain(`/api/agui/streamer-id/threads/${firstThread}/ui`)
   })
 
   test('a refresh restores the conversation with the card in the reply that produced it', async ({ page }) => {
     const fixture = await setupAGUI(page, {
       runs: [sse([runStarted('r1'), ...cardCreated('card-1'), ...text('a1', 'Here.'), runFinished('r1')])],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'deploy')
     await expect(card(page)).toHaveCount(1)
     const threadId = fixture.requests[0].threadId as string
@@ -620,7 +650,7 @@ test.describe('A2UI recovery', () => {
     page,
   }) => {
     const fixture = await setupAGUI(page, { runs: [pausedRun, answeredRun] })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'release it')
     await form(page).getByRole('radio', { name: 'Production' }).check()
     await form(page).getByLabel('Reason').fill('hotfix')
@@ -640,7 +670,7 @@ test.describe('A2UI recovery', () => {
     )
   })
 
-  test('switching workspace shows that workspace\'s own thread', async ({
+  test('switching workspace leaves the thread for a new chat there', async ({
     page,
   }) => {
     const fixture = await setupAGUI(
@@ -662,21 +692,18 @@ test.describe('A2UI recovery', () => {
         ],
       }
     )
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'deploy')
     await expect(card(page)).toHaveCount(1)
-    const firstThread = fixture.requests[0].threadId as string
+    expect(threadInURL(page)).toBe(fixture.requests[0].threadId)
 
     await page.getByRole('button', { name: /Default/ }).first().click()
     await page.getByRole('menuitem', { name: 'Team B' }).click()
+    await expect(page).toHaveURL(/\/agui-chat$/)
     await expect(card(page)).toHaveCount(0)
     await expect(page.getByText('Here.')).toHaveCount(0)
-    await expect
-      .poll(() =>
-        fixture.snapshotRequests.some(
-          (u) => u.includes('/streamer-id/') && !u.includes(firstThread)
-        )
-      )
-      .toBe(true)
+    await expect(
+      page.getByRole('heading', { name: 'Start a new chat' })
+    ).toBeVisible()
   })
 })

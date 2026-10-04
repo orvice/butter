@@ -8,7 +8,7 @@ import {
 import type { SessionDetail, SessionEvent, SessionInfo } from "@/types/api";
 import { replySession } from "./chat";
 import { durationToString, tsToISO } from "./_proto-bridge";
-import { makeClient } from "./transport";
+import { Code, ConnectError, makeClient } from "./transport";
 
 const client = makeClient(SessionService);
 
@@ -213,6 +213,43 @@ export function useSession(appName: string, userId: string, sessionId: string, n
     queryFn: () =>
       getSession({ app_name: appName, user_id: userId, session_id: sessionId, num_recent_events: numRecentEvents }),
     enabled: !!appName && !!userId && !!sessionId,
+  });
+}
+
+// findSession reads one session without its conversation (only the newest
+// event comes back). It answers null for a session that does not exist and
+// for one the caller may not see: the server answers both with not_found.
+async function findSession(
+  appName: string,
+  userId: string,
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<SessionInfo | null> {
+  try {
+    const res = await client.getSession(
+      { appName, userId, sessionId, numRecentEvents: 1 },
+      { signal },
+    );
+    const session = res.sessionDetail?.session;
+    return session ? infoFromProto(session) : null;
+  } catch (err) {
+    if (err instanceof ConnectError && err.code === Code.NotFound) return null;
+    throw err;
+  }
+}
+
+// useSessionInfo looks one session up by its address; its data is null when
+// there is no such session for the caller.
+export function useSessionInfo(
+  appName: string,
+  userId: string,
+  sessionId: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ["sessions", "info", { appName, userId, sessionId }],
+    queryFn: ({ signal }) => findSession(appName, userId, sessionId, signal),
+    enabled: (options?.enabled ?? true) && !!appName && !!userId && !!sessionId,
   });
 }
 

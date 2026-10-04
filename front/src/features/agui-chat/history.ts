@@ -210,9 +210,9 @@ function parseJSON(text: string): unknown {
 }
 
 // loadThread reads a thread's history and its UI snapshot together. A run
-// holding the thread answers 409, so a failed read is retried while
-// keepTrying holds; live events keep arriving meanwhile. A server without the
-// history endpoint (404) restores the surfaces alone.
+// holding the thread answers 409, so a busy read is retried while keepTrying
+// holds; any other failure is final, and the page offers Retry. A server
+// without the history endpoint (404) restores the surfaces alone.
 export async function loadThread(
   agentId: string,
   threadId: string,
@@ -233,10 +233,16 @@ export async function loadThread(
       ])
       return { history, snapshot }
     } catch (err) {
-      if (attempt >= 5 || !keepTrying()) throw err
+      if (!threadBusy(err) || attempt >= 5 || !keepTrying()) throw err
       await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt))
     }
   }
+}
+
+// threadBusy reports a read refused only for the moment: a run holds the
+// thread (409), or its lease cannot be taken right now (503).
+function threadBusy(err: unknown): boolean {
+  return err instanceof ApiError && (err.code === '409' || err.code === '503')
 }
 
 function emptyHistory(threadId: string): ThreadHistory {

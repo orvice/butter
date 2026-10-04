@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fetchAGUIThreadHistory, fetchAGUIUISnapshot } from '@/api/agui'
+import { ApiError } from '@/api/client'
 import type { UISnapshot } from './a2ui/protocol'
-import { threadRepository, type ThreadHistory } from './history'
+import { loadThread, threadRepository, type ThreadHistory } from './history'
+
+vi.mock('@/api/agui', () => ({
+  fetchAGUIThreadHistory: vi.fn(),
+  fetchAGUIUISnapshot: vi.fn(),
+}))
 
 const V = 'v0.9.1'
 
@@ -157,5 +164,49 @@ describe('threadRepository', () => {
       type: 'requires-action',
       reason: 'interrupt',
     })
+  })
+})
+
+describe('loadThread', () => {
+  const read = { history: history({}), snapshot: snapshot() }
+
+  beforeEach(() => {
+    vi.mocked(fetchAGUIThreadHistory).mockReset()
+    vi.mocked(fetchAGUIUISnapshot).mockReset()
+    vi.mocked(fetchAGUIThreadHistory).mockResolvedValue(read.history)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('gives up at once on a failure other than a busy thread', async () => {
+    vi.mocked(fetchAGUIUISnapshot).mockRejectedValue(
+      new ApiError('500', 'session store down')
+    )
+    await expect(loadThread('a', 't', () => true)).rejects.toThrow(
+      'session store down'
+    )
+    expect(fetchAGUIUISnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits out a run that holds the thread', async () => {
+    vi.useFakeTimers()
+    vi.mocked(fetchAGUIUISnapshot)
+      .mockRejectedValueOnce(new ApiError('409', 'busy'))
+      .mockRejectedValueOnce(new ApiError('503', 'lease unavailable'))
+      .mockResolvedValue(read.snapshot)
+    const loaded = loadThread('a', 't', () => true)
+    await vi.advanceTimersByTimeAsync(500 + 1000)
+    await expect(loaded).resolves.toEqual(read)
+    expect(fetchAGUIUISnapshot).toHaveBeenCalledTimes(3)
+  })
+
+  it('stops waiting once the thread is left', async () => {
+    vi.mocked(fetchAGUIUISnapshot).mockRejectedValue(
+      new ApiError('409', 'busy')
+    )
+    await expect(loadThread('a', 't', () => false)).rejects.toThrow('busy')
+    expect(fetchAGUIUISnapshot).toHaveBeenCalledTimes(1)
   })
 })

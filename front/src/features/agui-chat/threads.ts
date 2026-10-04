@@ -16,6 +16,12 @@ export const TITLE_REFRESH_DELAYS_MS = [3_000, 12_000]
 const SESSION_PREFIX = 'agui-'
 const BINDING_KEY = 'butter:a2ui:binding'
 
+// newThreadId names a new thread. The URL carries it (?thread=) from the
+// first message on, and the server creates its session on the first run.
+export function newThreadId(): string {
+  return crypto.randomUUID()
+}
+
 export interface ThreadBinding {
   workspaceId: string
   agentId: string
@@ -49,6 +55,34 @@ export function threadIdOf(session: SessionInfo): string | null {
     : null
 }
 
+// sessionIdOf is the session ID of the AG-UI thread threadId.
+export function sessionIdOf(threadId: string): string {
+  return SESSION_PREFIX + threadId
+}
+
+// boundAgentId is the agent session holds the thread threadId with in
+// workspaceId: the one its binding names, when that binding is for this
+// workspace and this thread. Anything else is null: another app's session, a
+// thread without a binding (it predates A2UI and cannot be attributed),
+// another workspace's thread, or a binding for another thread.
+export function boundAgentId(
+  session: SessionInfo,
+  workspaceId: string,
+  threadId: string
+): string | null {
+  if (session.app_name !== AGUI_APP_NAME) return null
+  if (threadIdOf(session) !== threadId) return null
+  const binding = threadBinding(session)
+  if (
+    !binding ||
+    binding.workspaceId !== workspaceId ||
+    binding.threadId !== threadId
+  ) {
+    return null
+  }
+  return binding.agentId
+}
+
 // agentThreads keeps the caller's threads with one agent in one workspace,
 // in the order given (ListSessions answers newest first). A thread is listed
 // only when its binding matches its own session ID: reusing a threadId under
@@ -61,17 +95,78 @@ export function agentThreads(
   agentId: string
 ): SessionInfo[] {
   return sessions.filter((s) => {
-    if (s.app_name !== AGUI_APP_NAME) return false
-    const binding = threadBinding(s)
+    const threadId = threadIdOf(s)
     return (
-      !!binding &&
-      binding.workspaceId === workspaceId &&
-      binding.agentId === agentId &&
-      binding.threadId === threadIdOf(s)
+      threadId !== null && boundAgentId(s, workspaceId, threadId) === agentId
     )
   })
 }
 
 export function threadTitle(session: SessionInfo): string {
   return session.title?.trim() || 'Untitled thread'
+}
+
+// ThreadView is what the page shows for the thread the URL names.
+export type ThreadView =
+  | { kind: 'loading' }
+  | { kind: 'failed'; error: unknown }
+  | { kind: 'not-found' }
+  | { kind: 'open'; agentId: string; session: SessionInfo | null }
+
+// ThreadLookup is everything known about the thread the URL names.
+export interface ThreadLookup {
+  threadId: string
+  workspaceId: string
+  // requestedAgentId is the agent the URL names next to the thread, if any.
+  requestedAgentId?: string
+  // startedAgentId is set for a thread this page started: it opens with that
+  // agent, before its session exists and whatever a read of it says.
+  startedAgentId?: string
+  // session is the thread's session as GetSession read it: undefined until
+  // read, null when there is none the caller may see.
+  session?: SessionInfo | null
+  sessionError?: unknown
+  // listed is the thread as the thread list holds it, used until the
+  // session is read.
+  listed?: SessionInfo
+  // agentIds are the agents this workspace can open; undefined until read.
+  agentIds?: readonly string[]
+  agentsError?: unknown
+}
+
+// resolveThreadView decides what opening a thread shows. A thread opens
+// with the agent its binding names: an agent is fixed once a thread exists.
+// Not found covers a missing session (another user's thread reads as
+// missing too) and a session that is not this workspace's thread with an
+// agent it can open: no binding, a binding for another workspace or thread,
+// an agent the workspace cannot run, or another agent than the URL names.
+export function resolveThreadView(lookup: ThreadLookup): ThreadView {
+  if (lookup.startedAgentId) {
+    return {
+      kind: 'open',
+      agentId: lookup.startedAgentId,
+      session: lookup.session ?? lookup.listed ?? null,
+    }
+  }
+  const session = lookup.session !== undefined ? lookup.session : lookup.listed
+  if (session === undefined) {
+    return lookup.sessionError != null
+      ? { kind: 'failed', error: lookup.sessionError }
+      : { kind: 'loading' }
+  }
+  if (session === null) return { kind: 'not-found' }
+  const agentId = boundAgentId(session, lookup.workspaceId, lookup.threadId)
+  if (
+    !agentId ||
+    (lookup.requestedAgentId && lookup.requestedAgentId !== agentId)
+  ) {
+    return { kind: 'not-found' }
+  }
+  if (lookup.agentIds === undefined) {
+    return lookup.agentsError != null
+      ? { kind: 'failed', error: lookup.agentsError }
+      : { kind: 'loading' }
+  }
+  if (!lookup.agentIds.includes(agentId)) return { kind: 'not-found' }
+  return { kind: 'open', agentId, session }
 }

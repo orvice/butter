@@ -1,5 +1,46 @@
 import { describe, expect, it } from 'vitest'
-import { errorReporter } from './errors'
+import { errorReporter, threadRefusal } from './errors'
+
+// httpError is how the AG-UI client rejects a run the server answered with
+// a non-2xx status: the status and the parsed JSON body ride on the Error.
+function httpError(status: number, payload: unknown) {
+  return Object.assign(
+    new Error(`HTTP ${status}: ${JSON.stringify(payload)}`),
+    { status, payload }
+  )
+}
+
+describe('threadRefusal', () => {
+  it('names a thread the server will not run from here', () => {
+    const unavailable = 'threadId is not available; start a new thread'
+    const otherAgent = 'threadId belongs to another agent; start a new thread'
+    expect(threadRefusal(httpError(403, { error: unavailable }))).toBe(
+      unavailable
+    )
+    expect(threadRefusal(httpError(403, { error: otherAgent }))).toBe(
+      otherAgent
+    )
+  })
+
+  it('leaves every other failure alone', () => {
+    // Another refusal on 403, and the same words on another status.
+    expect(
+      threadRefusal(httpError(403, { error: 'agent not found: x' }))
+    ).toBeNull()
+    expect(
+      threadRefusal(
+        httpError(409, {
+          error: 'threadId is not available; start a new thread',
+        })
+      )
+    ).toBeNull()
+    expect(
+      threadRefusal(httpError(403, 'threadId is not available'))
+    ).toBeNull()
+    expect(threadRefusal(new Error('threadId is not available'))).toBeNull()
+    expect(threadRefusal(undefined)).toBeNull()
+  })
+})
 
 function reporter() {
   const shown: string[] = []
