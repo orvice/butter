@@ -354,8 +354,8 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 	}
 
 	var input aguitypes.RunAgentInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: "invalid request body"})
+	if status, err := bindAGUIInput(c, &input); err != nil {
+		c.JSON(status, aguiErrorResponse{Error: err.Error()})
 		return nil, false
 	}
 	if err := validateAGUIInput(&input); err != nil {
@@ -518,9 +518,10 @@ func clientToolDeclarations(tools []aguitypes.Tool) []aguitool.Declaration {
 // messages answer pending frontend tool calls the same way and may be
 // combined with resume entries in one request.
 //
-// Otherwise only the trailing user message is sent: RunAgentInput.Messages is
-// the client's full history, but the server-side session is authoritative, so
-// replaying it would duplicate the conversation.
+// Otherwise only the trailing user message is sent, its text and images
+// (aguiUserParts): RunAgentInput.Messages is the client's full history, but
+// the server-side session is authoritative, so replaying it would duplicate
+// the conversation.
 //
 // A resume entry whose payload is an A2UI form submission (butterForm) is
 // returned as a form entry: its answer is only known once the submission is
@@ -564,11 +565,11 @@ func (h *AGUIHandler) aguiInputParts(ctx context.Context, input *aguitypes.RunAg
 		return parts, forms, 0, nil
 	}
 
-	text := latestAGUIUserText(input.Messages)
-	if text == "" {
-		return nil, nil, http.StatusBadRequest, errors.New("messages must end with a non-empty user message")
+	userParts, err := aguiUserParts(input.Messages)
+	if err != nil {
+		return nil, nil, http.StatusBadRequest, err
 	}
-	return []*genai.Part{{Text: text}}, nil, 0, nil
+	return userParts, nil, 0, nil
 }
 
 // trailingToolResults returns the tool-role messages that terminate the
@@ -660,36 +661,6 @@ func toolResultResponse(msg aguitypes.Message) map[string]any {
 		return decoded
 	}
 	return map[string]any{"result": content}
-}
-
-// latestAGUIUserText returns the text of the last user message. Content arrives
-// either as a plain string or as multimodal fragments; Phase 1 is text-only, so
-// non-text fragments are skipped.
-func latestAGUIUserText(messages []aguitypes.Message) string {
-	for i := len(messages) - 1; i >= 0; i-- {
-		msg := messages[i]
-		if msg.Role != aguitypes.RoleUser {
-			continue
-		}
-		if s, ok := msg.ContentString(); ok {
-			return strings.TrimSpace(s)
-		}
-		if fragments, ok := msg.ContentInputContents(); ok {
-			var b strings.Builder
-			for _, fragment := range fragments {
-				if fragment.Text == "" {
-					continue
-				}
-				if b.Len() > 0 {
-					b.WriteByte('\n')
-				}
-				b.WriteString(fragment.Text)
-			}
-			return strings.TrimSpace(b.String())
-		}
-		return ""
-	}
-	return ""
 }
 
 // aguiUserID derives the ADK session's user ID from the authenticated caller.
