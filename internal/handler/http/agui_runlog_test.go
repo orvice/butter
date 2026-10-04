@@ -454,6 +454,37 @@ func TestAGUIRunLog_ASlowStoreDoesNotSlowTheRun(t *testing.T) {
 	})
 }
 
+// deafWaits is a log store whose waits no new entry ends early, as when the
+// multiplexed read has not taken a log up yet: each lasts its whole timeout.
+type deafWaits struct{ runlog.Store }
+
+func (deafWaits) Wait(ctx context.Context, _, _ string, timeout time.Duration) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+	case <-timer.C:
+	}
+}
+
+// Once its stream opens, a Detached Run's POST sends RUN_STARTED promptly,
+// even when its log store is slow to wake it: until the observer read the
+// run's first event, it reads again on its own. Here the observer's waits
+// would otherwise last a minute.
+func TestAGUIRunLog_ThePOSTSendsRunStartedPromptly(t *testing.T) {
+	d := newDetachHarness(t, func(d *detachHarness) { d.runLogs = deafWaits{runlog.NewMemory()} })
+	d.handler.heartbeat = time.Minute
+	d.handler.tuneRunLog(func(l *aguiRunLogLimits) { l.check = time.Minute })
+	model := d.gate("card-model", "Done.")
+
+	post := d.start("carder", detachBody("t-1", "run-1", "hi"))
+	model.waitStarted(t)
+	post.waitStreamed(t)
+	// The run's end reaches the POST once the run let its thread go.
+	model.open()
+	requireWholeRun(t, "the POST", post.wait(t).Body.String(), "run-1")
+}
+
 // A Detached Run always opens with a STATE_SNAPSHOT, even when the client's
 // mirror matches the session, so a replay restores the state on its own.
 func TestAGUIRunLog_ADetachedRunOpensWithAStateSnapshot(t *testing.T) {

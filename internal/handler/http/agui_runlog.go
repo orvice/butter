@@ -101,6 +101,12 @@ const (
 	aguiRunLogReadBatch = 256
 	// aguiRunLogReadRetry paces an observer whose reads fail.
 	aguiRunLogReadRetry = 250 * time.Millisecond
+	// aguiRunLogFirstPoll paces an observer that has read nothing yet, for
+	// at most aguiRunLogFirstWait: it reads again on its own rather than
+	// wait for the store to wake it, so RUN_STARTED reaches its client
+	// promptly even while the multiplexed read has not taken its log up.
+	aguiRunLogFirstPoll = 10 * time.Millisecond
+	aguiRunLogFirstWait = time.Second
 	// aguiRunLogTextOverhead stands for the encoding around a text delta,
 	// which a writer holds unencoded until it appends it.
 	aguiRunLogTextOverhead = 128
@@ -532,6 +538,7 @@ func (h *AGUIHandler) follow(c *gin.Context, f aguiFollow) (atEnd bool) {
 	cursor := ""
 	lastWrite := time.Now()
 	nextCheck := lastWrite.Add(limits.check)
+	firstUntil := lastWrite.Add(aguiRunLogFirstWait)
 	// ending is when the run was first seen no longer running, its end not
 	// read yet; why says how it was seen. readFailing is when the reads
 	// started failing.
@@ -594,6 +601,9 @@ func (h *AGUIHandler) follow(c *gin.Context, f aguiFollow) (atEnd bool) {
 		wait := min(lastWrite.Add(heartbeat).Sub(now), nextCheck.Sub(now))
 		if !ending.IsZero() {
 			wait = min(wait, ending.Add(limits.endGrace).Sub(now))
+		}
+		if cursor == "" && now.Before(firstUntil) {
+			wait = min(wait, aguiRunLogFirstPoll)
 		}
 		if readFailing.IsZero() {
 			logs.Wait(waitCtx, f.log, cursor, max(wait, time.Millisecond))

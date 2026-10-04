@@ -128,9 +128,57 @@ func (d *detachHarness) runState(thread string) (runstate.State, bool) {
 
 // pendingPost is a request in flight from a client that can disconnect.
 type pendingPost struct {
-	w          *httptest.ResponseRecorder
+	w *httptest.ResponseRecorder
+	// live is w as the handler writes it, readable meanwhile.
+	live       *liveRecorder
 	disconnect context.CancelFunc
 	done       chan struct{}
+}
+
+// liveRecorder lets a test read a response while the handler still writes
+// it.
+type liveRecorder struct {
+	*httptest.ResponseRecorder
+	mu sync.Mutex
+}
+
+func (r *liveRecorder) Write(b []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ResponseRecorder.Write(b)
+}
+
+func (r *liveRecorder) WriteString(s string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ResponseRecorder.WriteString(s)
+}
+
+func (r *liveRecorder) WriteHeader(code int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ResponseRecorder.WriteHeader(code)
+}
+
+func (r *liveRecorder) Flush() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ResponseRecorder.Flush()
+}
+
+func (r *liveRecorder) body() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.Body.String()
+}
+
+// waitStreamed waits until the response carries RUN_STARTED: the client has
+// seen its run start.
+func (p *pendingPost) waitStreamed(t *testing.T) {
+	t.Helper()
+	eventually(t, "the response streams RUN_STARTED", func() bool {
+		return strings.Contains(p.live.body(), `"type":"RUN_STARTED"`)
+	})
 }
 
 func (d *detachHarness) start(agentID string, body map[string]any, opts ...a2uiOpt) *pendingPost {
@@ -148,10 +196,11 @@ func (d *detachHarness) start(agentID string, body map[string]any, opts ...a2uiO
 	req := httptest.NewRequest(http.MethodPost, "/api/agui/"+agentID, strings.NewReader(string(payload))).WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	ro.apply(req)
-	p := &pendingPost{w: httptest.NewRecorder(), disconnect: cancel, done: make(chan struct{})}
+	live := &liveRecorder{ResponseRecorder: httptest.NewRecorder()}
+	p := &pendingPost{w: live.ResponseRecorder, live: live, disconnect: cancel, done: make(chan struct{})}
 	go func() {
 		defer close(p.done)
-		d.router.ServeHTTP(p.w, req)
+		d.router.ServeHTTP(live, req)
 	}()
 	return p
 }
@@ -329,7 +378,9 @@ func TestAGUIDetached_RunOutlivesItsClient(t *testing.T) {
 	post := d.start("carder", detachBody("t-1", "run-1", "Summarize the deploy"))
 	model.waitStarted(t)
 
-	// The client goes away mid-run: that detaches its observer, nothing more.
+	// The client sees the run start, then goes away mid-run: that detaches
+	// its observer, nothing more.
+	post.waitStreamed(t)
 	post.disconnect()
 	w := post.wait(t)
 	if w.Code != http.StatusOK || !streamed(w.Body.String()) {
@@ -441,6 +492,7 @@ func TestAGUIDetached_SecondPostWhileRunningIsConflict(t *testing.T) {
 
 	first := d.start("carder", detachBody("t-1", "run-1", "first"))
 	model.waitStarted(t)
+	first.waitStreamed(t)
 	first.disconnect()
 	first.wait(t)
 
