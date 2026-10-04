@@ -47,7 +47,6 @@ import { BASE_URL, authHeaders } from '@/api/client'
 import {
   useAllSessions,
   useDeleteSession,
-  useGenerateSessionTitle,
   useUpdateSessionTitle,
 } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
@@ -91,6 +90,7 @@ import {
 import {
   AGUI_APP_NAME,
   THREAD_PAGE_SIZE,
+  TITLE_REFRESH_DELAYS_MS,
   agentThreads,
   threadIdOf,
   threadTitle,
@@ -186,25 +186,22 @@ export function AGUIChatPage() {
   )
   const renameMutation = useUpdateSessionTitle()
   const deleteMutation = useDeleteSession()
-  const generateTitleMutation = useGenerateSessionTitle()
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
 
   // After every run: a thread's first run creates its session, so refresh
-  // the list, and title a thread that has none yet (the server keeps any
-  // title that already exists, manual ones included).
+  // the list. The server titles a thread that has none once a run on it
+  // succeeds, and that title lands after the run ends, so for an untitled
+  // thread the list is read again later to show it.
   const handleRunSettled = () => {
     void queryClient.invalidateQueries({ queryKey: ['sessions'] })
     if (!threadId) return
     const listed = agentThreadList.find((s) => threadIdOf(s) === threadId)
     if (listed?.title?.trim()) return
-    generateTitleMutation.mutate(
-      {
-        app_name: AGUI_APP_NAME,
-        user_id: userId,
-        session_id: `agui-${threadId}`,
-      },
-      { onError: () => {} }
-    )
+    for (const delay of TITLE_REFRESH_DELAYS_MS) {
+      setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      }, delay)
+    }
   }
 
   const handleRename = async (session: SessionInfo, title: string) => {

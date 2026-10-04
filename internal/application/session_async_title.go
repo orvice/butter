@@ -4,15 +4,16 @@ import (
 	"context"
 
 	"butterfly.orx.me/core/log"
-	"connectrpc.com/connect"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 // AsyncTurnComplete is called by the async coordinator after a successful
-// invocation. It triggers best-effort title generation without blocking
-// the invocation. Only the first successful turn in a session generates a
-// title (the SetSessionTitleIfEmpty CAS ensures concurrent calls are safe).
+// invocation, on a context that carries no caller. It titles an untitled
+// session through TitleSession, which needs none: the invocation was
+// authorized when it was submitted. A session that already has a title keeps
+// it (the SetSessionTitleIfEmpty CAS keeps concurrent calls safe). Failures
+// are logged, never propagated.
 func (s *SessionServiceServer) AsyncTurnComplete(ctx context.Context, inv *agentsv1.Invocation) {
 	if inv == nil {
 		return
@@ -27,23 +28,18 @@ func (s *SessionServiceServer) AsyncTurnComplete(ctx context.Context, inv *agent
 		return
 	}
 
-	// Fire-and-forget title generation; errors are logged, never propagated.
-	resp, err := s.GenerateSessionTitle(ctx, connect.NewRequest(&agentsv1.GenerateSessionTitleRequest{
-		AppName:   appName,
-		UserId:    userID,
-		SessionId: sessionID,
-	}))
+	info, generated, err := s.TitleSession(ctx, appName, userID, sessionID)
 	if err != nil {
-		logger.Debug("async title generation skipped or failed",
+		logger.Warn("async title generation failed",
 			"session_id", sessionID,
 			"err", err,
 		)
 		return
 	}
-	if resp.Msg.GetGenerated() {
+	if generated {
 		logger.Info("async title generated",
 			"session_id", sessionID,
-			"title", resp.Msg.GetSession().GetTitle(),
+			"title", info.GetTitle(),
 		)
 	}
 }

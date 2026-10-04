@@ -15,6 +15,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
+	"google.golang.org/adk/v2/model"
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -107,6 +108,9 @@ type SessionServiceServer struct {
 	titleResolver       TitleModelResolver
 	titleProviderLister WorkspaceModelProviderLister
 	chatTitleModel      string
+	// titleResolveModel is titleGenerator.resolveModel for this server: a
+	// seam for tests, nil selecting the production resolver.
+	titleResolveModel func(ctx context.Context, modelRef string, providers []*agentsv1.ModelProvider) (model.LLM, error)
 
 	// deletingMu guards the deleting set.
 	deletingMu sync.Mutex
@@ -365,6 +369,7 @@ func (s *SessionServiceServer) titleGen() titleGenerator {
 		resolver:       s.titleResolver,
 		providerLister: s.titleProviderLister,
 		chatTitleModel: s.chatTitleModel,
+		resolveModel:   s.titleResolveModel,
 	}
 }
 
@@ -1207,35 +1212,52 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 		}
 	}
 
+	info, generated, err := s.TitleSession(ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId())
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
+		Session:   info,
+		Generated: generated,
+	}), nil
+}
+
+// TitleSession gives an untitled session a title derived from its first turn
+// and stores it with SetSessionTitleIfEmpty, so a title that already exists
+// (manual, legacy, or written concurrently) always wins. generated reports
+// whether this call stored a new title; info is the session as it stands
+// afterwards. Errors are Connect errors.
+//
+// It authorizes no one. GenerateSessionTitle checks the caller first; the
+// turn hooks (AsyncTurnComplete, the AG-UI handler after a successful run)
+// call it on the server's own behalf, for a turn that was authorized when it
+// started.
+func (s *SessionServiceServer) TitleSession(ctx context.Context, appName, userID, sessionID string) (info *agentsv1.SessionInfo, generated bool, err error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
+		return nil, false, connect.NewError(connect.CodeFailedPrecondition, errors.New("session service not available"))
 	}
 	titleStore := s.getTitleStore()
 	if titleStore == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session title store not available"))
+		return nil, false, connect.NewError(connect.CodeFailedPrecondition, errors.New("session title store not available"))
 	}
 
 	// Load session with all events.
 	sessResp, err := sessionSvc.Get(ctx, &session.GetRequest{
-		AppName:   req.Msg.GetAppName(),
-		UserID:    req.Msg.GetUserId(),
-		SessionID: req.Msg.GetSessionId(),
+		AppName:   appName,
+		UserID:    userID,
+		SessionID: sessionID,
 	})
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "session not found") {
-			return nil, connectx.NotFound(err.Error())
+			return nil, false, connectx.NotFound(err.Error())
 		}
-		return nil, connectx.InternalWith(err)
+		return nil, false, connectx.InternalWith(err)
 	}
 
 	// If an effective title already exists, return it without generating.
-	existing := effectiveTitle(sessResp.Session)
-	if existing != "" {
-		return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
-			Session:   sessionToInfo(sessResp.Session),
-			Generated: false,
-		}), nil
+	if effectiveTitle(sessResp.Session) != "" {
+		return sessionToInfo(sessResp.Session), false, nil
 	}
 
 	// Collect events for title derivation.
@@ -1244,10 +1266,8 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 		events = append(events, evt)
 	}
 
-	logger := log.FromContext(ctx)
-
 	// Try LLM-based title generation first.
-	llmTitle, llmOK := s.titleGen().generate(ctx, events, req.Msg.GetSessionId())
+	llmTitle, llmOK := s.titleGen().generate(ctx, events, sessionID)
 	var title string
 	if llmOK {
 		title = llmTitle
@@ -1256,21 +1276,16 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 	}
 
 	if title == "" {
-		return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
-			Session:   sessionToInfo(sessResp.Session),
-			Generated: false,
-		}), nil
+		return sessionToInfo(sessResp.Session), false, nil
 	}
 
 	// Atomic CAS: write only if no first-class title exists yet.
-	info, generated, err := titleStore.SetSessionTitleIfEmpty(
-		ctx, req.Msg.GetAppName(), req.Msg.GetUserId(), req.Msg.GetSessionId(), title,
-	)
+	info, generated, err = titleStore.SetSessionTitleIfEmpty(ctx, appName, userID, sessionID, title)
 	if err != nil {
 		if errors.Is(err, ErrSessionNotFound) {
-			return nil, connectx.NotFound(err.Error())
+			return nil, false, connectx.NotFound(err.Error())
 		}
-		return nil, connectx.InternalWith(err)
+		return nil, false, connectx.InternalWith(err)
 	}
 
 	if generated {
@@ -1278,17 +1293,13 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 		if llmOK {
 			method = "llm"
 		}
-		logger.Info("auto-generated session title",
-			"app_name", req.Msg.GetAppName(),
-			"session_id", req.Msg.GetSessionId(),
+		log.FromContext(ctx).Info("auto-generated session title",
+			"app_name", appName,
+			"session_id", sessionID,
 			"method", method,
 		)
 	}
-
-	return connect.NewResponse(&agentsv1.GenerateSessionTitleResponse{
-		Session:   info,
-		Generated: generated,
-	}), nil
+	return info, generated, nil
 }
 
 func eventToProtoWithTrace(evt *session.Event, langfuseHost string) *agentsv1.SessionEvent {

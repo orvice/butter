@@ -306,7 +306,7 @@ app，固定路由到一个 Agent——它在 Linear 里的 app 用户就是这�
 - **ADK Memory**：由各 workspace 配置的 mem0 OSS 服务端保存长期记忆（Workspace Memory / Agent Memory，ADR-0013）。
 - **ContextInfo**：runner 调用统一携带 channel、session、user、source、uuid，作为执行上下文。
 - **会话维度的 Agent Runner 缓存**：按 `channel:agent:model` 维度缓存 ADK runner 实例。
-- **LLM 自动标题（Web Chat / AG-UI Chat）**：首轮对话完成后 dashboard 调用 `GenerateSessionTitle`（AG-UI Chat 在每次 run 结束、列表中该 thread 仍无标题时调用）。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
+- **LLM 自动标题（Web Chat / AG-UI Chat）**：一轮成功后，由服务端为还没有标题的会话生成标题：Web Chat 在异步 Invocation 成功后，AG-UI 在 run 成功后（后台进行，失败的 run 不生成）。AG-UI Chat 不再自己调用 `GenerateSessionTitle`：run 结束后刷新 thread 列表，未命名的 thread 稍后再读一次列表以显示标题。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
 
 ### 8.1 长期记忆（mem0 OSS，ADR-0013）
 
