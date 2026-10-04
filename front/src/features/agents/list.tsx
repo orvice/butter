@@ -280,14 +280,12 @@ function AgentCard({
           </span>
         )}
         {agent.enable_agui && (
-          <Link
-            to='/agui-chat'
-            search={{ agent: agent.agent_id }}
-            className='rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[0.7rem] text-muted-foreground hover:border-primary/50 hover:text-foreground'
-            title='Open AG-UI chat with this agent'
+          <span
+            className='rounded border border-border bg-muted/50 px-1.5 py-0.5 text-[0.7rem] text-muted-foreground'
+            title='Programmatic AG-UI access: API tokens can run this agent on the AG-UI endpoint'
           >
             AG-UI
-          </Link>
+          </span>
         )}
       </div>
 

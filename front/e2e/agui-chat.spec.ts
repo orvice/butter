@@ -286,6 +286,37 @@ test.describe('AG-UI chat', () => {
     await expect(page.getByText('yes', { exact: true })).toBeVisible()
   })
 
+  test('lists and opens an agent without enable_agui', async ({ page }) => {
+    const fixture = await setupAGUIFixture(page, {
+      runs: [finished('r1', 'Hello from Plain.')],
+    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+
+    // Every runnable agent is listed, whether or not it enabled AG-UI for
+    // API tokens; the deleted one is not.
+    await page.getByRole('combobox').click()
+    await expect(page.getByRole('option')).toHaveText([
+      'Streamer',
+      'Second',
+      'Plain',
+    ])
+    await page.getByRole('option', { name: 'Plain' }).click()
+    await expect(page.getByRole('combobox')).toHaveText('Plain')
+
+    // Opening it reads its thread, and a message runs it.
+    await expect
+      .poll(() =>
+        fixture.historyRequests.some((u) =>
+          u.includes('/api/agui/plain-id/threads/')
+        )
+      )
+      .toBe(true)
+    await send(page, 'hi')
+    await expect(page.getByText('Hello from Plain.')).toBeVisible()
+    expect(fixture.runURLs).toHaveLength(1)
+    expect(new URL(fixture.runURLs[0]).pathname).toBe('/api/agui/plain-id')
+  })
+
   test('renders RUN_ERROR in-band', async ({ page }) => {
     const requests: Array<Record<string, unknown>> = []
     const run = sse([

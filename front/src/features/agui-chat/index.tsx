@@ -96,13 +96,15 @@ import {
   threadTitle,
 } from './threads'
 
+// Every runnable agent can be opened here. enable_agui is not needed: it only
+// gates programmatic AG-UI access (API and root tokens), not signed-in users.
 function isSelectableAgent(a: Agent): boolean {
   const status = a.lifecycle_status
   const runnable =
     !status ||
     status === 'AGENT_LIFECYCLE_STATUS_UNSPECIFIED' ||
     status === 'AGENT_LIFECYCLE_STATUS_ACTIVE'
-  return runnable && !!a.enable_agui && !!a.agent_id
+  return runnable && !!a.agent_id
 }
 
 function makeHttpAgent(agentId: string, threadId: string): ButterAGUIAgent {
@@ -251,7 +253,7 @@ export function AGUIChatPage() {
             <p className='text-sm text-muted-foreground'>
               {agentsQuery.isLoading
                 ? 'Loading agents…'
-                : 'No AG-UI-enabled agents in this workspace. Enable "AG-UI" on an agent to chat with it here.'}
+                : 'No runnable agents in this workspace. Create an agent to chat with it here.'}
             </p>
           </div>
         </Main>
@@ -596,7 +598,7 @@ function AgentBar({
         disabled={isLoading}
       >
         <SelectTrigger className='ml-2 h-8 w-56' size='sm'>
-          <SelectValue placeholder='Pick an AG-UI agent' />
+          <SelectValue placeholder='Pick an agent' />
         </SelectTrigger>
         <SelectContent>
           {agents.map((a) => (

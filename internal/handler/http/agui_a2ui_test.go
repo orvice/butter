@@ -73,7 +73,9 @@ func (w dropCustomWriter) Write(b []byte) (int, error) {
 }
 
 // newA2UIHarness wires the AG-UI handler to a real runner over the given
-// agents. Every agent is AG-UI-enabled; models are served by the fake.
+// agents, as they are: requests come from a signed-in user, who reaches every
+// agent the runner can run, unless asAPIToken or asRootToken says otherwise.
+// Models are served by the fake.
 func newA2UIHarness(t *testing.T, agents []agentsv1.Agent, models ...string) *a2uiHarness {
 	t.Helper()
 	h := &a2uiHarness{t: t, backend: openaifake.New(t), sessions: newStoreLikeSessions(), guard: &fakeSessionGuard{}}
@@ -101,25 +103,32 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 	}
 	repo := &wsAgentRepo{}
 	for i := range agents {
-		agents[i].EnableAgui = true
 		repo.agents = append(repo.agents, &agents[i])
 	}
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	// Stand-in for the auth middleware: the caller and workspace come from
-	// test headers so isolation tests can vary them per request.
+	// test headers so isolation tests can vary them per request. A token
+	// caller has no user, as the real middleware leaves it.
 	r.Use(func(c *gin.Context) {
 		ws := c.GetHeader("X-Workspace-ID")
 		if ws == "" {
 			ws = "ws-a"
 		}
-		user := c.GetHeader("X-Test-User")
-		if user == "" {
-			user = "u1"
-		}
 		ctx := wsctx.WithID(c.Request.Context(), ws)
-		ctx = auth.WithAuthenticated(ctx, &agentsv1.User{Id: user}, nil)
+		switch c.GetHeader("X-Test-Token") {
+		case "api":
+			ctx = auth.WithAPIToken(ctx, "token-1")
+		case "root":
+			ctx = auth.WithAdmin(ctx)
+		default:
+			user := c.GetHeader("X-Test-User")
+			if user == "" {
+				user = "u1"
+			}
+			ctx = auth.WithAuthenticated(ctx, &agentsv1.User{Id: user}, nil)
+		}
 		c.Request = c.Request.WithContext(ctx)
 		if h.dropCustom {
 			c.Writer = dropCustomWriter{c.Writer}
@@ -141,18 +150,28 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 type a2uiRequest struct {
 	workspace string
 	user      string
+	token     string
 }
 
 type a2uiOpt func(*a2uiRequest)
 
 func asUser(user string) a2uiOpt    { return func(r *a2uiRequest) { r.user = user } }
 func inWorkspace(ws string) a2uiOpt { return func(r *a2uiRequest) { r.workspace = ws } }
+
+// asAPIToken and asRootToken send the request with a token instead of a
+// signed-in user's session.
+func asAPIToken() a2uiOpt  { return func(r *a2uiRequest) { r.token = "api" } }
+func asRootToken() a2uiOpt { return func(r *a2uiRequest) { r.token = "root" } }
+
 func (r a2uiRequest) apply(req *http.Request) {
 	if r.workspace != "" {
 		req.Header.Set("X-Workspace-ID", r.workspace)
 	}
 	if r.user != "" {
 		req.Header.Set("X-Test-User", r.user)
+	}
+	if r.token != "" {
+		req.Header.Set("X-Test-Token", r.token)
 	}
 }
 
@@ -617,10 +636,10 @@ func TestAGUIA2UI_CardSurvivesInSnapshotAndRestart(t *testing.T) {
 }
 
 // The same caller reusing a threadId under another agent lands on the same
-// session (its key is caller + thread). The session's UI stays with the agent
-// that created it: the other agent is offered no render_ui and its snapshot
-// is empty. Reusing the threadId from another workspace, or as another user,
-// is refused before anything runs, and their snapshots are empty too.
+// session (its key is caller + thread), so the thread's binding decides:
+// reusing it with another agent, from another workspace, or as another user
+// is refused before anything runs, and their snapshots are empty. The UI
+// stays with the context that created it.
 func TestAGUIA2UI_ThreadIDReuseIsIsolated(t *testing.T) {
 	h := newA2UIHarness(t, []agentsv1.Agent{
 		cardAgent(),
@@ -636,35 +655,25 @@ func TestAGUIA2UI_ThreadIDReuseIsIsolated(t *testing.T) {
 		t.Fatalf("setup: card not rendered\n%s", w.Body.String())
 	}
 
-	t.Run("another agent", func(t *testing.T) {
-		w := h.post("other", a2uiBody("t-shared", "hello"))
-		if w.Code != http.StatusOK {
-			t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
-		}
-		if containsString(h.offeredTools("other-model"), "render_ui") {
-			t.Error("render_ui offered to an agent the session is not bound to")
-		}
-		if got := a2uiValues(sseEvents(t, w.Body.String())); len(got) != 0 {
-			t.Errorf("UI leaked to another agent: %+v", got)
-		}
-		if got := h.snapshotSurfaces("other", "t-shared"); len(got) != 0 {
-			t.Errorf("snapshot leaked the card: %+v", got)
-		}
-	})
-	for name, opts := range map[string][]a2uiOpt{
-		"another workspace": {inWorkspace("ws-b")},
-		"another user":      {asUser("u2")},
+	for name, tc := range map[string]struct {
+		agentID string
+		opts    []a2uiOpt
+		want    string
+	}{
+		"another agent":     {agentID: "other", want: errThreadOfAnotherAgent.Error()},
+		"another workspace": {agentID: "carder", opts: []a2uiOpt{inWorkspace("ws-b")}, want: errThreadUnavailable.Error()},
+		"another user":      {agentID: "carder", opts: []a2uiOpt{asUser("u2")}, want: errThreadUnavailable.Error()},
 	} {
 		t.Run(name, func(t *testing.T) {
 			calls := h.backend.CallCount("card-model") + h.backend.CallCount("other-model")
-			w := h.post("carder", a2uiBody("t-shared", "hello"), opts...)
-			if w.Code != http.StatusForbidden {
-				t.Fatalf("status = %d, body = %s; want 403", w.Code, w.Body.String())
+			w := h.post(tc.agentID, a2uiBody("t-shared", "hello"), tc.opts...)
+			if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), tc.want) {
+				t.Fatalf("status = %d, body = %s; want 403 %q", w.Code, w.Body.String(), tc.want)
 			}
 			if h.backend.CallCount("card-model")+h.backend.CallCount("other-model") != calls {
 				t.Error("a refused thread ran the agent")
 			}
-			if got := h.snapshotSurfaces("carder", "t-shared", opts...); len(got) != 0 {
+			if got := h.snapshotSurfaces(tc.agentID, "t-shared", tc.opts...); len(got) != 0 {
 				t.Errorf("snapshot leaked the card: %+v", got)
 			}
 		})
@@ -1604,9 +1613,9 @@ func TestAGUIA2UI_OutcomeListsOpenInterruptsForA2UIClients(t *testing.T) {
 }
 
 // A form is submittable only from the context that owns its thread: the same
-// caller reusing the threadId with another agent finds no such form, and
-// under another workspace whose agent shares the agent_id the thread itself
-// is refused. Either way nothing runs.
+// caller reusing the threadId with another agent, or under another workspace
+// whose agent shares the agent_id, is refused the thread itself. Either way
+// nothing runs.
 func TestAGUIA2UI_FormSubmissionFromAnotherContext(t *testing.T) {
 	agents := approvalWorkflow(deployForm())
 	agents = append(agents,
@@ -1624,7 +1633,7 @@ func TestAGUIA2UI_FormSubmissionFromAnotherContext(t *testing.T) {
 		status  int
 		want    string
 	}{
-		"another agent":     {agentID: "other", status: http.StatusBadRequest, want: `"code":"form_unknown"`},
+		"another agent":     {agentID: "other", status: http.StatusForbidden, want: "threadId belongs to another agent"},
 		"another workspace": {agentID: "approval", opts: []a2uiOpt{inWorkspace("ws-b")}, status: http.StatusForbidden, want: "threadId is not available"},
 	} {
 		t.Run(name, func(t *testing.T) {

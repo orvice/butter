@@ -626,10 +626,22 @@ Runs an agent and streams the turn as [AG-UI](https://docs.ag-ui.com) events ove
 SSE, so any AG-UI client (CopilotKit, custom React, CLI) can drive a Butter agent
 without a bespoke integration.
 
-The path segment is the agent's immutable `agent_id`. Only an agent with
-`enable_agui: true` is reachable; anything else returns `404`. Auth and workspace
+The path segment is the agent's immutable `agent_id`. Auth and workspace
 selection are the same as the rest of `/api` — `Authorization: Bearer <token>`
-plus `X-Workspace-ID`.
+plus `X-Workspace-ID`. Which agents a caller reaches depends on the token:
+
+- A **dashboard session token** (a signed-in user) reaches every agent in the
+  workspace that the runner can run, whatever its `enable_agui`. This is how
+  the dashboard's AG-UI Chat opens any agent.
+- An **API token** or the **root token** reaches only agents with
+  `enable_agui: true`. The flag opts an agent in to programmatic AG-UI access,
+  as `enable_a2a` and `enable_openai_api` do for their protocols.
+
+Every other request for an agent returns `404` before the stream opens. An
+agent the runner cannot run (one that is provisioning, being deleted or
+deleted, or not loaded yet) is `404` too, whoever asks. The
+[UI snapshot](#ui-snapshot) and [thread history](#thread-history) endpoints
+follow the same rules.
 
 **Request body** is an AG-UI `RunAgentInput`. Both camelCase and snake_case keys
 are accepted:
@@ -675,7 +687,7 @@ the stream and return a normal status with `{"error": "…"}`.
 
 `threadId` is **not** used as a session ID directly. The server-side session is
 authoritative (AG-UI "stateful" mode) and is derived as `agui-{threadId}`, scoped
-to the authenticated user. Two consequences:
+to the authenticated user. Consequences:
 
 - Only the **trailing user message** of `messages` is sent to the agent, its
   text and images (see [Message content](#message-content)). The rest is the
@@ -685,6 +697,12 @@ to the authenticated user. Two consequences:
   workspace, is refused **before the stream opens** with `403` and
   `{"error": "threadId is not available; start a new thread"}`; nothing runs.
   Generate a fresh `threadId` (a UUID) for every new thread.
+- A thread stays with the agent it was first run with, so one thread's history
+  is one agent's. A run on it through another agent's route is refused **before
+  the stream opens** with `403` and
+  `{"error": "threadId belongs to another agent; start a new thread"}`: nothing
+  runs, and nothing is appended to the thread. A thread created before A2UI
+  existed records no agent and still runs with any agent.
 
 Turns on one session are serialized **across the whole fleet**: a Redis lease
 per `(caller, threadId)` admits one run at a time, on any Pod. While a run is in
@@ -879,9 +897,10 @@ serve, the run is plain AG-UI: no `CUSTOM` events and no `render_ui` tool. A
 `butterA2UI` value that is not shaped like the object above is `400`. A2UI also
 needs the thread's **UI binding**: a session created by the AG-UI endpoint is
 bound to its creator's principal, workspace, `agent_id` and `threadId`. A
-session created before A2UI existed has no binding, and the same caller reusing
-a `threadId` under another workspace or agent does not match it — in both cases
-the run is plain text chat and no UI is exposed or accepted.
+session created before A2UI existed has no binding: the run is plain text chat
+and no UI is exposed or accepted. Reusing a bound `threadId` under another
+workspace or agent is refused before the stream opens (see
+[Sessions](#sessions)).
 
 **Events.** Each A2UI message arrives as one AG-UI `CUSTOM` event named
 `butter.a2ui`:
@@ -1035,7 +1054,7 @@ instead:
 
 | Status | `code` | When |
 |---|---|---|
-| `400` | `form_unknown` | unknown, forged or expired form (wrong token, surface, interrupt, or another user/workspace/agent context) |
+| `400` | `form_unknown` | unknown, forged or expired form (wrong token, surface or interrupt, or a thread without a UI binding); another user's, workspace's or agent's thread is refused earlier with `403` (see [Sessions](#sessions)) |
 | `409` | `form_answered` | the form was already submitted |
 | `409` | `form_stale` | `revision` is not the form's current one |
 | `422` | `form_invalid` | invalid values, listed per field: `{"error": "…", "code": "form_invalid", "fieldErrors": {"reason": "must be at most 200 characters"}}` |
@@ -1988,6 +2007,7 @@ replayed; clients must call `RetryAgentOperation` explicitly.
 | `type` | enum | `AGENT_TYPE_LLM`, `AGENT_TYPE_LOOP`, `AGENT_TYPE_SEQUENTIAL`, `AGENT_TYPE_PARALLEL`, `AGENT_TYPE_WORKFLOW` |
 | `enable_a2a` | bool | Expose via A2A protocol |
 | `enable_openai_api` | bool | Expose via the OpenAI-compatible API |
+| `enable_agui` | bool | Programmatic AG-UI access: API tokens and the root token may run the agent on the [AG-UI endpoint](#ag-ui-protocol). Signed-in users reach every runnable agent without it |
 | `workspace_id` | string | Owning workspace (server-enforced from `X-Workspace-ID` on writes; returned on reads) |
 
 #### AgentConfig Object

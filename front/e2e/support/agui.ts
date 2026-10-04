@@ -43,6 +43,8 @@ export interface AGUIFixture {
   // historyByThread answers a thread's history by its ID, ahead of the queue.
   historyByThread?: Record<string, SnapshotResponse>
   requests: Array<Record<string, unknown>>
+  // runURLs holds the URL of each run request, in the order of requests.
+  runURLs: string[]
   snapshotRequests: string[]
   historyRequests: string[]
 }
@@ -80,6 +82,7 @@ export async function setupAGUI(
     histories: fixture.histories ?? [],
     historyByThread: fixture.historyByThread,
     requests: fixture.requests ?? [],
+    runURLs: fixture.runURLs ?? [],
     snapshotRequests: fixture.snapshotRequests ?? [],
     historyRequests: fixture.historyRequests ?? [],
   }
@@ -101,15 +104,24 @@ export async function setupAGUI(
             enableAgui: true,
             lifecycleStatus: 1,
           },
+          // AG-UI Chat lists it too: enable_agui only gates API tokens.
           {
             name: 'Plain',
             agentId: 'plain-id',
-            description: 'not exposed',
+            description: 'no programmatic AG-UI access',
             enableAgui: false,
             lifecycleStatus: 1,
           },
+          // Deleted, so it cannot run and is not listed.
+          {
+            name: 'Retired',
+            agentId: 'retired-id',
+            description: 'deleted',
+            enableAgui: true,
+            lifecycleStatus: 6,
+          },
         ],
-        total: 3,
+        total: 4,
       })
     }
     return false
@@ -143,6 +155,7 @@ export async function setupAGUI(
       return
     }
     state.requests.push(JSON.parse(request.postData() ?? '{}'))
+    state.runURLs.push(request.url())
     const next = state.runs.shift() ?? sse([])
     if (typeof next !== 'string' && 'delayMs' in next) {
       await new Promise((resolve) => setTimeout(resolve, next.delayMs))

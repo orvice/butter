@@ -154,7 +154,9 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - `POST /a2a/:agent_ref`：A2A JSON-RPC `tasks/send`。
 - `GET /api/v1/models` / `POST /api/v1/chat/completions`：OpenAI 兼容 API（仅 `enable_openai_api: true` 的 Agent）；`model` 字段**即** agent_id（legacy name 查找已移除），`/v1/models` 只列出有 agent_id 的 agent。
 - `POST /api/uploads/*`：头像/静态资源 multipart 上传（REST，非 Connect）；见 `docs/storage.md`。
-- `POST /api/agui/:agent_id`：AG-UI 协议入口（仅 `enable_agui: true` 的 Agent），SSE 流式返回 AG-UI 事件；同一 thread 跨 Pod 串行。
+- `POST /api/agui/:agent_id`：AG-UI 协议入口，SSE 流式返回 AG-UI 事件；同一 thread 跨 Pod 串行。
+  - **谁能访问哪个 Agent**：登录的 dashboard 用户可以访问 Workspace 内任何 runner 能运行的 Agent，不需要 `enable_agui`，所以 AG-UI Chat 能打开任何 Agent。API token 和 root token 只能访问 `enable_agui: true` 的 Agent：这个开关表示程序化 AG-UI 访问，与 `enable_a2a`、`enable_openai_api` 一样。其余情况，以及 runner 无法运行的 Agent（创建中、删除中、已删除或尚未加载），都在打开流之前返回 404。
+  - **thread 跟随它的 Agent**：thread 首次运行时绑定该 Agent，之后通过其他 Agent 的路由运行它，会在打开流之前返回 403（“threadId belongs to another agent; start a new thread”），不运行，也不追加任何事件。A2UI 之前创建、没有绑定的 thread 不记录 Agent，仍可用任何 Agent 运行。
 - `GET /api/agui/:agent_id/threads/:thread_id/ui`：A2UI UI 快照，返回该 thread 当前的只读结果卡片与未回答的表单，不运行 Agent。
 - `GET /api/agui/:agent_id/threads/:thread_id/messages`：thread 历史，把会话还原成 AG-UI 消息，并返回仍待回答的 Interrupt，以及每个卡片/表单出自哪条回答。不运行 Agent，鉴权、绑定与加锁规则同 UI 快照。
 
@@ -163,8 +165,8 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - **定位**：AG-UI 仍是事件与状态传输协议，A2UI 只是 UI 内容格式。客户端在 `forwardedProps.butterA2UI` 声明 `v0.9.1` 与 catalog `butter-basic-v1` 才启用；没有声明时协议行为与之前完全一致。每条 A2UI 消息作为一个 `CUSTOM` 事件 `butter.a2ui` 下发（Butter 自有扩展），携带服务端分配的 revision、消息关联信息、完整 envelope 和可读 fallback。
 - **结果卡片**：协商成功的运行中，LLM Agent 获得 `render_ui` 工具，可生成、更新、删除只读卡片（标题、正文、键值结果、状态）。整批先校验再写入：未知组件、原始 HTML、任何 URL（包括正文与数据里的链接）、模型自定义 action、悬空引用、超过 100 个组件 / 64 KiB 每批 / 每个会话 20 张卡片都会被拒绝并返回可读工具错误，不部分写入。同一次运行里连续失败 3 次后，`render_ui` 会拒绝这次运行剩下的调用，让模型改用文字回答。Pi/Cursor、远程 Agent 和非 AG-UI 入口没有这个工具。
 - **持久化**：卡片存在 session state 的隐藏命名空间里（不进入 AG-UI 共享 state，客户端 `state` 无法读写）；表单绑定随暂停事件保存。先持久化、后发送；刷新、断线或重启后通过 UI 快照恢复，不再次运行 Agent，也没有新的数据库集合或第二份 pending 状态（ADR-0002）。
-- **隔离**：新 AG-UI 会话创建时记录 UI 绑定（调用用户、Workspace、Agent ID、thread）。只有完全匹配的请求才能看到或提交 UI；A2UI 之前创建的历史会话、在其他 Workspace/Agent 下复用的 threadId 都只保留文字聊天。
-- **表单提交**：沿用 AG-UI `resume` 的 resolved 分支。服务端在 session lease 内校验绑定、token、revision、Interrupt 仍待回答以及字段规则，失败时在运行前拒绝（400 未知/伪造/跨上下文、409 已提交或过期、422 字段错误），不追加回复、不运行 Agent、也不会转去回答另一个 Interrupt。重复提交返回“已提交”提示，不承诺跨系统 exactly-once；`cancelled` 仍被拒绝。
+- **隔离**：新 AG-UI 会话创建时记录 UI 绑定（调用用户、Workspace、Agent ID、thread）。只有完全匹配的请求才能看到或提交 UI；A2UI 之前创建、没有绑定的历史会话只保留文字聊天；在其他 Workspace 或 Agent 下复用已绑定的 threadId 会在运行前被拒绝（403）。
+- **表单提交**：沿用 AG-UI `resume` 的 resolved 分支。服务端在 session lease 内校验绑定、token、revision、Interrupt 仍待回答以及字段规则，失败时在运行前拒绝（400 未知或伪造、409 已提交或过期、422 字段错误；其他用户、Workspace 或 Agent 的 thread 更早就以 403 拒绝），不追加回复、不运行 Agent、也不会转去回答另一个 Interrupt。重复提交返回“已提交”提示，不承诺跨系统 exactly-once；`cancelled` 仍被拒绝。
 
 ### RPC（`/api`，ConnectRPC，同时支持 Connect / gRPC-Web / gRPC）
 
