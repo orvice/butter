@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { stopper, type LocalRun } from './stop'
 
 // localRun is a run as the page follows it. log records the Stop requests
@@ -85,6 +85,58 @@ describe('stopper', () => {
     pending[0].resolve()
     await Promise.all([first, second])
     expect(log).toEqual(['stop', 'cancel'])
+  })
+
+  it('waits for the end of a run the page waits out, and cancels nothing here', async () => {
+    const { run, log } = localRun()
+    const { stop, pending } = answers(log)
+    let ended!: () => void
+    const waitedOut: LocalRun = {
+      ...run,
+      untilEnded: () => {
+        log.push('wait')
+        return new Promise<void>((resolve) => (ended = resolve))
+      },
+    }
+    const click = stopper(stop, waitedOut)
+    let settled = false
+    const done = click().then(() => (settled = true))
+    pending[0].resolve()
+    await vi.waitFor(() => expect(log).toEqual(['stop', 'wait']))
+    // The Stop lasts until the page shows the run ended; clicks join it.
+    expect(click()).toBe(click())
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    ended()
+    await done
+    expect(log).toEqual(['stop', 'wait'])
+    expect(run.canCancel()).toBe(true)
+  })
+
+  it('cancels the run here when there is no end to wait for', async () => {
+    const { run, log } = localRun()
+    const streamed: LocalRun = { ...run, untilEnded: () => undefined }
+    await stopper(async () => {
+      log.push('stop')
+    }, streamed)()
+    expect(log).toEqual(['stop', 'cancel'])
+  })
+
+  it('leaves a run the page waits out alone when the server refuses the Stop', async () => {
+    const { run, log } = localRun()
+    const { stop, pending } = answers(log)
+    const waitedOut: LocalRun = {
+      ...run,
+      untilEnded: () => {
+        log.push('wait')
+        return Promise.resolve()
+      },
+    }
+    const refused = new Error('stop unavailable, retry later')
+    const done = stopper(stop, waitedOut)()
+    pending[0].reject(refused)
+    await expect(done).rejects.toBe(refused)
+    expect(log).toEqual(['stop'])
   })
 
   it('asks again on the next click once a Stop was refused', async () => {

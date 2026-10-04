@@ -39,9 +39,15 @@ function ComposerImage({ attachment }: { attachment: Attachment }) {
 
 // AttachImagesButton opens the file picker of the thread's composer. The
 // composer also takes images pasted into it or dropped on the chat.
-export function AttachImagesButton({ className }: { className?: string }) {
+export function AttachImagesButton({
+  className,
+  disabled,
+}: {
+  className?: string
+  disabled?: boolean
+}) {
   return (
-    <ComposerPrimitive.AddAttachment asChild>
+    <ComposerPrimitive.AddAttachment asChild disabled={disabled}>
       <AttachButton className={className} />
     </ComposerPrimitive.AddAttachment>
   )

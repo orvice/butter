@@ -218,6 +218,28 @@ export class A2UIStore {
     this.notify()
   }
 
+  // restore makes the store hold a thread's surfaces as a read of the thread
+  // has them: the snapshot's surfaces are applied (applySnapshot), and a
+  // surface the snapshot no longer holds is gone, as the deleteSurface of
+  // the run that removed it would have left it. placed lists the surfaces a
+  // reply of the thread's history shows (markPlaced).
+  restore(snapshot: UISnapshot, placed: Iterable<string>) {
+    const held = new Set((snapshot.surfaces ?? []).map((s) => s.surfaceId))
+    for (const entry of this.entries.values()) {
+      if (entry.deleted || held.has(entry.id)) continue
+      try {
+        this.processor.processMessages([
+          { version: A2UI_VERSION, deleteSurface: { surfaceId: entry.id } },
+        ] as unknown as Parameters<MessageProcessor['processMessages']>[0])
+      } catch {
+        // The renderer may never have created it.
+      }
+      this.entries.set(entry.id, { ...entry, deleted: true })
+    }
+    this.applySnapshot(snapshot)
+    this.markPlaced(placed)
+  }
+
   private async onAction(action: ActionPayload) {
     if (action.name !== SUBMIT_EVENT) return
     const entry = this.entries.get(action.surfaceId)

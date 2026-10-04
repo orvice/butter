@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
   type RefObject,
   type SyntheticEvent,
@@ -81,7 +82,13 @@ import {
 import { AttachImagesButton, ComposerImages } from './composer-attachments'
 import { DraftView, type DraftMessage } from './draft-view'
 import { errorReporter, runStopped, threadRefusal } from './errors'
-import { loadThread, threadRepository, type ThreadHistory } from './history'
+import {
+  loadThread,
+  restoreThread,
+  runningOf,
+  threadReads,
+  type ThreadHistory,
+} from './history'
 import type { LastRun } from './last-run'
 import { LastRunNotice } from './last-run-notice'
 import {
@@ -89,6 +96,7 @@ import {
   ThreadLoading,
   ThreadNotFound,
 } from './open-thread-states'
+import { RunFollower } from './run-follower'
 import { stopper, type LocalRun } from './stop'
 import { useThreadDelete, type SessionAddress } from './thread-delete'
 import { ThreadHeader } from './thread-header'
@@ -427,14 +435,20 @@ function useOwnedA2UIStore(httpAgent: ButterAGUIAgent) {
 // useThreadHistory hydrates the runtime with the thread's conversation. Its
 // history and UI snapshot load together: the surfaces land in the store and
 // each reply shows the ones it produced. The runtime loads once per thread,
-// so StrictMode's rehearsal unmount must not cancel the load; leaving the
-// thread only stops retrying. A failed load goes to onFailed, and the page
-// offers Retry. The history also tells how the thread's last run ended, if
-// it failed or was stopped (readingLastRun, useLastRun).
+// so StrictMode's rehearsal unmount must not cancel the load. A failed load
+// goes to onFailed, and the page offers Retry. The history also tells how
+// the thread's last run ended, if it failed or was stopped (readingLastRun,
+// useLastRun).
+//
+// A run can hold the thread when it opens (ADR-0016 decision 8). The reads
+// then show the thread up to the turn that started the run, and load() has
+// the runtime resume the run: the runtime puts the run's reply, running,
+// under that turn and runs resume(), which hands the run to follower.
 function useThreadHistory(
   agentId: string,
   threadId: string,
   store: A2UIStore,
+  follower: RunFollower,
   onFailed: (err: unknown) => void,
   readingLastRun: () => (history: ThreadHistory) => void
 ): ThreadHistoryAdapter {
@@ -449,26 +463,32 @@ function useThreadHistory(
     () => ({
       async load() {
         try {
-          const read = readingLastRun()
-          const { history, snapshot } = await loadThread(
-            agentId,
-            threadId,
-            () => mounted.current
-          )
-          const { repository, placed } = threadRepository(history, snapshot)
-          store.markPlaced(placed)
-          store.applySnapshot(snapshot)
-          read(history)
-          return repository
+          const takeLastRun = readingLastRun()
+          const read = await loadThread(agentId, threadId)
+          const repository = restoreThread(read, store)
+          takeLastRun(read.history)
+          // unstable_resume goes with a resume(): without one, the runtime
+          // would start a run of its own.
+          return runningOf(read)
+            ? { ...repository, unstable_resume: true }
+            : repository
         } catch (err) {
           if (mounted.current) onFailed(err)
           return { messages: [] }
         }
       },
+      // resume follows the run until it ended. A run the page waits out
+      // shows its end through a new read of the thread, not through updates
+      // of the reply, so nothing is yielded here until live re-attach (#407)
+      // streams the reply.
+      // eslint-disable-next-line require-yield
+      async *resume(options) {
+        await follower.follow(options.abortSignal)
+      },
       // The server keeps the conversation; nothing to write back.
       async append() {},
     }),
-    [agentId, threadId, store, onFailed, readingLastRun]
+    [agentId, threadId, store, follower, onFailed, readingLastRun]
   )
 }
 
@@ -523,7 +543,9 @@ function useFirstMessage(
 // AG-UI client. The page keys it by thread, so it lives exactly as long as
 // that thread is open; openRunRef holds its run meanwhile. Every run outlives
 // its request, so unmounting it, as switching thread, New thread and leaving
-// the page do, only detaches the page from a run: the run goes on.
+// the page do, only detaches the page from a run: the run goes on. A run
+// that holds the thread when it opens is waited out (RunFollower), with the
+// composer disabled until the run ended.
 function AGUIChatWithRuntime({
   openRunRef,
   agentId,
@@ -557,10 +579,15 @@ function AGUIChatWithRuntime({
   // The thread's last run when it failed or was stopped, shown under the
   // conversation.
   const { lastRun, stopped, reading } = useLastRun(httpAgent)
+  const [follower] = useState(
+    () => new RunFollower(threadReads(agentId, threadId))
+  )
+  const waiting = useSyncExternalStore(follower.subscribe, follower.isPolling)
   const history = useThreadHistory(
     agentId,
     threadId,
     store,
+    follower,
     onHistoryFailed,
     reading
   )
@@ -575,26 +602,51 @@ function AGUIChatWithRuntime({
         : { attachments: imageAdapter },
     [readsHistory, history, imageAdapter]
   )
+  // While the page waits out a run, the run holds the thread, so the
+  // composer is disabled: a message would be refused.
   const runtime = useAgUiRuntime({
     agent: httpAgent,
     onError: reportError,
     adapters,
+    isDisabled: waiting,
   })
+  const runSettledRef = useRef(onRunSettled)
+  useEffect(() => {
+    runSettledRef.current = onRunSettled
+  })
+  // Once a run the page waited out ended, the thread shows as a new read has
+  // it: its conversation replaces the runtime's, which drops the reply that
+  // showed as running, and its surfaces replace the store's. Its history
+  // tells how the run ended, if it failed or was stopped (reading). The page
+  // then settles as after a run of its own.
+  useEffect(() => {
+    follower.endWith({
+      show: (read) => {
+        runtime.thread.import(restoreThread(read, store))
+        runSettledRef.current()
+      },
+      failed: onHistoryFailed,
+      reading,
+    })
+  }, [follower, runtime, store, onHistoryFailed, reading])
   useEffect(() => {
     imageAdapter.serve(() => runtime.thread.composer.getState().attachments)
   }, [imageAdapter, runtime])
   useFirstMessage(runtime, firstMessage, onFirstMessageSent, reportError)
 
   // The run as this page follows it. Cancelling it through the runtime
-  // aborts its request, which detaches the page, and ends the reply as
-  // cancelled. Deleting the thread does only that; Stop ends the run on the
-  // server first.
+  // detaches the page: it aborts the run's request, or stops the reads of a
+  // run the page waits out, and ends the reply as cancelled. Deleting the
+  // thread does only that. Stop ends the run on the server first, then
+  // cancels a run the page streams, and waits for the end of one it waits
+  // out (untilEnded).
   const localRun = useMemo<LocalRun>(
     () => ({
       canCancel: () => runtime.thread.composer.getState().canCancel,
       cancel: () => runtime.thread.composer.cancel(),
+      untilEnded: () => follower.untilEnded(),
     }),
-    [runtime]
+    [runtime, follower]
   )
   useEffect(() => {
     openRunRef.current = localRun
@@ -603,7 +655,8 @@ function AGUIChatWithRuntime({
     }
   }, [openRunRef, localRun])
   // A Stop that ends the run here shows it as stopped: its stream may end
-  // before it says so.
+  // before it says so. A run the page waits out is not ended here: the read
+  // that shows its end tells how it ended (lastRun).
   const stop = useMemo(
     () =>
       stopper(() => stopAGUIRun(agentId, threadId), {
@@ -612,14 +665,11 @@ function AGUIChatWithRuntime({
           localRun.cancel()
           stopped()
         },
+        untilEnded: localRun.untilEnded,
       }),
     [agentId, threadId, localRun, stopped]
   )
 
-  const runSettledRef = useRef(onRunSettled)
-  useEffect(() => {
-    runSettledRef.current = onRunSettled
-  })
   useEffect(() => {
     const sub = httpAgent.subscribe({
       onRunFinalized: () => {
@@ -634,7 +684,10 @@ function AGUIChatWithRuntime({
       <A2UIStoreContext.Provider value={store}>
         <FormSubmitBridge store={store} httpAgent={httpAgent} />
         {/* Images dropped anywhere on the conversation go to the composer. */}
-        <ComposerPrimitive.AttachmentDropzone className='flex min-h-0 flex-1 flex-col data-[dragging=true]:ring-2 data-[dragging=true]:ring-ring/50 data-[dragging=true]:ring-inset'>
+        <ComposerPrimitive.AttachmentDropzone
+          disabled={waiting}
+          className='flex min-h-0 flex-1 flex-col data-[dragging=true]:ring-2 data-[dragging=true]:ring-ring/50 data-[dragging=true]:ring-inset'
+        >
           <ThreadArea
             agent={agent}
             httpAgent={httpAgent}
@@ -810,7 +863,10 @@ const FADE_IN_LATE = 'animate-in fade-in fill-mode-both delay-150 duration-300'
 // ThreadArea shows the conversation. Each reply carries the agent's avatar
 // and name; a skeleton stands in while the history loads, and a thread
 // without messages introduces the agent. A last run that failed or was
-// stopped shows under it.
+// stopped shows under it. A thread that opened during a run still loads
+// until the page waited the run out, but it shows its conversation and the
+// run's reply as running meanwhile, so the skeleton stands in only for a
+// thread with no messages yet.
 function ThreadArea({
   agent,
   httpAgent,
@@ -834,7 +890,11 @@ function ThreadArea({
       <ThreadErrorBoundary>
         <ThreadPrimitive.Root className='flex-1 overflow-y-auto px-4 py-4'>
           <ThreadPrimitive.Viewport className='mx-auto flex max-w-3xl flex-col gap-3'>
-            <AuiIf condition={(s) => s.thread.isLoading}>
+            <AuiIf
+              condition={(s) =>
+                s.thread.isLoading && s.thread.messages.length === 0
+              }
+            >
               <ThreadSkeleton className={FADE_IN_LATE} />
             </AuiIf>
             <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -983,7 +1043,8 @@ function SharedStatePanel() {
 // ordinary send, so the message goes out as a plain message instead, and the
 // server takes its text as the answer to its earliest open question
 // (ADR-0002), its images going with it. A hint says so. While a run goes on,
-// Stop takes Send's place.
+// Stop takes Send's place. While the page waits out a run, the composer is
+// disabled, images included.
 function ComposerArea({
   httpAgent,
   imageAdapter,
@@ -996,6 +1057,7 @@ function ComposerArea({
   onStop: () => Promise<void>
 }) {
   const answering = useAgUiInterrupts().length > 0
+  const disabled = useAuiState((s) => s.thread.isDisabled)
   const replies = useReplies(httpAgent, onSendError)
   const aui = useAui()
   const hintId = useId()
@@ -1047,7 +1109,7 @@ function ComposerArea({
         onSubmit={sendAsAnswer}
         className='mx-auto flex max-w-3xl items-end gap-2'
       >
-        <AttachImagesButton className='size-9' />
+        <AttachImagesButton className='size-9' disabled={disabled} />
         <ComposerPrimitive.Input
           autoFocus
           placeholder='Message the agent over AG-UI…'

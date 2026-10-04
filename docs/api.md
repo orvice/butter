@@ -1432,6 +1432,18 @@ together, as AG-UI Chat does, can compare their `running` to tell whether a
 run started or ended in between. Runs without the opt-in are read the same
 way: their threads no longer answer `409` to reads either.
 
+AG-UI Chat treats a thread as running when either read names a run. It does
+not [attach](#attaching-to-a-run) yet; it waits the run out, which is the
+fallback a typical client uses. It shows the conversation the reads return
+with the run's reply as running, and keeps the composer disabled. It then
+reads the history again with backoff (one second, then doubling up to five),
+and once the history names no run, the snapshot too. When neither names a run, it shows the thread as that read has
+it. A Stop sent meanwhile has the next read go out at once. While it waits,
+a read that fails with `502`, `503` or `504`, or gets no answer, is tried
+again; any other failure ends the wait, and the page offers Retry. The read
+that opens the thread is never tried again on its own, and no read is retried
+on a `409`.
+
 #### Not supported yet
 
 These are rejected with `400` rather than silently ignored, so a client never

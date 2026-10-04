@@ -1,3 +1,5 @@
+import type { AGUIRunningRun } from '@/api/agui'
+
 // Butter's A2UI-over-AG-UI contract (docs/api.md, "A2UI surfaces"). AG-UI
 // stays the transport: each A2UI v0.9.1 message arrives as one CUSTOM event
 // named EVENT_NAME, and the UI snapshot endpoint returns the same envelopes
@@ -75,6 +77,9 @@ export interface UISnapshot {
   catalogId: string
   threadId: string
   surfaces: SnapshotSurface[]
+  // running names the run in flight: the surfaces are then those the run
+  // found, and the forms still open after its first turn.
+  running?: AGUIRunningRun
 }
 
 export function isA2UIEventValue(v: unknown): v is A2UIEventValue {

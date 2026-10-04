@@ -150,10 +150,19 @@ export function applyAGUIStateDelta(
   return next
 }
 
+// AGUIRunningRun is the run a thread read found in flight (`running`). The
+// read then shows the thread as the run found it, plus the turn that started
+// it (docs/api.md "Reads during a run").
+export interface AGUIRunningRun {
+  runId: string
+  invocationId: string
+}
+
 // fetchAGUIUISnapshot reads a thread's current A2UI surfaces — read-only
 // cards and unanswered forms — rebuilt from the persisted session, without
 // starting a run. A thread the caller does not own, or one without UI,
-// answers with no surfaces. 409 means a run holds the thread: retry.
+// answers with no surfaces. It never waits for a run: during one it answers
+// at once, with `running` and the surfaces as the run found them.
 export function fetchAGUIUISnapshot<T>(
   agentId: string,
   threadId: string,
@@ -165,8 +174,9 @@ export function fetchAGUIUISnapshot<T>(
 // fetchAGUIThreadHistory reads a thread's conversation as AG-UI messages,
 // with its open Interrupts and the reply each restorable surface belongs
 // to, rebuilt from the persisted session without starting a run. A thread
-// the caller does not own answers with an empty history. 409 means a run
-// holds the thread: retry.
+// the caller does not own answers with an empty history. It never waits for
+// a run: during one it answers at once, with `running` and the conversation
+// up to the turn that started the run.
 export function fetchAGUIThreadHistory<T>(
   agentId: string,
   threadId: string,
