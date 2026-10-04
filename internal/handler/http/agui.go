@@ -64,10 +64,15 @@ type AGUIRunnerService = streamorch.Runner
 type AGUIHandler struct {
 	agentRepo configrepo.AgentRepository
 
-	mu           sync.RWMutex
-	runnerSvc    AGUIRunnerService
-	sessionGuard sessionguard.Guard
-	sessionSvc   session.Service
+	mu            sync.RWMutex
+	runnerSvc     AGUIRunnerService
+	sessionGuard  sessionguard.Guard
+	sessionSvc    session.Service
+	sessionTitler AGUISessionTitler
+
+	// titles tracks background thread titles in flight, so tests can wait
+	// for them.
+	titles sync.WaitGroup
 }
 
 // NewAGUIHandler creates an AG-UI handler with the given agent repository.
@@ -261,6 +266,12 @@ func (h *AGUIHandler) RunAgent(c *gin.Context) {
 		streamorch.AgentRef{Name: rc.agent.GetName(), ID: rc.agent.GetAgentId()},
 		rc.parts, "", rc.ctxInfo, sink)
 	if runErr == nil {
+		// A successful run titles a thread that has none, in the background:
+		// the client need not stay for it, and the next run on the thread
+		// need not wait for it.
+		if !aguiThreadTitled(ui.sess) {
+			h.titleThread(c.Request.Context(), rc.ctxInfo)
+		}
 		return
 	}
 	// A cancelled lease context with a live request means the lease was lost

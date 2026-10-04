@@ -235,15 +235,48 @@ test.describe('AG-UI threads', () => {
     ])
     await expect(list.getByText('No threads with this agent yet.')).toBeVisible()
 
-    // The deleted thread is gone: the next message starts a new one, and its
-    // first run asks the server to title it.
+    // The deleted thread is gone: the next message starts a new one.
     await send(page, 'hello again')
     await expect(page.getByText('Fresh start.')).toBeVisible()
     const newThreadId = fixture.requests[0].threadId as string
     expect(newThreadId).not.toBe('t-trip')
-    await expect
-      .poll(() => calls.generated)
-      .toEqual([`agui-${newThreadId}`])
+  })
+
+  test('shows the title the server gives a new thread, without asking for one', async ({
+    page,
+  }) => {
+    const fixture = await setupAGUI(page, { runs: [reply('Here is a plan.')] })
+    const sessions: SessionInfo[] = []
+    const calls = await setupThreads(page, sessions)
+    // Like the server, the run creates the thread's session, untitled.
+    await page.route('**/api/agui/*', async (route) => {
+      if (route.request().method() === 'POST') {
+        const { threadId } = route.request().postDataJSON() as {
+          threadId: string
+        }
+        sessions.push(aguiThread(threadId, '', { agentId: 'streamer-id' }, 0))
+      }
+      await route.fallback()
+    })
+
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    const list = page.getByRole('complementary', { name: 'Threads' })
+    await expect(list.getByText('No threads with this agent yet.')).toBeVisible()
+
+    await send(page, 'Plan a trip to Kyoto')
+    await expect(page.getByText('Here is a plan.')).toBeVisible()
+    // The list read when the run ends shows the thread before its title.
+    await expect(
+      list.getByRole('button', { name: 'Untitled thread' })
+    ).toBeVisible()
+
+    // The server stores the title after the run; the list catches up.
+    sessions[0].title = 'Kyoto trip'
+    await expect(list.getByRole('button', { name: 'Kyoto trip' })).toBeVisible(
+      { timeout: 15_000 }
+    )
+    expect(calls.generated).toEqual([])
+    expect(fixture.requests).toHaveLength(1)
   })
 
   test('restores a thread’s conversation when it opens, and sends only the new message', async ({

@@ -729,6 +729,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	// StreamAgent and InvokeAgent run turns on sessions, so they answer to
 	// the same session access policy as ReplySession.
 	agentSvcServer.SetSessionAuthorizer(sessionSvcServer)
+	// A successful AG-UI run titles an untitled thread on the server.
+	aguiHandler.SetSessionTitler(sessionSvcServer)
 	sessionConnectPath, sessionConnectHandler := agentsv1connect.NewSessionServiceHandler(sessionSvcServer, connectOpts...)
 	cronSvcServer := application.NewCronJobServiceServer()
 	cronConnectPath, cronConnectHandler := agentsv1connect.NewCronJobServiceHandler(cronSvcServer, connectOpts...)

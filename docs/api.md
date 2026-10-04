@@ -695,6 +695,14 @@ running unserialized. A run that loses its lease mid-flight (Pod pause longer
 than the lease TTL) is cancelled and reported in-band as a `RUN_ERROR`
 mentioning the lost lease; the client may retry on the same `threadId`.
 
+A thread is titled by the server. After a successful run, a session that has
+no title yet gets one in the background, generated as by
+[`GenerateSessionTitle`](#generatesessiontitle); a failed run adds none, and an
+existing title, including one set with `UpdateSessionTitle`, is never
+replaced. Neither the response nor the thread's next run waits for the title,
+so it shows in `ListSessions` (app `agui`) a moment after the run ends.
+Clients need not call `GenerateSessionTitle` for AG-UI threads.
+
 #### Human-in-the-loop
 
 When a Workflow Agent pauses on a Human Input node, the run ends with an
@@ -3330,9 +3338,12 @@ POST /api/agents.v1.SessionService/GenerateSessionTitle
 Derives a best-effort title from the first conversation turn and persists it
 only while no **effective** title exists (first-class `title`, legacy
 `state["title"]`, or a title set concurrently via `UpdateSessionTitle`).
-The dashboard chat UI calls this after the first `StreamAgent` turn completes
-(`final` received and session refetched). Duplicate calls return the existing
-title with `generated: false`.
+Duplicate calls return the existing title with `generated: false`.
+
+Butter titles some sessions itself, with the same generation and without this
+call: an async chat invocation's session after it succeeds, and an AG-UI
+thread after a successful run (see the AG-UI [Sessions](#sessions) section).
+Call this for any other session.
 
 **Request:**
 
@@ -3393,7 +3404,7 @@ output fall back to deterministic truncation.
 
 | Aspect | Behavior |
 |--------|----------|
-| When billed | At most one extra provider API call per successful first-turn title attempt (only when the LLM path runs and the session still has no effective title) |
+| When billed | At most one extra provider API call per title attempt: a `GenerateSessionTitle` call, or the server's own attempt after a successful async chat invocation or AG-UI run (only when the LLM path runs and the session still has no effective title) |
 | What is sent | Truncated first user + assistant text and fixed title instructions — not the full session history |
 | Workspace scope | Provider credentials and alias resolution use the **agent's workspace**, not the caller's `X-Workspace-ID` (session CRUD is not workspace-scoped) |
 | Side effects | Does **not** append session events, record an `Invocation`, mutate ADK memory, or change `last_update_time`; only CAS-writes `adk_sessions.title` when empty |

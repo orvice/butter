@@ -267,10 +267,16 @@ WatchAgentInvocation handler（internal/application/agent_watch.go）
 
 ## Session 标题生成（LLM）
 
-Web Chat 首轮异步 Invocation 成功后，`asyncrun.Coordinator` 调用 `SessionServiceServer.AsyncTurnComplete`，由服务端触发 `SessionService.GenerateSessionTitle`；标题生成不阻塞 Invocation 终态持久化。实现位于 `internal/application/session_async_title.go`、`session_service.go` 与 `session_title_llm.go`。
+标题生成与鉴权分开：`SessionServiceServer.TitleSession` 只负责生成并存储标题，不做鉴权。三个入口都调用它：
+
+- **Web Chat**：异步 Invocation 成功后，`asyncrun.Coordinator` 以 `context.Background()` 调用 `SessionServiceServer.AsyncTurnComplete`，后者直接调用 `TitleSession`（Invocation 提交时已鉴权）；标题生成不阻塞 Invocation 终态持久化。
+- **AG-UI**：run 成功、且 thread 的 session 在 run 开始时没有标题，handler 就在后台调用 `TitleSession`（`internal/handler/http/agui_title.go`）。它用脱离请求的 context（`context.WithoutCancel`，30 秒超时），不持有 thread lease，响应和该 thread 的下一次 run 都不等它。失败的 run 不生成标题。
+- **`GenerateSessionTitle` RPC**：先做 self-only 鉴权（非 admin 只能为自己的 session 生成），再调用 `TitleSession`。
+
+实现位于 `internal/application/session_async_title.go`、`session_service.go` 与 `session_title_llm.go`。
 
 ```text
-GenerateSessionTitle
+TitleSession
   -> load session + all events
   -> if effective title exists (first-class / legacy state["title"]): return generated=false
   -> titleGenerator.generate (when resolver + provider lister wired):
@@ -291,7 +297,7 @@ GenerateSessionTitle
 
 **与 Runner 的边界：** 标题生成不走 `runner.Service.Run`，不执行 ADK agent、工具或 workflow；是一次独立的 `internalagent.ResolveModel` + `GenerateContent` 调用。
 
-**装配：** `internal/app/routes.go` 从 YAML `chat_title_model` 调用 `SetChatTitleModel`；`channels.go` 把 `runner.Service` 作为 `TitleModelResolver`、config repo 作为 `WorkspaceModelProviderLister` 注入 `SessionServiceServer`。
+**装配：** `internal/app/routes.go` 从 YAML `chat_title_model` 调用 `SetChatTitleModel`，并把 `SessionServiceServer` 作为 `AGUISessionTitler` 注入 AG-UI handler；`channels.go` 把 `runner.Service` 作为 `TitleModelResolver`、config repo 作为 `WorkspaceModelProviderLister` 注入 `SessionServiceServer`。
 
 **副作用约束：** 不追加 session events、不写 `invocations`、不碰 ADK memory、不更新 `last_update_time`。手动 `UpdateSessionTitle` 与并发 CAS 保证 manual-title-wins。
 

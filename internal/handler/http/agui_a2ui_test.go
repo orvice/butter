@@ -51,7 +51,10 @@ type a2uiHarness struct {
 	backend  *openaifake.Backend
 	sessions adksession.Service
 	router   *gin.Engine
+	handler  *AGUIHandler
 	guard    *fakeSessionGuard
+	// titler, when set before build, titles threads after successful runs.
+	titler AGUISessionTitler
 	// dropCustom makes every CUSTOM frame fail to send, as a client that
 	// disconnects mid-stream would, after the server already persisted it.
 	dropCustom bool
@@ -127,7 +130,11 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 	handler.SetRunnerService(svc)
 	handler.SetSessionService(h.sessions)
 	handler.SetSessionGuard(h.guard)
+	if h.titler != nil {
+		handler.SetSessionTitler(h.titler)
+	}
 	handler.Register(r)
+	h.handler = handler
 	return r
 }
 

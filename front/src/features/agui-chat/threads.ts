@@ -8,6 +8,11 @@ import type { SessionInfo } from '@/types/api'
 export const AGUI_APP_NAME = 'agui'
 // THREAD_PAGE_SIZE is one page of the thread listing, which reads every page.
 export const THREAD_PAGE_SIZE = 100
+// TITLE_REFRESH_DELAYS_MS are when the thread list is read again after a run
+// on an untitled thread. The server titles the thread in the background once
+// the run succeeds: within moments, or after a title model call that gives up
+// after 10 seconds.
+export const TITLE_REFRESH_DELAYS_MS = [3_000, 12_000]
 const SESSION_PREFIX = 'agui-'
 const BINDING_KEY = 'butter:a2ui:binding'
 

@@ -25,6 +25,8 @@ type stubTitleStore struct {
 	// existingTitle simulates a pre-existing title for CAS tests.
 	existingTitle string
 	casCalled     int
+	// casSession is the app/user/session the last CAS addressed.
+	casSession string
 }
 
 func (s *stubTitleStore) SetSessionTitle(_ context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, error) {
@@ -46,6 +48,7 @@ func (s *stubTitleStore) SetSessionTitle(_ context.Context, appName, userID, ses
 
 func (s *stubTitleStore) SetSessionTitleIfEmpty(_ context.Context, appName, userID, sessionID, title string) (*agentsv1.SessionInfo, bool, error) {
 	s.casCalled++
+	s.casSession = appName + "/" + userID + "/" + sessionID
 	if s.setErr != nil {
 		return nil, false, s.setErr
 	}
