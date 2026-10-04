@@ -22,6 +22,20 @@ function errorMessage(err: unknown): string {
   return 'AG-UI request failed'
 }
 
+// STOPPED_CODE is the code of the RUN_ERROR that ends a stopped run
+// (docs/api.md "Stopping a run").
+const STOPPED_CODE = 'stopped'
+
+// runStopped reports whether err ended a run that a person stopped: from
+// this page's Stop, or from anywhere else. The AG-UI runtime reports a
+// RUN_ERROR as an Error that carries the event's code. A stopped run did not
+// fail, so it is not reported as a failure.
+export function runStopped(err: unknown): boolean {
+  return (
+    err instanceof Error && (err as { code?: unknown }).code === STOPPED_CODE
+  )
+}
+
 // The server refuses a run before its stream opens, with 403, when the
 // thread cannot be used from here (docs/api.md, AG-UI Sessions): another
 // user holds the threadId, it is the caller's own thread from another

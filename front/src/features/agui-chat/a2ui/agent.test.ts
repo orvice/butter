@@ -243,4 +243,41 @@ describe('ButterAGUIAgent', () => {
     await a.runAgent({})
     expect(bodies[0].messages).toEqual([result('call-1')])
   })
+
+  it('asks every run to detach, next to A2UI and what the runtime forwards', async () => {
+    const { agent: a, bodies } = agent()
+    a.messages = [user('u1', 'hi')]
+    await a.runAgent({ forwardedProps: { fromRuntime: true } })
+    expect(bodies[0].forwardedProps).toEqual({
+      fromRuntime: true,
+      butterA2UI: { version: 'v0.9.1', catalogs: ['butter-basic-v1'] },
+      butterRun: { detach: true },
+    })
+  })
+
+  it('asks to detach whatever the run carries', async () => {
+    const { agent: a, bodies } = agent()
+    // An answer to one open Interrupt.
+    a.pendingInterrupts = open('a', 'b')
+    a.resumeNextRunWith('b', '2.4.1')
+    await a.runAgent({ resume: steerAway('a', 'b') })
+    // A message the server takes as the answer to its oldest Interrupt.
+    a.pendingInterrupts = open('a')
+    a.sendNextRunAsMessage()
+    await a.runAgent({ resume: steerAway('a') })
+    // A continuation after frontend tool calls.
+    a.pendingInterrupts = []
+    a.messages = [
+      user('u1', 'book it'),
+      reply('a1', 'call-1'),
+      result('call-1'),
+    ]
+    await a.runAgent({})
+    expect(bodies).toHaveLength(3)
+    for (const body of bodies) {
+      expect(body.forwardedProps).toMatchObject({
+        butterRun: { detach: true },
+      })
+    }
+  })
 })

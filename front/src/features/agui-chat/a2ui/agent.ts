@@ -59,12 +59,22 @@ export function runMessages(messages: readonly Message[]): Message[] {
   return []
 }
 
+// DETACHED_RUN asks the server for a Detached Run (ADR-0016 decision 1,
+// docs/api.md "Detached runs"): the run, not its request, holds the thread,
+// so it keeps going when the page stops following it.
+export const DETACHED_RUN = { detach: true } as const
+
 // ButterAGUIAgent is the dashboard's HttpAgent. Every run declares A2UI
 // support in forwardedProps, which selects the server's built-in catalog and
 // makes the run's RUN_FINISHED list every Interrupt still open. A run armed
 // while Interrupts are open answers one of them: the one it addresses, or the
 // server's oldest. A request carries only the messages the server reads
 // (runMessages); the client keeps the whole transcript.
+//
+// Every run also asks to detach (DETACHED_RUN). Aborting its request, which
+// is what leaving the page, switching thread and New thread do, then only
+// detaches this page from the run. Stop ends the run on the server first
+// (stopAGUIRun), and deleting the thread leaves that to the server.
 //
 // The AG-UI client and the assistant-ui runtime both assume a resume
 // resolves every open interrupt at once: the client refuses to start a run
@@ -115,6 +125,7 @@ export class ButterAGUIAgent extends HttpAgent {
         ...((input.forwardedProps as Record<string, unknown> | undefined) ??
           {}),
         butterA2UI: A2UI_CAPABILITY,
+        butterRun: DETACHED_RUN,
       },
     }
     const next = this.nextRun

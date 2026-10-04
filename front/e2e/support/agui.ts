@@ -31,6 +31,11 @@ import {
 // traffic. SessionService holds the caller's `agui` sessions: a run on a
 // thread without one creates it, bound to the run's workspace and agent, as
 // the server does.
+//
+// Runs are detached (ADR-0016): an open run stays in flight until a Stop on
+// its thread, POST .../threads/:id/stop, ends it as the server would, or the
+// test ends it. The page aborting a run's request only detaches it, so the
+// run stays open meanwhile, as on the server.
 
 export const USER_ID = 'test-user-1'
 
@@ -50,11 +55,41 @@ export interface DelayedRun {
   sse: string
 }
 
-export type RunResponse = string | RunRejection | DelayedRun
+// A run that stays in flight until it ends: by a Stop on its thread, or by
+// the test (AGUIFixture.endOpenRun). Its stream is sent when it ends.
+export interface OpenRun {
+  open: true
+}
+
+export type RunResponse = string | RunRejection | DelayedRun | OpenRun
+
+// StopResponse answers one Stop. Without one, a Stop that finds an open run
+// on its thread is accepted with 202, and the run's stream then ends as a
+// stopped run's does (stoppedRun); any other Stop is answered 204.
+export interface StopResponse {
+  status: number
+  body?: Record<string, unknown>
+  // until holds the answer back until it resolves.
+  until?: Promise<void>
+}
 
 export interface SnapshotResponse {
   status?: number
   body?: Record<string, unknown>
+}
+
+// stoppedRun is the stream of a run a Stop reached: it ends with RUN_ERROR
+// and the stop code (docs/api.md "Stopping a run").
+export function stoppedRun(threadId: string, runId: string): string {
+  return sse([
+    { type: 'RUN_STARTED', threadId, runId },
+    {
+      type: 'RUN_ERROR',
+      code: 'stopped',
+      message: 'stopped by user',
+      runId,
+    },
+  ])
 }
 
 // SessionCalls records what the page asked SessionService to do.
@@ -77,6 +112,16 @@ export interface AGUIFixture {
   runURLs: string[]
   snapshotRequests: string[]
   historyRequests: string[]
+  // stops answers Stop requests in order, ahead of the default answer.
+  stops: StopResponse[]
+  // stopRequests holds the URL of each Stop request, in order.
+  stopRequests: string[]
+  // abortedRuns holds the threadId of each run request the page aborted,
+  // which detaches the page from the run.
+  abortedRuns: string[]
+  // endOpenRun ends the open run on threadId with the stream sse, if one is
+  // open, as the server ends a run.
+  endOpenRun: (threadId: string, sse: string) => void
   // sessions are the caller's sessions, newest first.
   sessions: SessionInfo[]
   sessionCalls: SessionCalls
@@ -154,9 +199,19 @@ export function threadInURL(page: Page): string | null {
 
 export async function setupAGUI(
   page: Page,
-  fixture: Partial<AGUIFixture> & { runs: RunResponse[] },
+  fixture: Partial<Omit<AGUIFixture, 'endOpenRun'>> & { runs: RunResponse[] },
   options: ConnectFixtureOptions = {}
 ): Promise<AGUIFixture> {
+  // The open run of each thread: its runId, and how to end its stream.
+  const openRuns = new Map<
+    string,
+    { runId: string; end: (sse: string) => void }
+  >()
+  const endOpenRun = (threadId: string, body: string) => {
+    const run = openRuns.get(threadId)
+    openRuns.delete(threadId)
+    run?.end(body)
+  }
   const state: AGUIFixture = {
     runs: fixture.runs,
     snapshots: fixture.snapshots ?? [],
@@ -166,6 +221,10 @@ export async function setupAGUI(
     runURLs: fixture.runURLs ?? [],
     snapshotRequests: fixture.snapshotRequests ?? [],
     historyRequests: fixture.historyRequests ?? [],
+    stops: fixture.stops ?? [],
+    stopRequests: fixture.stopRequests ?? [],
+    abortedRuns: fixture.abortedRuns ?? [],
+    endOpenRun,
     sessions: fixture.sessions ?? [],
     sessionCalls: {
       lists: [],
@@ -229,9 +288,47 @@ export async function setupAGUI(
     options
   )
 
+  // A run request the page aborts is how it detaches from the run.
+  page.on('requestfailed', (request) => {
+    if (request.method() !== 'POST' || !isRunPath(request.url())) return
+    const input = JSON.parse(request.postData() ?? '{}')
+    state.abortedRuns.push(String(input.threadId ?? ''))
+  })
+
   await page.route('**/api/agui/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
+    if (request.method() === 'POST' && path.endsWith('/stop')) {
+      state.stopRequests.push(request.url())
+      const threadId = decodeURIComponent(path.split('/').at(-2) ?? '')
+      const open = openRuns.get(threadId)
+      const answer: StopResponse = state.stops.shift() ?? {
+        status: open ? 202 : 204,
+      }
+      if (answer.until) await answer.until
+      if (answer.status === 204) {
+        await route.fulfill({ status: 204 })
+        return
+      }
+      const accepted = answer.status === 202 && open !== undefined
+      await route.fulfill({
+        status: answer.status,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          answer.body ??
+            (accepted
+              ? {
+                  threadId,
+                  runId: open.runId,
+                  invocationId: `inv-${open.runId}`,
+                }
+              : {})
+        ),
+      })
+      // The run a Stop reached ends shortly after, with the stop code.
+      if (accepted) endOpenRun(threadId, stoppedRun(threadId, open.runId))
+      return
+    }
     if (request.method() === 'GET' && path.endsWith('/messages')) {
       state.historyRequests.push(request.url())
       const threadId = decodeURIComponent(path.split('/').at(-2) ?? '')
@@ -260,17 +357,28 @@ export async function setupAGUI(
     state.requests.push(input)
     state.runURLs.push(request.url())
     const next = state.runs.shift() ?? sse([])
-    if (typeof next === 'string' || 'delayMs' in next) {
+    const threadId = String(input.threadId ?? '')
+    if (typeof next === 'string' || !('status' in next)) {
       // The server creates a new thread's session before the stream opens.
       const agentId = decodeURIComponent(path.split('/').at(-1) ?? '')
       const workspaceId =
         (await request.headerValue('x-workspace-id')) ?? 'default'
-      const threadId = String(input.threadId ?? '')
       if (!state.sessions.some((s) => s.sessionId === `agui-${threadId}`)) {
         state.sessions.unshift(
           aguiSession(threadId, '', { agentId, workspaceId })
         )
       }
+    }
+    if (typeof next !== 'string' && 'open' in next) {
+      const body = await new Promise<string>((end) =>
+        openRuns.set(threadId, { runId: String(input.runId ?? ''), end })
+      )
+      // The page may have aborted the request meanwhile: then nothing reads
+      // the stream.
+      await route
+        .fulfill({ status: 200, contentType: 'text/event-stream', body })
+        .catch(() => {})
+      return
     }
     if (typeof next !== 'string' && 'delayMs' in next) {
       await new Promise((resolve) => setTimeout(resolve, next.delayMs))
@@ -296,6 +404,12 @@ export async function setupAGUI(
     })
   })
   return state
+}
+
+// isRunPath reports whether url is the endpoint that runs an agent, POST
+// /api/agui/:agent_id.
+function isRunPath(url: string): boolean {
+  return /^\/api\/agui\/[^/]+$/.test(new URL(url).pathname)
 }
 
 // answerSessions answers SessionService from state.sessions the way the
