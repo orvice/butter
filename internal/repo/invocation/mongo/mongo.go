@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -25,13 +26,28 @@ const collectionName = "invocations"
 // Records keep the canonical protojson payload in `spec` and denormalize the
 // indexable identifiers (workspace_id, agent_name, session_id, started_at)
 // into top-level fields so List queries can do exact-match BSON filters
-// instead of regex scans over the JSON blob.
+// instead of regex scans over the JSON blob. The owner stamp lives only in the
+// top-level `owner` field, never in `spec`, so it stays out of API responses.
 type Store struct {
 	coll *mongo.Collection
+	// owner is the instance ID stamped on the records this store creates.
+	owner string
+	// beforeFail runs between selecting a stale record and failing it. Tests
+	// use it to race a save against a sweep.
+	beforeFail func()
 }
 
 type doc struct {
-	ID          string    `bson:"_id"`
+	ID string `bson:"_id"`
+	// Fields is named, not embedded: the bson codec skips an embedded field
+	// whose type is unexported.
+	Fields fields `bson:",inline"`
+	// Owner is written once, when Save creates the record (#390).
+	Owner string `bson:"owner,omitempty"`
+}
+
+// fields are what every Save rewrites.
+type fields struct {
 	WorkspaceID string    `bson:"workspace_id,omitempty"`
 	AgentName   string    `bson:"agent_name,omitempty"`
 	AgentID     string    `bson:"agent_id,omitempty"`
@@ -42,11 +58,28 @@ type doc struct {
 	Spec        string    `bson:"spec"`
 }
 
+var _ invocation.Repository = (*Store)(nil)
+
+// New returns a store whose records carry no owner stamp.
 func New(db *mongo.Database) *Store {
 	return &Store{coll: db.Collection(collectionName)}
 }
 
-// EnsureIndexes creates the indexes used by List and ListRecent queries.
+// WithOwner returns a store over the same collection that stamps each record
+// it creates with owner: the instance ID of the process that runs it.
+func (s *Store) WithOwner(owner string) *Store {
+	return &Store{coll: s.coll, owner: owner}
+}
+
+func activeStatuses() []string {
+	return []string{
+		agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED.String(),
+		agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING.String(),
+	}
+}
+
+// EnsureIndexes creates the indexes used by the List, ListRecent and
+// stale-sweep queries.
 func (s *Store) EnsureIndexes(ctx context.Context) error {
 	_, err := s.coll.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "started_at", Value: -1}}},
@@ -57,6 +90,9 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "request_id", Value: 1}},
 			Options: options.Index().SetUnique(true).SetPartialFilterExpression(bson.M{"request_id": bson.M{"$gt": ""}})},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "status", Value: 1}}},
+		// Every Pod's periodic stale sweep reads the active records and their
+		// owners.
+		{Keys: bson.D{{Key: "status", Value: 1}, {Key: "owner", Value: 1}}},
 	})
 	if err != nil {
 		return fmt.Errorf("create invocation indexes: %w", err)
@@ -64,13 +100,15 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 	return nil
 }
 
+// Save upserts the record. The owner stamp is set only when the record is
+// created, so a later save from any process (a terminal status, a redaction)
+// keeps it.
 func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 	b, err := protojson.Marshal(inv)
 	if err != nil {
 		return fmt.Errorf("marshal invocation: %w", err)
 	}
-	d := doc{
-		ID:          inv.GetId(),
+	f := fields{
 		WorkspaceID: inv.GetWorkspaceId(),
 		AgentName:   inv.GetAgentName(),
 		AgentID:     inv.GetAgentId(),
@@ -80,9 +118,13 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 		Spec:        string(b),
 	}
 	if ts := inv.GetStartedAt(); ts != nil {
-		d.StartedAt = ts.AsTime()
+		f.StartedAt = ts.AsTime()
 	}
-	_, err = s.coll.ReplaceOne(ctx, bson.M{"_id": inv.GetId()}, d, options.Replace().SetUpsert(true))
+	update := bson.M{"$set": f}
+	if s.owner != "" {
+		update["$setOnInsert"] = bson.M{"owner": s.owner}
+	}
+	_, err = s.coll.UpdateOne(ctx, bson.M{"_id": inv.GetId()}, update, options.UpdateOne().SetUpsert(true))
 	if err != nil {
 		return fmt.Errorf("upsert invocation: %w", err)
 	}
@@ -274,10 +316,7 @@ func (s *Store) FindActiveBySession(ctx context.Context, workspaceID, sessionID 
 	err := s.coll.FindOne(ctx, bson.M{
 		"workspace_id": workspaceID,
 		"session_id":   sessionID,
-		"status": bson.M{"$in": []string{
-			agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED.String(),
-			agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING.String(),
-		}},
+		"status":       bson.M{"$in": activeStatuses()},
 	}).Decode(&d)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -288,32 +327,80 @@ func (s *Store) FindActiveBySession(ctx context.Context, workspaceID, sessionID 
 	return decode(&d)
 }
 
-func (s *Store) MarkStaleRunning(ctx context.Context, reason string) (int64, error) {
-	// The authoritative record is the protojson Spec — a blind $set on the
-	// doc-level status query field would leave decoded reads still QUEUED or
-	// RUNNING. Rewrite each stale record through Save instead.
-	filter := bson.M{"status": bson.M{"$in": []string{
-		agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED.String(),
-		agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING.String(),
-	}}}
-	cursor, err := s.coll.Find(ctx, filter)
-	if err != nil {
-		return 0, fmt.Errorf("find stale running invocations: %w", err)
+func (s *Store) ActiveOwners(ctx context.Context) ([]string, error) {
+	result := s.coll.Distinct(ctx, "owner", bson.M{"status": bson.M{"$in": activeStatuses()}})
+	var values []any
+	if err := result.Decode(&values); err != nil {
+		return nil, fmt.Errorf("list owners of active invocations: %w", err)
 	}
-	defer cursor.Close(ctx)
-	stale, err := drain(ctx, cursor)
+	owners := make([]string, 0, len(values))
+	for _, v := range values {
+		if owner, ok := v.(string); ok && owner != "" {
+			owners = append(owners, owner)
+		}
+	}
+	sort.Strings(owners)
+	return owners, nil
+}
+
+func (s *Store) MarkStaleRunning(ctx context.Context, sel invocation.StaleSelection) (int64, error) {
+	var stale bson.A
+	if len(sel.LostOwners) > 0 {
+		stale = append(stale, bson.M{"owner": bson.M{"$in": sel.LostOwners}})
+	}
+	if !sel.LegacyBefore.IsZero() {
+		// A null in $in also matches a missing field: records from before
+		// owner stamps have none.
+		stale = append(stale, bson.M{
+			"owner": bson.M{"$in": bson.A{nil, ""}},
+			"$or": bson.A{
+				bson.M{"started_at": bson.M{"$lt": sel.LegacyBefore}},
+				bson.M{"started_at": bson.M{"$exists": false}},
+			},
+		})
+	}
+	if len(stale) == 0 {
+		return 0, nil
+	}
+	cursor, err := s.coll.Find(ctx, bson.M{"status": bson.M{"$in": activeStatuses()}, "$or": stale})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("find stale invocations: %w", err)
+	}
+	var docs []doc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return 0, fmt.Errorf("decode stale invocations: %w", err)
+	}
+	if s.beforeFail != nil {
+		s.beforeFail()
 	}
 	var count int64
-	for _, inv := range stale {
-		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-		inv.Error = reason
-		inv.FinishedAt = timestamppb.Now()
-		if err := s.Save(ctx, inv); err != nil {
-			return count, fmt.Errorf("mark stale invocation %s: %w", inv.GetId(), err)
+	for i := range docs {
+		d := &docs[i]
+		inv, err := decode(d)
+		if err != nil {
+			return count, err
 		}
-		count++
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = ""
+		if sel.Reason != nil {
+			inv.Error = sel.Reason(d.Owner)
+		}
+		inv.FinishedAt = timestamppb.Now()
+		spec, err := protojson.Marshal(inv)
+		if err != nil {
+			return count, fmt.Errorf("marshal invocation: %w", err)
+		}
+		// The authoritative record is the protojson spec, so it is rewritten
+		// along with the status field. The filter matches the record only as
+		// it was read: if its owner, or a redaction, saved it in between, the
+		// newer save stands and the next sweep judges it again.
+		res, err := s.coll.UpdateOne(ctx,
+			bson.M{"_id": d.ID, "spec": d.Fields.Spec},
+			bson.M{"$set": bson.M{"status": inv.GetStatus().String(), "spec": string(spec)}})
+		if err != nil {
+			return count, fmt.Errorf("mark stale invocation %s: %w", d.ID, err)
+		}
+		count += res.ModifiedCount
 	}
 	return count, nil
 }
@@ -374,7 +461,7 @@ func drain(ctx context.Context, cursor *mongo.Cursor) ([]*agentsv1.Invocation, e
 
 func decode(d *doc) (*agentsv1.Invocation, error) {
 	inv := &agentsv1.Invocation{}
-	if err := protojson.Unmarshal([]byte(d.Spec), inv); err != nil {
+	if err := protojson.Unmarshal([]byte(d.Fields.Spec), inv); err != nil {
 		return nil, fmt.Errorf("unmarshal invocation: %w", err)
 	}
 	return inv, nil

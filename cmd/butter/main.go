@@ -54,7 +54,8 @@ func main() {
 				// Stop process-owned async dashboard work and wait for each
 				// in-flight run to persist its honest FAILED terminal state.
 				// Bounded so a stuck run cannot block process exit; anything
-				// still QUEUED/RUNNING afterwards is reconciled at next startup.
+				// still QUEUED/RUNNING afterwards is failed as stale once this
+				// process's liveness lapses (without Redis, at next startup).
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 				defer cancel()
 				if err := handlers.ShutdownAsync(shutdownCtx); err != nil {

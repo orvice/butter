@@ -66,6 +66,7 @@ butter/
 │   │   ├── config_store.go
 │   │   ├── cron.go
 │   │   ├── h2c.go
+│   │   ├── invocations.go       # process liveness + stale invocation sweep (#390)
 │   │   ├── reconciler.go
 │   │   ├── routes.go            # ConnectRPC + HTTP + auth wiring
 │   │   ├── runtime.go
@@ -168,10 +169,12 @@ butter/
 │   │   │   └── repository.go
 │   │   ├── githost/             # platform allowlist of Git hosts
 │   │   ├── inputpart/           # multimodal input parts stored apart from events
-│   │   ├── invocation/          # interface + memory + mongo
+│   │   ├── invocation/          # interface + memory + mongo; owner stamp + stale sweep
 │   │   │   ├── memory/
 │   │   │   ├── mongo/
-│   │   │   └── repository.go
+│   │   │   ├── repotest/        # Repository conformance suite (memory + mongo)
+│   │   │   ├── repository.go
+│   │   │   └── stale.go         # StaleSweeper: fail runs whose owning process is gone
 │   │   ├── linear/              # Linear Apps + Installations, credential seam (repotest/)
 │   │   ├── linearprocessing/    # Linear processing records, ADR-0009 claim (repotest/)
 │   │   ├── linearsetting/       # platform Linear settings
@@ -207,6 +210,7 @@ butter/
 │   │   ├── interrupt/            # Pending/Resume workflow interrupt seam
 │   │   ├── linear/               # Linear receiver, worker, orchestrator, session coordination
 │   │   ├── linearconn/           # Linear installation token source (refresh under a lease)
+│   │   ├── liveness/             # per-process liveness keys (Redis) + in-process registry
 │   │   ├── mem0memory/            # mem0-backed ADK memory.Service (ADR-0013)
 │   │   ├── memoryconn/            # WorkspaceMemoryConfig → mem0 client, per call
 │   │   ├── memoryhook/            # Memory Recall + Capture around each turn
@@ -286,7 +290,7 @@ butter/
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：只保留 legacy `AgentChannel` 报告器；Telegram 适配与运行时位于 `internal/runtime/telegram/`。
-- `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`interrupt`、`streamorch` / `asyncrun`、`automation`、`telegram`、`linear` / `linearconn`、`sessionguard`，Workspace Memory 的 `memoryhook` / `mem0memory` / `memoryconn`，以及 ButterBox 的 `pibox` / `cursorbox` / `butterboxconn`。
+- `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`interrupt`、`streamorch` / `asyncrun`、`automation`、`telegram`、`linear` / `linearconn`、`sessionguard`、`liveness`（进程存活键，供 invocation 遗留清理判断 owner 是否已退出），Workspace Memory 的 `memoryhook` / `mem0memory` / `memoryconn`，以及 ButterBox 的 `pibox` / `cursorbox` / `butterboxconn`。
 - Agent 工具：`a2uitool`（`render_ui`）、`aguitool`（AG-UI 客户端工具）、`agentfiletool`、`memorytool`、`skilltool`；A2UI 的 catalog、卡片与表单逻辑在 `internal/a2ui/`。
 - `internal/repo/`：仓库层。除 `config/`、`apitoken/`、`invocation/` 外，还包含 Agent Content/lifecycle operation、Agent Files、Skills、Telegram resources/processing/settings、Linear Apps/installations/processing/settings/install states、ButterBoxes、Git hosts/repo bindings/cache、input parts、OAuth、forum、workspace、auth、cryptokey 等 memory/mongo 实现。
 - `front/`：Vite + React 19 dashboard。TanStack Router 路由在 `src/routes/`，资源实现位于 `src/features/`；`src/api/` 是类型化的 ConnectRPC 客户端，`uploads.ts` 是唯一仍用裸 `fetch` + multipart 的 API 模块。`src/gen/` 是 buf 生成的 TS proto 类型。

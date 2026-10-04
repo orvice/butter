@@ -185,6 +185,11 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// Connect to Redis.
 	rdb := connectRedis(ctx, cfg)
 
+	// Every Invocation record this process creates carries its instance ID as
+	// the owner stamp, so its liveness is published before any record can be
+	// written (#390).
+	live := startProcessLiveness(ctx, rdb)
+
 	// Pick auth, API token + invocation repository backends.
 	var (
 		authRepo               auth.Repository
@@ -224,7 +229,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	switch backend := strings.ToLower(strings.TrimSpace(cfg.StorageBackend)); backend {
 	case "", "mongo":
 		tokenRepo = apitokenmongo.New(db)
-		invMongo := invocationmongo.New(db)
+		invMongo := invocationmongo.New(db).WithOwner(live.instanceID)
 		if err := invMongo.EnsureIndexes(ctx); err != nil {
 			logger.Error("failed to create invocation indexes", "err", err)
 			return nil, err
@@ -264,7 +269,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearProcessingRepo = linearprocessingmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
-		invRepo = invocationmemory.New()
+		invRepo = invocationmemory.New().WithOwner(live.instanceID)
 		inputPartRepo = inputpartmemory.New()
 		forumRepo = forummemory.New()
 		wsRepo = workspacememory.New()
@@ -530,12 +535,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		MaxRunDuration: cfg.ChatAsync.EffectiveMaxRunDuration(),
 	})
 
-	// Reconcile stale QUEUED/RUNNING invocations from a prior process.
-	if stale, staleErr := asyncrun.ReconcileStale(ctx, invRepo); staleErr != nil {
-		logger.Warn("async reconciliation failed", "err", staleErr)
-	} else if stale > 0 {
-		logger.Info("reconciled stale async invocations", "count", stale)
-	}
+	// Fail the QUEUED/RUNNING invocations whose owning process is gone, at
+	// startup and periodically. A record survives other Pods starting for as
+	// long as its owner's liveness holds. Owner-less records from before owner
+	// stamps wait out a cutoff longer than any run allowed to still be going.
+	startInvocationSweep(ctx, invRepo, live,
+		max(invocation.LegacyStaleAge, cfg.ChatAsync.EffectiveMaxRunDuration()))
 
 	// Final Agent-ID cutover verifier (issue #241, replaces the retired #213
 	// startup backfill): read-only, logs each record that still violates the

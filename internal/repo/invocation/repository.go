@@ -28,11 +28,34 @@ type StatusSummary struct {
 	Running int32
 }
 
+// StaleSelection says which QUEUED and RUNNING records MarkStaleRunning
+// fails: the ones whose process is gone.
+type StaleSelection struct {
+	// LostOwners are instance IDs whose liveness has lapsed. Every QUEUED or
+	// RUNNING record stamped with one of them is failed.
+	LostOwners []string
+	// LegacyBefore covers records without an owner stamp, written before
+	// records carried one: those that started before it are failed. A record
+	// with no start time counts as older than any cutoff. The zero time
+	// fails none of them.
+	LegacyBefore time.Time
+	// Reason is the error recorded on each failed record, given its owner
+	// stamp (empty for a record without one).
+	Reason func(owner string) string
+}
+
 // Repository persists invocation records produced by runner.Service.
 //
 // Implementations must accept Upsert semantics in Save: the runner first
 // records the invocation as RUNNING, then updates it with the terminal status
 // after the call completes.
+//
+// Every record has an owner stamp: the instance ID of the process that
+// created it, which is the process that runs it (#390). A store stamps the
+// owner it was opened with (the stores' WithOwner) when Save creates a
+// record, and keeps the stamp through every later save, whichever process
+// makes it. The stamp is not part of the Invocation message, so it never
+// reaches an API response.
 type Repository interface {
 	Save(ctx context.Context, inv *agentsv1.Invocation) error
 	List(ctx context.Context, filter ListFilter, pageSize int32, pageToken string) ([]*agentsv1.Invocation, string, int32, error)
@@ -54,10 +77,18 @@ type Repository interface {
 	// [start, end), together with the subset that ended in
 	// INVOCATION_STATUS_FAILED. Drives the dashboard Activity metric cards.
 	CountByTimeRange(ctx context.Context, start, end time.Time) (total int64, failed int64, err error)
-	// MarkStaleRunning transitions all QUEUED/RUNNING invocations in the
-	// collection to FAILED with the given reason. Used at startup to
-	// reconcile invocations orphaned by a previous process exit.
-	MarkStaleRunning(ctx context.Context, reason string) (int64, error)
+	// ActiveOwners returns the owner stamps carried by QUEUED and RUNNING
+	// records, each once. Records without a stamp are left out.
+	ActiveOwners(ctx context.Context) ([]string, error)
+	// MarkStaleRunning fails the QUEUED and RUNNING records whose process is
+	// gone, as sel selects them: records stamped with a lost owner, and
+	// records without a stamp that started before the legacy cutoff. A record
+	// stamped with any other owner is never touched, so a live process's
+	// runs survive another process starting. A record saved again between
+	// being selected and being failed is left for the next sweep. Returns how
+	// many records it failed. StaleSweeper calls it at startup and
+	// periodically.
+	MarkStaleRunning(ctx context.Context, sel StaleSelection) (int64, error)
 	// FindActiveBySession returns the QUEUED or RUNNING invocation for the
 	// given session, or ErrNotFound when there is no active invocation.
 	FindActiveBySession(ctx context.Context, workspaceID, sessionID string) (*agentsv1.Invocation, error)
