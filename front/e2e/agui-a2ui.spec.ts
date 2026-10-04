@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { setupAGUI, sse } from './support/agui'
+import { resumeEntries, setupAGUI, sse } from './support/agui'
 
 // A2UI in AG-UI Chat. Every fixture below is the wire traffic the Butter
 // server produces (internal/handler/http/agui_a2ui_test.go pins the server
@@ -387,6 +387,59 @@ test.describe('A2UI Human Input forms', () => {
     await expect(page.getByText('Published to production.')).toBeVisible()
     await expect(form(page).getByText('Submitted')).toBeVisible()
     expect(fixture.requests).toHaveLength(2)
+  })
+
+  test('answering a text question next to an open form sends only that answer and leaves the form open', async ({ page }) => {
+    const formQuestion = { id: 'ask-1', reason: 'human_input', message: 'Approve this deploy?\n\nPlease answer these fields…' }
+    const fixture = await setupAGUI(page, {
+      runs: [
+        sse([
+          runStarted('r1'),
+          ...formShown(),
+          runFinished('r1', {
+            type: 'interrupt',
+            interrupts: [formQuestion, { id: 'ask-2', reason: 'human_input', message: 'Who is on call?' }],
+          }),
+        ]),
+        // An A2UI client hears about every question still open.
+        sse([runStarted('r2'), ...text('a2', 'Dana is on call.'), runFinished('r2', { type: 'interrupt', interrupts: [formQuestion] })]),
+        sse([
+          runStarted('r3'),
+          a2ui({ surfaceId: 'form-1', kind: 'form', revision: 2, seq: 0, runId: 'r3', form: deployFormView }, {
+            updateDataModel: { surfaceId: 'form-1', path: '/status', value: 'answered' },
+          }),
+          ...text('a3', 'Published to production.'),
+          runFinished('r3', { type: 'success' }),
+        ]),
+      ],
+    })
+    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await send(page, 'release it')
+
+    await expect(form(page)).toBeVisible()
+    // Only the question without a form gets a text prompt.
+    await expect(page.getByPlaceholder('Type your answer…')).toHaveCount(1)
+    const onCall = page.getByRole('group', { name: 'Who is on call?' })
+    await onCall.getByPlaceholder('Type your answer…').fill('Dana')
+    await onCall.getByRole('button', { name: 'Answer' }).click()
+
+    await expect(page.getByText('Dana is on call.')).toBeVisible()
+    expect(fixture.requests).toHaveLength(2)
+    expect(fixture.requests[1].resume).toEqual([{ interruptId: 'ask-2', status: 'resolved', payload: 'Dana' }])
+    await expect(page.getByRole('group', { name: 'Who is on call?' })).toHaveCount(0)
+
+    // The form is still open, and still answers its own question.
+    await expect(form(page).getByText('Submitted')).toHaveCount(0)
+    await expect(form(page).getByRole('button', { name: 'Submit' })).toBeEnabled()
+    await form(page).getByRole('radio', { name: 'Production' }).check()
+    await form(page).getByLabel('Reason').fill('hotfix')
+    await form(page).getByRole('button', { name: 'Submit' }).click()
+    await expect(page.getByText('Published to production.')).toBeVisible()
+    const { resume, payload } = butterForm(fixture.requests[2])
+    expect(resume).toHaveLength(1)
+    expect(resume[0]).toMatchObject({ interruptId: 'ask-1', status: 'resolved' })
+    expect(payload).toMatchObject({ surfaceId: 'form-1', token: 'tok-1' })
+    expect(resumeEntries(fixture.requests).map((e) => e.status)).not.toContain('cancelled')
   })
 
   test('can be filled and submitted with the keyboard alone', async ({ page }) => {

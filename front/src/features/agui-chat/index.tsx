@@ -2,9 +2,11 @@ import {
   createContext,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
+  type SyntheticEvent,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSearch } from '@tanstack/react-router'
@@ -15,6 +17,7 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ActionBarPrimitive,
+  useAui,
   useAuiState,
   type ThreadHistoryAdapter,
 } from '@assistant-ui/react'
@@ -22,7 +25,6 @@ import {
   useAgUiRuntime,
   useAgUiInterrupts,
   useAgUiSteerAway,
-  useAgUiSubmitInterruptResponses,
   useAgUiState,
 } from '@assistant-ui/react-ag-ui'
 import {
@@ -32,6 +34,7 @@ import {
   MessageSquarePlus,
   PanelLeft,
   PlugZap,
+  Reply,
   Send,
   Square,
   Wrench,
@@ -76,6 +79,7 @@ import { readableReply, submissionPayload } from './a2ui/form'
 import { EVENT_NAME, envelopeOp, isA2UIEventValue } from './a2ui/protocol'
 import { A2UIStore, useA2UIStore } from './a2ui/store'
 import { A2UISurfaceView } from './a2ui/surface-view'
+import { errorReporter } from './errors'
 import { loadThread, threadRepository } from './history'
 import { ThreadList } from './thread-list'
 import {
@@ -394,9 +398,12 @@ function AGUIChatWithRuntime({
 }) {
   const store = useOwnedA2UIStore(httpAgent)
   const history = useThreadHistory(agentId, threadId, store)
+  const [reportError] = useState(() =>
+    errorReporter((message) => toast.error(message))
+  )
   const runtime = useAgUiRuntime({
     agent: httpAgent,
-    onError: (err) => toast.error(err.message || 'AG-UI request failed'),
+    onError: reportError,
     adapters: { history },
   })
   const [threadsOpen, setThreadsOpen] = useState(false)
@@ -459,9 +466,9 @@ function AGUIChatWithRuntime({
               {threadList}
             </aside>
             <div className='flex min-w-0 flex-1 flex-col'>
-              <ThreadArea />
+              <ThreadArea httpAgent={httpAgent} onSendError={reportError} />
               <SharedStatePanel />
-              <ComposerArea />
+              <ComposerArea httpAgent={httpAgent} onSendError={reportError} />
             </div>
           </div>
         </Main>
@@ -501,12 +508,45 @@ function FormSubmitBridge({
       try {
         await steerAway(readableReply(form, values))
       } finally {
-        httpAgent.clearNextResume()
+        httpAgent.clearNextRun()
       }
     })
     return () => store.setSubmitter(undefined)
   }, [store, httpAgent, steerAway])
   return null
+}
+
+// useReplies answers open Interrupts the way a form does: the runtime's
+// steer-away path shows the reply as the user's message and starts the run
+// although Interrupts are open, and the agent decides what that one run's
+// resume carries. A failure is reported instead of lost.
+function useReplies(
+  httpAgent: ButterAGUIAgent,
+  onError: (err: unknown) => void
+) {
+  const steerAway = useAgUiSteerAway()
+  const steer = async (reply: string) => {
+    try {
+      await steerAway(reply)
+    } catch (err) {
+      onError(err)
+    } finally {
+      httpAgent.clearNextRun()
+    }
+  }
+  return {
+    // answer sends text as the answer to exactly this Interrupt.
+    answer(interruptId: string, text: string) {
+      httpAgent.resumeNextRunWith(interruptId, text)
+      return steer(text)
+    },
+    // answerOldest sends text as a plain message, which the server takes as
+    // the answer to its oldest open Interrupt (ADR-0002).
+    answerOldest(text: string) {
+      httpAgent.sendNextRunAsMessage()
+      return steer(text)
+    },
+  }
 }
 
 function PageHeader() {
@@ -694,7 +734,13 @@ function RestoredSurfaces() {
   )
 }
 
-function ThreadArea() {
+function ThreadArea({
+  httpAgent,
+  onSendError,
+}: {
+  httpAgent: ButterAGUIAgent
+  onSendError: (err: unknown) => void
+}) {
   return (
     <ThreadPrimitive.Root className='flex-1 overflow-y-auto px-4 py-4'>
       <ThreadPrimitive.Viewport className='mx-auto flex max-w-3xl flex-col gap-3'>
@@ -705,7 +751,7 @@ function ThreadArea() {
             AssistantMessage: AssistantMessageView,
           }}
         />
-        <InterruptPrompts />
+        <InterruptPrompts httpAgent={httpAgent} onSendError={onSendError} />
         <ThreadPrimitive.If running>
           <p className='text-xs text-muted-foreground'>Running…</p>
         </ThreadPrimitive.If>
@@ -768,9 +814,17 @@ function MarkdownText({ text }: { text: string }) {
   )
 }
 
-function InterruptPrompts() {
+// InterruptPrompts asks each open question that has no form. An answer goes
+// to its own Interrupt alone; the others stay open.
+function InterruptPrompts({
+  httpAgent,
+  onSendError,
+}: {
+  httpAgent: ButterAGUIAgent
+  onSendError: (err: unknown) => void
+}) {
   const interrupts = useAgUiInterrupts()
-  const submitResponses = useAgUiSubmitInterruptResponses()
+  const replies = useReplies(httpAgent, onSendError)
   const store = useA2UIStore(useA2UIContext())
 
   // An Interrupt with a form is answered through the form; the text prompt
@@ -784,15 +838,7 @@ function InterruptPrompts() {
         <InterruptPrompt
           key={interrupt.id}
           interrupt={interrupt}
-          onResolve={(answer) =>
-            void submitResponses([
-              {
-                interruptId: interrupt.id,
-                status: 'resolved',
-                payload: answer,
-              },
-            ])
-          }
+          onResolve={(answer) => void replies.answer(interrupt.id, answer)}
         />
       ))}
     </>
@@ -807,9 +853,14 @@ function InterruptPrompt({
   onResolve: (answer: string) => void
 }) {
   const [answer, setAnswer] = useState('')
+  const questionId = useId()
   return (
-    <div className='max-w-[85%] rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm'>
-      <p className='font-medium'>
+    <div
+      role='group'
+      aria-labelledby={questionId}
+      className='max-w-[85%] rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm'
+    >
+      <p id={questionId} className='font-medium'>
         {interrupt.message || 'The workflow needs your input.'}
       </p>
       <div className='mt-2 flex items-end gap-2'>
@@ -870,13 +921,51 @@ function SharedStatePanel() {
   )
 }
 
-function ComposerArea() {
+// ComposerArea sends the user's messages. While questions are open the
+// runtime refuses an ordinary send, so the text goes out as a plain message
+// instead, and the server takes it as the answer to its earliest open
+// question (ADR-0002). A hint says so.
+function ComposerArea({
+  httpAgent,
+  onSendError,
+}: {
+  httpAgent: ButterAGUIAgent
+  onSendError: (err: unknown) => void
+}) {
+  const answering = useAgUiInterrupts().length > 0
+  const replies = useReplies(httpAgent, onSendError)
+  const aui = useAui()
+  const hintId = useId()
+
+  // Takes over Enter (the form's submit) and the Send button.
+  const sendAsAnswer = (e: SyntheticEvent) => {
+    if (!answering) return
+    e.preventDefault()
+    const text = aui.composer.getState().text.trim()
+    if (text === '') return
+    aui.composer.setText('')
+    void replies.answerOldest(text)
+  }
+
   return (
     <div className='border-t border-border/60 px-4 py-3'>
-      <ComposerPrimitive.Root className='mx-auto flex max-w-3xl items-end gap-2'>
+      {answering && (
+        <p
+          id={hintId}
+          className='mx-auto mb-2 flex max-w-3xl items-center gap-1.5 text-xs text-muted-foreground'
+        >
+          <Reply className='size-3.5' />
+          Sending answers the earliest open question.
+        </p>
+      )}
+      <ComposerPrimitive.Root
+        onSubmit={sendAsAnswer}
+        className='mx-auto flex max-w-3xl items-end gap-2'
+      >
         <ComposerPrimitive.Input
           autoFocus
           placeholder='Message the agent over AG-UI…'
+          aria-describedby={answering ? hintId : undefined}
           rows={2}
           className='min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring'
         />
@@ -888,7 +977,7 @@ function ComposerArea() {
           </ComposerPrimitive.Cancel>
         </ThreadPrimitive.If>
         <ThreadPrimitive.If running={false}>
-          <ComposerPrimitive.Send asChild>
+          <ComposerPrimitive.Send asChild onClick={sendAsAnswer}>
             <Button size='icon' aria-label='Send'>
               <Send className='size-4' />
             </Button>
