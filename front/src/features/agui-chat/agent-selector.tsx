@@ -6,16 +6,11 @@ import { useAgents } from '@/api/agents'
 import { cn } from '@/lib/utils'
 import { AgentAvatar } from '@/components/butter/primitives'
 import { agentIconUrl } from '@/features/agents/icon-utils'
+import { isSelectableAgent } from './agents'
 
-function isRunnableAgent(a: Agent): boolean {
-  const status = a.lifecycle_status
-  return (
-    !status ||
-    status === 'AGENT_LIFECYCLE_STATUS_UNSPECIFIED' ||
-    status === 'AGENT_LIFECYCLE_STATUS_ACTIVE'
-  )
-}
-
+// AgentSelector picks the agent a new chat starts with, from every runnable
+// agent in the workspace, searchable by name and description. Chat uses it
+// too until AG-UI Chat replaces it (#409).
 export function AgentSelector({
   selected,
   onPick,
@@ -27,10 +22,11 @@ export function AgentSelector({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const agents = useMemo(
-    () => (data?.agents ?? []).filter(isRunnableAgent),
+    () => (data?.agents ?? []).filter(isSelectableAgent),
     [data],
   )
 
@@ -66,6 +62,14 @@ export function AgentSelector({
     setQuery('')
   }
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== 'Escape' || !open) return
+    e.preventDefault()
+    setOpen(false)
+    setQuery('')
+    triggerRef.current?.focus()
+  }
+
   if (isLoading) {
     return (
       <div className="h-10 w-64 animate-pulse rounded-lg border border-border bg-card" />
@@ -87,10 +91,18 @@ export function AgentSelector({
   }
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-xs" onBlur={handleBlur}>
+    <div
+      ref={containerRef}
+      className="relative w-full max-w-xs"
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+    >
       <button
+        ref={triggerRef}
         type="button"
         onClick={handleToggle}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         data-testid="agent-selector-trigger"
         className={cn(
           'flex h-10 w-full items-center gap-2.5 rounded-lg border border-border bg-card px-3 text-left text-sm transition-[border-color,box-shadow] hover:border-ring/60 focus:border-ring focus:ring-2 focus:ring-ring/10 focus:outline-none',
@@ -131,10 +143,15 @@ export function AgentSelector({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search agents…"
+              aria-label="Search agents"
               className="h-8 w-full rounded-md bg-transparent pl-7 pr-2 text-sm outline-none placeholder:text-muted-foreground/75"
             />
           </div>
-          <div className="scrollbar-thin max-h-64 overflow-y-auto py-1">
+          <div
+            role={filtered.length > 0 ? 'listbox' : undefined}
+            aria-label={filtered.length > 0 ? 'Agents' : undefined}
+            className="scrollbar-thin max-h-64 overflow-y-auto py-1"
+          >
             {filtered.length === 0 ? (
               <p className="px-3 py-4 text-center text-xs text-muted-foreground">
                 No agents match &ldquo;{query}&rdquo;.
@@ -147,6 +164,8 @@ export function AgentSelector({
                   <button
                     key={a.agent_id}
                     type="button"
+                    role="option"
+                    aria-selected={!!isSelected}
                     data-testid={`agent-option-${a.agent_id}`}
                     onClick={() => handleSelect(a)}
                     className={cn(

@@ -1,13 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   resumeEntries,
+  sendMessage as send,
   setupAGUI as setupAGUIFixture,
   sse,
+  threadInURL,
 } from './support/agui'
 
 // The dashboard AG-UI chat uses the official assistant-ui AG-UI runtime with
 // HttpAgent. Fixtures fulfill POST /api/agui/:agent_id with literal SSE event
 // frames. The runtime handles parsing, message reconstruction, and state.
+// Each test starts from a new-chat draft with Streamer.
+
+const NEW_CHAT = '/agui-chat?agent=streamer-id'
 
 async function setupAGUI(
   page: Parameters<typeof setupAGUIFixture>[0],
@@ -57,12 +62,6 @@ function finished(runId: string, text: string) {
   ])
 }
 
-async function send(page: Page, message: string) {
-  const composer = page.getByPlaceholder(/Message the agent over AG-UI/)
-  await composer.fill(message)
-  await composer.press('Enter')
-}
-
 // prompt is the text prompt of the open question asking `message`.
 const prompt = (page: Page, message: string) =>
   page.getByRole('group', { name: message })
@@ -109,11 +108,10 @@ test.describe('AG-UI chat', () => {
     ])
     await setupAGUI(page, [firstRun, secondRun], requests)
 
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
 
-    const composer = page.getByPlaceholder(/Message the agent over AG-UI/)
-    await composer.fill('ship it')
-    await composer.press('Enter')
+    // The draft's first message starts the thread.
+    await send(page, 'ship it')
 
     // Streamed text renders.
     await expect(page.getByText('Found it. Deploying…')).toBeVisible()
@@ -162,7 +160,7 @@ test.describe('AG-UI chat', () => {
         pausedOn('r2', 'Version noted.', question('int-1', 'Which region?')),
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'deploy')
 
     await expect(prompt(page, 'Which region?')).toBeVisible()
@@ -197,12 +195,12 @@ test.describe('AG-UI chat', () => {
         finished('r2', 'Deployed.'),
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'ship it')
 
     await expect(prompt(page, 'Approve deploy?')).toBeVisible()
     await expect(page.getByText(COMPOSER_HINT)).toBeVisible()
-    const composer = page.getByPlaceholder(/Message the agent over AG-UI/)
+    const composer = page.getByRole('textbox', { name: /^Message/ })
     await composer.fill('yes, go ahead')
     await composer.press('Enter')
 
@@ -237,11 +235,11 @@ test.describe('AG-UI chat', () => {
         pausedOn('r2', 'Region noted.', question('int-2', 'Which version?')),
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'deploy')
 
     await expect(prompt(page, 'Which version?')).toBeVisible()
-    await page.getByPlaceholder(/Message the agent over AG-UI/).fill('eu-west')
+    await page.getByRole('textbox', { name: /^Message/ }).fill('eu-west')
     // The dev server's router devtools badge covers the button's corner, so
     // it is activated from the keyboard.
     await page.getByRole('button', { name: 'Send' }).focus()
@@ -270,7 +268,7 @@ test.describe('AG-UI chat', () => {
         { status: 409, body: { error: 'a run is in progress on this thread' } },
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'ship it')
 
     await expect(prompt(page, 'Approve deploy?')).toBeVisible()
@@ -290,31 +288,35 @@ test.describe('AG-UI chat', () => {
     const fixture = await setupAGUIFixture(page, {
       runs: [finished('r1', 'Hello from Plain.')],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
 
     // Every runnable agent is listed, whether or not it enabled AG-UI for
     // API tokens; the deleted one is not.
-    await page.getByRole('combobox').click()
-    await expect(page.getByRole('option')).toHaveText([
-      'Streamer',
-      'Second',
-      'Plain',
-    ])
-    await page.getByRole('option', { name: 'Plain' }).click()
-    await expect(page.getByRole('combobox')).toHaveText('Plain')
-
-    // Opening it reads its thread, and a message runs it.
-    await expect
-      .poll(() =>
-        fixture.historyRequests.some((u) =>
-          u.includes('/api/agui/plain-id/threads/')
-        )
+    await page.getByTestId('agent-selector-trigger').click()
+    const options = page
+      .getByRole('listbox', { name: 'Agents' })
+      .getByRole('option')
+    await expect(options).toHaveCount(3)
+    expect(
+      await options.evaluateAll((els) =>
+        els.map((el) => el.getAttribute('data-testid'))
       )
-      .toBe(true)
+    ).toEqual([
+      'agent-option-streamer-id',
+      'agent-option-second-id',
+      'agent-option-plain-id',
+    ])
+    await page.getByRole('option', { name: /^Plain/ }).click()
+    await expect(page.getByTestId('agent-selector-trigger')).toContainText(
+      'Plain'
+    )
+
+    // A message starts a thread with it.
     await send(page, 'hi')
     await expect(page.getByText('Hello from Plain.')).toBeVisible()
     expect(fixture.runURLs).toHaveLength(1)
     expect(new URL(fixture.runURLs[0]).pathname).toBe('/api/agui/plain-id')
+    expect(threadInURL(page)).toBe(fixture.requests[0].threadId)
   })
 
   test('renders RUN_ERROR in-band', async ({ page }) => {
@@ -325,10 +327,8 @@ test.describe('AG-UI chat', () => {
     ])
     await setupAGUI(page, [run], requests)
 
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
-    const composer = page.getByPlaceholder(/Message the agent over AG-UI/)
-    await composer.fill('hi')
-    await composer.press('Enter')
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
+    await send(page, 'hi')
 
     await expect(page.getByText('model exploded')).toBeVisible()
   })

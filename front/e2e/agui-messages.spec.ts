@@ -1,9 +1,20 @@
 import { expect, test, type Page } from '@playwright/test'
-import { setupAGUI, sse } from './support/agui'
+import {
+  aguiSession,
+  sendMessage as send,
+  setupAGUI,
+  sse,
+} from './support/agui'
 
 // How AG-UI Chat draws a conversation with the shared chat message
 // components (src/components/chat): Markdown, the agent on every reply, tool
-// calls, and the thread's loading, empty and failed states.
+// calls, and the thread's loading, empty and failed states. A conversation
+// starts from a new-chat draft with Streamer; a thread that exists opens by
+// URL.
+
+const NEW_CHAT = '/agui-chat?agent=streamer-id'
+const thread = (threadId: string) =>
+  aguiSession(threadId, '', { agentId: 'streamer-id' })
 
 const runStarted = (runId: string) => ({
   type: 'RUN_STARTED',
@@ -41,12 +52,6 @@ function toolCall(id: string, name: string, args: string, result?: string) {
   ]
 }
 
-async function send(page: Page, message: string) {
-  const composer = page.getByPlaceholder(/Message the agent over AG-UI/)
-  await composer.fill(message)
-  await composer.press('Enter')
-}
-
 const replies = (page: Page) => page.locator('[data-message-role="assistant"]')
 const sentMessages = (page: Page) =>
   page.locator('[data-message-role="user"]')
@@ -73,7 +78,7 @@ test.describe('AG-UI chat messages', () => {
       '| api | healthy |',
     ].join('\n')
     await setupAGUI(page, { runs: [reply('r1', markdown)] })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'status?')
 
     const answer = replies(page).last()
@@ -101,7 +106,7 @@ test.describe('AG-UI chat messages', () => {
     page,
   }) => {
     await setupAGUI(page, { runs: [reply('r1', 'Noted.')] })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'Ship **only** `api`\nthen tell me')
 
     await expect(page.getByText('Noted.')).toBeVisible()
@@ -115,7 +120,7 @@ test.describe('AG-UI chat messages', () => {
     await setupAGUI(page, {
       runs: [reply('r1', 'First answer.'), reply('r2', 'Second answer.')],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'one')
     await expect(page.getByText('First answer.')).toBeVisible()
     await send(page, 'two')
@@ -161,7 +166,7 @@ test.describe('AG-UI chat messages', () => {
         ]),
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'find deploys')
     await expect(page.getByText('Found three.')).toBeVisible()
 
@@ -219,7 +224,7 @@ test.describe('AG-UI chat messages', () => {
         ]),
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'deploy')
 
     await expect(page.getByText('Approve the deploy?')).toBeVisible()
@@ -229,11 +234,12 @@ test.describe('AG-UI chat messages', () => {
     ).toHaveCount(0)
   })
 
-  test('an empty thread introduces its agent until the first message', async ({
+  test('a new chat introduces its agent until the first message', async ({
     page,
   }) => {
     await setupAGUI(page, { runs: [reply('r1', 'Hello there.')] })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    // The new-chat draft introduces the agent it starts with.
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
 
     await expect(hero(page)).toBeVisible()
     await expect(
@@ -250,10 +256,10 @@ test.describe('AG-UI chat messages', () => {
     await expect(hero(page)).toHaveCount(0)
   })
 
-  test('a thread shows a skeleton while its history loads', async ({
+  test('a thread shows a skeleton while its history loads, then introduces its agent when empty', async ({
     page,
   }) => {
-    await setupAGUI(page, { runs: [] })
+    await setupAGUI(page, { runs: [], sessions: [thread('t-empty')] })
     let release = () => {}
     const held = new Promise<void>((resolve) => {
       release = resolve
@@ -262,7 +268,7 @@ test.describe('AG-UI chat messages', () => {
       await held
       await route.fallback()
     })
-    await page.goto('/agui-chat')
+    await page.goto('/agui-chat?thread=t-empty')
 
     const loading = page.getByRole('status', { name: 'Loading conversation' })
     await expect(loading).toBeVisible()
@@ -312,7 +318,7 @@ test.describe('AG-UI chat messages', () => {
         reply('r2', 'Still here.'),
       ],
     })
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto(NEW_CHAT, { waitUntil: 'networkidle' })
     await send(page, 'show me')
 
     const broken = replies(page).first()
@@ -332,13 +338,13 @@ test.describe('AG-UI chat messages', () => {
   }) => {
     const pageErrors: string[] = []
     page.on('pageerror', (err) => pageErrors.push(err.message))
-    await setupAGUI(page, { runs: [] })
+    await setupAGUI(page, { runs: [], sessions: [thread('t-broken')] })
     // The thread holds a malformed open question: its message is not text.
     await page.route('**/api/agui/*/threads/*/messages', (route) =>
       route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
-          threadId: 't',
+          threadId: 't-broken',
           messages: [
             { id: 'u1', role: 'user', content: 'deploy' },
             { id: 'a1', role: 'assistant', content: 'One question first.' },
@@ -350,7 +356,7 @@ test.describe('AG-UI chat messages', () => {
         }),
       })
     )
-    await page.goto('/agui-chat', { waitUntil: 'networkidle' })
+    await page.goto('/agui-chat?thread=t-broken', { waitUntil: 'networkidle' })
 
     await expect(
       page.getByRole('alert').filter({

@@ -1119,12 +1119,12 @@ without a binding, or bound to another user, workspace or agent answers with
 no surfaces rather than revealing it. The read takes the thread's session
 lease: a thread with a run in flight answers `409` — retry after it finishes.
 
-The dashboard's AG-UI Chat remembers the current thread per workspace, agent
-and signed-in user. When it opens a thread it reads the snapshot together with
-the [thread history](#thread-history) and shows each restored surface in the
-reply that produced it. A surface whose reply is not in the history appears on
-its own, with a note that it comes from earlier in the conversation. An unsent
-form draft is not restored.
+The dashboard's AG-UI Chat opens the thread its URL names (`?thread=<id>`),
+with the agent the thread's binding names. When it opens a thread it reads the
+snapshot together with the [thread history](#thread-history) and shows each
+restored surface in the reply that produced it. A surface whose reply is not
+in the history appears on its own, with a note that it comes from earlier in
+the conversation. An unsent form draft is not restored.
 
 #### Thread history
 

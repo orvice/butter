@@ -1,6 +1,15 @@
 import type { SessionInfo } from '@/types/api'
 import { describe, expect, it } from 'vitest'
-import { agentThreads, threadBinding, threadIdOf, threadTitle } from './threads'
+import {
+  agentThreads,
+  boundAgentId,
+  resolveThreadView,
+  sessionIdOf,
+  threadBinding,
+  threadIdOf,
+  threadTitle,
+  type ThreadLookup,
+} from './threads'
 
 function aguiSession(
   threadId: string,
@@ -88,5 +97,141 @@ describe('threadTitle', () => {
       'Trip plan'
     )
     expect(threadTitle(bound('t1'))).toBe('Untitled thread')
+  })
+})
+
+describe('sessionIdOf', () => {
+  it('is the session a thread lives in', () => {
+    expect(sessionIdOf('abc')).toBe('agui-abc')
+    expect(threadIdOf(bound('abc'))).toBe('abc')
+  })
+})
+
+describe('boundAgentId', () => {
+  it('names the agent of this workspace’s thread', () => {
+    expect(boundAgentId(bound('t1'), 'ws-1', 't1')).toBe('agent-a')
+  })
+
+  it('is null for a session that is not this thread here', () => {
+    // Another workspace's thread.
+    expect(
+      boundAgentId(bound('t1', 'agent-a', 'ws-2'), 'ws-1', 't1')
+    ).toBeNull()
+    // Another thread's session.
+    expect(boundAgentId(bound('t1'), 'ws-1', 't2')).toBeNull()
+    // A binding for another thread.
+    const mismatched = aguiSession('t1', {
+      workspace_id: 'ws-1',
+      agent_id: 'agent-a',
+      thread_id: 'elsewhere',
+    })
+    expect(boundAgentId(mismatched, 'ws-1', 't1')).toBeNull()
+    // No binding: the thread predates A2UI.
+    expect(boundAgentId(aguiSession('t1', undefined), 'ws-1', 't1')).toBeNull()
+    // Another app.
+    expect(
+      boundAgentId({ ...bound('t1'), app_name: 'web-chat' }, 'ws-1', 't1')
+    ).toBeNull()
+  })
+})
+
+describe('resolveThreadView', () => {
+  const lookup = (extra: Partial<ThreadLookup> = {}): ThreadLookup => ({
+    threadId: 't1',
+    workspaceId: 'ws-1',
+    agentIds: ['agent-a', 'agent-b'],
+    ...extra,
+  })
+
+  it('opens a thread with the agent its binding names', () => {
+    const session = bound('t1')
+    expect(resolveThreadView(lookup({ session }))).toEqual({
+      kind: 'open',
+      agentId: 'agent-a',
+      session,
+    })
+  })
+
+  it('opens from the thread list before the session is read', () => {
+    const listed = bound('t1')
+    expect(resolveThreadView(lookup({ listed }))).toEqual({
+      kind: 'open',
+      agentId: 'agent-a',
+      session: listed,
+    })
+    // A failed read still opens a listed thread.
+    expect(
+      resolveThreadView(lookup({ listed, sessionError: new Error('down') }))
+    ).toMatchObject({ kind: 'open', agentId: 'agent-a' })
+  })
+
+  it('is loading until the session and the agents are read', () => {
+    expect(resolveThreadView(lookup())).toEqual({ kind: 'loading' })
+    expect(
+      resolveThreadView(lookup({ session: bound('t1'), agentIds: undefined }))
+    ).toEqual({ kind: 'loading' })
+  })
+
+  it('fails when the session or the agents cannot be read', () => {
+    const error = new Error('unavailable')
+    expect(resolveThreadView(lookup({ sessionError: error }))).toEqual({
+      kind: 'failed',
+      error,
+    })
+    expect(
+      resolveThreadView(
+        lookup({
+          session: bound('t1'),
+          agentIds: undefined,
+          agentsError: error,
+        })
+      )
+    ).toEqual({ kind: 'failed', error })
+  })
+
+  it('is not found without a session, even if the thread list still has it', () => {
+    expect(resolveThreadView(lookup({ session: null }))).toEqual({
+      kind: 'not-found',
+    })
+    expect(
+      resolveThreadView(lookup({ session: null, listed: bound('t1') }))
+    ).toEqual({ kind: 'not-found' })
+  })
+
+  it('is not found for a thread of another workspace or agent', () => {
+    const notFound = { kind: 'not-found' }
+    expect(
+      resolveThreadView(lookup({ session: bound('t1', 'agent-a', 'ws-2') }))
+    ).toEqual(notFound)
+    // Bound to an agent this workspace cannot run.
+    expect(
+      resolveThreadView(lookup({ session: bound('t1', 'agent-gone') }))
+    ).toEqual(notFound)
+    // Bound to another agent than the URL names.
+    expect(
+      resolveThreadView(
+        lookup({ session: bound('t1'), requestedAgentId: 'agent-b' })
+      )
+    ).toEqual(notFound)
+    // Without a binding the agent is unknown.
+    expect(
+      resolveThreadView(lookup({ session: aguiSession('t1', undefined) }))
+    ).toEqual(notFound)
+  })
+
+  it('opens a thread started here before its session exists', () => {
+    expect(
+      resolveThreadView(
+        lookup({
+          startedAgentId: 'agent-b',
+          session: null,
+          agentIds: undefined,
+        })
+      )
+    ).toEqual({ kind: 'open', agentId: 'agent-b', session: null })
+    const session = bound('t1', 'agent-b')
+    expect(
+      resolveThreadView(lookup({ startedAgentId: 'agent-b', session }))
+    ).toEqual({ kind: 'open', agentId: 'agent-b', session })
   })
 })

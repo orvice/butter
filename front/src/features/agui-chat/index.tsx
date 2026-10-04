@@ -1,16 +1,19 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
+  type RefObject,
   type SyntheticEvent,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useSearch } from '@tanstack/react-router'
-import type { Agent, SessionInfo } from '@/types/api'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import type { Agent } from '@/types/api'
 import {
   AssistantRuntimeProvider,
   AuiIf,
@@ -18,6 +21,7 @@ import {
   ComposerPrimitive,
   useAui,
   useAuiState,
+  type AssistantRuntime,
   type ThreadHistoryAdapter,
 } from '@assistant-ui/react'
 import {
@@ -26,41 +30,20 @@ import {
   useAgUiSteerAway,
   useAgUiState,
 } from '@assistant-ui/react-ag-ui'
-import {
-  ChevronDown,
-  History,
-  MessageSquarePlus,
-  PanelLeft,
-  PlugZap,
-  Reply,
-  Send,
-  Square,
-} from 'lucide-react'
+import { ChevronDown, History, Reply, Send, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
 import { BASE_URL, authHeaders } from '@/api/client'
 import {
   useAllSessions,
   useDeleteSession,
+  useSessionInfo,
   useUpdateSessionTitle,
 } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/context/workspace-provider'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { ChatAgentContext, type ChatAgent } from '@/components/chat/chat-agent'
 import { ThreadErrorBoundary } from '@/components/chat/error-boundary'
@@ -85,34 +68,34 @@ import { readableReply, submissionPayload } from './a2ui/form'
 import { EVENT_NAME, envelopeOp, isA2UIEventValue } from './a2ui/protocol'
 import { A2UIStore, useA2UIStore } from './a2ui/store'
 import { A2UISurfaceView } from './a2ui/surface-view'
-import { errorReporter } from './errors'
-import { loadThread, threadRepository } from './history'
-import { ThreadList } from './thread-list'
+import { AgentSelector } from './agent-selector'
 import {
-  currentThread,
-  newThreadId,
-  threadPointerKey,
-  writeThreadPointer,
-} from './thread-pointer'
+  draftAgent,
+  isSelectableAgent,
+  readLastAgent,
+  rememberLastAgent,
+} from './agents'
+import { DraftView } from './draft-view'
+import { errorReporter, threadRefusal } from './errors'
+import { loadThread, threadRepository } from './history'
+import {
+  ThreadLoadFailed,
+  ThreadLoading,
+  ThreadNotFound,
+} from './open-thread-states'
+import { ThreadHeader } from './thread-header'
+import { ThreadsPanel } from './thread-list'
 import {
   AGUI_APP_NAME,
   THREAD_PAGE_SIZE,
   TITLE_REFRESH_DELAYS_MS,
   agentThreads,
+  newThreadId,
+  resolveThreadView,
+  sessionIdOf,
   threadIdOf,
   threadTitle,
 } from './threads'
-
-// Every runnable agent can be opened here. enable_agui is not needed: it only
-// gates programmatic AG-UI access (API and root tokens), not signed-in users.
-function isSelectableAgent(a: Agent): boolean {
-  const status = a.lifecycle_status
-  const runnable =
-    !status ||
-    status === 'AGENT_LIFECYCLE_STATUS_UNSPECIFIED' ||
-    status === 'AGENT_LIFECYCLE_STATUS_ACTIVE'
-  return runnable && !!a.agent_id
-}
 
 function makeHttpAgent(agentId: string, threadId: string): ButterAGUIAgent {
   return new ButterAGUIAgent({
@@ -128,49 +111,49 @@ function makeHttpAgent(agentId: string, threadId: string): ButterAGUIAgent {
   })
 }
 
+// StartedThread is a thread this page started from the new-chat draft. It
+// opens before its session exists, and its first message is sent once its
+// runtime is up.
+interface StartedThread {
+  workspaceId: string
+  userId: string
+  agentId: string
+  firstMessage?: string
+}
+
+// SessionAddress names one session for SessionService.
+interface SessionAddress {
+  app_name: string
+  user_id: string
+  session_id: string
+}
+
+// DeleteTarget is a thread whose deletion is being confirmed.
+interface DeleteTarget {
+  session: SessionAddress
+  title: string
+  // agentId is the agent a new-chat draft starts with if the open thread
+  // goes.
+  agentId: string | null
+}
+
+// AGUIChatPage is AG-UI Chat. The URL is its source of truth: ?thread=<id>
+// opens that thread with the agent its binding names; without it the page is
+// a new-chat draft, whose agent ?agent=<agent_id> preselects. The first
+// message of a draft starts a thread and puts it in the URL.
 export function AGUIChatPage() {
   const search = useSearch({ from: '/_authenticated/agui-chat' })
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { selectedWorkspaceId, workspaces } = useWorkspace()
+  const userId = useAuthStore((state) => state.auth.user?.id ?? '')
   const agentsQuery = useAgents({ page_size: 200 })
   const agents = useMemo(
     () => (agentsQuery.data?.agents ?? []).filter(isSelectableAgent),
     [agentsQuery.data]
   )
+  const threadId = search.thread || null
 
-  const [pickedAgentId, setPickedAgentId] = useState<string | null>(
-    search.agent ?? null
-  )
-  const agentId = pickedAgentId ?? agents[0]?.agent_id ?? null
-  const agent = useMemo(
-    () => agents.find((a) => a.agent_id === agentId) ?? null,
-    [agents, agentId]
-  )
-  const { selectedWorkspaceId } = useWorkspace()
-  const userId = useAuthStore((state) => state.auth.user?.id ?? '')
-
-  // The current thread is remembered per workspace, user and agent, so a
-  // refresh returns to it; switching any of them selects that context's own
-  // thread and discards everything shown for the previous one.
-  const pointerKey =
-    agentId && userId && selectedWorkspaceId
-      ? threadPointerKey(selectedWorkspaceId, userId, agentId)
-      : null
-  const [threads, setThreads] = useState<Record<string, string>>({})
-  const threadId = pointerKey
-    ? (threads[pointerKey] ?? currentThread(pointerKey))
-    : null
-  const selectThread = (id: string) => {
-    if (!pointerKey) return
-    writeThreadPointer(pointerKey, id)
-    setThreads((t) => ({ ...t, [pointerKey]: id }))
-  }
-  const startNewThread = () => selectThread(newThreadId())
-
-  const httpAgent = useMemo(
-    () => (agentId && threadId ? makeHttpAgent(agentId, threadId) : null),
-    [agentId, threadId]
-  )
-
-  const queryClient = useQueryClient()
   // The server keeps the listing to the caller's own `agui` sessions in this
   // workspace; every page is read, so no thread is dropped.
   const sessionsQuery = useAllSessions(
@@ -182,30 +165,163 @@ export function AGUIChatPage() {
     },
     { enabled: !!userId && !!selectedWorkspaceId }
   )
-  const agentThreadList = useMemo(
-    () =>
-      agentId && selectedWorkspaceId
-        ? agentThreads(
-            sessionsQuery.data?.sessions ?? [],
-            selectedWorkspaceId,
-            agentId
-          )
-        : [],
-    [sessionsQuery.data, selectedWorkspaceId, agentId]
+
+  // A new chat starts with the agent the URL names, else the one picked
+  // last in this workspace. A pick is remembered and goes into the URL.
+  const draft = draftAgent(
+    agents,
+    search.agent,
+    readLastAgent(selectedWorkspaceId)
   )
-  const renameMutation = useUpdateSessionTitle()
-  const deleteMutation = useDeleteSession()
-  const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
+  const pickAgent = (agent: Agent) => {
+    const id = agent.agent_id
+    if (!id || !selectedWorkspaceId) return
+    rememberLastAgent(selectedWorkspaceId, id)
+    void navigate({ to: '/agui-chat', search: { agent: id }, replace: true })
+  }
+
+  // The thread the URL names: read by its address, which is authoritative,
+  // with the thread list's copy standing in until then. Threads started here
+  // open before their session exists.
+  const [started, setStarted] = useState<Record<string, StartedThread>>({})
+  const startedHere = threadId ? started[threadId] : undefined
+  const startedThread =
+    startedHere?.workspaceId === selectedWorkspaceId &&
+    startedHere.userId === userId
+      ? startedHere
+      : undefined
+  const sessionQuery = useSessionInfo(
+    AGUI_APP_NAME,
+    userId,
+    threadId ? sessionIdOf(threadId) : '',
+    { enabled: !!selectedWorkspaceId }
+  )
+  const view =
+    threadId && selectedWorkspaceId
+      ? resolveThreadView({
+          threadId,
+          workspaceId: selectedWorkspaceId,
+          requestedAgentId: search.agent,
+          startedAgentId: startedThread?.agentId,
+          session: sessionQuery.data,
+          // A read being retried shows as loading again.
+          sessionError: sessionQuery.isFetching ? null : sessionQuery.error,
+          listed: sessionsQuery.data?.sessions?.find(
+            (s) => threadIdOf(s) === threadId
+          ),
+          agentIds: agentsQuery.data
+            ? agents.map((a) => a.agent_id ?? '')
+            : undefined,
+          agentsError: agentsQuery.isFetching ? null : agentsQuery.error,
+        })
+      : null
+  const open = view?.kind === 'open' ? view : null
+  const openAgentId = open?.agentId ?? null
+  const openAgent = agents.find((a) => a.agent_id === openAgentId) ?? null
+  const openSession = open?.session ?? null
+  // The open thread's AG-UI client, to stop its run before it is deleted.
+  const openClient = useRef<ButterAGUIAgent | null>(null)
+
+  // A thread the server refused to run, and one whose conversation could
+  // not be read, show that instead of the conversation. A retry reads the
+  // conversation again with a new runtime.
+  const [refused, setRefused] = useState<{
+    threadId: string
+    message: string
+  } | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  const runtimeKey =
+    openAgentId && threadId
+      ? `${selectedWorkspaceId}:${userId}:${openAgentId}:${threadId}:${attempt}`
+      : null
+  const [historyFailure, setHistoryFailure] = useState<{
+    runtimeKey: string
+    error: unknown
+  } | null>(null)
+  const handleRefused = useCallback(
+    (message: string) => {
+      if (threadId) setRefused({ threadId, message })
+    },
+    [threadId]
+  )
+  const handleHistoryFailed = useCallback(
+    (error: unknown) => {
+      if (runtimeKey) setHistoryFailure({ runtimeKey, error })
+    },
+    [runtimeKey]
+  )
+  const handleFirstMessageSent = useCallback(() => {
+    if (!threadId) return
+    setStarted((s) =>
+      s[threadId]
+        ? { ...s, [threadId]: { ...s[threadId], firstMessage: undefined } }
+        : s
+    )
+  }, [threadId])
+
+  // Switching workspace leaves the previous workspace's thread or draft for
+  // a new chat. A stored workspace that turned out invalid and was replaced
+  // was never shown, so a link opened meanwhile stays.
+  const shownWorkspace = useRef(selectedWorkspaceId)
+  useEffect(() => {
+    const previous = shownWorkspace.current
+    shownWorkspace.current = selectedWorkspaceId
+    if (
+      previous &&
+      selectedWorkspaceId &&
+      previous !== selectedWorkspaceId &&
+      workspaces.some((w) => w.id === previous) &&
+      (search.thread || search.agent)
+    ) {
+      void navigate({ to: '/agui-chat', search: {}, replace: true })
+    }
+  }, [selectedWorkspaceId, workspaces, search.thread, search.agent, navigate])
+
+  // The first message of a draft names a new thread and moves the page to
+  // it; the thread's runtime sends the message.
+  const startThread = (message: string) => {
+    const agentId = draft?.agent_id
+    if (!agentId || !selectedWorkspaceId || !userId) return
+    const id = newThreadId()
+    setStarted((s) => ({
+      ...s,
+      [id]: {
+        workspaceId: selectedWorkspaceId,
+        userId,
+        agentId,
+        firstMessage: message,
+      },
+    }))
+    void navigate({ to: '/agui-chat', search: { thread: id }, replace: true })
+  }
+
+  const startNewChat = (agentId?: string | null) =>
+    void navigate({
+      to: '/agui-chat',
+      search: agentId ? { agent: agentId } : {},
+      replace: true,
+    })
+
+  // The in-page list shows the open thread's agent's threads, or the
+  // draft agent's.
+  const listAgentId = openAgentId ?? draft?.agent_id ?? null
+  const listThreads =
+    listAgentId && selectedWorkspaceId
+      ? agentThreads(
+          sessionsQuery.data?.sessions ?? [],
+          selectedWorkspaceId,
+          listAgentId
+        )
+      : []
+  const [threadsOpen, setThreadsOpen] = useState(false)
 
   // After every run: a thread's first run creates its session, so refresh
-  // the list. The server titles a thread that has none once a run on it
+  // the threads. The server titles a thread that has none once a run on it
   // succeeds, and that title lands after the run ends, so for an untitled
-  // thread the list is read again later to show it.
+  // thread they are read again later to show it.
   const handleRunSettled = () => {
     void queryClient.invalidateQueries({ queryKey: ['sessions'] })
-    if (!threadId) return
-    const listed = agentThreadList.find((s) => threadIdOf(s) === threadId)
-    if (listed?.title?.trim()) return
+    if (openSession?.title?.trim()) return
     for (const delay of TITLE_REFRESH_DELAYS_MS) {
       setTimeout(() => {
         void queryClient.invalidateQueries({ queryKey: ['sessions'] })
@@ -213,7 +329,8 @@ export function AGUIChatPage() {
     }
   }
 
-  const handleRename = async (session: SessionInfo, title: string) => {
+  const renameMutation = useUpdateSessionTitle()
+  const handleRename = async (session: SessionAddress, title: string) => {
     await renameMutation.mutateAsync({
       app_name: session.app_name,
       user_id: session.user_id,
@@ -222,75 +339,136 @@ export function AGUIChatPage() {
     })
   }
 
+  const deleteMutation = useDeleteSession()
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return
     const target = deleteTarget
-    const isCurrent = threadIdOf(target) === threadId
+    const isOpen =
+      !!threadId && target.session.session_id === sessionIdOf(threadId)
     // Stop a run on the thread before its session goes away.
-    if (isCurrent) httpAgent?.abortRun()
-    deleteMutation.mutate(
-      {
-        app_name: target.app_name,
-        user_id: target.user_id,
-        session_id: target.session_id,
+    if (isOpen) openClient.current?.abortRun()
+    deleteMutation.mutate(target.session, {
+      onSuccess: () => {
+        toast.success('Thread deleted')
+        setDeleteTarget(null)
+        if (isOpen) startNewChat(target.agentId)
       },
-      {
-        onSuccess: () => {
-          toast.success('Thread deleted')
-          setDeleteTarget(null)
-          if (isCurrent) startNewThread()
-        },
-        onError: (err) => toast.error(err.message),
-      }
-    )
+      onError: (err) => toast.error(err.message),
+    })
   }
 
-  if (!httpAgent || !agentId || !threadId) {
-    return (
-      <>
-        <PageHeader />
-        <Main fixed fluid className='flex flex-col px-0 py-0'>
-          <AgentBar
-            agents={agents}
-            agentId={agentId}
-            onAgentChange={setPickedAgentId}
-            isLoading={agentsQuery.isLoading}
-          />
-          <div className='flex flex-1 items-center justify-center px-6 text-center'>
-            <p className='text-sm text-muted-foreground'>
-              {agentsQuery.isLoading
-                ? 'Loading agents…'
-                : 'No runnable agents in this workspace. Create an agent to chat with it here.'}
-            </p>
-          </div>
-        </Main>
-      </>
+  let header: ReactNode = null
+  let content: ReactNode
+  if (!threadId) {
+    content = (
+      <DraftView
+        agent={draft}
+        agentSelector={<AgentSelector selected={draft} onPick={pickAgent} />}
+        onSend={startThread}
+        onOpenThreads={() => setThreadsOpen(true)}
+      />
+    )
+  } else if (refused?.threadId === threadId) {
+    content = (
+      <ThreadNotFound
+        detail={refused.message}
+        onStartNew={() => startNewChat(openAgentId)}
+      />
+    )
+  } else if (!view || view.kind === 'loading') {
+    content = <ThreadLoading />
+  } else if (view.kind === 'failed') {
+    content = (
+      <ThreadLoadFailed
+        error={view.error}
+        onRetry={() => {
+          if (sessionQuery.isError) void sessionQuery.refetch()
+          if (agentsQuery.isError) void agentsQuery.refetch()
+        }}
+      />
+    )
+  } else if (view.kind === 'not-found') {
+    content = <ThreadNotFound onStartNew={() => startNewChat()} />
+  } else if (historyFailure && historyFailure.runtimeKey === runtimeKey) {
+    content = (
+      <ThreadLoadFailed
+        error={historyFailure.error}
+        onRetry={() => setAttempt((a) => a + 1)}
+      />
+    )
+  } else if (!runtimeKey) {
+    content = <ThreadLoading />
+  } else {
+    const agentName = openAgent?.name ?? 'Agent'
+    const title = openSession?.title?.trim() || agentName
+    const address: SessionAddress = {
+      app_name: AGUI_APP_NAME,
+      user_id: userId,
+      session_id: sessionIdOf(threadId),
+    }
+    header = (
+      <ThreadHeader
+        title={title}
+        agentName={agentName}
+        agentIconUrl={openAgent ? agentIconUrl(openAgent) : undefined}
+        threadId={threadId}
+        onRename={(t) => handleRename(address, t)}
+        onDelete={() =>
+          setDeleteTarget({ session: address, title, agentId: openAgentId })
+        }
+        onOpenThreads={() => setThreadsOpen(true)}
+      />
+    )
+    content = (
+      <AGUIChatWithRuntime
+        key={runtimeKey}
+        clientRef={openClient}
+        agentId={view.agentId}
+        agent={openAgent ?? undefined}
+        threadId={threadId}
+        fresh={!!startedThread?.firstMessage}
+        firstMessage={startedThread?.firstMessage}
+        onFirstMessageSent={handleFirstMessageSent}
+        onRunSettled={handleRunSettled}
+        onThreadRefused={handleRefused}
+        onHistoryFailed={handleHistoryFailed}
+      />
     )
   }
 
   return (
     <>
-      <AGUIChatWithRuntime
-        key={`${selectedWorkspaceId}:${userId}:${agentId}:${threadId}`}
-        httpAgent={httpAgent}
-        agents={agents}
-        agentId={agentId}
-        threadId={threadId}
-        agentName={agent?.name ?? 'Agent'}
-        onAgentChange={(id) => setPickedAgentId(id)}
-        onNewThread={startNewThread}
-        threads={agentThreadList}
-        threadsLoading={sessionsQuery.isLoading}
-        onSelectThread={selectThread}
-        onRenameThread={handleRename}
-        onDeleteThread={setDeleteTarget}
-        onRunSettled={handleRunSettled}
-      />
+      <PageHeader />
+      <Main fixed fluid className='flex flex-col px-0 py-0'>
+        <div className='flex min-h-0 flex-1'>
+          <ThreadsPanel
+            threads={listThreads}
+            activeThreadId={threadId}
+            isLoading={sessionsQuery.isLoading}
+            agentId={listAgentId}
+            onRename={handleRename}
+            onDelete={(s) =>
+              setDeleteTarget({
+                session: s,
+                title: threadTitle(s),
+                agentId: listAgentId,
+              })
+            }
+            drawerOpen={threadsOpen}
+            onDrawerOpenChange={setThreadsOpen}
+          />
+          <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
+            {header}
+            {content}
+          </div>
+        </div>
+      </Main>
       <DeleteDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title='Delete thread'
-        description={`Delete thread "${deleteTarget ? threadTitle(deleteTarget) : ''}"? Its messages, cards and forms are removed. This cannot be undone.`}
+        description={`Delete thread "${deleteTarget?.title ?? ''}"? Its messages, cards and forms are removed. This cannot be undone.`}
         loading={deleteMutation.isPending}
         onConfirm={handleDeleteConfirm}
       />
@@ -330,11 +508,13 @@ function useOwnedA2UIStore(httpAgent: ButterAGUIAgent) {
 // history and UI snapshot load together: the surfaces land in the store and
 // each reply shows the ones it produced. The runtime loads once per thread,
 // so StrictMode's rehearsal unmount must not cancel the load; leaving the
-// thread only stops retrying.
+// thread only stops retrying. A failed load goes to onFailed, and the page
+// offers Retry.
 function useThreadHistory(
   agentId: string,
   threadId: string,
-  store: A2UIStore
+  store: A2UIStore,
+  onFailed: (err: unknown) => void
 ): ThreadHistoryAdapter {
   const mounted = useRef(true)
   useEffect(() => {
@@ -357,62 +537,99 @@ function useThreadHistory(
           store.applySnapshot(snapshot)
           return repository
         } catch (err) {
-          if (mounted.current) {
-            toast.error(
-              `Could not restore this thread: ${
-                err instanceof Error ? err.message : String(err)
-              }`
-            )
-          }
+          if (mounted.current) onFailed(err)
           return { messages: [] }
         }
       },
       // The server keeps the conversation; nothing to write back.
       async append() {},
     }),
-    [agentId, threadId, store]
+    [agentId, threadId, store, onFailed]
   )
 }
 
+// useRunErrorReporter shows each failed run once, as a toast. A run the
+// server refused because the thread cannot be used from here goes to
+// onRefused instead, and the page shows the thread as not found.
+function useRunErrorReporter(onRefused: (message: string) => void) {
+  const refusedRef = useRef(onRefused)
+  useEffect(() => {
+    refusedRef.current = onRefused
+  })
+  const [report] = useState(() => {
+    const toastOnce = errorReporter((message) => toast.error(message))
+    return (err: unknown) => {
+      const refusal = threadRefusal(err)
+      if (refusal === null) toastOnce(err)
+      else refusedRef.current(refusal)
+    }
+  })
+  return report
+}
+
+// useFirstMessage sends the message that started the thread from the draft
+// once its runtime is up, as if typed into the composer.
+function useFirstMessage(
+  runtime: AssistantRuntime,
+  message: string | undefined,
+  onSent: () => void
+) {
+  const sent = useRef(false)
+  useEffect(() => {
+    if (!message || sent.current) return
+    sent.current = true
+    runtime.thread.append(message)
+    onSent()
+  }, [runtime, message, onSent])
+}
+
+// AGUIChatWithRuntime is one thread's conversation and composer, with its own
+// AG-UI client. The page keys it by thread, so it lives exactly as long as
+// that thread is open; clientRef holds its client meanwhile.
 function AGUIChatWithRuntime({
-  httpAgent,
-  agents,
+  clientRef,
   agentId,
+  agent,
   threadId,
-  onAgentChange,
-  onNewThread,
-  threads,
-  threadsLoading,
-  onSelectThread,
-  onRenameThread,
-  onDeleteThread,
+  fresh,
+  firstMessage,
+  onFirstMessageSent,
   onRunSettled,
+  onThreadRefused,
+  onHistoryFailed,
 }: {
-  httpAgent: ButterAGUIAgent
-  agents: Agent[]
+  clientRef: RefObject<ButterAGUIAgent | null>
   agentId: string
+  // agent is the thread's agent as the agent list has it, for its name and
+  // avatar.
+  agent: Agent | undefined
   threadId: string
-  agentName: string
-  onAgentChange: (id: string) => void
-  onNewThread: () => void
-  threads: SessionInfo[]
-  threadsLoading: boolean
-  onSelectThread: (threadId: string) => void
-  onRenameThread: (session: SessionInfo, title: string) => Promise<void>
-  onDeleteThread: (session: SessionInfo) => void
+  // fresh is a thread started on this page: it has no conversation to read.
+  fresh: boolean
+  firstMessage?: string
+  onFirstMessageSent: () => void
   onRunSettled: () => void
+  onThreadRefused: (message: string) => void
+  onHistoryFailed: (err: unknown) => void
 }) {
+  const [httpAgent] = useState(() => makeHttpAgent(agentId, threadId))
+  useEffect(() => {
+    clientRef.current = httpAgent
+    return () => {
+      if (clientRef.current === httpAgent) clientRef.current = null
+    }
+  }, [clientRef, httpAgent])
+  // The runtime reads the thread once, when it starts.
+  const [readsHistory] = useState(!fresh)
   const store = useOwnedA2UIStore(httpAgent)
-  const history = useThreadHistory(agentId, threadId, store)
-  const [reportError] = useState(() =>
-    errorReporter((message) => toast.error(message))
-  )
+  const history = useThreadHistory(agentId, threadId, store, onHistoryFailed)
+  const reportError = useRunErrorReporter(onThreadRefused)
   const runtime = useAgUiRuntime({
     agent: httpAgent,
     onError: reportError,
-    adapters: { history },
+    adapters: readsHistory ? { history } : {},
   })
-  const [threadsOpen, setThreadsOpen] = useState(false)
+  useFirstMessage(runtime, firstMessage, onFirstMessageSent)
 
   const runSettledRef = useRef(onRunSettled)
   useEffect(() => {
@@ -427,69 +644,17 @@ function AGUIChatWithRuntime({
     return () => sub.unsubscribe()
   }, [httpAgent])
 
-  const threadList = (
-    <ThreadList
-      threads={threads}
-      activeThreadId={threadId}
-      isLoading={threadsLoading}
-      onSelect={(id) => {
-        if (id === threadId) {
-          setThreadsOpen(false)
-          return
-        }
-        httpAgent.abortRun()
-        onSelectThread(id)
-      }}
-      onRename={onRenameThread}
-      onDelete={onDeleteThread}
-    />
-  )
-
   return (
     <AssistantRuntimeProvider runtime={runtime} config={chatAuiConfig}>
       <A2UIStoreContext.Provider value={store}>
         <FormSubmitBridge store={store} httpAgent={httpAgent} />
-        <PageHeader />
-        <Main fixed fluid className='flex flex-col px-0 py-0'>
-          <AgentBar
-            agents={agents}
-            agentId={agentId}
-            onAgentChange={(id) => {
-              httpAgent.abortRun()
-              onAgentChange(id)
-            }}
-            onNewThread={() => {
-              httpAgent.abortRun()
-              onNewThread()
-            }}
-            onOpenThreads={() => setThreadsOpen(true)}
-          />
-          <div className='flex min-h-0 flex-1'>
-            <aside
-              aria-label='Threads'
-              className='hidden w-60 shrink-0 overflow-y-auto border-e border-border/60 md:block'
-            >
-              {threadList}
-            </aside>
-            <div className='flex min-w-0 flex-1 flex-col'>
-              <ThreadArea
-                agent={agents.find((a) => a.agent_id === agentId)}
-                httpAgent={httpAgent}
-                onSendError={reportError}
-              />
-              <SharedStatePanel />
-              <ComposerArea httpAgent={httpAgent} onSendError={reportError} />
-            </div>
-          </div>
-        </Main>
-        <Sheet open={threadsOpen} onOpenChange={setThreadsOpen}>
-          <SheetContent side='left' className='w-72 gap-0 p-0'>
-            <SheetHeader className='border-b border-border/60'>
-              <SheetTitle>Threads</SheetTitle>
-            </SheetHeader>
-            <div className='overflow-y-auto'>{threadList}</div>
-          </SheetContent>
-        </Sheet>
+        <ThreadArea
+          agent={agent}
+          httpAgent={httpAgent}
+          onSendError={reportError}
+        />
+        <SharedStatePanel />
+        <ComposerArea httpAgent={httpAgent} onSendError={reportError} />
       </A2UIStoreContext.Provider>
     </AssistantRuntimeProvider>
   )
@@ -568,69 +733,6 @@ function PageHeader() {
         <ProfileDropdown />
       </div>
     </Header>
-  )
-}
-
-function AgentBar({
-  agents,
-  agentId,
-  onAgentChange,
-  onNewThread,
-  onOpenThreads,
-  isLoading,
-}: {
-  agents: Agent[]
-  agentId: string | null
-  onAgentChange: (id: string) => void
-  onNewThread?: () => void
-  onOpenThreads?: () => void
-  isLoading?: boolean
-}) {
-  return (
-    <div className='flex items-center gap-2 border-b border-border/60 px-4 py-2'>
-      {onOpenThreads && (
-        <Button
-          variant='ghost'
-          size='icon'
-          className='size-8 md:hidden'
-          aria-label='Show threads'
-          onClick={onOpenThreads}
-        >
-          <PanelLeft className='size-4' />
-        </Button>
-      )}
-      <PlugZap className='size-4 text-muted-foreground' />
-      <span className='hidden text-sm font-medium whitespace-nowrap sm:inline'>
-        AG-UI Chat
-      </span>
-      <Select
-        value={agentId ?? undefined}
-        onValueChange={onAgentChange}
-        disabled={isLoading}
-      >
-        <SelectTrigger className='ml-2 h-8 w-56' size='sm'>
-          <SelectValue placeholder='Pick an agent' />
-        </SelectTrigger>
-        <SelectContent>
-          {agents.map((a) => (
-            <SelectItem key={a.agent_id} value={a.agent_id ?? ''}>
-              {a.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {onNewThread && (
-        <Button
-          variant='ghost'
-          size='sm'
-          className='ms-auto h-8'
-          onClick={onNewThread}
-        >
-          <MessageSquarePlus className='size-4' />
-          New thread
-        </Button>
-      )}
-    </div>
   )
 }
 

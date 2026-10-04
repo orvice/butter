@@ -21,3 +21,28 @@ function errorMessage(err: unknown): string {
   if (typeof err === 'string' && err) return err
   return 'AG-UI request failed'
 }
+
+// The server refuses a run before its stream opens, with 403, when the
+// thread cannot be used from here (docs/api.md, AG-UI Sessions): another
+// user holds the threadId, it is the caller's own thread from another
+// workspace, or the thread is bound to another agent.
+const THREAD_REFUSALS = [
+  'threadId is not available',
+  'threadId belongs to another agent',
+]
+
+// threadRefusal returns the server's message when err is such a refusal,
+// and null for any other failure. The AG-UI client rejects a non-2xx run
+// with an Error carrying the HTTP status and the parsed JSON body.
+export function threadRefusal(err: unknown): string | null {
+  if (typeof err !== 'object' || err === null) return null
+  const { status, payload } = err as { status?: unknown; payload?: unknown }
+  if (status !== 403 || typeof payload !== 'object' || payload === null) {
+    return null
+  }
+  const message = (payload as { error?: unknown }).error
+  if (typeof message !== 'string') return null
+  return THREAD_REFUSALS.some((prefix) => message.startsWith(prefix))
+    ? message
+    : null
+}

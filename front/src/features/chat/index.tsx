@@ -21,7 +21,7 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { AgentSelector } from './agent-selector'
+import { AgentSelector } from '@/features/agui-chat/agent-selector'
 import { AUIChatWindow } from './aui-chat-window'
 import { DraftComposer } from './draft-composer'
 
