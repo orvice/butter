@@ -12,12 +12,17 @@
     "format:check": "prettier --check .",
     "format": "prettier --write ."
   },
+  "//": [
+    "@ag-ui/client follows the range @assistant-ui/react-ag-ui depends on (^0.0.59 for 0.0.63).",
+    "It stays on 0.0.x until react-ag-ui moves to 1.x: https://github.com/assistant-ui/assistant-ui/issues/8517",
+    "A 1.x client installs a second copy, and tsc fails with TS2322 where the agent is passed to useAgUiRuntime."
+  ],
   "dependencies": {
     "@a2ui/react": "0.12.0",
     "@a2ui/web_core": "0.12.0",
-    "@ag-ui/client": "0.0.58",
-    "@assistant-ui/react": "0.15.16",
-    "@assistant-ui/react-ag-ui": "0.0.56",
+    "@ag-ui/client": "0.0.59",
+    "@assistant-ui/react": "0.15.23",
+    "@assistant-ui/react-ag-ui": "0.0.63",
     "@bufbuild/protobuf": "^2.4.0",
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-web": "^2.1.1",
