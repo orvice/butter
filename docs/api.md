@@ -1935,8 +1935,8 @@ replayed; clients must call `RetryAgentOperation` explicitly.
 | `file_mounts` | AgentFileMount[] | Agent Files spaces mounted into the built-in `agent_files_*` tools |
 | `include_contents` | enum | `LLM_INCLUDE_CONTENTS_DEFAULT`, `LLM_INCLUDE_CONTENTS_NONE` |
 | `output_key` | string | Session state key for output |
-| `input_schema_json` | string | Input JSON schema |
-| `output_schema_json` | string | Output JSON schema |
+| `input_schema_json` | string | Input JSON schema. Stored but not applied to the agent yet (#381) |
+| `output_schema_json` | string | Output JSON schema. Stored but not applied to the agent yet; the agent still answers in free text (#381) |
 | `max_iterations` | uint32 | Max loop iterations (LOOP type only) |
 | `workflow` | WorkflowConfig | Workflow graph config (WORKFLOW type only) |
 
