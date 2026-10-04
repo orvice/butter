@@ -5,12 +5,14 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
   type AssistantState,
+  type Attachment,
   type MessageState,
 } from '@assistant-ui/react'
 import { Copy } from 'lucide-react'
 import { AgentAvatar } from '@/components/butter/primitives'
 import { useChatAgent } from './chat-agent'
 import { MessageErrorBoundary } from './error-boundary'
+import { attachmentImage } from './images'
 import { UserMarkdownText } from './markdown'
 
 // PartComponents is how a chat draws the parts of a message: its text, tool
@@ -39,20 +41,53 @@ export function ThreadMessages({ replyParts }: { replyParts: PartComponents }) {
 
 const USER_PARTS: PartComponents = { Text: UserMarkdownText }
 
-// UserMessage is a message the user sent, drawn as Markdown that keeps the
-// lines they typed.
+// The images a message the user sent carries. While the composer still
+// prepares the message, they are on its submission.
+const sentImages = (s: AssistantState) =>
+  s.message.role === 'user'
+    ? (s.message.submission?.attachments ?? s.message.attachments)
+    : []
+const hasImages = (s: AssistantState) => sentImages(s).length > 0
+const hasText = (s: AssistantState) => s.message.content.length > 0
+
+// UserMessage is a message the user sent: the images they attached, then
+// their text, drawn as Markdown that keeps the lines they typed. A message
+// of images alone has no text bubble.
 function UserMessage() {
   return (
     <MessagePrimitive.Root
       data-message-role='user'
-      className='flex flex-col items-end py-3 sm:py-4'
+      className='flex flex-col items-end gap-2 py-3 sm:py-4'
     >
-      <div className='max-w-[92%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground sm:max-w-[min(80%,48rem)]'>
-        <MessageErrorBoundary>
-          <MessagePrimitive.Parts components={USER_PARTS} />
-        </MessageErrorBoundary>
-      </div>
+      <AuiIf condition={hasImages}>
+        <div className='flex max-w-[92%] flex-wrap justify-end gap-1.5 sm:max-w-[min(80%,48rem)]'>
+          <MessagePrimitive.Attachments>
+            {({ attachment }) => <SentImage attachment={attachment} />}
+          </MessagePrimitive.Attachments>
+        </div>
+      </AuiIf>
+      <AuiIf condition={hasText}>
+        <div className='max-w-[92%] rounded-lg rounded-tr-sm bg-secondary px-3.5 py-2.5 text-[0.9rem] leading-relaxed text-secondary-foreground sm:max-w-[min(80%,48rem)]'>
+          <MessageErrorBoundary>
+            <MessagePrimitive.Parts components={USER_PARTS} />
+          </MessageErrorBoundary>
+        </div>
+      </AuiIf>
     </MessagePrimitive.Root>
+  )
+}
+
+// SentImage is one image of a message the user sent.
+function SentImage({ attachment }: { attachment: Attachment }) {
+  const src = attachmentImage(attachment)
+  if (!src) return null
+  return (
+    <img
+      src={src}
+      alt={attachment.name}
+      title={attachment.name}
+      className='h-28 w-auto max-w-56 rounded-lg object-cover outline outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10'
+    />
   )
 }
 

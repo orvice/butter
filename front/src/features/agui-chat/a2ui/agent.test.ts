@@ -1,7 +1,9 @@
+import type { Message } from '@ag-ui/client'
 import { describe, expect, it } from 'vitest'
 import {
   ButterAGUIAgent,
   clientResume,
+  runMessages,
   wireResume,
   type NextRun,
   type ResumeEntry,
@@ -50,6 +52,89 @@ describe('wireResume', () => {
 
   it('sends no resume for a plain message', () => {
     expect(wireResume(message)).toBeUndefined()
+  })
+})
+
+// A transcript as the assistant-ui runtime hands it to the client: a turn
+// that carried an image, a reply that called a frontend tool, its result.
+const photo: Message = {
+  id: 'u1',
+  role: 'user',
+  content: [
+    { type: 'text', text: 'What is in this picture?' },
+    {
+      type: 'image',
+      source: { type: 'data', value: 'iVBORw0KGgo=', mimeType: 'image/png' },
+    },
+  ],
+}
+const user = (id: string, content: string): Message => ({
+  id,
+  role: 'user',
+  content,
+})
+const reply = (id: string, ...toolCallIds: string[]): Message => ({
+  id,
+  role: 'assistant',
+  content: '',
+  ...(toolCallIds.length > 0 && {
+    toolCalls: toolCallIds.map((callId) => ({
+      id: callId,
+      type: 'function' as const,
+      function: { name: 'pickDate', arguments: '{}' },
+    })),
+  }),
+})
+const result = (toolCallId: string): Message => ({
+  id: `${toolCallId}:tool`,
+  role: 'tool',
+  content: '{"date":"2026-10-05"}',
+  toolCallId,
+})
+
+describe('runMessages', () => {
+  it('sends only the trailing user message, and no earlier image', () => {
+    const sent = runMessages([
+      photo,
+      reply('a1'),
+      user('u2', 'And the colours?'),
+    ])
+    expect(sent).toEqual([user('u2', 'And the colours?')])
+  })
+
+  it('sends a trailing user message with its images', () => {
+    expect(runMessages([user('u1', 'hi'), reply('a1'), photo])).toEqual([photo])
+  })
+
+  it('sends the trailing tool results of a frontend tool continuation', () => {
+    const sent = runMessages([
+      photo,
+      reply('a1', 'call-1', 'call-2'),
+      result('call-1'),
+      result('call-2'),
+    ])
+    expect(sent).toEqual([result('call-1'), result('call-2')])
+  })
+
+  it('sends a message written after tool results on its own', () => {
+    const sent = runMessages([
+      user('u1', 'book it'),
+      reply('a1', 'call-1'),
+      result('call-1'),
+      user('u2', 'actually, wait'),
+    ])
+    expect(sent).toEqual([user('u2', 'actually, wait')])
+  })
+
+  it('sends the last user message when the transcript ends on a reply', () => {
+    // A run that only answers an Interrupt by its resume: the server reads
+    // the resume, and would read this message without one.
+    expect(runMessages([photo, reply('a1')])).toEqual([photo])
+  })
+
+  it('sends nothing when there is nothing the server reads', () => {
+    expect(runMessages([])).toEqual([])
+    expect(runMessages([reply('a1')])).toEqual([])
   })
 })
 
@@ -141,5 +226,21 @@ describe('ButterAGUIAgent', () => {
     a.clearNextRun()
     await a.runAgent({})
     expect(bodies[0]).not.toHaveProperty('resume')
+  })
+
+  it('sends the trailing message alone and keeps the transcript', async () => {
+    const { agent: a, bodies } = agent()
+    // The assistant-ui runtime hands the client the whole transcript.
+    a.messages = [photo, reply('a1'), user('u2', 'And the colours?')]
+    await a.runAgent({})
+    expect(bodies[0].messages).toEqual([user('u2', 'And the colours?')])
+    expect(a.messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2'])
+  })
+
+  it('sends the trailing tool results of a continuation', async () => {
+    const { agent: a, bodies } = agent()
+    a.messages = [photo, reply('a1', 'call-1'), result('call-1')]
+    await a.runAgent({})
+    expect(bodies[0].messages).toEqual([result('call-1')])
   })
 })

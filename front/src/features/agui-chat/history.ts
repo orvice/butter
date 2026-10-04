@@ -1,5 +1,6 @@
 import {
   fromThreadMessageLike,
+  type CompleteAttachment,
   type ExportedMessageRepository,
   type ThreadMessageLike,
 } from '@assistant-ui/react'
@@ -27,13 +28,23 @@ export interface ThreadHistory {
 export interface HistoryMessage {
   id: string
   role: string
-  content?: string
+  // content is the message's text. A user turn that carried images has AG-UI
+  // content parts instead: its text and its images, in the order sent.
+  content?: string | HistoryContentPart[]
   toolCalls?: Array<{
     id: string
     type: string
     function: { name: string; arguments: string }
   }>
   toolCallId?: string
+}
+
+// HistoryContentPart is one content part of a user turn: text, or an image
+// inline as a data source, the shape a client sends.
+export interface HistoryContentPart {
+  type: string
+  text?: string
+  source?: { type: string; value?: string; mimeType?: string }
 }
 
 export interface HistoryInterrupt {
@@ -64,12 +75,14 @@ interface Draft {
   id: string
   role: 'user' | 'assistant'
   content: string | AssistantPart[]
+  attachments?: CompleteAttachment[]
   status?: ThreadMessageLike['status']
   metadata?: ThreadMessageLike['metadata']
 }
 
 // threadRepository turns a thread's history into the messages the AG-UI
 // runtime hydrates with, shaped as its live runs left them:
+//   - a user turn's images are its attachments, as the composer sent them;
 //   - a reply's tool calls carry their results;
 //   - each restored surface sits in the reply that produced it, between the
 //     tool calls and the text, where the live stream placed it;
@@ -102,15 +115,11 @@ export function threadRepository(
   for (const message of history.messages ?? []) {
     switch (message.role) {
       case 'user':
-        drafts.push({
-          id: message.id,
-          role: 'user',
-          content: message.content ?? '',
-        })
+        drafts.push({ id: message.id, role: 'user', ...userTurn(message) })
         break
       case 'tool': {
         const call = toolCalls.get(message.toolCallId ?? '')
-        if (call) call.result = parseJSON(message.content ?? '')
+        if (call) call.result = parseJSON(textOf(message.content))
         break
       }
       case 'assistant': {
@@ -134,7 +143,8 @@ export function threadRepository(
             data: createEvent(surface),
           })
         }
-        if (message.content) parts.push({ type: 'text', text: message.content })
+        const text = textOf(message.content)
+        if (text) parts.push({ type: 'text', text })
         drafts.push({
           id: message.id,
           role: 'assistant',
@@ -177,6 +187,53 @@ export function threadRepository(
     parentId = message.id
   }
   return { repository: { headId: parentId, messages }, placed }
+}
+
+// userTurn is a user turn as the composer sends one: its text, and its images
+// as attachments, so a reload shows the turn as it showed when it was sent.
+// The server keeps no file names, so the images are numbered.
+function userTurn(
+  message: HistoryMessage
+): Pick<Draft, 'content' | 'attachments'> {
+  if (!Array.isArray(message.content)) return { content: message.content ?? '' }
+  const attachments: CompleteAttachment[] = []
+  for (const part of message.content) {
+    const source = part.source
+    if (
+      part.type !== 'image' ||
+      source?.type !== 'data' ||
+      !source.value ||
+      !source.mimeType
+    ) {
+      continue
+    }
+    const n = attachments.length + 1
+    attachments.push({
+      id: `${message.id}:image-${n}`,
+      type: 'image',
+      name: `Image ${n}`,
+      contentType: source.mimeType,
+      status: { type: 'complete' },
+      content: [
+        {
+          type: 'image',
+          image: `data:${source.mimeType};base64,${source.value}`,
+        },
+      ],
+    })
+  }
+  // A turn of images alone has no text to show.
+  const text = textOf(message.content)
+  return { content: text ? text : [], attachments }
+}
+
+// textOf is the text of a message's content. Text parts read as the server
+// writes a turn of text alone: one paragraph each.
+function textOf(content: HistoryMessage['content']): string {
+  if (!Array.isArray(content)) return content ?? ''
+  return content
+    .flatMap((part) => (part.type === 'text' && part.text ? [part.text] : []))
+    .join('\n\n')
 }
 
 // createEvent is the butter.a2ui event that created surface, which is what a
