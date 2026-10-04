@@ -110,6 +110,20 @@ _Avoid_: UI cache, UI history
 A thread's conversation rebuilt from the persisted session without running the agent. It holds the user turns and one reply per run, with that run's tool calls and results and the Human Input questions it asked. Each Surface of the UI Snapshot sits in the reply that produced it.
 _Avoid_: transcript, chat log, message history
 
+### Runs
+
+**Detached Run**:
+An AG-UI run whose client asked for it to outlive the request that started it. Disconnecting, reloading or leaving the page stops someone watching the run, not the run (ADR-0016).
+_Avoid_: background run, async run, async invocation
+
+**Run Log**:
+The bounded, short-lived sequence of one Detached Run's AG-UI events, which every observer of the run replays from its start. It is a replay buffer; the session stays the record of the conversation.
+_Avoid_: event buffer, run stream, watch hub
+
+**Stop**:
+A person's explicit request to end a run in progress, such as the dashboard's Stop button or a Linear `stop` signal. It reaches the run wherever it executes, and the run is recorded as stopped, not failed; a dropped connection is never a Stop.
+_Avoid_: cancel, abort
+
 ### Skills
 
 **Skill**:
