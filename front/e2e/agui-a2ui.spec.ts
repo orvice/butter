@@ -512,12 +512,11 @@ test.describe('A2UI recovery', () => {
     await expect(form(page)).toBeVisible()
     const threadId = fixture.requests[0].threadId as string
 
-    // The URL keeps the thread. After the refresh the thread is busy once
-    // (409), then the snapshot arrives; a thread started on the page had
-    // nothing to read before.
+    // The URL keeps the thread, and the refresh reads its snapshot; a thread
+    // started on the page had nothing to read before.
     expect(threadInURL(page)).toBe(threadId)
     expect(fixture.snapshotRequests).toEqual([])
-    fixture.snapshots.push({ status: 409, body: { error: 'a run is in progress' } }, restored, restored)
+    fixture.snapshots.push(restored)
     await page.reload({ waitUntil: 'networkidle' })
 
     const region = page.getByRole('region', { name: 'Restored from this conversation' })
@@ -525,7 +524,7 @@ test.describe('A2UI recovery', () => {
     await expect(region.getByText('Restored summary.')).toBeVisible()
     await expect(region.getByText('Degraded')).toBeVisible()
     await expect(region.getByText('Waiting for your answer')).toBeVisible()
-    expect(fixture.snapshotRequests.length).toBeGreaterThanOrEqual(2)
+    expect(fixture.snapshotRequests).toHaveLength(1)
     for (const url of fixture.snapshotRequests) {
       expect(url).toContain(`/api/agui/streamer-id/threads/${threadId}/ui`)
     }

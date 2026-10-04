@@ -1,8 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchAGUIThreadHistory, fetchAGUIUISnapshot } from '@/api/agui'
 import { ApiError } from '@/api/client'
 import type { UISnapshot } from './a2ui/protocol'
-import { loadThread, threadRepository, type ThreadHistory } from './history'
+import { A2UIStore } from './a2ui/store'
+import {
+  loadThread,
+  restoreThread,
+  runningOf,
+  threadRepository,
+  type ThreadHistory,
+} from './history'
 
 vi.mock('@/api/agui', () => ({
   fetchAGUIThreadHistory: vi.fn(),
@@ -295,39 +302,105 @@ describe('loadThread', () => {
     vi.mocked(fetchAGUIThreadHistory).mockReset()
     vi.mocked(fetchAGUIUISnapshot).mockReset()
     vi.mocked(fetchAGUIThreadHistory).mockResolvedValue(read.history)
+    vi.mocked(fetchAGUIUISnapshot).mockResolvedValue(read.snapshot)
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('gives up at once on a failure other than a busy thread', async () => {
-    vi.mocked(fetchAGUIUISnapshot).mockRejectedValue(
-      new ApiError('500', 'session store down')
-    )
-    await expect(loadThread('a', 't', () => true)).rejects.toThrow(
-      'session store down'
-    )
+  it('reads the history and the UI snapshot of the thread, once each', async () => {
+    await expect(loadThread('a', 't')).resolves.toEqual(read)
+    expect(fetchAGUIThreadHistory).toHaveBeenCalledTimes(1)
+    expect(fetchAGUIThreadHistory).toHaveBeenCalledWith('a', 't', undefined)
     expect(fetchAGUIUISnapshot).toHaveBeenCalledTimes(1)
+    expect(fetchAGUIUISnapshot).toHaveBeenCalledWith('a', 't', undefined)
   })
 
-  it('waits out a run that holds the thread', async () => {
-    vi.useFakeTimers()
-    vi.mocked(fetchAGUIUISnapshot)
-      .mockRejectedValueOnce(new ApiError('409', 'busy'))
-      .mockRejectedValueOnce(new ApiError('503', 'lease unavailable'))
-      .mockResolvedValue(read.snapshot)
-    const loaded = loadThread('a', 't', () => true)
-    await vi.advanceTimersByTimeAsync(500 + 1000)
-    await expect(loaded).resolves.toEqual(read)
-    expect(fetchAGUIUISnapshot).toHaveBeenCalledTimes(3)
+  it('shows a run in flight as the reads report it, without waiting for it', async () => {
+    const running = { runId: 'run-2', invocationId: 'inv-2' }
+    const cut = history({
+      messages: [{ id: 'u1', role: 'user', content: 'plan the trip' }],
+      running,
+    })
+    vi.mocked(fetchAGUIThreadHistory).mockResolvedValue(cut)
+    await expect(loadThread('a', 't')).resolves.toEqual({
+      history: cut,
+      snapshot: read.snapshot,
+    })
+    expect(fetchAGUIThreadHistory).toHaveBeenCalledTimes(1)
   })
 
-  it('stops waiting once the thread is left', async () => {
-    vi.mocked(fetchAGUIUISnapshot).mockRejectedValue(
-      new ApiError('409', 'busy')
+  for (const [code, message] of [
+    ['409', 'a run is in progress on this thread'],
+    ['503', 'run state unavailable, retry later'],
+    ['500', 'session store down'],
+  ]) {
+    it(`reads nothing again after a ${code}: the page offers Retry`, async () => {
+      vi.mocked(fetchAGUIUISnapshot).mockRejectedValue(
+        new ApiError(code, message)
+      )
+      await expect(loadThread('a', 't')).rejects.toThrow(message)
+      expect(fetchAGUIUISnapshot).toHaveBeenCalledTimes(1)
+      expect(fetchAGUIThreadHistory).toHaveBeenCalledTimes(1)
+    })
+  }
+
+  it('restores the surfaces alone from a server without the history endpoint', async () => {
+    vi.mocked(fetchAGUIThreadHistory).mockRejectedValue(
+      new ApiError('404', 'not found')
     )
-    await expect(loadThread('a', 't', () => false)).rejects.toThrow('busy')
-    expect(fetchAGUIUISnapshot).toHaveBeenCalledTimes(1)
+    vi.mocked(fetchAGUIUISnapshot).mockResolvedValue(snapshot('card-1'))
+    await expect(loadThread('a', 't')).resolves.toEqual({
+      history: history({}),
+      snapshot: snapshot('card-1'),
+    })
+  })
+})
+
+describe('runningOf', () => {
+  const running = { runId: 'run-2', invocationId: 'inv-2' }
+
+  it('names the run either read found in flight', () => {
+    expect(
+      runningOf({ history: history({ running }), snapshot: snapshot() })
+    ).toEqual(running)
+    // A run that started after the history was read.
+    expect(
+      runningOf({ history: history({}), snapshot: { ...snapshot(), running } })
+    ).toEqual(running)
+    expect(runningOf({ history: history({}), snapshot: snapshot() })).toBeNull()
+  })
+})
+
+describe('restoreThread', () => {
+  it('puts the surfaces in the store, and returns the conversation with each in its reply', () => {
+    const store = new A2UIStore()
+    const repository = restoreThread(
+      { history: conversation, snapshot: snapshot('card-1', 'card-2') },
+      store
+    )
+    expect(repository.headId).toBe('a2')
+    expect(repository.messages[1].message.content.map((p) => p.type)).toEqual([
+      'tool-call',
+      'data',
+      'text',
+    ])
+    expect(store.list().map((e) => e.id)).toEqual(['card-1', 'card-2'])
+    // card-2 is in no reply, so it shows on its own.
+    expect(store.isPlaced('card-1')).toBe(true)
+    expect(store.isPlaced('card-2')).toBe(false)
+  })
+
+  it('drops the surfaces a later read of the thread no longer has', () => {
+    const store = new A2UIStore()
+    restoreThread(
+      { history: conversation, snapshot: snapshot('card-1', 'card-2') },
+      store
+    )
+    restoreThread(
+      { history: conversation, snapshot: snapshot('card-1') },
+      store
+    )
+    expect(store.list().map((e) => [e.id, e.deleted])).toEqual([
+      ['card-1', false],
+      ['card-2', true],
+    ])
   })
 })

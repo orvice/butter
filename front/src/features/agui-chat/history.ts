@@ -4,7 +4,11 @@ import {
   type ExportedMessageRepository,
   type ThreadMessageLike,
 } from '@assistant-ui/react'
-import { fetchAGUIThreadHistory, fetchAGUIUISnapshot } from '@/api/agui'
+import {
+  fetchAGUIThreadHistory,
+  fetchAGUIUISnapshot,
+  type AGUIRunningRun,
+} from '@/api/agui'
 import { ApiError } from '@/api/client'
 import {
   A2UI_VERSION,
@@ -14,6 +18,7 @@ import {
   type SnapshotSurface,
   type UISnapshot,
 } from './a2ui/protocol'
+import type { A2UIStore } from './a2ui/store'
 
 // ThreadHistory is the body of GET /api/agui/:agent_id/threads/:thread_id/messages:
 // a thread's conversation as AG-UI messages, its open Interrupts, and the
@@ -23,6 +28,9 @@ export interface ThreadHistory {
   messages: HistoryMessage[]
   interrupts: HistoryInterrupt[]
   surfaces: Array<{ surfaceId: string; messageId: string }>
+  // running names the run in flight. The messages then end with the turn
+  // that started it, and what the run produced is left out until it ends.
+  running?: AGUIRunningRun
   // lastRun is how the thread's latest run ended when it failed or was
   // stopped (last-run.ts).
   lastRun?: HistoryLastRun
@@ -280,40 +288,71 @@ function parseJSON(text: string): unknown {
   }
 }
 
-// loadThread reads a thread's history and its UI snapshot together. A run
-// holding the thread answers 409, so a busy read is retried while keepTrying
-// holds; any other failure is final, and the page offers Retry. A server
-// without the history endpoint (404) restores the surfaces alone.
-export async function loadThread(
-  agentId: string,
-  threadId: string,
-  keepTrying: () => boolean
-): Promise<{ history: ThreadHistory; snapshot: UISnapshot }> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const [history, snapshot] = await Promise.all([
-        fetchAGUIThreadHistory<ThreadHistory>(agentId, threadId).catch(
-          (err: unknown) => {
-            if (err instanceof ApiError && err.code === '404') {
-              return emptyHistory(threadId)
-            }
-            throw err
+// ThreadRead is one read of a thread: its history and its UI snapshot.
+export interface ThreadRead {
+  history: ThreadHistory
+  snapshot: UISnapshot
+}
+
+// ThreadReads reads one thread, a part at a time.
+export interface ThreadReads {
+  history(signal?: AbortSignal): Promise<ThreadHistory>
+  snapshot(signal?: AbortSignal): Promise<UISnapshot>
+}
+
+// threadReads reads the thread threadId through agentId. A server without
+// the history endpoint (404) reads as an empty history, so the surfaces are
+// restored alone.
+export function threadReads(agentId: string, threadId: string): ThreadReads {
+  return {
+    history: (signal) =>
+      fetchAGUIThreadHistory<ThreadHistory>(agentId, threadId, signal).catch(
+        (err: unknown) => {
+          if (err instanceof ApiError && err.code === '404') {
+            return emptyHistory(threadId)
           }
-        ),
-        fetchAGUIUISnapshot<UISnapshot>(agentId, threadId),
-      ])
-      return { history, snapshot }
-    } catch (err) {
-      if (!threadBusy(err) || attempt >= 5 || !keepTrying()) throw err
-      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt))
-    }
+          throw err
+        }
+      ),
+    snapshot: (signal) =>
+      fetchAGUIUISnapshot<UISnapshot>(agentId, threadId, signal),
   }
 }
 
-// threadBusy reports a read refused only for the moment: a run holds the
-// thread (409), or its lease cannot be taken right now (503).
-function threadBusy(err: unknown): boolean {
-  return err instanceof ApiError && (err.code === '409' || err.code === '503')
+// loadThread reads a thread's history and its UI snapshot together, once.
+// The reads never wait for a run (docs/api.md "Reads during a run"), so
+// nothing is read again: a failure is final, and the page offers Retry.
+export async function loadThread(
+  agentId: string,
+  threadId: string
+): Promise<ThreadRead> {
+  const reads = threadReads(agentId, threadId)
+  const [history, snapshot] = await Promise.all([
+    reads.history(),
+    reads.snapshot(),
+  ])
+  return { history, snapshot }
+}
+
+// runningOf is the run a read found in flight, or null. The history and the
+// snapshot are read apart, so either one names a run that started or was
+// still going while the other was read.
+export function runningOf(read: ThreadRead): AGUIRunningRun | null {
+  return read.history.running ?? read.snapshot.running ?? null
+}
+
+// restoreThread shows a read of the thread: its surfaces go to the store as
+// the snapshot has them, and it returns the conversation the runtime shows,
+// each surface in the reply that produced it. It serves both the read that
+// opens the thread and the read after a run the page waited out
+// (RunFollower).
+export function restoreThread(
+  read: ThreadRead,
+  store: A2UIStore
+): ExportedMessageRepository {
+  const { repository, placed } = threadRepository(read.history, read.snapshot)
+  store.restore(read.snapshot, placed)
+  return repository
 }
 
 function emptyHistory(threadId: string): ThreadHistory {
