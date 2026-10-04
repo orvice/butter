@@ -10,6 +10,7 @@ import {
   recordedText,
   restoreInput,
   runInput,
+  runningInput,
   type Composer,
   type TurnInput,
 } from './last-run'
@@ -124,6 +125,60 @@ describe('runInput', () => {
 
   it('is no input without a user message', () => {
     expect(runInput({ messages: [] })).toEqual(NO_INPUT)
+  })
+})
+
+describe('runningInput', () => {
+  const RUN = { runId: 'run-2', invocationId: 'inv-2' }
+  const before = [
+    { id: 'u1', role: 'user', content: 'Book a flight' },
+    { id: 'a1', role: 'assistant', content: 'Booked.' },
+  ]
+
+  it('is the turn a read during the run ends with: the one the run started from', () => {
+    expect(
+      runningInput(
+        history({
+          messages: [
+            ...before,
+            { id: 'u2', role: 'user', content: [text('plan it'), image()] },
+          ],
+          running: RUN,
+        })
+      )
+    ).toEqual({
+      text: 'plan it',
+      images: [{ mimeType: 'image/png', data: PNG }],
+    })
+  })
+
+  it('is no input for a run that continues after tool results', () => {
+    expect(
+      runningInput(
+        history({
+          messages: [
+            ...before,
+            {
+              id: 'result:c1',
+              role: 'tool',
+              toolCallId: 'c1',
+              content: '{"ok":true}',
+            },
+          ],
+          running: RUN,
+        })
+      )
+    ).toEqual(NO_INPUT)
+  })
+
+  it('is no input when the read names no run: its last turn is an earlier run’s', () => {
+    expect(
+      runningInput(
+        history({
+          messages: [...before, { id: 'u2', role: 'user', content: 'again' }],
+        })
+      )
+    ).toEqual(NO_INPUT)
   })
 })
 

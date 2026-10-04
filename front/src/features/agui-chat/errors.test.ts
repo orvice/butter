@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { errorReporter, runStopped, threadRefusal } from './errors'
+import { errorReporter, runErrorOf, runStopped, threadRefusal } from './errors'
 
 // httpError is how the AG-UI client rejects a run the server answered with
 // a non-2xx status: the status and the parsed JSON body ride on the Error.
@@ -60,6 +60,25 @@ describe('runStopped', () => {
     expect(runStopped({ code: 'stopped' })).toBe(false)
     expect(runStopped('stopped')).toBe(false)
     expect(runStopped(undefined)).toBe(false)
+  })
+})
+
+// runErrorOf reports a RUN_ERROR of a run followed from its log as the AG-UI
+// runtime reports one of a run it streams.
+describe('runErrorOf', () => {
+  it('carries the event’s message and code', () => {
+    const stopped = runErrorOf({ message: 'stopped by user', code: 'stopped' })
+    expect(stopped).toBeInstanceOf(Error)
+    expect(stopped.message).toBe('stopped by user')
+    expect(runStopped(stopped)).toBe(true)
+    const failed = runErrorOf({ message: 'model exploded' })
+    expect(failed.message).toBe('model exploded')
+    expect(failed).not.toHaveProperty('code')
+    expect(runStopped(failed)).toBe(false)
+  })
+
+  it('names a failure that carries no message', () => {
+    expect(runErrorOf({}).message).toBe('Run failed')
   })
 })
 

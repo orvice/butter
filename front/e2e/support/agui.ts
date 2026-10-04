@@ -1,6 +1,8 @@
 import type { Page, Route } from '@playwright/test'
 import { create, fromBinary } from '@bufbuild/protobuf'
 import { timestampFromDate } from '@bufbuild/protobuf/wkt'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import {
   DeleteSessionRequestSchema,
   DeleteSessionResponseSchema,
@@ -36,6 +38,10 @@ import {
 // its thread, POST .../threads/:id/stop, ends it as the server would, or the
 // test ends it. The page aborting a run's request only detaches it, so the
 // run stays open meanwhile, as on the server.
+//
+// Attaching to a thread's run, GET .../threads/:id/run, is answered from a
+// queue too: 204 (no log to follow) by default, a literal SSE body, or a live
+// stream the test writes the run's log to as the run goes (AttachStream).
 
 export const USER_ID = 'test-user-1'
 
@@ -78,18 +84,140 @@ export interface SnapshotResponse {
   body?: Record<string, unknown>
 }
 
+// AttachResponse answers one attach to a thread's detached run (docs/api.md
+// "Attaching to a run"): an HTTP status, 204 when there is no log to follow,
+// with an {error} body otherwise; the run's log as one literal SSE body; or a
+// live stream (LiveAttach).
+export type AttachResponse =
+  { status: number; body?: Record<string, unknown> } | string | LiveAttach
+
+// LiveAttach is an attach whose stream stays open as the server keeps it
+// open while it follows a run: the test writes the run's log to it as the
+// run goes (AGUIFixture.liveAttaches). runId names the run, which a Stop on
+// the thread reaches while the stream is open.
+export interface LiveAttach {
+  live: true
+  runId: string
+}
+
+// AttachStream is a live attach as the test drives it.
+export interface AttachStream {
+  readonly threadId: string
+  readonly runId: string
+  // send writes events to the stream, as the run produces them.
+  send: (events: Array<Record<string, unknown>>) => void
+  // end writes events, then ends the stream, as the run's end ends it.
+  end: (events?: Array<Record<string, unknown>>) => void
+  // ended reports that the stream ended; aborted that the page aborted it
+  // first, which stops it following the run.
+  readonly ended: boolean
+  readonly aborted: boolean
+}
+
+// stoppedEvent is the RUN_ERROR that ends a run a Stop reached, with the
+// stop code (docs/api.md "Stopping a run").
+export function stoppedEvent(runId: string): Record<string, unknown> {
+  return {
+    type: 'RUN_ERROR',
+    code: 'stopped',
+    message: 'stopped by user',
+    runId,
+  }
+}
+
 // stoppedRun is the stream of a run a Stop reached: it ends with RUN_ERROR
-// and the stop code (docs/api.md "Stopping a run").
+// and the stop code.
 export function stoppedRun(threadId: string, runId: string): string {
-  return sse([
-    { type: 'RUN_STARTED', threadId, runId },
-    {
-      type: 'RUN_ERROR',
-      code: 'stopped',
-      message: 'stopped by user',
-      runId,
+  return sse([{ type: 'RUN_STARTED', threadId, runId }, stoppedEvent(runId)])
+}
+
+// liveAttach is a live attach's stream. What the test writes waits for the
+// page's request to reach the stream (connect), and the stream records that
+// the page aborted it.
+function liveAttach(
+  threadId: string,
+  runId: string
+): AttachStream & { connect: (res: http.ServerResponse) => void } {
+  let res: http.ServerResponse | undefined
+  let pending = ''
+  let ended = false
+  let aborted = false
+  const flush = () => {
+    if (!res || aborted || res.writableEnded) return
+    if (pending) res.write(pending)
+    pending = ''
+    if (ended) res.end()
+  }
+  return {
+    threadId,
+    runId,
+    get ended() {
+      return ended
     },
-  ])
+    get aborted() {
+      return aborted
+    },
+    send: (events) => {
+      pending += sse(events)
+      flush()
+    },
+    end: (events = []) => {
+      pending += sse(events)
+      ended = true
+      flush()
+    },
+    connect: (response) => {
+      res = response
+      response.on('close', () => {
+        if (!response.writableEnded) aborted = true
+      })
+      // A write racing the page's abort fails; the stream is gone anyway.
+      response.on('error', () => {})
+      flush()
+    },
+  }
+}
+
+// attachServer serves live attaches from a local server. Playwright fulfills
+// a request with its whole body at once, so a stream that stays open, as the
+// server's does while it follows a run, goes through a real connection: the
+// attach continues to the stream's URL (serve), which the page never sees.
+// The server closes with the page.
+function attachServer(page: Page) {
+  const streams = new Map<string, (res: http.ServerResponse) => void>()
+  const server = http.createServer((req, res) => {
+    const connect = streams.get(req.url ?? '')
+    streams.delete(req.url ?? '')
+    if (!connect) {
+      res.writeHead(404).end()
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    })
+    res.flushHeaders()
+    connect(res)
+  })
+  let port: Promise<number> | undefined
+  let served = 0
+  page.on('close', () => {
+    if (!port) return
+    server.closeAllConnections()
+    server.close()
+  })
+  return {
+    async serve(connect: (res: http.ServerResponse) => void): Promise<string> {
+      port ??= new Promise((resolve) =>
+        server.listen(0, '127.0.0.1', () =>
+          resolve((server.address() as AddressInfo).port)
+        )
+      )
+      const path = `/attach/${++served}`
+      streams.set(path, connect)
+      return `http://127.0.0.1:${await port}${path}`
+    },
+  }
 }
 
 // SessionCalls records what the page asked SessionService to do.
@@ -122,6 +250,13 @@ export interface AGUIFixture {
   // endOpenRun ends the open run on threadId with the stream sse, if one is
   // open, as the server ends a run.
   endOpenRun: (threadId: string, sse: string) => void
+  // attaches answers attaches to a thread's run in order; once it runs out,
+  // there is no log to follow (204).
+  attaches: AttachResponse[]
+  // attachRequests holds the URL of each attach, in order.
+  attachRequests: string[]
+  // liveAttaches holds the live attaches, in the order the page made them.
+  liveAttaches: AttachStream[]
   // sessions are the caller's sessions, newest first.
   sessions: SessionInfo[]
   sessionCalls: SessionCalls
@@ -225,6 +360,9 @@ export async function setupAGUI(
     stopRequests: fixture.stopRequests ?? [],
     abortedRuns: fixture.abortedRuns ?? [],
     endOpenRun,
+    attaches: fixture.attaches ?? [],
+    attachRequests: fixture.attachRequests ?? [],
+    liveAttaches: [],
     sessions: fixture.sessions ?? [],
     sessionCalls: {
       lists: [],
@@ -295,43 +433,80 @@ export async function setupAGUI(
     state.abortedRuns.push(String(input.threadId ?? ''))
   })
 
+  const liveServer = attachServer(page)
+  // followed is the live attach still streaming threadId's run, if any.
+  const followed = (threadId: string) =>
+    state.liveAttaches.find(
+      (s) => s.threadId === threadId && !s.ended && !s.aborted
+    )
+
   await page.route('**/api/agui/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
     if (request.method() === 'POST' && path.endsWith('/stop')) {
       state.stopRequests.push(request.url())
-      const threadId = decodeURIComponent(path.split('/').at(-2) ?? '')
+      const threadId = threadOf(path)
       const open = openRuns.get(threadId)
+      const streaming = open ? undefined : followed(threadId)
+      const runId = open?.runId ?? streaming?.runId
       const answer: StopResponse = state.stops.shift() ?? {
-        status: open ? 202 : 204,
+        status: runId !== undefined ? 202 : 204,
       }
       if (answer.until) await answer.until
       if (answer.status === 204) {
         await route.fulfill({ status: 204 })
         return
       }
-      const accepted = answer.status === 202 && open !== undefined
+      const accepted = answer.status === 202 && runId !== undefined
       await route.fulfill({
         status: answer.status,
         contentType: 'application/json',
         body: JSON.stringify(
           answer.body ??
-            (accepted
-              ? {
-                  threadId,
-                  runId: open.runId,
-                  invocationId: `inv-${open.runId}`,
-                }
-              : {})
+            (accepted ? { threadId, runId, invocationId: `inv-${runId}` } : {})
         ),
       })
-      // The run a Stop reached ends shortly after, with the stop code.
-      if (accepted) endOpenRun(threadId, stoppedRun(threadId, open.runId))
+      // The run a Stop reached ends shortly after, with the stop code, on the
+      // stream that follows it: the run's own, or the attach's.
+      if (accepted && open) {
+        endOpenRun(threadId, stoppedRun(threadId, open.runId))
+      } else if (accepted) {
+        streaming?.end([stoppedEvent(runId)])
+      }
+      return
+    }
+    if (request.method() === 'GET' && /\/threads\/[^/]+\/run$/.test(path)) {
+      state.attachRequests.push(request.url())
+      const threadId = threadOf(path)
+      const answer: AttachResponse = state.attaches.shift() ?? { status: 204 }
+      if (typeof answer === 'string') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          body: answer,
+        })
+        return
+      }
+      if ('live' in answer) {
+        const stream = liveAttach(threadId, answer.runId)
+        state.liveAttaches.push(stream)
+        await route.continue({ url: await liveServer.serve(stream.connect) })
+        return
+      }
+      if (answer.status === 204) {
+        await route.fulfill({ status: 204 })
+        return
+      }
+      await route.fulfill({
+        status: answer.status,
+        contentType: 'application/json',
+        body: JSON.stringify(answer.body ?? { error: 'unavailable' }),
+      })
       return
     }
     if (request.method() === 'GET' && path.endsWith('/messages')) {
       state.historyRequests.push(request.url())
-      const threadId = decodeURIComponent(path.split('/').at(-2) ?? '')
+      const threadId = threadOf(path)
       const history: SnapshotResponse =
         state.historyByThread?.[threadId] ??
         state.histories.shift() ??
@@ -410,6 +585,12 @@ export async function setupAGUI(
 // /api/agui/:agent_id.
 function isRunPath(url: string): boolean {
   return /^\/api\/agui\/[^/]+$/.test(new URL(url).pathname)
+}
+
+// threadOf is the thread a thread endpoint's path names:
+// /api/agui/:agent_id/threads/:thread_id/<resource>.
+function threadOf(path: string): string {
+  return decodeURIComponent(path.split('/').at(-2) ?? '')
 }
 
 // answerSessions answers SessionService from state.sessions the way the

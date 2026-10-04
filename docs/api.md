@@ -1432,17 +1432,32 @@ together, as AG-UI Chat does, can compare their `running` to tell whether a
 run started or ended in between. Runs without the opt-in are read the same
 way: their threads no longer answer `409` to reads either.
 
-AG-UI Chat treats a thread as running when either read names a run. It does
-not [attach](#attaching-to-a-run) yet; it waits the run out, which is the
-fallback a typical client uses. It shows the conversation the reads return
-with the run's reply as running, and keeps the composer disabled. It then
-reads the history again with backoff (one second, then doubling up to five),
-and once the history names no run, the snapshot too. When neither names a run, it shows the thread as that read has
-it. A Stop sent meanwhile has the next read go out at once. While it waits,
-a read that fails with `502`, `503` or `504`, or gets no answer, is tried
-again; any other failure ends the wait, and the page offers Retry. The read
-that opens the thread is never tried again on its own, and no read is retried
-on a `409`.
+AG-UI Chat treats a thread as running when either read names a run. It shows
+the conversation the reads return with the run's reply as running, and
+[attaches](#attaching-to-a-run) to the run the history names: the replay
+rebuilds the reply, which then streams on as the run goes, as for a run the
+page started. The run's `butter.a2ui` events move its cards and forms, its
+`STATE_*` events the shared state, and its `RUN_FINISHED` or `RUN_ERROR` ends
+the reply, with the questions the run left open or the notice of a run that
+failed or was stopped. Stop [stops the run](#stopping-a-run), then ends the
+stream at once.
+
+AG-UI Chat waits the run out instead, as a typical client does:
+- when attaching answers `204` or fails;
+- when the stream ends with the [fallback marker](#the-fallback-marker) or
+  breaks off;
+- when the stream replays another run than the one the history named, or
+  only the snapshot named a run. That run started after the history was
+  read, and the history lacks its turn.
+
+It then keeps the composer disabled, and reads the history again with backoff
+(one second, then doubling up to five), and once the history names no run,
+the snapshot too. When neither names a run, it shows the thread as that read
+has it, in place of what streamed. A Stop sent meanwhile has the next read go
+out at once. While it waits, a read that fails with `502`, `503` or `504`, or
+gets no answer, is tried again; any other failure ends the wait, and the page
+offers Retry. The read that opens the thread is never tried again on its own,
+and no read is retried on a `409`.
 
 #### Not supported yet
 

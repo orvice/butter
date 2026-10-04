@@ -10,10 +10,13 @@ import {
 // A thread can be held by a run this page did not start: one started before
 // a reload, or in another tab (ADR-0016 decision 8). The thread's reads then
 // answer at once with the run (`running`) and the thread up to the turn that
-// started it. AG-UI Chat shows that run as running under its turn, with the
-// composer disabled, reads the thread again with backoff until no run holds
-// it, then shows the thread as the run left it, cards included. A read is
-// never tried again on a 409.
+// started it. AG-UI Chat attaches to the run's log and streams the run
+// (agui-live-reattach.spec.ts); here attaching answers 204, as it does for a
+// run whose log is gone, so the page falls back to waiting the run out. It
+// shows that run as running under its turn, with the composer disabled,
+// reads the thread again with backoff until no run holds it, then shows the
+// thread as the run left it, cards included. A read is never tried again on
+// a 409.
 
 const V = 'v0.9.1'
 const RUN = { runId: 'run-2', invocationId: 'inv-2' }

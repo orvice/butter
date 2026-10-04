@@ -26,6 +26,13 @@ function errorMessage(err: unknown): string {
 // (docs/api.md "Stopping a run").
 export const STOPPED_CODE = 'stopped'
 
+// RunErrorEvent is what the page reads of a RUN_ERROR: its message, and its
+// code, STOPPED_CODE when a person stopped the run.
+export interface RunErrorEvent {
+  message?: string
+  code?: string
+}
+
 // runStopped reports whether err ended a run that a person stopped: from
 // this page's Stop, or from anywhere else. The AG-UI runtime reports a
 // RUN_ERROR as an Error that carries the event's code. A stopped run did not
@@ -33,6 +40,17 @@ export const STOPPED_CODE = 'stopped'
 export function runStopped(err: unknown): boolean {
   return (
     err instanceof Error && (err as { code?: unknown }).code === STOPPED_CODE
+  )
+}
+
+// runErrorOf is the Error the AG-UI runtime reports for a RUN_ERROR: the
+// event's message, carrying its code. The runtime reports only the runs it
+// streams itself, so the page reports a run it follows from the run's log
+// (RunFollower) with it.
+export function runErrorOf(event: RunErrorEvent): Error {
+  return Object.assign(
+    new Error(event.message ?? 'Run failed'),
+    event.code === undefined ? {} : { code: event.code }
   )
 }
 

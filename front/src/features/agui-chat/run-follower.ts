@@ -1,13 +1,23 @@
+import type { ChatModelRunResult, ThreadMessage } from '@assistant-ui/react'
+import { AGUI_FALLBACK_EVENT, type AGUIEvent } from '@/api/agui'
 import { ApiError } from '@/api/client'
 import type { ThreadHistory, ThreadRead, ThreadReads } from './history'
+import {
+  RunFold,
+  toolCallIdsOf,
+  type RunEffects,
+  type RunEndEvent,
+} from './run-fold'
 
 // A thread can be held by a run this page did not start: one started before
 // a reload, before the page left the thread and came back, or in another tab
 // (ADR-0016 decision 8). The thread's reads then show it as the run found
 // it, with the turn that started the run, and name the run (`running`). The
-// page shows that run's reply as running, and waits the run out: it reads the
-// thread again, with backoff, until no run holds it, then shows the thread as
-// the run left it.
+// page shows that run's reply as running, and follows the run: it attaches
+// to the run's log and streams the reply from it, as it streams a run it
+// started. When the log cannot carry the run to its end, the page waits the
+// run out instead: it reads the thread again, with backoff, until no run
+// holds it, then shows the thread as the run left it.
 
 // POLL_DELAYS_MS paces the reads of a thread whose run the page waits out:
 // the first a second after the read that found the run, then twice as long
@@ -102,18 +112,40 @@ export interface RunEnd {
   // the read that ends the wait tells how the run ended, if it failed or
   // was stopped.
   reading?: () => (history: ThreadHistory) => void
+  // ended is told the event that ended a run the page streamed from its
+  // log, once its reply shows it: RUN_FINISHED, or RUN_ERROR, a failure or
+  // a Stop. The reply is then the run's, and nothing is read.
+  ended?: (event: RunEndEvent) => void
+  // detached is told when the page stopped following the run before its
+  // end: a Stop that ended it here, leaving the thread, or deleting it. The
+  // run goes on, as one the page started does once its request is aborted.
+  detached?: () => void
 }
+
+// FollowOptions are the history adapter's resume() options that follow
+// reads: the signal that ends the run's resume, and the thread's messages
+// before the run's reply.
+export interface FollowOptions {
+  abortSignal: AbortSignal
+  messages?: readonly ThreadMessage[]
+}
+
+const NO_EFFECTS: RunEffects = { a2ui: () => {}, state: () => {} }
 
 // RunFollower follows a run the page found holding the thread, for one
 // thread's runtime. The thread's history adapter hands the run over from
 // resume() (follow), which the runtime runs under the run's reply, so the
-// reply shows as running until follow returns. isPolling tells the page it
-// waits the run out by reading the thread (pollUntilEnded): the composer
-// stays disabled meanwhile.
+// reply shows as running until follow returns. Streamed from the run's log,
+// the reply grows as the run goes, and the run's events move the A2UI store
+// and the shared state (setEffects). isPolling tells the page it waits the
+// run out by reading the thread instead (pollUntilEnded): the composer stays
+// disabled meanwhile.
 export class RunFollower {
   private readonly listeners = new Set<() => void>()
   private readonly reads: ThreadReads
+  private effects: RunEffects = NO_EFFECTS
   private end: RunEnd | null = null
+  private runId: string | null = null
   private polling = false
   private backoff: Backoff | null = null
   private waiters: Array<() => void> = []
@@ -128,6 +160,23 @@ export class RunFollower {
     this.end = end
   }
 
+  // setEffects sets what a run streamed from its log changes besides its
+  // reply: the A2UI store and the shared state. The page sets them from
+  // inside its runtime's provider, where the shared state's setter is,
+  // before any run streams.
+  setEffects(effects: RunEffects) {
+    this.effects = effects
+  }
+
+  // found tells which run the thread's history found holding the thread:
+  // the run follow streams, as the history ends with its turn. Without one,
+  // only the UI snapshot named a run, one that started after the history was
+  // read, whose turn the page does not show: follow waits that run out. So
+  // it does with a log that replays another run than the history's.
+  found(run: { runId: string } | undefined) {
+    this.runId = run?.runId ?? null
+  }
+
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
     return () => {
@@ -138,21 +187,89 @@ export class RunFollower {
   isPolling = () => this.polling
 
   // follow follows the run until it ended: it is the history adapter's
-  // resume(). For now the page waits every run out (pollUntilEnded). Live
-  // re-attach (#407) goes here: it attaches to the run's log
-  // (GET …/threads/:thread_id/run) and streams the reply, and falls back to
-  // pollUntilEnded when attaching answers 204 or the stream ends with the
-  // butter.fallback marker.
-  follow(signal: AbortSignal): Promise<void> {
-    return this.pollUntilEnded(signal)
+  // resume(), and yields the run's reply as it goes. For the run the history
+  // found (found), it attaches to the run's log (GET …/threads/:thread_id/run),
+  // which replays the run from RUN_STARTED and then follows it, and streams
+  // the reply from it (stream). It waits the run out by reading the thread
+  // instead (pollUntilEnded) when the log cannot carry that run to its end:
+  // attaching answers 204 or fails, the log is another run's, or the stream
+  // ends with the butter.fallback marker or breaks off. It returns once
+  // options.abortSignal aborts: the page stopped following the run, which
+  // goes on (detached).
+  async *follow(
+    options: FollowOptions
+  ): AsyncGenerator<ChatModelRunResult, void, undefined> {
+    const signal = options.abortSignal
+    try {
+      const ended = yield* this.stream(signal, options.messages ?? [])
+      if (ended || signal.aborted) return
+      await this.pollUntilEnded(signal)
+    } finally {
+      if (signal.aborted) this.end?.detached?.()
+    }
+  }
+
+  // stream streams the run's reply from its log, folded as the AG-UI runtime
+  // folds a run it streams itself (RunFold), and reports whether the run
+  // ended in it. messages are the thread's messages before the reply. The
+  // event that ended the run goes to ended once the reply shows it.
+  private async *stream(
+    signal: AbortSignal,
+    messages: readonly ThreadMessage[]
+  ): AsyncGenerator<ChatModelRunResult, boolean, undefined> {
+    if (this.runId === null) return false
+    const events = await this.attach(signal)
+    if (!events || signal.aborted) return false
+    // The fold applies the effects the page set last.
+    const effects: RunEffects = {
+      a2ui: (value) => this.effects.a2ui(value),
+      state: (update) => this.effects.state(update),
+    }
+    const fold = new RunFold(effects, toolCallIdsOf(messages))
+    try {
+      for await (const event of events) {
+        if (signal.aborted) return false
+        if (event.type === 'CUSTOM' && event.name === AGUI_FALLBACK_EVENT) {
+          return false
+        }
+        // The log replays its run from RUN_STARTED, under the run's runId.
+        if (event.type === 'RUN_STARTED' && event.runId !== this.runId) {
+          return false
+        }
+        const reply = fold.handle(event)
+        if (reply) yield reply
+        const endEvent = fold.end
+        if (endEvent) {
+          if (!signal.aborted) this.end?.ended?.(endEvent)
+          return true
+        }
+      }
+    } catch {
+      // The stream broke off before the run's end.
+    }
+    return false
+  }
+
+  // attach opens the run's log, or answers null when there is none to
+  // follow or it cannot be read for now, or not by this server: the
+  // thread's reads then tell the run's end.
+  private async attach(
+    signal: AbortSignal
+  ): Promise<AsyncIterable<AGUIEvent> | null> {
+    try {
+      return (await this.reads.attach?.(signal)) ?? null
+    } catch {
+      return null
+    }
   }
 
   // pollUntilEnded waits the run out by reading the thread (awaitRunEnd),
-  // then shows the thread as the run left it. It is the fallback of live
-  // re-attach, for a run whose log cannot be followed to its end: the log is
-  // gone (204), or it was truncated, expired or lost (butter.fallback). It
-  // returns early, showing nothing, once signal aborts: the page stopped
-  // following the run. A read that fails for good goes to failed.
+  // then shows the thread as the run left it, in place of what the stream
+  // showed of it. It is the fallback of live re-attach, for a run whose log
+  // cannot be followed to its end: the log is gone (204) or cannot be read,
+  // or it was truncated, expired or lost (butter.fallback). It returns early,
+  // showing nothing, once signal aborts: the page stopped following the run.
+  // A read that fails for good goes to failed.
   async pollUntilEnded(signal: AbortSignal): Promise<void> {
     const backoff = new Backoff()
     this.backoff = backoff
@@ -185,7 +302,9 @@ export class RunFollower {
   // untilEnded is the end of the run the page waits out, for a Stop that
   // reached it: the thread is read again at once, as the run ends shortly
   // after, and the promise resolves once the page stopped waiting. It is
-  // undefined while the page waits for no run.
+  // undefined while the page waits for no run, and while it streams the run
+  // from its log: Stop then ends the stream here, as it ends one of a run
+  // the page started.
   untilEnded(): Promise<void> | undefined {
     if (!this.polling) return undefined
     this.backoff?.hurry()
