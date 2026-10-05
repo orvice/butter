@@ -24,6 +24,7 @@ import {
   useAuiEvent,
   useAuiState,
   type AssistantRuntime,
+  type ChatModelRunResult,
   type CreateAppendMessage,
   type ThreadHistoryAdapter,
 } from '@assistant-ui/react'
@@ -37,7 +38,7 @@ import {
 import { ChevronDown, History, Reply, Send, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAgents } from '@/api/agents'
-import { stopAGUIRun } from '@/api/agui'
+import { AGUI_FALLBACK_EVENT, stopAGUIRun } from '@/api/agui'
 import { BASE_URL, authHeaders } from '@/api/client'
 import { useSessionInfo, useUpdateSessionTitle } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth-store'
@@ -136,12 +137,13 @@ interface StartedThread {
   firstMessage?: DraftMessage
 }
 
-// AGUIChatPage is AG-UI Chat. The URL is its source of truth: ?thread=<id>
-// opens that thread with the agent its binding names; without it the page is
-// a new-chat draft, whose agent ?agent=<agent_id> preselects. The first
-// message of a draft starts a thread and puts it in the URL.
+// AGUIChatPage is Chat, the dashboard's chat, at /chat: it runs on the AG-UI
+// endpoint. The URL is its source of truth: ?thread=<id> opens that thread
+// with the agent its binding names; without it the page is a new-chat draft,
+// whose agent ?agent=<agent_id> preselects. The first message of a draft
+// starts a thread and puts it in the URL.
 export function AGUIChatPage() {
-  const search = useSearch({ from: '/_authenticated/agui-chat' })
+  const search = useSearch({ from: '/_authenticated/chat' })
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { selectedWorkspaceId, workspaces } = useWorkspace()
@@ -167,7 +169,7 @@ export function AGUIChatPage() {
     const id = agent.agent_id
     if (!id || !selectedWorkspaceId) return
     rememberLastAgent(selectedWorkspaceId, id)
-    void navigate({ to: '/agui-chat', search: { agent: id }, replace: true })
+    void navigate({ to: '/chat', search: { agent: id }, replace: true })
   }
 
   // The thread the URL names: read by its address, which is authoritative,
@@ -264,7 +266,7 @@ export function AGUIChatPage() {
       workspaces.some((w) => w.id === previous) &&
       (search.thread || search.agent)
     ) {
-      void navigate({ to: '/agui-chat', search: {}, replace: true })
+      void navigate({ to: '/chat', search: {}, replace: true })
     }
   }, [selectedWorkspaceId, workspaces, search.thread, search.agent, navigate])
 
@@ -283,12 +285,12 @@ export function AGUIChatPage() {
         firstMessage: message,
       },
     }))
-    void navigate({ to: '/agui-chat', search: { thread: id }, replace: true })
+    void navigate({ to: '/chat', search: { thread: id }, replace: true })
   }
 
   const startNewChat = (agentId?: string | null) =>
     void navigate({
-      to: '/agui-chat',
+      to: '/chat',
       search: agentId ? { agent: agentId } : {},
       replace: true,
     })
@@ -552,6 +554,83 @@ function useFirstMessage(
   }, [runtime, message, onSent, onError])
 }
 
+// useStreamFallback hands a run this page started to the follower when the
+// run's own stream ends with the butter.fallback marker (docs/api.md "The
+// fallback marker"): the run goes on, but its log cannot carry it to its
+// end, so the stream ended without the run's end. Once the runtime settled
+// the run, the reply is resumed under the run's turn as running, and the
+// follower waits the run out (RunFollower.waitOut) until the read after the
+// run replaces it. A run the page starts before then calls the wait off.
+function useStreamFallback(
+  httpAgent: ButterAGUIAgent,
+  runtime: AssistantRuntime,
+  follower: RunFollower
+) {
+  useEffect(() => {
+    let fellBack = false
+    // pending is a run that fell back, which the page waits out once the
+    // runtime no longer runs it.
+    let pending = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    // The runtime settles a run after the agent's subscribers were told it
+    // ended, and its state shows that a render later. The wait starts out of
+    // the runtime's notification, once its state shows no run.
+    const waitWhenSettled = () => {
+      if (!pending || timer !== undefined) return
+      timer = setTimeout(() => {
+        timer = undefined
+        if (!pending || runtime.thread.getState().isRunning) return
+        pending = false
+        waitOutRun(runtime, follower)
+      })
+    }
+    const unsubscribe = runtime.thread.subscribe(waitWhenSettled)
+    const sub = httpAgent.subscribe({
+      onRunInitialized: () => {
+        fellBack = false
+        pending = false
+      },
+      onCustomEvent: ({ event }) => {
+        if (event.name === AGUI_FALLBACK_EVENT) fellBack = true
+      },
+      onRunFinalized: () => {
+        if (!fellBack) return
+        fellBack = false
+        pending = true
+        waitWhenSettled()
+      },
+    })
+    return () => {
+      sub.unsubscribe()
+      unsubscribe()
+      clearTimeout(timer)
+    }
+  }, [httpAgent, runtime, follower])
+}
+
+// waitOutRun resumes the reply of a run whose stream fell back as running,
+// in its place under the run's turn, showing what the stream showed of it,
+// and has the follower wait the run out.
+function waitOutRun(runtime: AssistantRuntime, follower: RunFollower) {
+  const { messages } = runtime.thread.getState()
+  const last = messages[messages.length - 1]
+  const reply = last?.role === 'assistant' ? last : undefined
+  const turn = reply ? messages[messages.length - 2] : last
+  const shown: ChatModelRunResult | undefined = reply && {
+    content: reply.content.filter(
+      (part) => !(part.type === 'data' && part.name === AGUI_FALLBACK_EVENT)
+    ),
+  }
+  // The runtime reports what fails in the reply's stream (onError); the
+  // rejection only repeats it.
+  void Promise.resolve(
+    runtime.thread.resumeRun({
+      parentId: turn?.id ?? null,
+      stream: (options) => follower.waitOut(options, shown),
+    })
+  ).catch(() => {})
+}
+
 // AGUIChatWithRuntime is one thread's conversation and composer, with its own
 // AG-UI client. The page keys it by thread, so it lives exactly as long as
 // that thread is open; openRunRef holds its run meanwhile. Every run outlives
@@ -559,7 +638,8 @@ function useFirstMessage(
 // the page do, only detaches the page from a run: the run goes on. A run
 // that holds the thread when it opens is followed (RunFollower): streamed
 // from its log as a run started here streams, or, when its log cannot be
-// followed, waited out with the composer disabled until the run ended.
+// followed, waited out with the composer disabled until the run ended. So is
+// a run started here whose own stream falls back (useStreamFallback).
 function AGUIChatWithRuntime({
   openRunRef,
   agentId,
@@ -669,6 +749,7 @@ function AGUIChatWithRuntime({
     imageAdapter.serve(() => runtime.thread.composer.getState().attachments)
   }, [imageAdapter, runtime])
   useFirstMessage(runtime, firstMessage, onFirstMessageSent, reportError)
+  useStreamFallback(httpAgent, runtime, follower)
 
   // The run as this page follows it. Cancelling it through the runtime
   // detaches the page: it aborts the run's request, or stops the reads of a
@@ -1172,7 +1253,7 @@ function ComposerArea({
         <AttachImagesButton className='size-9' disabled={disabled} />
         <ComposerPrimitive.Input
           autoFocus
-          placeholder='Message the agent over AG-UI…'
+          placeholder='Message the agent…'
           aria-describedby={answering ? hintId : undefined}
           rows={2}
           className='min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring'

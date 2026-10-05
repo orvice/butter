@@ -87,7 +87,7 @@ A node option that runs the node once per item of a list-typed input, concurrent
 ### Generative UI (A2UI)
 
 **Surface**:
-One A2UI-rendered area in AG-UI Chat, identified by a server-assigned surface ID: either a Result Card or a Human Input Form. It reaches a client as `butter.a2ui` CUSTOM events and from the UI Snapshot (ADR-0014).
+One A2UI-rendered area in the dashboard's Chat, identified by a server-assigned surface ID: either a Result Card or a Human Input Form. It reaches a client as `butter.a2ui` CUSTOM events and from the UI Snapshot (ADR-0014).
 _Avoid_: widget, generative component
 
 **Result Card**:

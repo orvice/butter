@@ -9,8 +9,7 @@ import { agentIconUrl } from '@/features/agents/icon-utils'
 import { isSelectableAgent } from './agents'
 
 // AgentSelector picks the agent a new chat starts with, from every runnable
-// agent in the workspace, searchable by name and description. Chat uses it
-// too until AG-UI Chat replaces it (#409).
+// agent in the workspace, searchable by name and description.
 export function AgentSelector({
   selected,
   onPick,

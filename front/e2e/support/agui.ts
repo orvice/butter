@@ -398,7 +398,7 @@ export async function setupAGUI(
               enableAgui: true,
               lifecycleStatus: 1,
             },
-            // AG-UI Chat lists it too: enable_agui only gates API tokens.
+            // Chat lists it too: enable_agui only gates API tokens.
             {
               name: 'Plain',
               agentId: 'plain-id',

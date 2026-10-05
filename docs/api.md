@@ -632,7 +632,7 @@ plus `X-Workspace-ID`. Which agents a caller reaches depends on the token:
 
 - A **dashboard session token** (a signed-in user) reaches every agent in the
   workspace that the runner can run, whatever its `enable_agui`. This is how
-  the dashboard's AG-UI Chat opens any agent.
+  the dashboard's Chat opens any agent.
 - An **API token** or the **root token** reaches only agents with
   `enable_agui: true`. The flag opts an agent in to programmatic AG-UI access,
   as `enable_a2a` and `enable_openai_api` do for their protocols.
@@ -1340,8 +1340,8 @@ no surfaces rather than revealing it. The read takes no lease and never waits
 for a run: while one is in flight it answers with `running` and the surfaces
 as the run found them (see [Reads during a run](#reads-during-a-run)).
 
-The dashboard's AG-UI Chat opens the thread its URL names (`?thread=<id>`),
-with the agent the thread's binding names. When it opens a thread it reads the
+The dashboard's Chat (`/chat`) opens the thread its URL names
+(`?thread=<id>`), with the agent the thread's binding names. When it opens a thread it reads the
 snapshot together with the [thread history](#thread-history) and shows each
 restored surface in the reply that produced it. A surface whose reply is not
 in the history appears on its own, with a note that it comes from earlier in
@@ -1428,27 +1428,30 @@ found, and leaves out what the run has stored so far:
   starting and ending through every attempt of one read. Retry.
 
 The history and the snapshot are separate reads. A client that loads both
-together, as AG-UI Chat does, can compare their `running` to tell whether a
-run started or ended in between. Runs without the opt-in are read the same
-way: their threads no longer answer `409` to reads either.
+together, as the dashboard's Chat does, can compare their `running` to tell
+whether a run started or ended in between. Runs without the opt-in are read
+the same way: their threads no longer answer `409` to reads either.
 
-AG-UI Chat treats a thread as running when either read names a run. It shows
-the conversation the reads return with the run's reply as running, and
-[attaches](#attaching-to-a-run) to the run the history names: the replay
-rebuilds the reply, which then streams on as the run goes, as for a run the
-page started. The run's `butter.a2ui` events move its cards and forms, its
+The dashboard's Chat treats a thread as running when either read names a
+run. It shows the conversation the reads return with the run's reply as
+running, and [attaches](#attaching-to-a-run) to the run the history names:
+the replay rebuilds the reply, which then streams on as the run goes, as for
+a run the page started. The run's `butter.a2ui` events move its cards and forms, its
 `STATE_*` events the shared state, and its `RUN_FINISHED` or `RUN_ERROR` ends
 the reply, with the questions the run left open or the notice of a run that
 failed or was stopped. Stop [stops the run](#stopping-a-run), then ends the
 stream at once.
 
-AG-UI Chat waits the run out instead, as a typical client does:
+Chat waits the run out instead, as a typical client does:
 - when attaching answers `204` or fails;
 - when the stream ends with the [fallback marker](#the-fallback-marker) or
   breaks off;
 - when the stream replays another run than the one the history named, or
   only the snapshot named a run. That run started after the history was
-  read, and the history lacks its turn.
+  read, and the history lacks its turn;
+- when a run it started itself ends its own `POST` stream with the fallback
+  marker. The reply keeps what streamed, as running, and the page does not
+  attach: the run's log would end the same way.
 
 It then keeps the composer disabled, and reads the history again with backoff
 (one second, then doubling up to five), and once the history names no run,
@@ -1954,9 +1957,7 @@ POST /api/agents.v1.AgentService/StreamAgent
 `POST /api/chat/stream` SSE endpoint. The client opens a Connect server stream,
 sends one `StreamAgentRequest`, then reads `StreamAgentResponse` messages until
 the server closes the stream after `final` or aborts with a `connect.Error`.
-Dashboard chat text turns use `SubmitAgentInvocation` plus the read-only
-`WatchAgentInvocation` stream. Navigation and observer disconnects do not own
-execution lifetime.
+The dashboard's Chat runs on the [AG-UI endpoint](#ag-ui-protocol) instead.
 
 Requires the same Bearer token as other `/api` RPCs. Non-admin callers must set
 `X-Workspace-ID` so the runner invocation is workspace-scoped (same rule as
@@ -2009,9 +2010,7 @@ Terminal failures are **`connect.Error`** on the RPC (e.g. `failed_precondition`
 when the runner is unavailable or workspace header is missing), not an in-stream
 error payload.
 
-Existing synchronous clients may call this via
-`front/src/api/chat.ts::streamChat`. Aborting that request retains its legacy
-request-scoped cancellation behavior.
+Cancellation is request-scoped: aborting the request cancels the turn.
 
 #### CancelAgentInvocation
 
@@ -2039,8 +2038,9 @@ the selected Workspace. Existing synchronous cancellation remains supported.
 |-------|------|-------------|
 | `cancelled` | bool | True if the invocation was found and signalled |
 
-Covers both synchronous streams and asynchronous dashboard invocations. A
-user-cancelled async invocation ends as `CANCELLED` (distinct from `FAILED`).
+Covers both synchronous streams and asynchronous invocations
+(`SubmitAgentInvocation`). A user-cancelled async invocation ends as
+`CANCELLED` (distinct from `FAILED`).
 
 A [detached AG-UI run](#detached-runs)'s Invocation (`source`
 `agui-detached`) is cancelled through the [AG-UI Stop](#stopping-a-run),
@@ -2056,7 +2056,12 @@ cannot be reached the RPC answers `unavailable`; retry it.
 POST /api/agents.v1.AgentService/SubmitAgentInvocation
 ```
 
-Durably accepts one dashboard chat turn as an **asynchronous Invocation** and
+> **Retired from the dashboard.** The dashboard's Chat runs on the
+> [AG-UI endpoint](#ag-ui-protocol) since #409 and no longer calls this RPC nor
+> `WatchAgentInvocation`. #410 removes both, with `asyncrun`, and no
+> deprecation window.
+
+Durably accepts one chat turn as an **asynchronous Invocation** and
 returns immediately; the agent runs server-side, independent of the browser
 connection. Creates a workspace-owned session when `session_id` is empty.
 Dashboard-session auth only (not exposed to API tokens); requires
@@ -2136,15 +2141,12 @@ invocation status first (`GetSession` + `GetAgentInvocation`), then attach a
 fresh watch for future output. Persisted session events and terminal
 `Invocation.output` always remain complete regardless of observer gaps.
 
-The dashboard chat uses `front/src/api/chat.ts::submitAgentInvocation` +
-`watchChatInvocation`; live output renders from the observer stream rather
-than high-frequency session polling.
 
 #### Async failure, timeout, restart, and retry semantics
 
-Asynchronous dashboard execution is **single-instance** in this release: one
+Asynchronous execution (`SubmitAgentInvocation`) is **single-instance**: one
 Butter process owns all async runs, and the deployment must not scale the
-service beyond one replica while relying on dashboard async chat.
+service beyond one replica while relying on it.
 
 An async run ends `FAILED` with an actionable `Invocation.error` in three
 operational cases, in addition to ordinary run errors:
@@ -2166,9 +2168,7 @@ Parts (`GetAgentInvocation` with `include_input_parts`) into the composer for
 review and editing; sending again submits a **new** `request_id` and creates a
 **new** Invocation. Retry is never automatic and never disguised as a
 continuation of the failed Invocation, and the UI warns that resubmitting may
-repeat external tool side effects. The dashboard renders the failed or stopped
-last turn inline (via `GetAgentInvocation` with `latest`) after reload or
-navigation.
+repeat external tool side effects.
 
 #### ReloadAgents
 
@@ -2504,8 +2504,8 @@ Endpoints:
 | `finished_at` | timestamp |  |
 | `latency_ms` | int64 |  |
 | `model_override` | string |  |
-| `source` | string | Who owns the record: `dashboard-async` for the async chat, `agui-detached` for a [detached AG-UI run](#detached-runs), otherwise the `ContextSource` enum string of a run the runner recorded |
-| `request_id` | string | Client idempotency key of an owned record: the async chat's `request_id`, or a detached AG-UI run's thread-scoped `runId` |
+| `source` | string | Who owns the record: `dashboard-async` for an asynchronous Invocation (`SubmitAgentInvocation`), `agui-detached` for a [detached AG-UI run](#detached-runs), otherwise the `ContextSource` enum string of a run the runner recorded |
+| `request_id` | string | Client idempotency key of an owned record: `SubmitAgentInvocation`'s `request_id`, or a detached AG-UI run's thread-scoped `runId` |
 | `workspace_id` | string | Workspace the invocation ran under |
 
 ---

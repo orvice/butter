@@ -8,7 +8,7 @@ import {
   type SnapshotResponse,
 } from './support/agui'
 
-// A run that fails or is stopped stays visible in AG-UI Chat (ADR-0016
+// A run that fails or is stopped stays visible in Chat (ADR-0016
 // decision 8): a notice under the conversation says how it ended and quotes
 // the turn it started from, and Restore input puts that turn back in the
 // composer. The notice comes from the run's RUN_ERROR, from a Stop, or,
@@ -120,7 +120,7 @@ function deferred() {
   return { promise, resolve }
 }
 
-test.describe('AG-UI Chat failed and stopped runs', () => {
+test.describe('Chat failed and stopped runs', () => {
   test('a failed run shows the failure with its input, and Restore input refills the composer', async ({
     page,
   }) => {
@@ -128,7 +128,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
       runs: [failed('r1', 'model exploded'), { open: true }],
       sessions: [trip()],
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await pick(page, 'map.png')
     await send(page, 'plan the trip')
 
@@ -176,7 +176,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
       runs: [failed('r1', 'model exploded')],
       sessions: [trip()],
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await pick(page, 'map.png')
     await send(page, 'plan the trip')
     await expect(failureNotice(page)).toBeVisible()
@@ -225,7 +225,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
         }),
       },
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
 
     const notice = failureNotice(page)
     await expect(notice).toContainText('interrupted by a service shutdown')
@@ -240,7 +240,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
     page,
   }) => {
     await setupAGUI(page, { runs: [{ open: true }], sessions: [trip()] })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await send(page, 'plan the trip')
     await expect(running(page)).toBeVisible()
 
@@ -273,7 +273,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
       sessions: [trip()],
       stops: [{ status: 204 }],
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await send(page, 'plan the trip')
     await expect(running(page)).toBeVisible()
 
@@ -292,7 +292,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
       sessions: [trip()],
       stops: [{ status: 202, until: accepted.promise }],
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await send(page, 'plan the trip')
     await expect(running(page)).toBeVisible()
 
@@ -316,7 +316,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
       runs: [{ open: true }],
       sessions: [trip()],
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await send(page, 'plan the trip')
     await expect(running(page)).toBeVisible()
 
@@ -358,7 +358,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
         ),
       },
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await expect(failureNotice(page)).toBeVisible()
 
     await send(page, 'try again')
@@ -389,7 +389,7 @@ test.describe('AG-UI Chat failed and stopped runs', () => {
       ],
       sessions: [trip()],
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await send(page, 'deploy')
     const question = page.getByRole('group', { name: 'Which version?' })
     await question.getByPlaceholder('Type your answer…').fill('2.4.1')

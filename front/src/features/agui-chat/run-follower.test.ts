@@ -691,6 +691,63 @@ describe('RunFollower', () => {
     }
   })
 
+  describe('waiting out a run whose own stream fell back', () => {
+    const waitOut = (
+      f: RunFollower,
+      shown?: ChatModelRunResult,
+      signal = new AbortController().signal
+    ) => drain(f.waitOut({ abortSignal: signal }, shown))
+    const streamed: ChatModelRunResult = {
+      content: [{ type: 'text', text: 'Three days' }],
+    }
+
+    it('keeps what the stream showed, reads the thread until the run ended, and never attaches', async () => {
+      const { reads, log } = scripted([history(RUN), history()])
+      const run = live()
+      const { f, shown, ended, detached, polling } = follower({
+        ...reads,
+        attach: run.attach,
+      })
+      const waited = waitOut(f, streamed)
+      await vi.advanceTimersByTimeAsync(0)
+      // The composer waits with the page.
+      expect(f.isPolling()).toBe(true)
+      await vi.advanceTimersByTimeAsync(1_000 + 2_000)
+      expect(await waited).toEqual([streamed])
+      expect(run.record.attaches).toBe(0)
+      expect(log).toEqual(['history@1000', 'history@3000', 'snapshot@3000'])
+      expect(shown).toEqual([{ history: history(), snapshot: snapshot() }])
+      expect(polling).toEqual([true, false])
+      expect(ended).toEqual([])
+      expect(detached).toEqual([])
+    })
+
+    it('shows nothing of the reply before the read when the stream showed nothing', async () => {
+      const { reads } = scripted([history()])
+      const { f, shown } = follower(reads)
+      const waited = waitOut(f)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(await waited).toEqual([])
+      expect(shown).toEqual([{ history: history(), snapshot: snapshot() }])
+    })
+
+    it('stops reading once the page stopped following the run, which goes on', async () => {
+      const { reads, log } = scripted([history(RUN), history()])
+      const { f, shown, failures, detached, polling } = follower(reads)
+      const aborted = new AbortController()
+      const waited = waitOut(f, streamed, aborted.signal)
+      await vi.advanceTimersByTimeAsync(1_000)
+      aborted.abort()
+      await waited
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(log).toEqual(['history@1000'])
+      expect(shown).toEqual([])
+      expect(failures).toEqual([])
+      expect(polling).toEqual([true, false])
+      expect(detached).toHaveLength(1)
+    })
+  })
+
   it('polls until the run ended, then shows the thread as the read after found it', async () => {
     const { reads } = scripted([history(RUN), history()])
     const { f, shown, failures, polling } = follower(reads)

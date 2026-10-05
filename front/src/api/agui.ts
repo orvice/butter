@@ -1,92 +1,19 @@
-// AG-UI protocol client for POST /api/agui/:agent_id, and for its thread
-// endpoints under /api/agui/:agent_id/threads/:thread_id.
+// AG-UI protocol client for a thread's endpoints,
+// /api/agui/:agent_id/threads/:thread_id: its reads, Stop, and attaching to
+// its run. Runs themselves (POST /api/agui/:agent_id) are driven by
+// @ag-ui/client (ButterAGUIAgent, features/agui-chat/a2ui/agent.ts).
 //
-// The endpoint streams AG-UI events as SSE over a POST body, which rules out
-// native EventSource — this is a hand-rolled fetch + ReadableStream parser,
-// which attaching to a run's log (attachAGUIRun) reads with too.
-// Pre-stream failures arrive as non-200 JSON {error}; once the stream opens,
-// failures arrive in-band as RUN_ERROR events. See docs/api.md.
+// Attaching streams the run's AG-UI events as SSE, read with a hand-rolled
+// fetch + ReadableStream parser (sseEvents): native EventSource cannot send
+// the auth headers. Failures before a stream opens arrive as non-200 JSON
+// {error}. See docs/api.md.
 import { ApiError, BASE_URL, authHeaders } from './client'
-
-export interface AGUIToolCallRef {
-  id: string
-  type: 'function'
-  function: { name: string; arguments: string }
-}
-
-export interface AGUIMessage {
-  id: string
-  role: 'user' | 'assistant' | 'tool' | 'system' | 'developer'
-  content?: string
-  toolCalls?: AGUIToolCallRef[]
-  toolCallId?: string
-  error?: string
-}
-
-export interface AGUIResumeEntry {
-  interruptId: string
-  status: 'resolved'
-  payload?: unknown
-}
-
-export interface AGUIRunInput {
-  threadId: string
-  runId: string
-  messages: AGUIMessage[]
-  tools?: unknown[]
-  state?: Record<string, unknown> | null
-  resume?: AGUIResumeEntry[]
-}
-
-export interface AGUIInterrupt {
-  id: string
-  reason?: string
-  message?: string
-}
 
 // AGUIEvent is one decoded SSE frame; `type` discriminates, everything else
 // is event-specific and read defensively by the consumer.
 export interface AGUIEvent {
   type: string
   [key: string]: unknown
-}
-
-// runAGUIAgent POSTs one run and invokes onEvent for every streamed AG-UI
-// event, resolving when the stream ends. Abort via the signal detaches the
-// client; the server cancels the run and releases its session lease.
-export async function runAGUIAgent(
-  agentId: string,
-  input: AGUIRunInput,
-  opts: { signal?: AbortSignal; onEvent: (event: AGUIEvent) => void }
-): Promise<void> {
-  const res = await fetch(
-    `${BASE_URL}/api/agui/${encodeURIComponent(agentId)}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        ...authHeaders(),
-      },
-      body: JSON.stringify(input),
-      signal: opts.signal,
-    }
-  )
-
-  if (!res.ok) {
-    let message = `AG-UI request failed (${res.status})`
-    try {
-      const data = (await res.json()) as { error?: string }
-      if (data?.error) message = data.error
-    } catch {
-      // Non-JSON error body; keep the status message.
-    }
-    throw new ApiError(String(res.status), message)
-  }
-  if (!res.body) {
-    throw new ApiError('stream', 'response has no body')
-  }
-  for await (const event of sseEvents(res.body)) opts.onEvent(event)
 }
 
 // sseEvents reads an SSE body as AG-UI events, one per frame, as they

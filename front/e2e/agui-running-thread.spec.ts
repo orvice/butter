@@ -10,7 +10,7 @@ import {
 // A thread can be held by a run this page did not start: one started before
 // a reload, or in another tab (ADR-0016 decision 8). The thread's reads then
 // answer at once with the run (`running`) and the thread up to the turn that
-// started it. AG-UI Chat attaches to the run's log and streams the run
+// started it. Chat attaches to the run's log and streams the run
 // (agui-live-reattach.spec.ts); here attaching answers 204, as it does for a
 // run whose log is gone, so the page falls back to waiting the run out. It
 // shows that run as running under its turn, with the composer disabled,
@@ -140,7 +140,7 @@ function deferred() {
   return { promise, resolve }
 }
 
-test.describe('AG-UI Chat opening a thread during a run', () => {
+test.describe('Chat opening a thread during a run', () => {
   test('shows the run running with the composer disabled, then its reply with the composer enabled', async ({
     page,
   }) => {
@@ -162,7 +162,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
       histories: [duringRun(), duringRun(), afterRun()],
       snapshots: [snapshot([], { running: RUN }), snapshot()],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
 
     // The thread as the run found it, ending with the turn that started it.
     await expect(page.getByText('Booked the 08:10 flight.')).toBeVisible()
@@ -226,7 +226,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
       ],
       snapshots: [snapshot([], { running: RUN }), snapshot([planCard])],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(running(page)).toBeVisible()
     // The card is the run's: the reads during the run leave it out.
     await expect(page.locator('[data-a2ui-surface]')).toHaveCount(0)
@@ -273,7 +273,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
       ],
       snapshots: [snapshot([], { running: RUN }), snapshot()],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(running(page)).toBeVisible()
     const question = page.getByRole('group', { name: 'Which hotel?' })
     await expect(question).toHaveCount(0)
@@ -309,7 +309,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
         },
       ],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(running(page)).toBeVisible()
 
     await stopButton(page).dblclick()
@@ -372,7 +372,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
       ],
       snapshots: [snapshot([], { running: RUN })],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(running(page)).toBeVisible()
     await expect(failureNotice(page)).toHaveCount(0)
 
@@ -399,7 +399,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
         { status: 503, body: { error: 'stop unavailable, retry later' } },
       ],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(running(page)).toBeVisible()
 
     await stopButton(page).click()
@@ -444,12 +444,12 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
         },
       },
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(running(page)).toBeVisible()
     await expect.poll(() => fixture.historyRequests.length).toBe(2)
 
     await page
-      .getByRole('navigation', { name: 'AG-UI threads' })
+      .getByRole('navigation', { name: 'Threads' })
       .getByRole('link', { name: 'Budget review', exact: true })
       .click()
     await expect(page.getByText('The budget holds.')).toBeVisible()
@@ -475,7 +475,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
         afterRun(),
       ],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(loadFailed(page)).toBeVisible()
     await expect(
       page.getByText('a run is in progress on this thread')
@@ -504,7 +504,7 @@ test.describe('AG-UI Chat opening a thread during a run', () => {
       ],
       snapshots: [snapshot([], { running: RUN })],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(running(page)).toBeVisible()
     await expect(loadFailed(page)).toBeVisible(AFTER_TWO_READS)
     await expect(

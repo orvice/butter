@@ -6,13 +6,13 @@ import {
   sse,
 } from './support/agui'
 
-// How AG-UI Chat draws a conversation with the shared chat message
+// How Chat draws a conversation with the shared chat message
 // components (src/components/chat): Markdown, the agent on every reply, tool
 // calls, and the thread's loading, empty and failed states. A conversation
 // starts from a new-chat draft with Streamer; a thread that exists opens by
 // URL.
 
-const NEW_CHAT = '/agui-chat?agent=streamer-id'
+const NEW_CHAT = '/chat?agent=streamer-id'
 const thread = (threadId: string) =>
   aguiSession(threadId, '', { agentId: 'streamer-id' })
 
@@ -209,8 +209,8 @@ test.describe('AG-UI chat messages', () => {
     page,
   }) => {
     // Butter's AG-UI server never streams this call: the question arrives as
-    // an Interrupt. The old Chat reads it from session events, and both chats
-    // share the toolkit that draws it.
+    // an Interrupt. Only the Chat before AG-UI (#409) received it; the shared
+    // toolkit still draws it.
     await setupAGUI(page, {
       runs: [
         sse([
@@ -268,7 +268,7 @@ test.describe('AG-UI chat messages', () => {
       await held
       await route.fallback()
     })
-    await page.goto('/agui-chat?thread=t-empty')
+    await page.goto('/chat?thread=t-empty')
 
     const loading = page.getByRole('status', { name: 'Loading conversation' })
     await expect(loading).toBeVisible()
@@ -356,7 +356,7 @@ test.describe('AG-UI chat messages', () => {
         }),
       })
     )
-    await page.goto('/agui-chat?thread=t-broken', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-broken', { waitUntil: 'networkidle' })
 
     await expect(
       page.getByRole('alert').filter({
@@ -364,9 +364,7 @@ test.describe('AG-UI chat messages', () => {
       })
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
-    await expect(
-      page.getByPlaceholder(/Message the agent over AG-UI/)
-    ).toBeEditable()
+    await expect(page.getByPlaceholder('Message the agent…')).toBeEditable()
     expect(pageErrors).toEqual([])
   })
 })
