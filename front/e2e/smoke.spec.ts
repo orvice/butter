@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
+import { setupAGUI } from './support/agui'
 
 const mockUser = {
   user: {
@@ -166,14 +167,32 @@ test.describe('Authenticated pages smoke test', () => {
     await setupAuth(page)
   })
 
-  const authenticatedPages = [
+  // The JSON answers above are not what the dashboard's binary Connect
+  // client reads, and their pattern also matches the dev server's modules
+  // under src/api, so a row shows only that its page loads. A row with setup
+  // answers its page's calls itself, and shows what it must render.
+  const authenticatedPages: Array<{
+    path: string
+    name: string
+    setup?: (page: Page) => Promise<unknown>
+    shows?: (page: Page) => Locator
+  }> = [
     { path: '/', name: 'Dashboard' },
     { path: '/agents', name: 'Agent List' },
     { path: '/agents/create', name: 'Create Agent' },
     { path: '/automations', name: 'Automations' },
     { path: '/automations/create', name: 'Create Automation' },
     { path: '/sessions', name: 'Sessions' },
-    { path: '/chat', name: 'Chat' },
+    // Chat is the AG-UI chat (#409): without a thread, a new-chat draft.
+    {
+      path: '/chat',
+      name: 'Chat',
+      setup: async (page) => {
+        await page.unroute('**/api/**')
+        await setupAGUI(page, { runs: [] })
+      },
+      shows: (page) => page.getByRole('heading', { name: 'Start a new chat' }),
+    },
     { path: '/forum', name: 'Forum' },
     { path: '/mcp-servers', name: 'MCP Servers' },
     { path: '/mcp-servers/create', name: 'Create MCP Server' },
@@ -202,10 +221,12 @@ test.describe('Authenticated pages smoke test', () => {
     { path: '/manage', name: 'Manage' },
   ]
 
-  for (const { path, name } of authenticatedPages) {
+  for (const { path, name, setup, shows } of authenticatedPages) {
     test(`${name} (${path}) loads without errors`, async ({ page }) => {
+      await setup?.(page)
       const result = await checkPageLoads(page, path, name)
       expect(result.jsErrors, `No JS errors on ${name}`).toHaveLength(0)
+      if (shows) await expect(shows(page), `${name} renders`).toBeVisible()
     })
   }
 })

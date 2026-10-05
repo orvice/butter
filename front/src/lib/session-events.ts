@@ -1,27 +1,5 @@
 import type { SessionEvent } from "@/types/api";
 
-export interface ParsedEvent {
-  eventId: string;
-  author: string;
-  role: "user" | "assistant" | "system";
-  text: string;
-  toolCalls: ToolCallSummary[];
-  toolResponses: ToolResponseSummary[];
-  timestamp?: string;
-  traceUrl?: string;
-  raw: SessionEvent;
-}
-
-export interface ToolCallSummary {
-  name: string;
-  argsPreview: string;
-}
-
-export interface ToolResponseSummary {
-  name: string;
-  responsePreview: string;
-}
-
 export interface ParsedTextPart {
   text: string;
 }
@@ -62,46 +40,10 @@ interface GenaiContent {
   parts?: GenaiPart[];
 }
 
-function previewJson(value: unknown, max = 120): string {
-  if (value === undefined || value === null) return "";
-  let s: string;
-  try {
-    s = typeof value === "string" ? value : JSON.stringify(value);
-  } catch {
-    s = String(value);
-  }
-  if (s.length > max) s = s.slice(0, max) + "…";
-  return s;
-}
-
-function roleFromAuthor(author: string): ParsedEvent["role"] {
+function roleFromAuthor(author: string): FullParsedEvent["role"] {
   if (author === "user") return "user";
   if (author === "system") return "system";
   return "assistant";
-}
-
-/** Compact summary of an event: joined text plus truncated tool-call/response previews. */
-export function parseSessionEvent(evt: SessionEvent): ParsedEvent {
-  const full = parseSessionEventFull(evt);
-  return {
-    eventId: full.eventId,
-    author: full.author,
-    role: full.role,
-    text: full.textParts.map((part) => part.text).join("\n"),
-    toolCalls: full.functionCalls.map((call) => ({ name: call.name, argsPreview: previewJson(call.args) })),
-    toolResponses: full.functionResponses.map((resp) => ({
-      name: resp.name,
-      responsePreview: previewJson(resp.response),
-    })),
-    timestamp: full.timestamp,
-    traceUrl: full.traceUrl,
-    raw: full.raw,
-  };
-}
-
-export function parseSessionEvents(events: SessionEvent[] | undefined): ParsedEvent[] {
-  if (!events) return [];
-  return events.map(parseSessionEvent);
 }
 
 /** Full parse of an event's content into text parts, tool calls, and tool responses (no truncation). */

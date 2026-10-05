@@ -85,7 +85,7 @@ export function HumanInputConfigurationCard({
         </CardTitle>
         <CardDescription>
           The question each node asks when it pauses the workflow. A form shows
-          the question as fields in AG-UI Chat; every other channel gets the
+          the question as fields in Chat; every other channel gets the
           question followed by the field list and may answer in text. The
           node&apos;s successor always receives text — a submitted form arrives
           as a JSON object with one member per field.

@@ -1,9 +1,3 @@
-import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { InputPart, InputPartSchema } from "@/gen/agents/v1/content_pb";
-
-// Init shape for agents.v1.InputPart accepted by the Connect clients.
-export type InputPartInit = MessageInitShape<typeof InputPartSchema>;
-
 // Client-side mirror of the backend multimodal input limits every entry
 // point enforces (internal/userinput: the RPCs' InputParts and AG-UI content
 // parts), so users get immediate feedback instead of a round-trip rejection.
@@ -71,48 +65,4 @@ export function acceptImageFiles(existing: File[], incoming: File[]): AcceptImag
 
 export function validateImageFiles(files: File[]): string[] {
   return acceptImageFiles([], files).errors;
-}
-
-export interface DecodedInputParts {
-  text: string;
-  files: File[];
-}
-
-// decodeInputParts is the inverse of buildInputParts: it turns stored
-// InputPart records back into composer state — the joined text and one File
-// per inline image — so a failed or stopped turn's original input can be
-// restored for review and explicit resubmission.
-export function decodeInputParts(parts: InputPart[]): DecodedInputParts {
-  const textSegments: string[] = [];
-  const files: File[] = [];
-  parts.forEach((part, index) => {
-    if (part.part.case === "text") {
-      textSegments.push(part.part.value);
-    } else if (part.part.case === "inlineData") {
-      const inline = part.part.value;
-      const ext = inline.mimeType.split("/")[1] || "bin";
-      files.push(new File([inline.data as BlobPart], `restored-${index + 1}.${ext}`, { type: inline.mimeType }));
-    }
-  });
-  return { text: textSegments.join("\n\n"), files };
-}
-
-// buildInputParts reads the attached images and assembles the ordered
-// `parts` list for StreamAgent/ReplySession: the text (when non-empty)
-// followed by one inline-data part per image.
-export async function buildInputParts(text: string, images: File[]): Promise<InputPartInit[]> {
-  const parts: InputPartInit[] = [];
-  if (text.length > 0) {
-    parts.push({ part: { case: "text", value: text } });
-  }
-  for (const file of images) {
-    const data = new Uint8Array(await file.arrayBuffer());
-    parts.push({
-      part: {
-        case: "inlineData",
-        value: { mimeType: file.type, data },
-      },
-    });
-  }
-  return parts;
 }

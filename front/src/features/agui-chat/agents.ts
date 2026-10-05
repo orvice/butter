@@ -31,7 +31,8 @@ export function draftAgent(
 }
 
 // The agent picked last for a new chat is remembered per workspace, under
-// the key Chat uses, so both chats start from the same agent.
+// the key the Chat before AG-UI used (#409), so a new chat still starts from
+// the agent picked there.
 export function lastAgentKey(workspaceId: string): string {
   return `${CHAT_LAST_AGENT_PREFIX}${workspaceId}`
 }

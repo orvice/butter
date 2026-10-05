@@ -7,12 +7,12 @@ import {
   threadInURL,
 } from './support/agui'
 
-// AG-UI Chat takes images, picked, pasted or dropped, in an open thread's
+// Chat takes images, picked, pasted or dropped, in an open thread's
 // composer and in the new-chat draft, held to the server's limits. A run's
 // request carries only the trailing user message, its images as image parts
 // with a data source, and a reload shows the images the user sent.
 
-const NEW_CHAT = '/agui-chat?agent=streamer-id'
+const NEW_CHAT = '/chat?agent=streamer-id'
 
 // A 1×1 PNG.
 const PNG =
@@ -144,7 +144,7 @@ async function startThread(page: Page) {
   await expect(page.getByText('Hello.')).toBeVisible()
 }
 
-test.describe('AG-UI Chat images', () => {
+test.describe('Chat images', () => {
   test('images picked, pasted and dropped in a thread go out as image parts of its message', async ({
     page,
   }) => {

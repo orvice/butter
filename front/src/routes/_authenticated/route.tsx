@@ -28,7 +28,7 @@ function AuthenticatedGuard() {
     void auth.restore()
   }, [auth])
 
-  // AG-UI threads are deleted from the sidebar and from AG-UI Chat alike.
+  // Threads are deleted from the sidebar and from Chat alike.
   return (
     <WorkspaceProvider>
       <ThreadDeleteProvider>

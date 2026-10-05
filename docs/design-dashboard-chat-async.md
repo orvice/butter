@@ -1,6 +1,14 @@
 # Dashboard Chat: New-Chat Home and Asynchronous Invocations
 
-Status: Proposed
+Status: Superseded by
+[ADR-0016](adr/0016-agui-runs-outlive-their-request.md)
+
+> Since #409 the dashboard has one Chat, at `/chat`, built on AG-UI: its
+> runs are Detached Runs that outlive their request (ADR-0016), and its
+> history is the caller's AG-UI threads. This document describes the chat
+> that came before it. `SubmitAgentInvocation`, `WatchAgentInvocation` and
+> `asyncrun` stay in the backend, unused by the dashboard, until #410 removes
+> them; the `web-chat` sessions it kept are deleted by #411.
 
 ## Context
 

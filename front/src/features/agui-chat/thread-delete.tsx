@@ -13,7 +13,7 @@ import { useDeleteSession } from '@/api/sessions'
 import { DeleteDialog } from '@/components/delete-dialog'
 import type { LocalRun } from './stop'
 import { sessionIdOf } from './threads'
-import { useAGUIChatSearch } from './use-threads'
+import { useChatSearch } from './use-threads'
 
 // SessionAddress names one session for SessionService.
 export interface SessionAddress {
@@ -34,8 +34,8 @@ export interface ThreadDeleteTarget {
 interface ThreadDelete {
   // requestDelete asks the user to confirm deleting a thread.
   requestDelete: (target: ThreadDeleteTarget) => void
-  // openRun holds the run of the thread AG-UI Chat has open, as the page
-  // follows it, so deleting that thread detaches the page from it first.
+  // openRun holds the run of the thread Chat has open, as the page follows
+  // it, so deleting that thread detaches the page from it first.
   openRun: RefObject<LocalRun | null>
 }
 
@@ -49,7 +49,7 @@ const ThreadDeleteContext = createContext<ThreadDelete | null>(null)
 // has open.
 export function ThreadDeleteProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const openThreadId = useAGUIChatSearch()?.thread ?? null
+  const openThreadId = useChatSearch()?.thread ?? null
   const openRun = useRef<LocalRun | null>(null)
   const deleteMutation = useDeleteSession()
   const [target, setTarget] = useState<ThreadDeleteTarget | null>(null)
@@ -74,7 +74,7 @@ export function ThreadDeleteProvider({ children }: { children: ReactNode }) {
         setTarget(null)
         if (isOpen) {
           void navigate({
-            to: '/agui-chat',
+            to: '/chat',
             search: target.agentId ? { agent: target.agentId } : {},
             replace: true,
           })

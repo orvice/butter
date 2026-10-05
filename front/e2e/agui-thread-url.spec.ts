@@ -7,7 +7,7 @@ import {
   threadInURL,
 } from './support/agui'
 
-// AG-UI Chat takes its thread from the URL: ?thread=<id> opens that thread
+// Chat takes its thread from the URL: ?thread=<id> opens that thread
 // with the agent its binding names, and without it the page is a new-chat
 // draft whose first message starts a thread and writes ?thread=.
 
@@ -49,7 +49,7 @@ const pickAgent = async (page: Page, query: string, name: string) => {
   await page.getByRole('option', { name: new RegExp(name) }).click()
 }
 
-test.describe('AG-UI Chat threads by URL', () => {
+test.describe('Chat threads by URL', () => {
   test('opening ?thread= shows that thread with its agent', async ({
     page,
   }) => {
@@ -64,7 +64,7 @@ test.describe('AG-UI Chat threads by URL', () => {
       await route.fallback()
     })
 
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(page.getByText('Loading thread…')).toBeVisible()
     await expect(page.getByText('Booked the 08:10 flight.')).toBeVisible()
     await expect(threadHeader(page, 'Trip plan')).toContainText('Streamer')
@@ -98,11 +98,11 @@ test.describe('AG-UI Chat threads by URL', () => {
     })
 
     for (const url of [
-      '/agui-chat?thread=missing',
-      '/agui-chat?thread=t-ws2',
-      '/agui-chat?thread=t-gone',
-      '/agui-chat?thread=t-legacy',
-      '/agui-chat?thread=t-trip&agent=second-id',
+      '/chat?thread=missing',
+      '/chat?thread=t-ws2',
+      '/chat?thread=t-gone',
+      '/chat?thread=t-legacy',
+      '/chat?thread=t-trip&agent=second-id',
     ]) {
       await page.goto(url)
       await expect(notFound(page), url).toBeVisible()
@@ -115,7 +115,7 @@ test.describe('AG-UI Chat threads by URL', () => {
     expect(fixture.requests).toEqual([])
 
     await page.getByRole('button', { name: 'Start a new chat' }).click()
-    await expect(page).toHaveURL(/\/agui-chat$/)
+    await expect(page).toHaveURL(/\/chat$/)
     await expect(
       page.getByRole('heading', { name: 'Start a new chat' })
     ).toBeVisible()
@@ -131,7 +131,7 @@ test.describe('AG-UI Chat threads by URL', () => {
       ],
     })
 
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(page.getByText('Failed to load this thread.')).toBeVisible()
     await expect(page.getByText('session store unavailable')).toBeVisible()
 
@@ -164,7 +164,7 @@ test.describe('AG-UI Chat threads by URL', () => {
       })
     )
 
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(page.getByText('Failed to load this thread.')).toBeVisible()
     await expect(page.getByText('try later')).toBeVisible()
     down = false
@@ -186,7 +186,7 @@ test.describe('AG-UI Chat threads by URL', () => {
       historyByThread: { 't-trip': tripHistory },
     })
 
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(page.getByText('Booked the 08:10 flight.')).toBeVisible()
     await sendMessage(page, 'still there?')
 
@@ -197,7 +197,7 @@ test.describe('AG-UI Chat threads by URL', () => {
     expect(fixture.requests).toHaveLength(1)
 
     await page.getByRole('button', { name: 'Start a new chat' }).click()
-    await expect(page).toHaveURL(/\/agui-chat\?agent=streamer-id$/)
+    await expect(page).toHaveURL(/\/chat\?agent=streamer-id$/)
     await expect(page.getByRole('heading', { name: 'Streamer' })).toBeVisible()
   })
 
@@ -205,7 +205,7 @@ test.describe('AG-UI Chat threads by URL', () => {
     page,
   }) => {
     const fixture = await setupAGUI(page, { runs: [reply('Hi from Second.')] })
-    await page.goto('/agui-chat')
+    await page.goto('/chat')
 
     // No agent is chosen for a person who never picked one.
     await expect(
@@ -269,21 +269,21 @@ test.describe('AG-UI Chat threads by URL', () => {
         ],
       }
     )
-    await page.goto('/agui-chat')
+    await page.goto('/chat')
     await pickAgent(page, 'plain', 'Plain')
     await expect(page.getByRole('heading', { name: 'Plain' })).toBeVisible()
 
-    await page.goto('/agui-chat')
+    await page.goto('/chat')
     await expect(page.getByRole('heading', { name: 'Plain' })).toBeVisible()
     await expect(page.getByTestId('agent-selector-trigger')).toContainText(
       'Plain'
     )
     // ?agent= wins over the remembered agent.
-    await page.goto('/agui-chat?agent=second-id')
+    await page.goto('/chat?agent=second-id')
     await expect(page.getByRole('heading', { name: 'Second' })).toBeVisible()
 
     // Another workspace remembers its own.
-    await page.goto('/agui-chat')
+    await page.goto('/chat')
     await page.getByRole('button', { name: /Default/ }).first().click()
     await page.getByRole('menuitem', { name: 'Team B' }).click()
     await expect(
@@ -299,7 +299,7 @@ test.describe('AG-UI Chat threads by URL', () => {
       sessions: [trip()],
       historyByThread: { 't-trip': tripHistory },
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     const header = threadHeader(page, 'Trip plan')
     await expect(header).toContainText('Streamer')
 
@@ -310,7 +310,7 @@ test.describe('AG-UI Chat threads by URL', () => {
     await expect(threadHeader(page, 'Kyoto trip')).toBeVisible()
     await expect(
       page
-        .getByRole('navigation', { name: 'AG-UI threads' })
+        .getByRole('navigation', { name: 'Threads' })
         .getByRole('link', { name: 'Kyoto trip' })
     ).toBeVisible()
     expect(fixture.sessionCalls.renames).toEqual([
@@ -327,7 +327,7 @@ test.describe('AG-UI Chat threads by URL', () => {
     expect(fixture.sessionCalls.deletes).toEqual([
       { sessionId: 'agui-t-trip', appName: 'agui' },
     ])
-    await expect(page).toHaveURL(/\/agui-chat\?agent=streamer-id$/)
+    await expect(page).toHaveURL(/\/chat\?agent=streamer-id$/)
     await expect(page.getByRole('heading', { name: 'Streamer' })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled()
   })

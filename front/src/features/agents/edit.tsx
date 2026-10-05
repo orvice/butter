@@ -429,7 +429,7 @@ export function AgentEdit() {
                       <FormItem className='flex items-center justify-between gap-4 rounded-md border px-3 py-3'>
                         <div className='space-y-0.5'>
                           <FormLabel>AG-UI</FormLabel>
-                          <p className='text-xs text-muted-foreground'>Programmatic AG-UI access: API tokens can run this agent on the AG-UI endpoint. Not needed for AG-UI Chat in the dashboard.</p>
+                          <p className='text-xs text-muted-foreground'>Programmatic AG-UI access: API tokens can run this agent on the AG-UI endpoint. Not needed for Chat in the dashboard.</p>
                         </div>
                         <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                       </FormItem>

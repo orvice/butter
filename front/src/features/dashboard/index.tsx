@@ -11,6 +11,7 @@ import { AgentAvatar } from '@/components/butter/primitives'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { isSelectableAgent } from '@/features/agui-chat/agents'
 import {
   AlertTriangle,
   ArrowRight,
@@ -382,7 +383,10 @@ export function Dashboard() {
     () => activityQuery.data?.events ?? [],
     [activityQuery.data]
   )
-  const quickStartAgents = (agentsData?.agents ?? []).slice(0, 4)
+  // Agents a chat can start with, linked by their Agent ID as Chat takes it.
+  const quickStartAgents = (agentsData?.agents ?? [])
+    .filter(isSelectableAgent)
+    .slice(0, 4)
 
   const infraAttention = useMemo<Attention[]>(() => {
     const components: { label: string; health?: ComponentHealth }[] = [
@@ -614,9 +618,9 @@ export function Dashboard() {
                     <div className='grid grid-cols-2 gap-2'>
                       {quickStartAgents.map((agent) => (
                         <Link
-                          key={agent.name}
+                          key={agent.agent_id}
                           to='/chat'
-                          search={{ agent: agent.name }}
+                          search={{ agent: agent.agent_id }}
                           className='group flex min-w-0 touch-manipulation items-center gap-2.5 rounded-lg border border-transparent bg-card px-3 py-2.5 text-left shadow-card transition-[background-color,box-shadow,scale] duration-150 ease-out hover:bg-accent hover:shadow-card-hover active:scale-[0.96] motion-reduce:active:scale-100'
                         >
                           <AgentAvatar name={agent.name} size='sm' />

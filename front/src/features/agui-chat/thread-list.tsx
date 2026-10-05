@@ -27,21 +27,20 @@ import { InlineTitleInput } from '@/components/inline-title-input'
 import { agentIconUrl } from '@/features/agents/icon-utils'
 import { useThreadDelete } from './thread-delete'
 import { searchThreads, threadRows, type ThreadRow } from './threads'
-import { useAGUIChatSearch, useThreadSessions } from './use-threads'
+import { useChatSearch, useThreadSessions } from './use-threads'
 
-// NavThreads lists the caller's AG-UI threads in the sidebar: every thread
-// in this workspace, whatever its agent, grouped by when it was last updated
-// the way Chat's history is, with title search. Each row shows its agent's
-// avatar and title and links to its thread; the thread AG-UI Chat has open is
-// highlighted. On narrow screens it lives in the sidebar's sheet, which a
-// row or New thread closes.
+// NavThreads is Chat's history in the sidebar: the caller's threads in this
+// workspace, whatever their agent, grouped by when they were last updated,
+// with title search. Each row shows its agent's avatar and title and links to
+// its thread; the thread Chat has open is highlighted. On narrow screens it
+// lives in the sidebar's sheet, which a row or New thread closes.
 export function NavThreads() {
   const { selectedWorkspaceId } = useWorkspace()
   const { setOpenMobile } = useSidebar()
-  const chat = useAGUIChatSearch()
+  const chat = useChatSearch()
   const sessionsQuery = useThreadSessions()
   // The agents give each row its avatar and the name an untitled thread
-  // shows. AG-UI Chat reads the same list.
+  // shows. Chat reads the same list.
   const agentsQuery = useAgents(
     { page_size: 200 },
     { enabled: !!selectedWorkspaceId }
@@ -91,7 +90,7 @@ export function NavThreads() {
       aria-labelledby={labelId}
       className='py-1 group-data-[collapsible=icon]:hidden'
     >
-      <SidebarGroupLabel id={labelId}>AG-UI threads</SidebarGroupLabel>
+      <SidebarGroupLabel id={labelId}>Threads</SidebarGroupLabel>
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
@@ -99,7 +98,7 @@ export function NavThreads() {
             className='h-9 border border-sidebar-border bg-background/60 font-medium shadow-none'
           >
             <Link
-              to='/agui-chat'
+              to='/chat'
               search={newThreadAgent ? { agent: newThreadAgent } : {}}
               onClick={closeSheet}
             >
@@ -225,7 +224,7 @@ function ThreadRowItem({
         )}
       >
         <Link
-          to='/agui-chat'
+          to='/chat'
           search={{ thread: row.threadId }}
           onClick={onNavigate}
         >

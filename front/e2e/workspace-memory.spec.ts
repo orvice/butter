@@ -194,7 +194,7 @@ test('lists, searches, and deletes memories', async ({ page }) => {
       memory: 'Releases ship on Fridays',
       scope: WorkspaceMemoryScope.WORKSPACE,
       agentId: 'helper',
-      channel: 'web-chat',
+      channel: 'agui',
       principal: 'user-1',
     },
     {
@@ -202,7 +202,7 @@ test('lists, searches, and deletes memories', async ({ page }) => {
       memory: 'Answer tersely',
       scope: WorkspaceMemoryScope.AGENT,
       agentId: 'helper',
-      channel: 'web-chat',
+      channel: 'agui',
     },
   ] as WorkspaceMemory[]
   let deletedId = ''

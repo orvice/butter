@@ -7,13 +7,13 @@ import {
   threadInURL,
 } from './support/agui'
 
-// A2UI in AG-UI Chat. Every fixture below is the wire traffic the Butter
+// A2UI in Chat. Every fixture below is the wire traffic the Butter
 // server produces (internal/handler/http/agui_a2ui_test.go pins the server
 // side): butter.a2ui CUSTOM events carrying one A2UI v0.9.1 envelope each,
 // and the UI snapshot for a thread. Each test starts from a new-chat draft
 // with Streamer.
 
-const NEW_CHAT = '/agui-chat?agent=streamer-id'
+const NEW_CHAT = '/chat?agent=streamer-id'
 
 const V = 'v0.9.1'
 
@@ -698,7 +698,7 @@ test.describe('A2UI recovery', () => {
 
     await page.getByRole('button', { name: /Default/ }).first().click()
     await page.getByRole('menuitem', { name: 'Team B' }).click()
-    await expect(page).toHaveURL(/\/agui-chat$/)
+    await expect(page).toHaveURL(/\/chat$/)
     await expect(card(page)).toHaveCount(0)
     await expect(page.getByText('Here.')).toHaveCount(0)
     await expect(

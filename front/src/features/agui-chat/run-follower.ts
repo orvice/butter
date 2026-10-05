@@ -17,7 +17,9 @@ import {
 // to the run's log and streams the reply from it, as it streams a run it
 // started. When the log cannot carry the run to its end, the page waits the
 // run out instead: it reads the thread again, with backoff, until no run
-// holds it, then shows the thread as the run left it.
+// holds it, then shows the thread as the run left it. So it does for a run
+// it started whose own stream ends because the log cannot carry it
+// (waitOut).
 
 // POLL_DELAYS_MS paces the reads of a thread whose run the page waits out:
 // the first a second after the read that found the run, then twice as long
@@ -209,6 +211,29 @@ export class RunFollower {
     }
   }
 
+  // waitOut waits out a run this page started whose own stream ended with
+  // the butter.fallback marker (#409). That stream, the run's POST response,
+  // observes the run's log as an attach does, and the log cannot carry the
+  // run to its end: attaching again would end the same way. So the page
+  // reads the thread instead (pollUntilEnded), as follow does once its attach
+  // falls back. Like follow, it streams a reply the runtime shows as running
+  // until it returns, starting from what the run's stream showed (shown),
+  // which stays until the read after the run replaces it. It returns early
+  // once options.abortSignal aborts: the page stopped following the run,
+  // which goes on (detached).
+  async *waitOut(
+    options: FollowOptions,
+    shown?: ChatModelRunResult
+  ): AsyncGenerator<ChatModelRunResult, void, undefined> {
+    const signal = options.abortSignal
+    try {
+      if (shown && !signal.aborted) yield shown
+      if (!signal.aborted) await this.pollUntilEnded(signal)
+    } finally {
+      if (signal.aborted) this.end?.detached?.()
+    }
+  }
+
   // stream streams the run's reply from its log, folded as the AG-UI runtime
   // folds a run it streams itself (RunFold), and reports whether the run
   // ended in it. messages are the thread's messages before the reply. The
@@ -267,7 +292,8 @@ export class RunFollower {
   // then shows the thread as the run left it, in place of what the stream
   // showed of it. It is the fallback of live re-attach, for a run whose log
   // cannot be followed to its end: the log is gone (204) or cannot be read,
-  // or it was truncated, expired or lost (butter.fallback). It returns early,
+  // or it was truncated, expired or lost (butter.fallback), on an attach or
+  // on the stream of a run started here (waitOut). It returns early,
   // showing nothing, once signal aborts: the page stopped following the run.
   // A read that fails for good goes to failed.
   async pollUntilEnded(signal: AbortSignal): Promise<void> {

@@ -6,7 +6,6 @@ import {
   type SessionInfo as PbSessionInfo,
 } from "@/gen/agents/v1/agent_service_pb";
 import type { SessionDetail, SessionEvent, SessionInfo } from "@/types/api";
-import { replySession } from "./chat";
 import { durationToString, tsToISO } from "./_proto-bridge";
 import { Code, ConnectError, makeClient } from "./transport";
 
@@ -75,29 +74,11 @@ interface DeleteSessionParams {
   session_id: string;
 }
 
-interface CreateSessionParams {
-  app_name: string;
-  user_id: string;
-  session_id?: string;
-  state?: Record<string, unknown>;
-}
-
 interface UpdateSessionTitleParams {
   app_name: string;
   user_id: string;
   session_id: string;
   title: string;
-}
-
-interface GenerateSessionTitleParams {
-  app_name: string;
-  user_id: string;
-  session_id: string;
-}
-
-interface GenerateSessionTitleResult {
-  session: SessionInfo;
-  generated: boolean;
 }
 
 function parseTimestamp(s: string | undefined) {
@@ -152,17 +133,6 @@ async function deleteSession(params: DeleteSessionParams): Promise<void> {
     userId: params.user_id,
     sessionId: params.session_id,
   });
-}
-
-async function createSession(params: CreateSessionParams): Promise<{ session: SessionInfo }> {
-  const res = await client.createSession({
-    appName: params.app_name,
-    userId: params.user_id,
-    sessionId: params.session_id ?? "",
-    state: (params.state ?? {}) as Record<string, unknown> as never,
-  });
-  if (!res.session) throw new Error("create returned nothing");
-  return { session: infoFromProto(res.session) };
 }
 
 export function useSessions(params: ListSessionsParams = {}, options?: { enabled?: boolean }) {
@@ -263,16 +233,6 @@ export function useDeleteSession() {
   });
 }
 
-export function useCreateSession() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: createSession,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["sessions"] });
-    },
-  });
-}
-
 async function updateSessionTitle(params: UpdateSessionTitleParams): Promise<{ session: SessionInfo }> {
   const res = await client.updateSessionTitle({
     appName: params.app_name,
@@ -284,28 +244,6 @@ async function updateSessionTitle(params: UpdateSessionTitleParams): Promise<{ s
   return { session: infoFromProto(res.session) };
 }
 
-async function generateSessionTitle(params: GenerateSessionTitleParams): Promise<GenerateSessionTitleResult> {
-  const res = await client.generateSessionTitle({
-    appName: params.app_name,
-    userId: params.user_id,
-    sessionId: params.session_id,
-  });
-  if (!res.session) throw new Error("generate returned nothing");
-  return { session: infoFromProto(res.session), generated: res.generated };
-}
-
-export function useGenerateSessionTitle() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: generateSessionTitle,
-    onSuccess: (data) => {
-      if (data.generated) {
-        qc.invalidateQueries({ queryKey: ["sessions"] });
-      }
-    },
-  });
-}
-
 export function useUpdateSessionTitle() {
   const qc = useQueryClient();
   return useMutation({
@@ -315,36 +253,5 @@ export function useUpdateSessionTitle() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sessions"] });
     },
-  });
-}
-
-export function useReplySession() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: replySession,
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["sessions"] });
-      qc.invalidateQueries({
-        queryKey: [
-          "sessions",
-          { appName: vars.app_name, userId: vars.user_id, sessionId: vars.session_id },
-        ],
-      });
-    },
-  });
-}
-
-export function useLiveSession(
-  appName: string,
-  userId: string,
-  sessionId: string,
-  enabled: boolean,
-  pollIntervalMs = 1500,
-) {
-  return useQuery({
-    queryKey: ["sessions", { appName, userId, sessionId, numRecentEvents: 0 }],
-    queryFn: () => getSession({ app_name: appName, user_id: userId, session_id: sessionId }),
-    enabled: !!appName && !!userId && !!sessionId,
-    refetchInterval: enabled ? pollIntervalMs : false,
   });
 }

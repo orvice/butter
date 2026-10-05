@@ -271,7 +271,7 @@ async function openThreadDuringRun(
   page: Page,
   fixture: AGUIFixture
 ): Promise<AttachStream> {
-  await page.goto('/agui-chat?thread=t-trip')
+  await page.goto('/chat?thread=t-trip')
   await expect.poll(() => fixture.liveAttaches.length).toBe(1)
   return fixture.liveAttaches[0]
 }
@@ -284,7 +284,7 @@ async function occurrences(
   return (await locator.innerText()).split(text).length - 1
 }
 
-test.describe('AG-UI Chat re-attaching to a run', () => {
+test.describe('Chat re-attaching to a run', () => {
   test('reloading mid-run streams the same reply on, live, with no text twice', async ({
     page,
   }) => {
@@ -299,7 +299,7 @@ test.describe('AG-UI Chat re-attaching to a run', () => {
       sessions: [trip()],
       historyByThread: { 't-trip': history(before.slice(0, 2)) },
     })
-    await page.goto('/agui-chat?thread=t-trip', { waitUntil: 'networkidle' })
+    await page.goto('/chat?thread=t-trip', { waitUntil: 'networkidle' })
     await sendMessage(page, 'Now plan the trip')
     await expect(running(page)).toBeVisible()
     const runId = String(fixture.requests[0].runId)
@@ -525,7 +525,7 @@ test.describe('AG-UI Chat re-attaching to a run', () => {
         ]),
       ],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     const form = page.getByRole('region', { name: 'Hotel booking' })
     await expect(form).toBeVisible()
     await expect(replies(page).nth(1)).toContainText('Two hotels fit.')
@@ -696,7 +696,7 @@ test.describe('AG-UI Chat re-attaching to a run', () => {
     await expect(replies(page).nth(1)).toContainText('Day one: Alfama.')
 
     await page
-      .getByRole('navigation', { name: 'AG-UI threads' })
+      .getByRole('navigation', { name: 'Threads' })
       .getByRole('link', { name: 'Budget review', exact: true })
       .click()
     await expect(page.getByText('The budget holds.')).toBeVisible()
@@ -731,7 +731,7 @@ test.describe('AG-UI Chat re-attaching to a run', () => {
         snapshots: [snapshot({ running: RUN }), snapshot()],
         attaches: [attach],
       })
-      await page.goto('/agui-chat?thread=t-trip')
+      await page.goto('/chat?thread=t-trip')
       await expect(running(page)).toBeVisible()
       await expect.poll(() => fixture.attachRequests.length).toBe(1)
       // Waiting the run out, the page keeps the composer to itself.
@@ -777,7 +777,7 @@ test.describe('AG-UI Chat re-attaching to a run', () => {
       snapshots: [snapshot({ running: RUN }), snapshot()],
       attaches: [{ live: true, runId: RUN.runId }],
     })
-    await page.goto('/agui-chat?thread=t-trip')
+    await page.goto('/chat?thread=t-trip')
     await expect(page.getByText('Looking for flights')).toBeVisible()
     await expect(running(page)).toBeVisible()
     // That history lacks run-2's turn, so the page waits the run out rather

@@ -12,7 +12,7 @@ import {
 // frames. The runtime handles parsing, message reconstruction, and state.
 // Each test starts from a new-chat draft with Streamer.
 
-const NEW_CHAT = '/agui-chat?agent=streamer-id'
+const NEW_CHAT = '/chat?agent=streamer-id'
 
 async function setupAGUI(
   page: Parameters<typeof setupAGUIFixture>[0],

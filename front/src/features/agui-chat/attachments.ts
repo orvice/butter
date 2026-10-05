@@ -7,7 +7,7 @@ import {
 } from '@assistant-ui/react'
 import { IMAGE_FILE_ACCEPT, acceptImageFiles } from '@/lib/image-attachments'
 
-// ImageAttachmentAdapter is how AG-UI Chat's composer takes images. It
+// ImageAttachmentAdapter is how Chat's composer takes images. It
 // accepts what the server accepts in one message (lib/image-attachments):
 // JPEG, PNG, GIF and WebP, at most 10 MiB each, 10 of them and 20 MiB in
 // all. A file is checked when it is added, and one over a limit is refused

@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/sidebar'
 import { NavThreads } from '@/features/agui-chat/thread-list'
 import { sidebarData } from './data/sidebar-data'
-import { NavChatHistory } from './nav-chat-history'
 import { NavGroup } from './nav-group'
 import { NavManage } from './nav-manage'
 import { NavUser } from './nav-user'
@@ -34,9 +33,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {generalGroup && <NavGroup {...generalGroup} />}
-        {/* Chat's history stays beside the AG-UI threads until Chat moves
-            onto AG-UI (#409). */}
-        <NavChatHistory />
+        {/* Chat's history: the caller's threads in this workspace. */}
         <NavThreads />
       </SidebarContent>
       <SidebarFooter>
