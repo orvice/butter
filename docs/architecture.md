@@ -114,12 +114,15 @@ Persistence
 - `channels.go` 创建 ADK session/memory、runner、cron scheduler、automation engine/scheduler、system agent 和 channel manager。
 - `cron.go` 创建 cron repository 和 scheduler。
 - `invocations.go` 发布本进程的存活键，并启动 Invocation 遗留清理（见下文"Invocation 的 owner 与遗留清理"）。
+- `webchat_cleanup.go`（临时，#411）在后台删除旧 Chat 遗留的 `web-chat` 数据（见下文"旧 Chat 遗留数据的启动清理"）。
 - `automation` runtime 创建 MongoDB-backed definition/run/step-run repositories，`Engine` 负责手动/调度执行与 step lifecycle（step 输入支持 `{{ selector }}` 模板插值，见 `template.go`），`Scheduler` 负责注册 enabled schedule-triggered automations。多 Pod 语义由 `internal/redislease` 承载：scheduler leader lease（`butter:automation:lease:scheduler`）保证一个 schedule 只由一个 Pod 触发；每个 automation 的 run lease（`butter:automation:lease:run:*`，`redislease.Guard`，续租 TTL/3、丢锁即取消 run context）把 SKIP/QUEUE 并发策略扩展到跨实例（REPLACE 跨实例退化为 QUEUE）。`RunAutomationNow` 异步执行：同步落 RUNNING 记录后在 engine base context 上后台执行。启动时 `ReconcileStaleRuns` 把超过 `StaleRunAge`（24h）仍 RUNNING 的 run 标记为 FAILED；完成的 run/step-run 由 `finished_at` TTL 索引保留 30 天。
 - `system_agent.go` 注册内置系统 agent。
 
 启动时先创建 HTTP/ConnectRPC handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。
 
 **Invocation 的 owner 与遗留清理（#390，ADR-0016 决策 3）**：每个进程启动时生成一个 instance ID，在 Redis 写入存活键 `butter:instance:{id}`（TTL 30s，`liveness.Keep` 每 10s 续期，直到进程退出），并且先于任何 Invocation 记录的写入完成发布。invocation 仓库（`WithOwner`）在**创建**每条记录时把这个 ID 记为 owner；之后任何进程的保存（终态、redact）都保留它。owner 只存在于 Mongo 文档的顶层 `owner` 字段，不进 `Invocation` proto，不会出现在 API 响应里。`invocation.StaleSweeper` 在启动时运行一次，此后每分钟运行一次：只有当 owner 的存活键已消失时，才把它的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，原因里写明丢失的 instance；另一个 Pod 启动本身不会让任何记录失败，清理进程也从不把自己的记录判为遗留。本变更之前写入、没有 owner 的记录，只有超过 `LegacyStaleAge`（24h）才会失败。读不到存活状态时这一轮什么都不改；失败操作只改与读取时完全一致的记录，读取之后又被保存过的记录留给下一轮判断。清理只改记录，从不重放 Agent。没有 Redis 时只有一个进程，内存版 registry 只含本进程：启动清理把所有不属于本进程的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，与之前一致，之后不再周期清理。
+
+**旧 Chat 遗留数据的启动清理（#411，临时）**：每次启动时，`StartChannels` 在后台 goroutine 中以删除模式运行 `internal/maintenance/webchatcleanup`。它与一次性命令 `cmd/butter-delete-web-chat --confirm` 是同一份逻辑，按顺序删除：`web-chat` 会话的 Invocation 的 input parts；这些 Invocation（记录里写明其他 app 的除外）；会话的 events；最后是 `app_name: "web-chat"` 的 `adk_sessions`。多 Pod 时只有拿到 Redis 租约 `butter:maintenance:web-chat-cleanup` 的 Pod 运行它（`redislease.Guard`：TTL 30s，每 TTL/3 续期，丢失租约即取消清理），其余 Pod 跳过；取租约出错时也跳过，留给下次启动。没有 Redis 时只有本进程，直接运行，因为清理是幂等的。整次运行（含取租约）最长 10 分钟，未完成的部分由下次启动继续。它不写完成标记，每次启动都运行：没有剩余数据时只是一次走索引的查询；滚动发布期间旧 Pod 新建的 `web-chat` 会话，在下次重启时删除。按 workspace 与按集合的数量以 `web-chat cleanup:` 为前缀记 Info 日志，错误记 Warn（panic 也只记 Warn），从不阻塞或中断启动。删除 Invocation 会让 dashboard 过往的 Activity 计数下降。`maintenance.delete_web_chat: false` 关闭它。这是项目负责人确认的生产删除方式：在生产上运行过之后，后续版本移除这段启动逻辑和该配置项。
 
 启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation / forum 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
 
@@ -249,7 +252,7 @@ input parts + ContextInfo
 
 dashboard 先前的聊天用过一套进程内的异步 Invocation：`AgentService.SubmitAgentInvocation` 提交一轮对话，`internal/runtime/asyncrun.Coordinator` 在后台执行，`WatchAgentInvocation` 只读观察，配置项为 `chat_async`。它只能单实例运行。#409 起 dashboard 的 Chat 改走 AG-UI 的 Detached Run（见下文 “AG-UI 的 Detached Run”），#410 移除了这套 API，没有弃用期：仍调用这两个 RPC 的客户端得到 `unimplemented`。`GetAgentInvocation` 只按 `invocation_id` 查询，按 session 查询（`session_id`、`latest`）和 `include_input_parts` 一并移除。设计记录见 `docs/design-dashboard-chat-async.md`（已被 ADR-0016 取代）。
 
-保留的部分：`CancelAgentInvocation`、按 ID 的 `GetAgentInvocation`、`ListAgentInvocations` 与 invocation 仓库；遗留清理（`invocation.StaleSweeper`）对所有入口写入的记录照常生效。旧聊天的 `web-chat` 记录仍只对提交者本人可见。它留下的 Input Parts（`internal/repo/inputpart`，集合 `invocation_input_parts`）不再有写入方，删除 session 时 `DeleteSession` 仍会一并删除；#411 的一次性清理会删除这些 session、它们的 Invocation 记录与 Input Parts。
+保留的部分：`CancelAgentInvocation`、按 ID 的 `GetAgentInvocation`、`ListAgentInvocations` 与 invocation 仓库；遗留清理（`invocation.StaleSweeper`）对所有入口写入的记录照常生效。旧聊天的 `web-chat` 记录仍只对提交者本人可见。它留下的 Input Parts（`internal/repo/inputpart`，集合 `invocation_input_parts`）不再有写入方，删除 session 时 `DeleteSession` 仍会一并删除；#411 的清理会删除这些 session、它们的 Invocation 记录与 Input Parts：服务每次启动时自动运行它（临时，见“启动装配”中的“旧 Chat 遗留数据的启动清理”），一次性命令 `cmd/butter-delete-web-chat` 也可以运行它。
 
 ## Session 标题生成（LLM）
 

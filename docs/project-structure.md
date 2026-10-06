@@ -71,7 +71,8 @@ butter/
 │   │   ├── reconciler.go
 │   │   ├── routes.go            # ConnectRPC + HTTP + auth wiring
 │   │   ├── runtime.go
-│   │   └── system_agent.go
+│   │   ├── system_agent.go
+│   │   └── webchat_cleanup.go   # temporary startup cleanup of the old Chat's web-chat data (#411)
 │   ├── application/             # RPC service implementations. Each
 │   │   │                        # `<svc>_service.go` uses native ConnectRPC
 │   │   │                        # signatures and is handed straight to
@@ -117,6 +118,8 @@ butter/
 │   ├── linearapi/               # Linear OAuth + GraphQL client; lineartest/ fake
 │   ├── redact/                  # best-effort credential redaction for outgoing text
 │   ├── gitprovider/             # provider-neutral Git hosting API seam (GitHub, GitLab REST)
+│   ├── maintenance/
+│   │   └── webchatcleanup/      # deletes the old Chat's web-chat data (#411); webchatcleanuptest/ seeds its tests
 │   ├── mcpoauth/                # OAuth2 for MCP servers: discovery, authorization flow, tokens
 │   ├── mcpserver/               # MCP server exposing read-only workspace tools
 │   ├── mem0/                    # minimal mem0 OSS REST client (ADR-0013)
@@ -286,7 +289,8 @@ butter/
 
 ## 目录说明
 
-- `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 `/api` ConnectRPC 反连服务端的 daemon client（自报 version / os / executors）；`butter-delete-web-chat` 是一次性维护命令（#411），删除旧 Chat 遗留的 `web-chat` 会话、其事件、其 Invocation 记录和 input parts。默认 dry run，加 `--confirm` 才删除；未经项目负责人当场明确确认、未审阅 dry run、未做备份或快照，不得对生产库运行。
+- `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 `/api` ConnectRPC 反连服务端的 daemon client（自报 version / os / executors）；`butter-delete-web-chat` 是一次性维护命令（#411），删除旧 Chat 遗留的 `web-chat` 会话、其事件、其 Invocation 记录和 input parts。默认 dry run，加 `--confirm` 才删除；未经项目负责人当场明确确认、未审阅 dry run、未做备份或快照，不得对生产库运行。清理逻辑在 `internal/maintenance/webchatcleanup`，服务每次启动时也会自动运行它（临时，见下文）。
+- `internal/maintenance/`：服务启动时运行的维护任务。`webchatcleanup` 删除旧 Chat 遗留的 `web-chat` 数据（#411），由一次性命令和启动清理（`internal/app/webchat_cleanup.go`）共用。启动清理在后台、只在持有 Redis 租约的那个 Pod 上运行，`maintenance.delete_web_chat: false` 可关闭；它是临时的，在生产上运行过之后的版本里移除。
 - `internal/app/`：应用装配与初始化（路由、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
 - `internal/application/`：RPC 服务实现（Agent/lifecycle、AgentFile、Skill、MCPServer、GlobalMCPServer、ModelProvider、NotifyGroup、RemoteAgent、legacy Channel、Telegram、Linear、Session、Cron、Automation、Dashboard、Daemon、APIToken、Auth、Forum、Workspace、GitHost、ButterBox、WorkspaceRepoBinding）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
 - `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith` 是 `connect.Error` 的常用构造短手；`HandlerOptions()` 含 snake_case JSON codec（`UseProtoNames=true`）供 curl/非浏览器调用；dashboard 浏览器默认 binary protobuf（`front/src/api/transport.ts`）。

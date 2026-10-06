@@ -33,15 +33,16 @@ type AppConfig struct {
 	RedisAddr     string `yaml:"redis_addr"`
 	RedisPassword string `yaml:"redis_password"`
 
-	HTTP           HTTPConfig       `yaml:"http"`
-	Static         StaticConfig     `yaml:"static"`
-	Artifact       ArtifactConfig   `yaml:"artifact"`
-	AgentFiles     AgentFilesConfig `yaml:"agent_files"`
-	Skills         SkillsConfig     `yaml:"skills"`
-	MCPOAuth       MCPOAuthConfig   `yaml:"mcp_oauth"`
-	Git            GitConfig        `yaml:"git"`
-	AGUI           AGUIConfig       `yaml:"agui"`
-	StorageBackend string           `yaml:"storage_backend"` // "mongo" (default) or "memory"
+	HTTP           HTTPConfig        `yaml:"http"`
+	Static         StaticConfig      `yaml:"static"`
+	Artifact       ArtifactConfig    `yaml:"artifact"`
+	AgentFiles     AgentFilesConfig  `yaml:"agent_files"`
+	Skills         SkillsConfig      `yaml:"skills"`
+	MCPOAuth       MCPOAuthConfig    `yaml:"mcp_oauth"`
+	Git            GitConfig         `yaml:"git"`
+	AGUI           AGUIConfig        `yaml:"agui"`
+	Maintenance    MaintenanceConfig `yaml:"maintenance"`
+	StorageBackend string            `yaml:"storage_backend"` // "mongo" (default) or "memory"
 }
 
 // ArtifactConfig configures the S3-backed ADK artifact service. Artifacts are
@@ -314,6 +315,23 @@ func (c AGUIConfig) EffectiveMaxRunDuration() time.Duration {
 		return 30 * time.Minute
 	}
 	return c.MaxRunDuration
+}
+
+// MaintenanceConfig switches the maintenance the service runs at startup.
+type MaintenanceConfig struct {
+	// DeleteWebChat deletes the old dashboard Chat's leftover "web-chat"
+	// data (#411) on every startup, in the background and on one Pod.
+	// Absent means true; false skips it.
+	//
+	// TEMPORARY: a later release removes the startup cleanup and this flag,
+	// once it has run in production.
+	DeleteWebChat *bool `yaml:"delete_web_chat"`
+}
+
+// EffectiveDeleteWebChat reports whether the startup web-chat cleanup runs:
+// the configured value, or true when it is absent.
+func (m MaintenanceConfig) EffectiveDeleteWebChat() bool {
+	return m.DeleteWebChat == nil || *m.DeleteWebChat
 }
 
 func (c *AppConfig) Print() {}

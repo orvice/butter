@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -72,5 +73,37 @@ func TestAGUIMaxRunDuration(t *testing.T) {
 	}
 	if got := (AGUIConfig{}).EffectiveMaxRunDuration(); got != 30*time.Minute {
 		t.Fatalf("default max run duration = %v, want 30m", got)
+	}
+}
+
+// The startup web-chat cleanup (#411) runs unless maintenance.delete_web_chat
+// is false, and the sample config.yaml shows the flag, on.
+func TestMaintenanceDeleteWebChatDefaultsToTrue(t *testing.T) {
+	sample, err := os.ReadFile("../../config.yaml")
+	if err != nil {
+		t.Fatalf("read the sample config: %v", err)
+	}
+	for _, c := range []struct {
+		name, doc string
+		set, want bool
+	}{
+		{name: "absent", doc: "mongo_db: \"butter\"\n", want: true},
+		{name: "empty section", doc: "maintenance: {}\n", want: true},
+		{name: "true", doc: "maintenance:\n  delete_web_chat: true\n", set: true, want: true},
+		{name: "false", doc: "maintenance:\n  delete_web_chat: false\n", set: true, want: false},
+		{name: "the sample config.yaml", doc: string(sample), set: true, want: true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var cfg AppConfig
+			if err := yaml.Unmarshal([]byte(c.doc), &cfg); err != nil {
+				t.Fatalf("unmarshal config: %v", err)
+			}
+			if set := cfg.Maintenance.DeleteWebChat != nil; set != c.set {
+				t.Errorf("delete_web_chat set = %v, want %v", set, c.set)
+			}
+			if got := cfg.Maintenance.EffectiveDeleteWebChat(); got != c.want {
+				t.Errorf("EffectiveDeleteWebChat() = %v, want %v", got, c.want)
+			}
+		})
 	}
 }
