@@ -45,7 +45,7 @@ func NewToolset(policy a2ui.CardPolicy) Toolset {
 	handler := func(ctx agent.Context, args renderArgs) (renderResult, error) {
 		return render(ctx, policy, args)
 	}
-	t, err := functiontool.New(functiontool.Config{Name: ToolName, Description: description()}, handler)
+	t, err := functiontool.New(functiontool.Config{Name: ToolName, Description: description(policy)}, handler)
 	if err != nil {
 		// The handler signature is fixed at compile time; a failure here is
 		// a programming error, not a runtime condition.
@@ -140,9 +140,19 @@ func apply(ctx agent.Context, run *a2ui.Run, args renderArgs) (renderResult, err
 	return renderResult{SurfaceID: card.ID, Revision: card.Revision, Status: status}, nil
 }
 
-func description() string {
+// PreferredHint is the sentence a PREFERRED Card Policy adds to render_ui's
+// description. The description is sent only with the tool, so the hint
+// reaches exactly the model calls that can render a card, and never the
+// instruction.
+const PreferredHint = "Prefer a card: whenever your answer has structured results (key facts, a status, a list of results), show them in a card as well as in text."
+
+func description(policy a2ui.CardPolicy) string {
+	purpose := "Show a read-only result card to the user, next to your text answer. Use it when a structured view (a summary with key facts, a status, a short list of results) is easier to read than prose. The card cannot collect input or contain buttons; keep answering in text as well."
+	if policy.Preferred() {
+		purpose += " " + PreferredHint
+	}
 	limits := a2ui.DefaultLimits
-	return fmt.Sprintf(`Show a read-only result card to the user, next to your text answer. Use it when a structured view (a summary with key facts, a status, a short list of results) is easier to read than prose. The card cannot collect input or contain buttons; keep answering in text as well.
+	return purpose + fmt.Sprintf(`
 
 Pass A2UI v0.9.1 messages. To create a card, omit surface_id and send an updateComponents message whose components form a tree under a component with id "root", optionally followed by updateDataModel. The result returns the card's surface_id; pass it later to update the same card (send only the components that change, and/or new data) or to remove it with {"deleteSurface": {}}.
 

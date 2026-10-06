@@ -42,6 +42,38 @@ func TestCardPolicyNarrow(t *testing.T) {
 	}
 }
 
+func presentation(pr agentsv1.ResultCardPresentation) *agentsv1.ResultCardConfig {
+	return &agentsv1.ResultCardConfig{Presentation: pr}
+}
+
+// Presentation is inherited down the tree, the nearest explicit value
+// winning; a run's root uses AUTO.
+func TestCardPolicyNarrowPresentation(t *testing.T) {
+	preferred := CardPolicy{}.Narrow(presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED))
+	auto := CardPolicy{}.Narrow(presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_AUTO))
+	cases := []struct {
+		name   string
+		parent CardPolicy
+		config *agentsv1.ResultCardConfig
+		want   bool
+	}{
+		{name: "a run's root", parent: CardPolicy{}, want: false},
+		{name: "root, preferred", parent: CardPolicy{}, config: presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED), want: true},
+		{name: "root, auto", parent: CardPolicy{}, config: presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_AUTO), want: false},
+		{name: "below preferred, unset", parent: preferred, want: true},
+		{name: "below preferred, unspecified", parent: preferred, config: presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_UNSPECIFIED), want: true},
+		{name: "below preferred, auto", parent: preferred, config: presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_AUTO), want: false},
+		{name: "below auto, preferred", parent: auto, config: presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED), want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.parent.Narrow(tc.config).Preferred(); got != tc.want {
+				t.Fatalf("Preferred() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestValidateCardPolicy(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -52,6 +84,9 @@ func TestValidateCardPolicy(t *testing.T) {
 		{name: "empty policy", config: &agentsv1.ResultCardConfig{}},
 		{name: "disabled", config: generation(agentsv1.ResultCardGeneration_RESULT_CARD_GENERATION_DISABLED)},
 		{name: "unknown generation", config: generation(agentsv1.ResultCardGeneration(7)), wantErr: "config.result_cards.generation"},
+		{name: "auto", config: presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_AUTO)},
+		{name: "preferred", config: presentation(agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED)},
+		{name: "unknown presentation", config: presentation(agentsv1.ResultCardPresentation(9)), wantErr: "config.result_cards.presentation"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

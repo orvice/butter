@@ -15,6 +15,7 @@ import {
   AgentType,
   ModelProviderSchema,
   ResultCardGeneration,
+  ResultCardPresentation,
   type Agent,
   type ModelProvider,
 } from '../src/gen/agents/v1/agent_pb'
@@ -114,6 +115,33 @@ test('turns result cards off for an agent, saves the policy, and reloads it', as
   await expect(
     page.getByRole('radiogroup', { name: 'Result cards' }).getByRole('radio', { name: OFF }),
   ).toBeChecked()
+})
+
+test('asks the models to prefer cards, and locks the choice while cards are off', async ({ page }) => {
+  const ctx = await setupAgentRoutes(page)
+
+  await page.goto('/agents/cards-agent/edit')
+
+  const policy = page.getByRole('radiogroup', { name: 'Result cards' })
+  const presentation = page.getByRole('combobox', { name: 'Presentation' })
+  await expect(presentation).toHaveText('Inherit')
+
+  await policy.getByRole('radio', { name: OFF }).click()
+  await expect(presentation).toBeDisabled()
+  await policy.getByRole('radio', { name: ALLOWED }).click()
+  await expect(presentation).toBeEnabled()
+
+  await presentation.click()
+  await page.getByRole('option', { name: 'Prefer cards' }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await ctx.saved
+
+  const cards = ctx.updateRequest()?.agent?.config?.resultCards
+  expect(cards?.presentation).toBe(ResultCardPresentation.PREFERRED)
+  expect(cards?.generation).toBe(ResultCardGeneration.UNSPECIFIED)
+
+  await page.goto('/agents/cards-agent/edit')
+  await expect(page.getByRole('combobox', { name: 'Presentation' })).toHaveText('Prefer cards')
 })
 
 test('creates an agent with result cards off, and hides the card for box agents', async ({ page }) => {

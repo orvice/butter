@@ -16,6 +16,7 @@ import (
 	adkrunner "google.golang.org/adk/v2/runner"
 	adksession "google.golang.org/adk/v2/session"
 
+	"go.orx.me/apps/butter/internal/a2uitool"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -1795,5 +1796,47 @@ func TestAGUIA2UI_CardPolicyKeepsExistingCards(t *testing.T) {
 	}
 	if got := h.snapshotSurfaces("carder", "t-kept"); len(got) != 1 {
 		t.Errorf("snapshot after turning cards off = %+v, want the thread's card", got)
+	}
+}
+
+// toolDescription returns the description of the tool name that model was
+// offered on its last call.
+func (h *a2uiHarness) toolDescription(model, name string) string {
+	h.t.Helper()
+	req, ok := h.backend.LastRequest(model)
+	if !ok {
+		h.t.Fatalf("model %s was never called", model)
+	}
+	tools, _ := req.Decoded["tools"].([]any)
+	for _, t := range tools {
+		fn, _ := t.(map[string]any)["function"].(map[string]any)
+		if fn["name"] == name {
+			desc, _ := fn["description"].(string)
+			return desc
+		}
+	}
+	h.t.Fatalf("model %s was not offered %s", model, name)
+	return ""
+}
+
+// --- #442: the presentation hint ---
+
+// A composite root's PREFERRED reaches the render_ui description of the LLM
+// agents below it, while a child that sets AUTO explicitly is not asked.
+func TestAGUIA2UI_CardPolicyPreferredReachesTheTree(t *testing.T) {
+	preferred := &agentsv1.ResultCardConfig{Presentation: agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED}
+	auto := &agentsv1.ResultCardConfig{Presentation: agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_AUTO}
+	h := newA2UIHarness(t, pipeline(preferred, nil, auto), "first-model", "second-model")
+	h.echoModels("first-model", "second-model")
+
+	w := h.post("pipeline", a2uiBody("t-prefer", "go"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if desc := h.toolDescription("first-model", "render_ui"); !strings.Contains(desc, a2uitool.PreferredHint) {
+		t.Errorf("first, below a PREFERRED root, was not asked to prefer cards:\n%s", desc)
+	}
+	if desc := h.toolDescription("second-model", "render_ui"); strings.Contains(desc, a2uitool.PreferredHint) {
+		t.Errorf("second, explicitly AUTO, was asked to prefer cards:\n%s", desc)
 	}
 }

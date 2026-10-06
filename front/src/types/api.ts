@@ -164,9 +164,16 @@ export type ResultCardGeneration =
   | "RESULT_CARD_GENERATION_UNSPECIFIED"
   | "RESULT_CARD_GENERATION_DISABLED";
 
+/** Unset inherits the parent's presentation; a run's root uses AUTO. */
+export type ResultCardPresentation =
+  | "RESULT_CARD_PRESENTATION_UNSPECIFIED"
+  | "RESULT_CARD_PRESENTATION_AUTO"
+  | "RESULT_CARD_PRESENTATION_PREFERRED";
+
 /** An Agent's Card Policy for Result Cards (ADR-0014). */
 export interface ResultCardConfig {
   generation?: ResultCardGeneration;
+  presentation?: ResultCardPresentation;
 }
 
 export interface AgentRuntime {

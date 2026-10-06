@@ -5,6 +5,7 @@ import (
 	"errors"
 	"iter"
 	"maps"
+	"strings"
 	"testing"
 
 	"google.golang.org/adk/v2/agent"
@@ -23,6 +24,21 @@ func disabledPolicy() a2ui.CardPolicy {
 	return a2ui.CardPolicy{}.Narrow(&agentsv1.ResultCardConfig{
 		Generation: agentsv1.ResultCardGeneration_RESULT_CARD_GENERATION_DISABLED,
 	})
+}
+
+// PREFERRED adds the hint to render_ui's description, once; AUTO, a run's
+// root, leaves the description without it.
+func TestDescriptionCarriesThePreferredHint(t *testing.T) {
+	auto := NewToolset(a2ui.CardPolicy{}).tool.Description()
+	preferred := NewToolset(a2ui.CardPolicy{}.Narrow(&agentsv1.ResultCardConfig{
+		Presentation: agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED,
+	})).tool.Description()
+	if strings.Contains(auto, PreferredHint) {
+		t.Errorf("the AUTO description carries the hint:\n%s", auto)
+	}
+	if strings.Count(preferred, PreferredHint) != 1 || strings.Replace(preferred, " "+PreferredHint, "", 1) != auto {
+		t.Errorf("the PREFERRED description is not the AUTO one plus the hint:\n%s", preferred)
+	}
 }
 
 // render_ui is offered only in an A2UI run, and only where the agent's Card

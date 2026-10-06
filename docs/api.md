@@ -276,7 +276,8 @@ includes everyone who can reach a Telegram Bot whose Destination has an empty
 
 `Agent.config.result_cards` holds an Agent's Card Policy: whether the models at
 and below it in a run may render [result cards](#result-cards-render_ui) in an
-A2UI run (ADR-0014). An Agent without it behaves as before.
+A2UI run, and how readily they should (ADR-0014). An Agent without it behaves
+as before.
 
 ```json
 {
@@ -288,16 +289,32 @@ A2UI run (ADR-0014). An Agent without it behaves as before.
 }
 ```
 
+```json
+{
+  "config": {
+    "result_cards": {
+      "presentation": "RESULT_CARD_PRESENTATION_PREFERRED"
+    }
+  }
+}
+```
+
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `generation` | enum | unset: inherit | `RESULT_CARD_GENERATION_DISABLED` turns result cards off for this Agent and every Agent below it in the run |
+| `presentation` | enum | unset: inherit | `RESULT_CARD_PRESENTATION_AUTO` lets the model decide; `RESULT_CARD_PRESENTATION_PREFERRED` asks it to show structured results in a card as well as in text |
 
-- **It only narrows.** Unset inherits the parent's setting, and a run's root
-  allows cards. Nothing below a disabled Agent can turn them back on, so there
-  is no `ENABLED` value.
+- **Generation only narrows.** Unset inherits the parent's setting, and a
+  run's root allows cards. Nothing below a disabled Agent can turn them back
+  on, so there is no `ENABLED` value.
 - **It follows the run's tree.** An Agent run directly answers only to its own
   policy. Run as a sub-agent or a Workflow node, it answers to every Agent on
   the path from the run's root, itself included.
+- **Presentation is a hint.** The nearest explicit value on that path wins,
+  and a run's root uses `AUTO`. `PREFERRED` adds one sentence to `render_ui`'s
+  description, so it reaches only the model calls that can render a card and
+  never the instruction. It never forces a card, and it does nothing where
+  generation is disabled or the run did not negotiate A2UI.
 - **A disabled Agent has no `render_ui`.** Its model is not offered the tool. A
   call it copies from the thread's history gets a "tool not found" error back,
   and the run goes on. The cards already in a thread stay in it and in the

@@ -2651,6 +2651,8 @@ func (m *ResultCardConfig) validate(all bool) error {
 
 	// no validation rules for Generation
 
+	// no validation rules for Presentation
+
 	if len(errors) > 0 {
 		return ResultCardConfigMultiError(errors)
 	}

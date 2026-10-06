@@ -4,7 +4,14 @@ import {
   EMPTY_RESULT_CARDS_FORM_VALUES,
   resultCardsFormValuesFromConfig,
   supportsResultCards,
+  type ResultCardsFormValues,
 } from './result-cards-config'
+
+function values(
+  overrides: Partial<ResultCardsFormValues>
+): ResultCardsFormValues {
+  return { ...EMPTY_RESULT_CARDS_FORM_VALUES, ...overrides }
+}
 
 describe('result cards form mapping', () => {
   it('serializes the default as no config', () => {
@@ -15,17 +22,41 @@ describe('result cards form mapping', () => {
 
   it('serializes cards off as a disabled generation', () => {
     expect(
-      buildResultCardsConfig({ generation: 'off' }, 'AGENT_TYPE_LLM')
+      buildResultCardsConfig(values({ generation: 'off' }), 'AGENT_TYPE_LLM')
+    ).toEqual({ generation: 'RESULT_CARD_GENERATION_DISABLED' })
+  })
+
+  it('serializes an explicit presentation', () => {
+    expect(
+      buildResultCardsConfig(
+        values({ presentation: 'preferred' }),
+        'AGENT_TYPE_LLM'
+      )
+    ).toEqual({ presentation: 'RESULT_CARD_PRESENTATION_PREFERRED' })
+    expect(
+      buildResultCardsConfig(values({ presentation: 'auto' }), 'AGENT_TYPE_LLM')
+    ).toEqual({ presentation: 'RESULT_CARD_PRESENTATION_AUTO' })
+  })
+
+  it('drops the presentation while cards are off', () => {
+    expect(
+      buildResultCardsConfig(
+        values({ generation: 'off', presentation: 'preferred' }),
+        'AGENT_TYPE_LLM'
+      )
     ).toEqual({ generation: 'RESULT_CARD_GENERATION_DISABLED' })
   })
 
   it('keeps the policy on composite agents and drops it for box agents', () => {
-    const off = { generation: 'off' as const }
+    const off = values({ generation: 'off' })
     expect(buildResultCardsConfig(off, 'AGENT_TYPE_WORKFLOW')).toEqual({
       generation: 'RESULT_CARD_GENERATION_DISABLED',
     })
+    const preferred = values({ presentation: 'preferred' })
     expect(buildResultCardsConfig(off, 'AGENT_TYPE_PI')).toBeUndefined()
-    expect(buildResultCardsConfig(off, 'AGENT_TYPE_CURSOR')).toBeUndefined()
+    expect(
+      buildResultCardsConfig(preferred, 'AGENT_TYPE_CURSOR')
+    ).toBeUndefined()
   })
 
   it('reads a stored config back', () => {
@@ -33,7 +64,17 @@ describe('result cards form mapping', () => {
       resultCardsFormValuesFromConfig({
         generation: 'RESULT_CARD_GENERATION_DISABLED',
       })
-    ).toEqual({ generation: 'off' })
+    ).toEqual({ generation: 'off', presentation: 'inherit' })
+    expect(
+      resultCardsFormValuesFromConfig({
+        presentation: 'RESULT_CARD_PRESENTATION_PREFERRED',
+      })
+    ).toEqual({ generation: 'allowed', presentation: 'preferred' })
+    expect(
+      resultCardsFormValuesFromConfig({
+        presentation: 'RESULT_CARD_PRESENTATION_AUTO',
+      })
+    ).toEqual({ generation: 'allowed', presentation: 'auto' })
     expect(resultCardsFormValuesFromConfig({})).toEqual(
       EMPTY_RESULT_CARDS_FORM_VALUES
     )

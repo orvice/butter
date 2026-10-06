@@ -711,6 +711,10 @@ message ResultCardConfig {
   // Unset inherits the parent's generation; a run's root allows cards.
   // @gotags: json:"generation,omitempty" yaml:"generation,omitempty"
   ResultCardGeneration generation = 1;
+
+  // Unset inherits the parent's presentation; a run's root uses AUTO.
+  // @gotags: json:"presentation,omitempty" yaml:"presentation,omitempty"
+  ResultCardPresentation presentation = 2;
 }
 
 // ResultCardGeneration only narrows: nothing below a DISABLED agent can turn
@@ -720,6 +724,18 @@ enum ResultCardGeneration {
   RESULT_CARD_GENERATION_UNSPECIFIED = 0;
   // No Result Cards for this agent and every agent below it in the run.
   RESULT_CARD_GENERATION_DISABLED = 1;
+}
+
+// ResultCardPresentation is a hint, carried in render_ui's description, for
+// how readily models show Result Cards. The nearest explicit value on the
+// path from the run's root wins. It never forces a card.
+enum ResultCardPresentation {
+  // Inherit the parent's presentation.
+  RESULT_CARD_PRESENTATION_UNSPECIFIED = 0;
+  // The model decides when a card helps.
+  RESULT_CARD_PRESENTATION_AUTO = 1;
+  // Ask the model to show structured results in a card as well as in text.
+  RESULT_CARD_PRESENTATION_PREFERRED = 2;
 }
 
 // RemoteAgent describes a remote agent reachable over a network protocol.
