@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 
+	"go.orx.me/apps/butter/internal/a2ui"
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentoprepo "go.orx.me/apps/butter/internal/repo/agentop"
 	"go.orx.me/apps/butter/internal/repo/auth"
@@ -384,6 +385,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateMemoryConfig(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	if err := a2ui.ValidateCardPolicy(agent.GetConfig().GetResultCards()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("agent %q: %w", agent.GetName(), err))
+	}
 	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -518,6 +522,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 	}
 	if err := internalagent.ValidateMemoryConfig(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := a2ui.ValidateCardPolicy(update.GetConfig().GetResultCards()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("agent %q: %w", update.GetName(), err))
 	}
 	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -1120,6 +1127,9 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 	}
 	if err := internalagent.ValidateMemoryConfig(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := a2ui.ValidateCardPolicy(patch.GetConfig().GetResultCards()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("agent %q: %w", patch.GetName(), err))
 	}
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

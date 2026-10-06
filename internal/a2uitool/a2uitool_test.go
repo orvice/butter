@@ -12,10 +12,64 @@ import (
 
 	"go.orx.me/apps/butter/internal/a2ui"
 	"go.orx.me/apps/butter/internal/testsupport/tooltest"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 func TestToolParametersAreDescribed(t *testing.T) {
-	tooltest.RequireParamDescriptions(t, NewToolset().tool)
+	tooltest.RequireParamDescriptions(t, NewToolset(a2ui.CardPolicy{}).tool)
+}
+
+func disabledPolicy() a2ui.CardPolicy {
+	return a2ui.CardPolicy{}.Narrow(&agentsv1.ResultCardConfig{
+		Generation: agentsv1.ResultCardGeneration_RESULT_CARD_GENERATION_DISABLED,
+	})
+}
+
+// render_ui is offered only in an A2UI run, and only where the agent's Card
+// Policy allows cards.
+func TestToolsetOffersRenderUIWhereThePolicyAllows(t *testing.T) {
+	runCtx, _ := newRunCtx(t)
+	plainCtx := &toolCtx{StrictContextMock: agent.NewStrictContextMock(t.Context()), state: mapState{}}
+	cases := []struct {
+		name   string
+		policy a2ui.CardPolicy
+		ctx    agent.ReadonlyContext
+		want   int
+	}{
+		{name: "a run's root, A2UI run", policy: a2ui.CardPolicy{}, ctx: runCtx, want: 1},
+		{name: "disabled, A2UI run", policy: disabledPolicy(), ctx: runCtx, want: 0},
+		{name: "a run's root, no A2UI run", policy: a2ui.CardPolicy{}, ctx: plainCtx, want: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tools, err := NewToolset(tc.policy).Tools(tc.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(tools) != tc.want {
+				t.Fatalf("offered %d tools, want %d", len(tools), tc.want)
+			}
+			if tc.want == 1 && tools[0].Name() != ToolName {
+				t.Fatalf("offered %q, want %q", tools[0].Name(), ToolName)
+			}
+		})
+	}
+}
+
+// The tool runs under the policy it was built with: where cards are off it
+// refuses and writes nothing, even inside an A2UI run.
+func TestRenderRefusesUnderADisabledPolicy(t *testing.T) {
+	ctx, st := newRunCtx(t)
+	var args renderArgs
+	if err := json.Unmarshal([]byte(validCard), &args); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := render(ctx, disabledPolicy(), args); err == nil {
+		t.Fatal("render accepted a card under a disabled policy")
+	}
+	if len(st) != 0 {
+		t.Fatalf("a refused call wrote state: %v", st)
+	}
 }
 
 type mapState map[string]any
@@ -70,7 +124,7 @@ func call(t *testing.T, ctx *toolCtx, raw string) error {
 	if err := json.Unmarshal([]byte(raw), &args); err != nil {
 		t.Fatal(err)
 	}
-	_, err := render(ctx, args)
+	_, err := render(ctx, a2ui.CardPolicy{}, args)
 	return err
 }
 

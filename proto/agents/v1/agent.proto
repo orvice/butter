@@ -146,6 +146,11 @@ message AgentConfig {
   // @gotags: json:"memory,omitempty" yaml:"memory,omitempty"
   MemoryConfig memory = 8;
 
+  // Card Policy for Result Cards (ADR-0014). It narrows down the agent tree;
+  // PI and CURSOR agents reject it on write.
+  // @gotags: json:"result_cards,omitempty" yaml:"result_cards,omitempty"
+  ResultCardConfig result_cards = 9;
+
   // --- LLM agent fields (used when type is LLM or UNSPECIFIED) ---
 
   // Model identifier (for example: "gemini-2.5-pro").
@@ -697,6 +702,24 @@ message MemoryConfig {
   // Minimum mem0 relevance score, in [0, 1]. Unset means 0.3.
   // @gotags: json:"threshold,omitempty" yaml:"threshold,omitempty"
   optional float threshold = 7;
+}
+
+// ResultCardConfig is an Agent's Card Policy: whether the models at and below
+// it in a run may render Result Cards with render_ui (ADR-0014, the Card
+// Policy amendment). Human Input Forms are outside it.
+message ResultCardConfig {
+  // Unset inherits the parent's generation; a run's root allows cards.
+  // @gotags: json:"generation,omitempty" yaml:"generation,omitempty"
+  ResultCardGeneration generation = 1;
+}
+
+// ResultCardGeneration only narrows: nothing below a DISABLED agent can turn
+// Result Cards back on, so there is no ENABLED value.
+enum ResultCardGeneration {
+  // Inherit the parent's generation.
+  RESULT_CARD_GENERATION_UNSPECIFIED = 0;
+  // No Result Cards for this agent and every agent below it in the run.
+  RESULT_CARD_GENERATION_DISABLED = 1;
 }
 
 // RemoteAgent describes a remote agent reachable over a network protocol.
