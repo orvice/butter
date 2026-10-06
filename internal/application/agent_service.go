@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"butterfly.orx.me/core/log"
@@ -21,7 +20,6 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	butterboxrepo "go.orx.me/apps/butter/internal/repo/butterbox"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
-	"go.orx.me/apps/butter/internal/repo/inputpart"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -29,7 +27,6 @@ import (
 	"go.orx.me/apps/butter/internal/userinput"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
-	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -61,39 +58,23 @@ func resolveAgentRunnerRef(r interface {
 	return name, nil
 }
 
-// SessionExcluder reports whether a session is currently being deleted.
-// The submit path uses this to reject new invocations on sessions that
-// are in the process of being deleted.
-type SessionExcluder interface {
-	IsSessionDeleting(sessionID string) bool
-}
-
 type AgentServiceServer struct {
 	// telegramGuard blocks removing an agent a Telegram Destination routes to.
 	telegramGuard *TelegramReferenceGuard
 	// linearGuard blocks removing an agent a Linear App routes to.
 	linearGuard *LinearReferenceGuard
 
-	repo            configrepo.AgentRepository
-	butterBoxRepo   butterboxrepo.Repository
-	runtime         ConfigRuntime
-	runnerSvc       agentRunner
-	invRepo         invocation.Repository
-	inputPartRepo   inputpart.Repository
-	wsRepo          workspacerepo.Repository
-	opRepo          agentoprepo.Repository
-	content         agentContentCoordinator
-	asyncCoord      asyncCoordinator
-	aguiRuns        AGUIRunStopper
-	sessionSvc      adksession.Service
-	sessionExcluder SessionExcluder
-	cutoverSources  *AgentCutoverSources
-	sessionAuth     sessionTurnAuthorizer
-
-	// asyncSubmitMu serializes the short accept transaction (idempotency
-	// lookup, active-session check, optional Session creation, Invocation
-	// persistence). Execution itself remains fully concurrent across Sessions.
-	asyncSubmitMu sync.Mutex
+	repo           configrepo.AgentRepository
+	butterBoxRepo  butterboxrepo.Repository
+	runtime        ConfigRuntime
+	runnerSvc      agentRunner
+	invRepo        invocation.Repository
+	wsRepo         workspacerepo.Repository
+	opRepo         agentoprepo.Repository
+	content        agentContentCoordinator
+	aguiRuns       AGUIRunStopper
+	cutoverSources *AgentCutoverSources
+	sessionAuth    sessionTurnAuthorizer
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
@@ -137,12 +118,6 @@ func (s *AgentServiceServer) SetContentCoordinator(c agentContentCoordinator) {
 	s.content = c
 }
 
-// SetSessionExcluder wires the delete-exclusion checker so the submit
-// path rejects new invocations on sessions being deleted.
-func (s *AgentServiceServer) SetSessionExcluder(e SessionExcluder) {
-	s.sessionExcluder = e
-}
-
 // coordinator builds the Saga coordinator from the wired dependencies, or
 // returns nil when lifecycle Sagas are unavailable (ops repo / content seam
 // not wired) so callers fall back to the single-step path.
@@ -171,12 +146,6 @@ func (s *AgentServiceServer) SetRunnerService(svc *runner.Service) {
 // ListAgentInvocations.
 func (s *AgentServiceServer) SetInvocationRepo(repo invocation.Repository) {
 	s.invRepo = repo
-}
-
-// SetInputPartRepo wires the Input Part repository used to persist multimodal
-// input for async invocations.
-func (s *AgentServiceServer) SetInputPartRepo(repo inputpart.Repository) {
-	s.inputPartRepo = repo
 }
 
 // SetTelegramGuard wires the Telegram reference guard after bootstrap.
@@ -913,21 +882,7 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 		}
 		cancelled = stopped
 	} else {
-		if inv != nil && inv.GetSource() == "dashboard-async" && s.asyncCoord != nil {
-			// The coordinator owns the outer async context. Cancelling only the
-			// runner's nested context would make the coordinator classify Stop as a
-			// generic failure.
-			cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
-		}
-		if !cancelled {
-			cancelled = s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
-		}
-		if !cancelled && inv == nil && s.asyncCoord != nil {
-			// Compatibility fallback for tests or deployments without an Invocation
-			// recorder. Persisted dashboard async Invocations take the authorized path
-			// above.
-			cancelled = s.asyncCoord.Cancel(req.Msg.GetInvocationId(), wsID)
-		}
+		cancelled = s.runnerSvc.CancelInvocation(req.Msg.GetInvocationId(), wsID)
 	}
 	log.FromContext(ctx).Info("cancel agent invocation requested",
 		"invocation_id", req.Msg.GetInvocationId(),

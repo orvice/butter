@@ -2018,13 +2018,12 @@ Cancellation is request-scoped: aborting the request cancels the turn.
 POST /api/agents.v1.AgentService/CancelAgentInvocation
 ```
 
-Explicitly cancels an in-flight invocation by id. Dashboard async QUEUED and
-RUNNING work is supported and transitions to `CANCELLED`, never `FAILED`.
-Cancellation waits for the runner to stop before the terminal status is
-persisted, so no Session events can be appended after terminal cancellation.
-Navigation, New Chat, page changes, and observer disconnects do not call this
-RPC. Non-admin callers may cancel only their own private chat Invocations in
-the selected Workspace. Existing synchronous cancellation remains supported.
+Explicitly cancels an in-flight invocation by id, in the selected Workspace.
+A run that lives in its request (`StreamAgent`, `InvokeAgent`, an AG-UI run
+without `butterRun`) is cancelled on the instance that runs it; a detached
+AG-UI run is stopped as described below. Invocations of the retired dashboard
+async chat (`app_name` `web-chat`) stay private: a non-admin caller may cancel
+only their own.
 
 **Request:**
 
@@ -2038,10 +2037,6 @@ the selected Workspace. Existing synchronous cancellation remains supported.
 |-------|------|-------------|
 | `cancelled` | bool | True if the invocation was found and signalled |
 
-Covers both synchronous streams and asynchronous invocations
-(`SubmitAgentInvocation`). A user-cancelled async invocation ends as
-`CANCELLED` (distinct from `FAILED`).
-
 A [detached AG-UI run](#detached-runs)'s Invocation (`source`
 `agui-detached`) is cancelled through the [AG-UI Stop](#stopping-a-run),
 which reaches the run on whichever Pod runs it. `cancelled` is `true` once
@@ -2050,125 +2045,48 @@ the RPC waiting for it. An Invocation whose run already ended stops nothing
 (`cancelled: false`), and never a later run on its thread. When the Stop
 cannot be reached the RPC answers `unavailable`; retry it.
 
-#### SubmitAgentInvocation
-
-```
-POST /api/agents.v1.AgentService/SubmitAgentInvocation
-```
-
-> **Retired from the dashboard.** The dashboard's Chat runs on the
-> [AG-UI endpoint](#ag-ui-protocol) since #409 and no longer calls this RPC nor
-> `WatchAgentInvocation`. #410 removes both, with `asyncrun`, and no
-> deprecation window.
-
-Durably accepts one chat turn as an **asynchronous Invocation** and
-returns immediately; the agent runs server-side, independent of the browser
-connection. Creates a workspace-owned session when `session_id` is empty.
-Dashboard-session auth only (not exposed to API tokens); requires
-`X-Workspace-ID`. Single-instance in the first release. A `QUEUED`/`RUNNING`
-record whose process has stopped is marked `FAILED` and never replayed (see
-**Process exit** below).
-
-**Request:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `request_id` | string | **Required.** Client-generated idempotency key; repeating an accepted id returns the original session/invocation and runs the agent exactly once |
-| `agent_id` | string | **Required.** Immutable Agent ID |
-| `session_id` | string | Existing session, or empty to create one |
-| `message` | string | Text input (used when `parts` is empty) |
-| `parts` | `InputPart[]` | Multimodal input; same limits as `StreamAgent` |
-| `model_override` | string | Optional model alias or full name |
-
-**Response:** `session_id`, `invocation_id`, `status` (`QUEUED` on acceptance),
-`session_created`. A session with an active invocation rejects a second submit
-with `failed_precondition` naming the active invocation id.
-
 #### GetAgentInvocation
 
 ```
 POST /api/agents.v1.AgentService/GetAgentInvocation
 ```
 
-Returns the authoritative state of one invocation. With an empty
-`invocation_id` and a `session_id`, returns the session's **active**
-(`QUEUED`/`RUNNING`) invocation instead — the reconnect path clients use to
-decide whether to attach `WatchAgentInvocation` (`not_found` when the session
-is idle). Dashboard async invocations (`source = dashboard-async`) are private:
-only the submitting user sees them; other members — including workspace
-owners — get `not_found`; global admins retain support access.
+Returns the authoritative state of one invocation, by id, in the selected
+Workspace. Invocations of the retired dashboard async chat (`app_name`
+`web-chat`) are private: only the user who submitted one sees it; other
+members — including workspace owners — get `not_found`; global admins retain
+support access.
 
 **Request:**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `invocation_id` | string | Direct lookup. Takes precedence over the session lookups below |
-| `session_id` | string | With an empty `invocation_id`: session-scoped lookup |
-| `latest` | bool | With `session_id`: return the session's **most recent** invocation regardless of status instead of only an active one. Used to render a failed or stopped last turn inline after reload or navigation |
-| `include_input_parts` | bool | Also return the invocation's retained `input_parts`. Parts are kept for `FAILED` and `CANCELLED` invocations so the original input can be restored for explicit resubmission; a `SUCCEEDED` invocation's parts were cleaned up and come back empty |
+| `invocation_id` | string | **Required** |
 
-**Response:** the full `Invocation` record (`id`, `session_id`, `status`,
-`input`, `output`, `error`, timings, `agent_id`, …) plus `input_parts`
-(`InputPart[]`, only when requested and still stored).
+**Response:** `invocation`, the full [`Invocation`](#invocation-object)
+record (`id`, `session_id`, `status`, `input`, `output`, `error`, timings,
+`agent_id`, …).
 
-#### WatchAgentInvocation
+#### Removed: SubmitAgentInvocation and WatchAgentInvocation
 
-```
-POST /api/agents.v1.AgentService/WatchAgentInvocation
-```
+> **Breaking change (#410).** The asynchronous Invocation API of the
+> dashboard's earlier chat is removed, with no deprecation window. The
+> dashboard's Chat runs on the [AG-UI endpoint](#ag-ui-protocol) since #409.
 
-**Server-streaming, read-only observer** over one asynchronous invocation.
-Watching never starts, owns, cancels, or slows execution: any number of
-authorized observers may attach to the same invocation, and closing every
-observer stream leaves the run untouched. Enforces the same workspace +
-private-session ownership rules as `GetAgentInvocation`.
+- `SubmitAgentInvocation` and `WatchAgentInvocation` are gone from the
+  schema. A client that still calls either one gets `unimplemented`.
+- `GetAgentInvocation` looks an invocation up only by `invocation_id`. Its
+  session lookups (`session_id`, `latest`) and `include_input_parts` are
+  gone, and the response no longer carries `input_parts`. A request without
+  an `invocation_id` answers `invalid_argument`.
+- The `chat_async` server config is gone. A config that still sets it starts
+  as before; the block is ignored.
 
-**Request:** `invocation_id` (required).
-
-**Stream messages (`WatchAgentInvocationResponse.event` oneof):**
-
-| Variant | Description |
-|---------|-------------|
-| `state` | Authoritative `Invocation` snapshot. Always the **first** frame; sent again on the `RUNNING` transition; the **last** frame is the single terminal state (`SUCCEEDED`/`FAILED`/`CANCELLED`), after which the server closes the stream. Watching an already-terminal invocation yields one terminal `state` frame and a clean close. |
-| `text_delta` | Same shape as `StreamAgent`'s `text_delta`. |
-| `run_event` | Same shape as `StreamAgent`'s `run_event`. |
-
-A slow observer can never backpressure the runner: each observer has a bounded
-buffer, and one that falls behind is disconnected with `resource_exhausted`.
-Transient text deltas emitted while no observer is attached are **not**
-durably replayed — on reconnect, load persisted session events and the
-invocation status first (`GetSession` + `GetAgentInvocation`), then attach a
-fresh watch for future output. Persisted session events and terminal
-`Invocation.output` always remain complete regardless of observer gaps.
-
-
-#### Async failure, timeout, restart, and retry semantics
-
-Asynchronous execution (`SubmitAgentInvocation`) is **single-instance**: one
-Butter process owns all async runs, and the deployment must not scale the
-service beyond one replica while relying on it.
-
-An async run ends `FAILED` with an actionable `Invocation.error` in three
-operational cases, in addition to ordinary run errors:
-
-| Cause | Behavior |
-|-------|----------|
-| **Timeout** | A run exceeding `chat_async.max_run_duration` (default **30 minutes**) is cancelled and recorded `FAILED` with a deadline-exceeded reason naming the configured duration |
-| **Graceful shutdown** | On SIGTERM or SIGINT, process teardown stops process-owned runs and waits (bounded, 15 s) for each to persist `FAILED` with a shutdown reason before exit |
-| **Process exit** | Every record carries the instance ID of the process that runs it, and every process renews a liveness key in Redis. Once that key lapses, a sweep (at startup and every minute, on any Pod) marks the process's `QUEUED`/`RUNNING` records `FAILED` with a reason that names the lost instance. Another Pod starting never fails a run that is still going. Records written before owner stamps existed are failed only after 24 hours (or `chat_async.max_run_duration`, if longer). Without Redis, startup marks every `QUEUED`/`RUNNING` record left by an earlier process. The sweep only marks records — it never re-invokes the Agent or repeats tool side effects |
-
-Operational errors live only on the `Invocation` record. They are **never**
-appended as Agent-authored session events, so a failure cannot poison the
-conversation context. Explicit user cancellation stays `CANCELLED` (rendered
-as *stopped*), distinct from every `FAILED` case above — including when a
-Stop races a shutdown.
-
-**Retry is always explicit.** The client restores the original text and Input
-Parts (`GetAgentInvocation` with `include_input_parts`) into the composer for
-review and editing; sending again submits a **new** `request_id` and creates a
-**new** Invocation. Retry is never automatic and never disguised as a
-continuation of the failed Invocation, and the UI warns that resubmitting may
-repeat external tool side effects.
+For a turn that keeps going when its client leaves, use a
+[detached AG-UI run](#detached-runs). Stop it with
+[`CancelAgentInvocation`](#cancelagentinvocation) or the
+[AG-UI Stop](#stopping-a-run). `CancelAgentInvocation`, `GetAgentInvocation`
+by id, and [`ListAgentInvocations`](#listagentinvocations) are unchanged.
 
 #### ReloadAgents
 
@@ -2504,9 +2422,19 @@ Endpoints:
 | `finished_at` | timestamp |  |
 | `latency_ms` | int64 |  |
 | `model_override` | string |  |
-| `source` | string | Who owns the record: `dashboard-async` for an asynchronous Invocation (`SubmitAgentInvocation`), `agui-detached` for a [detached AG-UI run](#detached-runs), otherwise the `ContextSource` enum string of a run the runner recorded |
-| `request_id` | string | Client idempotency key of an owned record: `SubmitAgentInvocation`'s `request_id`, or a detached AG-UI run's thread-scoped `runId` |
+| `source` | string | Who owns the record: `agui-detached` for a [detached AG-UI run](#detached-runs), otherwise the `ContextSource` enum string of a run the runner recorded. Records of the retired dashboard async chat carry `dashboard-async` |
+| `request_id` | string | Idempotency key of an owned record: a detached AG-UI run's thread-scoped `runId`. Records of the retired dashboard async chat carry its client-generated key |
 | `workspace_id` | string | Workspace the invocation ran under |
+
+**Records a stopped process leaves behind.** Every record carries the
+instance ID of the process that runs it, and every process renews a liveness
+key in Redis. Once that key lapses, a sweep (at startup and every minute, on
+any Pod) marks the process's `QUEUED`/`RUNNING` records `FAILED` with a reason
+that names the lost instance. Another Pod starting never fails a run that is
+still going. Records written before owner stamps existed are failed only
+after 24 hours. Without Redis, startup marks every `QUEUED`/`RUNNING` record
+left by an earlier process. The sweep only marks records — it never
+re-invokes the Agent or repeats tool side effects.
 
 ---
 

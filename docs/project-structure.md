@@ -169,7 +169,7 @@ butter/
 │   │   │   ├── mongo/
 │   │   │   └── repository.go
 │   │   ├── githost/             # platform allowlist of Git hosts
-│   │   ├── inputpart/           # multimodal input parts stored apart from events
+│   │   ├── inputpart/           # input parts the retired async chat left; deleted with their session
 │   │   ├── invocation/          # interface + memory + mongo; owner stamp + stale sweep
 │   │   │   ├── memory/
 │   │   │   ├── mongo/
@@ -201,7 +201,6 @@ butter/
 │   │   │   └── repository.go
 │   │   └── health.go
 │   ├── runtime/
-│   │   ├── asyncrun/              # Dashboard async invocation coordinator
 │   │   ├── automation/            # Automation engine, scheduler and repositories
 │   │   ├── butterboxconn/         # ButterBox connection resolution for pibox + cursorbox
 │   │   ├── cron/                # scheduler + repo (job + execution, workspace-scoped) + ListByTimeRange
@@ -293,7 +292,7 @@ butter/
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：只保留 legacy `AgentChannel` 报告器；Telegram 适配与运行时位于 `internal/runtime/telegram/`。
-- `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`interrupt`、`streamorch` / `asyncrun`、`automation`、`telegram`、`linear` / `linearconn`、`sessionguard`、`liveness`（进程存活键，供 invocation 遗留清理判断 owner 是否已退出）、`runstate`（AG-UI 运行在 thread 租约旁记录的 run state，只在持有租约期间续期；结束的 Detached Run 标记为 ended，与其 Run Log 保留同样久）、`runlog`（Detached Run 的 Run Log：每次运行一条有上限的 Redis Stream，观察者从 `RUN_STARTED` 重放；每个进程用一条 `XREAD` 复用等待），Workspace Memory 的 `memoryhook` / `mem0memory` / `memoryconn`，以及 ButterBox 的 `pibox` / `cursorbox` / `butterboxconn`。
+- `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`interrupt`、`streamorch`、`automation`、`telegram`、`linear` / `linearconn`、`sessionguard`、`liveness`（进程存活键，供 invocation 遗留清理判断 owner 是否已退出）、`runstate`（AG-UI 运行在 thread 租约旁记录的 run state，只在持有租约期间续期；结束的 Detached Run 标记为 ended，与其 Run Log 保留同样久）、`runlog`（Detached Run 的 Run Log：每次运行一条有上限的 Redis Stream，观察者从 `RUN_STARTED` 重放；每个进程用一条 `XREAD` 复用等待），Workspace Memory 的 `memoryhook` / `mem0memory` / `memoryconn`，以及 ButterBox 的 `pibox` / `cursorbox` / `butterboxconn`。
 - Agent 工具：`a2uitool`（`render_ui`）、`aguitool`（AG-UI 客户端工具）、`agentfiletool`、`memorytool`、`skilltool`；A2UI 的 catalog、卡片与表单逻辑在 `internal/a2ui/`。
 - `internal/repo/`：仓库层。除 `config/`、`apitoken/`、`invocation/` 外，还包含 Agent Content/lifecycle operation、Agent Files、Skills、Telegram resources/processing/settings、Linear Apps/installations/processing/settings/install states、ButterBoxes、Git hosts/repo bindings/cache、input parts、OAuth、forum、workspace、auth、cryptokey 等 memory/mongo 实现。
 - `front/`：Vite + React 19 dashboard。TanStack Router 路由在 `src/routes/`，资源实现位于 `src/features/`；`src/api/` 是类型化的 ConnectRPC 客户端，`uploads.ts` 是唯一仍用裸 `fetch` + multipart 的 API 模块。`src/gen/` 是 buf 生成的 TS proto 类型。

@@ -31,27 +31,17 @@ func main() {
 
 	teardown := sync.OnceValue(func() error {
 		channelCancel()
-		// Stop process-owned async dashboard work and Detached AG-UI runs,
-		// and wait for each in-flight run to persist its honest FAILED
-		// terminal state and, for AG-UI, release its thread's lease. Both
-		// stop at once and share one bound, so a stuck run cannot block
-		// process exit; anything still QUEUED/RUNNING afterwards is failed as
-		// stale once this process's liveness lapses (without Redis, at next
+		// Stop the Detached AG-UI runs and wait for each in-flight run to
+		// persist its honest FAILED terminal state and release its thread's
+		// lease. The wait is bounded, so a stuck run cannot block process
+		// exit; anything still QUEUED/RUNNING afterwards is failed as stale
+		// once this process's liveness lapses (without Redis, at next
 		// startup).
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		var wg sync.WaitGroup
-		wg.Go(func() {
-			if err := handlers.ShutdownAsync(shutdownCtx); err != nil {
-				slog.Warn("async coordinator shutdown incomplete", "err", err)
-			}
-		})
-		wg.Go(func() {
-			if err := handlers.ShutdownAGUI(shutdownCtx); err != nil {
-				slog.Warn("detached AG-UI runs shutdown incomplete", "err", err)
-			}
-		})
-		wg.Wait()
+		if err := handlers.ShutdownAGUI(shutdownCtx); err != nil {
+			slog.Warn("detached AG-UI runs shutdown incomplete", "err", err)
+		}
 		return nil
 	})
 

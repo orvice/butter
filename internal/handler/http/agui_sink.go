@@ -54,8 +54,7 @@ func newAGUISSEEmitter(ctx context.Context, w io.Writer, flush func()) aguiEmitt
 //
 // It lives beside the handler rather than in streamorch because streamorch is
 // the protocol-neutral orchestration seam; every Sink implementation belongs
-// with its own transport (compare streamAgentSink in internal/application and
-// asyncrun's hubSink).
+// with its own transport (compare streamAgentSink in internal/application).
 //
 // Not concurrency-safe, which is what streamorch.Run guarantees: it calls the
 // Sink serially from inside the ADK event loop.

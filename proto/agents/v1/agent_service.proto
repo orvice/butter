@@ -89,26 +89,9 @@ service AgentService {
   // ACTIVE and re-publishing the retained content.
   rpc RestoreAgent(RestoreAgentRequest) returns (RestoreAgentResponse);
 
-  // SubmitAgentInvocation durably accepts a dashboard chat turn as an
-  // asynchronous Invocation. Creates a workspace-owned Session when session_id
-  // is empty. Returns promptly; the runner executes independently.
-  rpc SubmitAgentInvocation(SubmitAgentInvocationRequest) returns (SubmitAgentInvocationResponse);
-
-  // GetAgentInvocation returns the authoritative state of one invocation,
-  // scoped by workspace and user ownership.
+  // GetAgentInvocation returns the authoritative state of one invocation by
+  // its ID, scoped by workspace and user ownership.
   rpc GetAgentInvocation(GetAgentInvocationRequest) returns (GetAgentInvocationResponse);
-
-  // WatchAgentInvocation is a read-only observer stream over one asynchronous
-  // invocation. Connecting, disconnecting, or reconnecting never starts,
-  // owns, cancels, or slows execution; any number of authorized observers may
-  // watch concurrently. The first frame is always a `state` frame carrying
-  // the authoritative current Invocation; live run events and text deltas
-  // follow, and the stream ends with exactly one terminal `state` frame. A
-  // watcher that falls too far behind the live run is disconnected with
-  // RESOURCE_EXHAUSTED and should reload persisted session state before
-  // re-watching. Scoped by workspace and private-session ownership (global
-  // admins retain support access).
-  rpc WatchAgentInvocation(WatchAgentInvocationRequest) returns (stream WatchAgentInvocationResponse);
 
   // GetAgentOperation returns a durable lifecycle operation record by ID.
   rpc GetAgentOperation(GetAgentOperationRequest) returns (GetAgentOperationResponse);
@@ -687,7 +670,8 @@ message Invocation {
   // readable after renames.
   // @gotags: bson:"agent_display_name,omitempty"
   string agent_display_name = 16;
-  // Client-generated idempotency key for async submissions.
+  // Idempotency key of an owned record: a detached AG-UI run's thread-scoped
+  // runId. Records of the retired async chat carry its client-generated key.
   // @gotags: bson:"request_id,omitempty"
   string request_id = 17;
   // @gotags: bson:"workspace_id,omitempty"
@@ -713,85 +697,22 @@ message ListAgentInvocationsResponse {
   int32 total = 3;
 }
 
-// --- SubmitAgentInvocation messages ---
-
-message SubmitAgentInvocationRequest {
-  // Client-generated idempotency key (required, non-empty).
-  string request_id = 1;
-  // Immutable agent_id of the agent to invoke (required).
-  string agent_id = 2;
-  // Existing session ID, or empty to create a new workspace-owned session.
-  string session_id = 3;
-  // Text input (used when parts is empty).
-  string message = 4;
-  // Multimodal input parts. When non-empty, message is ignored.
-  repeated InputPart parts = 5;
-  // Optional model override alias or full name.
-  string model_override = 6;
-}
-
-message SubmitAgentInvocationResponse {
-  // The session used (may have been newly created).
-  string session_id = 1;
-  // The created invocation.
-  string invocation_id = 2;
-  // Current invocation status (QUEUED immediately after acceptance).
-  InvocationStatus status = 3;
-  // True when this submission created a new session.
-  bool session_created = 4;
-}
-
 // --- GetAgentInvocation messages ---
 
 message GetAgentInvocationRequest {
+  // Required.
   string invocation_id = 1;
-  // When invocation_id is empty, looks up the active (QUEUED or RUNNING)
-  // invocation for this session instead. NotFound when the session has no
-  // active invocation. Used by clients re-entering a session to decide
-  // whether to attach a WatchAgentInvocation observer.
-  string session_id = 2;
-  // With session_id and an empty invocation_id: return the session's most
-  // recent invocation regardless of status instead of only an active one.
-  // Used to render a failed or cancelled turn inline after reload or
-  // navigation.
-  bool latest = 3;
-  // Also return the retained Input Parts of the invocation. Parts are kept
-  // for FAILED and CANCELLED invocations so the original input can be
-  // restored into the composer for explicit review and resubmission; parts
-  // of SUCCEEDED invocations are deleted and come back empty.
-  bool include_input_parts = 4;
+  // The session lookups (session_id, latest) and include_input_parts served
+  // the retired dashboard async chat and were removed with it (#410).
+  reserved 2, 3, 4;
+  reserved "session_id", "latest", "include_input_parts";
 }
 
 message GetAgentInvocationResponse {
   Invocation invocation = 1;
-  // The invocation's retained Input Parts, populated only when
-  // include_input_parts was set and the parts are still stored.
-  repeated InputPart input_parts = 2;
-}
-
-// --- WatchAgentInvocation messages ---
-
-message WatchAgentInvocationRequest {
-  string invocation_id = 1;
-}
-
-// WatchAgentInvocationResponse is one observer frame. `state` frames carry
-// the authoritative Invocation record: the first frame is always a state
-// frame, another is sent when the invocation transitions to RUNNING, and the
-// final frame before the server closes the stream is the terminal state.
-// Between state frames the stream relays the same run-event and text-delta
-// shapes StreamAgent uses, so clients share rendering code.
-message WatchAgentInvocationResponse {
-  oneof event {
-    WatchAgentInvocationState state = 1;
-    StreamAgentRunEvent run_event = 2;
-    StreamAgentTextDelta text_delta = 3;
-  }
-}
-
-// WatchAgentInvocationState carries the authoritative Invocation snapshot.
-message WatchAgentInvocationState {
-  Invocation invocation = 1;
+  // input_parts was removed with include_input_parts (#410).
+  reserved 2;
+  reserved "input_parts";
 }
 
 // --- MCPServer messages ---

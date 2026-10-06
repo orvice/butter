@@ -9,12 +9,12 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-// The async coordinator calls AsyncTurnComplete with context.Background(): no
-// signed-in user and no admin. The hook used to go through
-// GenerateSessionTitle, whose authorization answered Unauthenticated, so no
-// title was ever stored. It must title an untitled session on that context and
-// leave a titled one alone.
-func TestAsyncTurnComplete_TitlesOnABackgroundContext(t *testing.T) {
+// A turn hook calls TitleSession on a context that carries no caller: no
+// signed-in user and no admin. Hooks used to go through GenerateSessionTitle,
+// whose authorization answered Unauthenticated, so no title was ever stored.
+// TitleSession must title an untitled session on that context and leave a
+// titled one alone.
+func TestTitleSession_TitlesOnABackgroundContext(t *testing.T) {
 	cases := []struct {
 		name string
 		// sessionTitle is the session's title when the turn completes;
@@ -60,9 +60,9 @@ func TestAsyncTurnComplete_TitlesOnABackgroundContext(t *testing.T) {
 				"", sess)
 			svc.titleResolveModel = (&fakeResolve{llm: llm}).fn
 
-			svc.AsyncTurnComplete(context.Background(), &agentsv1.Invocation{
-				AppName: "web-chat", UserId: "u1", SessionId: "s1",
-			})
+			if _, _, err := svc.TitleSession(context.Background(), "web-chat", "u1", "s1"); err != nil {
+				t.Fatalf("TitleSession: %v", err)
+			}
 
 			if llm.called != tc.wantModelCall {
 				t.Errorf("title model called = %v, want %v", llm.called, tc.wantModelCall)
@@ -71,7 +71,7 @@ func TestAsyncTurnComplete_TitlesOnABackgroundContext(t *testing.T) {
 				t.Fatalf("CAS calls = %d, want %d", store.casCalled, tc.wantCAS)
 			}
 			if tc.wantCAS > 0 && store.casSession != "web-chat/u1/s1" {
-				t.Errorf("CAS addressed %q, want the invocation's session web-chat/u1/s1", store.casSession)
+				t.Errorf("CAS addressed %q, want the session web-chat/u1/s1", store.casSession)
 			}
 			if store.lastTitle != tc.wantStored {
 				t.Errorf("stored title = %q, want %q", store.lastTitle, tc.wantStored)
