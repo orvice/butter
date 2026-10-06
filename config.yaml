@@ -153,6 +153,20 @@ langfuse:
 #   # Default: 30m.
 #   max_run_duration: 30m
 
+# Maintenance the service runs at startup.
+maintenance:
+  # Deletes the old dashboard Chat's leftover data (#411) on every startup:
+  # the adk_sessions with app_name "web-chat", their adk_events, their
+  # Invocations and those Invocations' input parts. Past Activity counts on
+  # the dashboard drop with those Invocations, so back up the database before
+  # deploying a release that runs it. One Pod runs it, in the background,
+  # under the Redis lease butter:maintenance:web-chat-cleanup, bounded at 10
+  # minutes; it never blocks or fails startup, and once nothing is left it is
+  # a quick no-op. Its log lines start with "web-chat cleanup:".
+  # false skips it. Default: true.
+  # TEMPORARY: a later release removes this cleanup and this flag.
+  delete_web_chat: true
+
 # Runtime resources are NOT configured here.
 #
 # Agents, Model Providers, MCP Servers, Remote Agents, and Cron Jobs live in the

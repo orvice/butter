@@ -4,6 +4,9 @@
 //
 // It is a dry run unless --confirm is given. Never run it against production
 // without the project owner's explicit confirmation; see usageText.
+//
+// The cleanup itself is internal/maintenance/webchatcleanup, which the
+// service also runs on every startup for now (#411).
 package main
 
 import (
@@ -23,6 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	appconfig "go.orx.me/apps/butter/internal/config"
+	"go.orx.me/apps/butter/internal/maintenance/webchatcleanup"
 )
 
 const commandName = "butter-delete-web-chat"
@@ -170,6 +174,6 @@ func cleanup(ctx context.Context, t target, confirm bool, out io.Writer) error {
 		mode = "DELETING (--confirm)"
 	}
 	_, _ = fmt.Fprintf(out, "%s: %s on database %q at %s\n\n", commandName, mode, t.db, strings.Join(opts.Hosts, ","))
-	_, err = run(ctx, client.Database(t.db), confirm, out)
+	_, err = webchatcleanup.Run(ctx, client.Database(t.db), confirm, out)
 	return err
 }

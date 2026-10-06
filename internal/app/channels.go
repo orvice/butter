@@ -534,6 +534,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// stamps wait out a cutoff longer than any run allowed to still be going.
 	startInvocationSweep(ctx, invRepo, live, invocation.LegacyStaleAge)
 
+	// TEMPORARY (#411): delete the old dashboard Chat's leftover web-chat
+	// data, in the background and on one Pod, unless
+	// maintenance.delete_web_chat is false (webchat_cleanup.go). Remove it in
+	// a later release, once it has run in production.
+	newWebChatCleanup(cfg.Maintenance, db, rdb, live.instanceID, logger).start(ctx)
+
 	// Final Agent-ID cutover verifier (issue #241, replaces the retired #213
 	// startup backfill): read-only, logs each record that still violates the
 	// agent_id contract so operators can fix it. Never blocks startup.
