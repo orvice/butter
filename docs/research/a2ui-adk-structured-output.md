@@ -31,7 +31,7 @@
 - **结构化输出真正划算的位置是"服务端模板 + 小而平的数据 schema"（§4 方案 d）。** AG-UI 的 fixed schema 模式、A2UI SDK 的 macros 和社区样例都这么做，而且这种 schema 落在所有 provider 的 strict 子集之内。其次可以给 `render_ui` 换上从 catalog 派生的精确参数 schema（方案 b'）。但在 Butter 当前的两个适配器上，它带来的只是 ADK 侧的前置校验和更好的提示，得不到约束解码：两个适配器都没开 strict，也没用 VALIDATED 模式。
 - **两处需要代码侧修正或实测：**
   1. `renderArgs` 用的 `jsonschema_description` tag 不被 jsonschema-go 识别，字段描述没有进入工具声明（探针已证实）。**已在 #374 修复。**
-  2. AG-UI 的 ADK 适配器注释称，Gemini 函数调用会把"无属性的 object 数组"填成 `{}`，所以它改用了 JSON 字符串参数。`render_ui.messages` 的形状与此接近，需要在真实 Gemini 上验证。**OpenAI 的 `gpt-5.6-luna` 已实测，没有这个问题（§5）；Gemini 暂未测。**
+  2. AG-UI 的 ADK 适配器注释称，Gemini 函数调用会把"无属性的 object 数组"填成 `{}`，所以它改用了 JSON 字符串参数。`render_ui.messages` 的形状与此接近，需要在真实 Gemini 上验证。**OpenAI 的 `gpt-5.6-luna` 已实测，没有这个问题（§5.1）；Gemini 暂未测。**
 
 ## 1. A2UI v0.9.1 用法要点（附 v1.0 对生成侧有影响的差异）
 
@@ -241,10 +241,12 @@ ADK 适配器的具体实现（[a2ui_tool.py L301-L366](https://github.com/ag-ui
 **建议的验证顺序：**
 
 1. 把 `jsonschema_description` 改成 `jsonschema`（或者显式设置 `InputSchema`），确认工具声明里出现了字段描述。**已完成：#374。**
-2. 分别在真实 Gemini 和 OpenAI 上跑一组 `render_ui`，统计参数被填成 `{}`、缺少 root、出现悬空引用的比例；并为单次 invocation 内的连续失败设一个上限。**上限已在 #374 加上，测试工具在 #380；OpenAI 已测（§5），Gemini 暂未测。**
+2. 分别在真实 Gemini 和 OpenAI 上跑一组 `render_ui`，统计参数被填成 `{}`、缺少 root、出现悬空引用的比例；并为单次 invocation 内的连续失败设一个上限。**上限已在 #374 加上，测试工具在 #380；OpenAI 已测（§5.1），Gemini 暂未测。**
 3. 如果需要更稳定的版式，加 1–2 个模板工具（例如"摘要卡片：title + 键值列表 + 状态"），与现状对比使用率和失败率。**待定，见 #381。**
 
-## 5. 实测：gpt-5.6-luna（2026-10-02）
+## 5. 实测：gpt-5.6-luna
+
+### 5.1 `render_ui` 调用质量（2026-10-02）
 
 第 1 步已经在 #374 完成（字段描述进入工具声明，连续失败 3 次后停用）。之后用 `internal/a2uitool/probe_test.go`（#380）跑了一次真实模型：
 
@@ -264,9 +266,35 @@ ADK 适配器的具体实现（[a2ui_tool.py L301-L366](https://github.com/ag-ui
 
 **结论：** 对这个模型，宽松的 `messages` 参数没有问题，不需要改成 JSON 字符串参数，也不需要精确的 catalog schema。这次也实际验证了 #373 升级后（openai-go 3.64）adk-utils-go 的流式工具调用。Gemini 没有测，"填成 `{}`"的风险仍然只来自 AG-UI 适配器的代码注释。
 
+### 5.2 卡片策略的 presentation：AUTO 与 PREFERRED（2026-10-06，#442）
+
+卡片策略（ADR-0014 的 Card Policy 修订）设为 `PREFERRED` 时，只在 `render_ui` 工具描述第一段的末尾加一句 `a2uitool.PreferredHint`：
+
+> Prefer a card: whenever your answer has structured results (key facts, a status, a list of results), show them in a card as well as in text.
+
+`AUTO` 下的描述与之前逐字节相同。为了只看这句话的作用，用 `internal/a2uitool/probe_test.go` 里的 `TestRenderUIPresentationProbe` 做了一组对照：
+
+- **环境：** 与 §5.1 相同（ADK v2.5.0、Butter 的 `NewFromProto`、provider 类型 `openai`、`gpt-5.6-luna`、SSE 流式），4 轮并行。
+- **指令：** 中性，不提卡片："You are an operations assistant in a chat app. Answer the user's questions briefly." 两组之间唯一的差别就是那句提示。
+- **场景：** 8 个"边界"单轮提示，用文字或卡片回答都说得过去：SLA 要点、三次构建耗时、服务所在区域、磁盘增长趋势、三个待处理 PR、密钥轮换步骤、liveness 与 readiness probe 的区别、p95 的含义。每个提示在 `AUTO` 和 `PREFERRED` 下各跑 5 次，共 80 轮。
+
+| 场景 | AUTO | PREFERRED |
+|---|---|---|
+| open-prs（三个 PR，各有作者和状态） | 0/5 | 3/5 |
+| 其余 7 个场景 | 0/35 | 0/35 |
+| **合计（显示出卡片的轮数）** | **0/40** | **3/40** |
+
+- 两组都没有运行错误，40/40 轮都有文字回答。文字长度的中位数分别是 218 和 200 个字符。
+- `PREFERRED` 下的 3 次 `render_ui` 调用都首次合法，都新建了一张卡片：一个 Card，里面一个 Column、一个标题 Text，每个 PR 一个 KeyValue。
+- 每轮耗时的中位数：`AUTO` 9.0 秒，`PREFERRED` 10.1 秒。出卡片的 3 轮要 13–21 秒，因为多了一次模型调用。
+- 在这个样本量下，3/40 对 0/40 并不显著（Fisher 精确检验，单侧 p≈0.12）。
+
+**结论：** 对这个模型，`PREFERRED` 是很弱的提示。指令不提卡片时，`AUTO` 在这些边界提示上一张卡片也没出；`PREFERRED` 只让最像列表的那个提示有时出卡片，键值事实、步骤和概念解释仍然只用文字。这符合设计：提示从不强制卡片，也不进入 instruction。但如果作者希望某个 Agent 稳定地出卡片，只靠 `PREFERRED` 不够；§5.1 里指令明确要求卡片时是 18/18。
+
 ## 未核实或互相矛盾之处
 
 - 实测只覆盖 `gpt-5.6-luna`（§5），没有测 Gemini。以下两点仍只来自文档和代码注释：Gemini 对 `additionalProperties: true` 的开放对象数组是否同样会填 `{}`；OpenAI 是否会拒绝适配器生成的 strict schema。
+- §5.2 的对照每组只有 40 轮，`PREFERRED` 的效果有多大（3/40）还不能外推；换模型或换提示句之后要重测。
 - "A2UI SDK 丢弃了组件校验结果"是读代码（`102ec1a`）得出的，没有执行样例验证。
 - Gemini 3 能否在 Gemini API 上组合结构化输出与函数调用：Gemini 文档和 adk.dev 说可以，而 ADK Go（v2.1.0 和 main）与 adk-python main 的代码都按不可以处理。
 - a2ui.org 内部也有不一致：首页和 overview 对 v1.0 的摘要（`actionResponse`、`surfaceProperties`）与 v1.0 规范不符；Agent Development 指南与当前 SDK 不符；介绍页把生成方式写成 "structured output"，与规范的 prompt-first 不一致。
