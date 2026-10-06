@@ -38,13 +38,16 @@ describe('result cards form mapping', () => {
     ).toEqual({ presentation: 'RESULT_CARD_PRESENTATION_AUTO' })
   })
 
-  it('drops the presentation while cards are off', () => {
+  it('keeps a chosen presentation while cards are off', () => {
     expect(
       buildResultCardsConfig(
         values({ generation: 'off', presentation: 'preferred' }),
         'AGENT_TYPE_LLM'
       )
-    ).toEqual({ generation: 'RESULT_CARD_GENERATION_DISABLED' })
+    ).toEqual({
+      generation: 'RESULT_CARD_GENERATION_DISABLED',
+      presentation: 'RESULT_CARD_PRESENTATION_PREFERRED',
+    })
   })
 
   it('keeps the policy on composite agents and drops it for box agents', () => {
@@ -75,6 +78,12 @@ describe('result cards form mapping', () => {
         presentation: 'RESULT_CARD_PRESENTATION_AUTO',
       })
     ).toEqual({ generation: 'allowed', presentation: 'auto' })
+    expect(
+      resultCardsFormValuesFromConfig({
+        generation: 'RESULT_CARD_GENERATION_DISABLED',
+        presentation: 'RESULT_CARD_PRESENTATION_PREFERRED',
+      })
+    ).toEqual({ generation: 'off', presentation: 'preferred' })
     expect(resultCardsFormValuesFromConfig({})).toEqual(
       EMPTY_RESULT_CARDS_FORM_VALUES
     )

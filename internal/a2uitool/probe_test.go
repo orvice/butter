@@ -37,13 +37,13 @@ import (
 // BUTTER_A2UI_PROBE_OUT writes every turn and call as JSON.
 func TestRenderUIProbe(t *testing.T) {
 	targets, reps := probeTargets(t)
-	agent := probeAgent{instruction: probeInstruction}
+	cfg := probeConfig{instruction: probeInstruction}
 
 	var turns []probeTurn
 	for _, target := range targets {
 		for _, sc := range probeScenarios {
 			for rep := 1; rep <= reps; rep++ {
-				got := runProbeScenario(t, target, agent, sc, rep)
+				got := runProbeScenario(t, target, cfg, sc, rep)
 				for _, turn := range got {
 					t.Logf("%s %s#%d turn %d: %d call(s), card=%v, text=%v %s",
 						target.name, sc.name, rep, turn.Turn, len(turn.Calls), turn.cardShown(), turn.Text != "", turn.Err)
@@ -79,16 +79,16 @@ func TestRenderUIPresentationProbe(t *testing.T) {
 	t.Run("turns", func(t *testing.T) {
 		for _, target := range targets {
 			for _, pr := range presentations {
-				agent := probeAgent{
+				cfg := probeConfig{
 					instruction: borderlineInstruction,
 					cards:       &agentsv1.ResultCardConfig{Presentation: pr},
 					variant:     strings.ToLower(strings.TrimPrefix(pr.String(), "RESULT_CARD_PRESENTATION_")),
 				}
 				for _, sc := range borderlineScenarios {
 					for rep := 1; rep <= reps; rep++ {
-						t.Run(fmt.Sprintf("%s/%s/%s#%d", target.name, agent.variant, sc.name, rep), func(t *testing.T) {
+						t.Run(fmt.Sprintf("%s/%s/%s#%d", target.name, cfg.variant, sc.name, rep), func(t *testing.T) {
 							t.Parallel()
-							got := runProbeScenario(t, target, agent, sc, rep)
+							got := runProbeScenario(t, target, cfg, sc, rep)
 							for _, turn := range got {
 								t.Logf("card=%v, text=%v %s", turn.cardShown(), turn.Text != "", turn.Err)
 							}
@@ -277,15 +277,15 @@ func (t probeTurn) cardShown() bool {
 	return false
 }
 
-// probeAgent is the configuration a probe runs its agent with.
-type probeAgent struct {
+// probeConfig is the configuration a probe runs its agent with.
+type probeConfig struct {
 	instruction string
 	cards       *agentsv1.ResultCardConfig
 	// variant names the configuration in the results.
 	variant string
 }
 
-func runProbeScenario(t *testing.T, target probeTarget, cfg probeAgent, sc probeScenario, rep int) []probeTurn {
+func runProbeScenario(t *testing.T, target probeTarget, cfg probeConfig, sc probeScenario, rep int) []probeTurn {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

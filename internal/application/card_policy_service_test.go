@@ -80,3 +80,19 @@ func TestAgentService_CardPolicyValidationRunsOnEveryWritePath(t *testing.T) {
 		requireInvalidArgument(t, err, "config.result_cards.generation")
 	})
 }
+
+// PI and CURSOR agents keep their behavior on the ButterBox, so a write that
+// gives one a Card Policy is refused.
+func TestAgentService_CardPolicyRejectedOnBoxAgents(t *testing.T) {
+	for name, agent := range map[string]*agentsv1.Agent{
+		"pi":     testPiAgent("pi-cards", "box-1"),
+		"cursor": testCursorAgent("cursor-cards", "box-1"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			agent.Config.ResultCards = cardsDisabled()
+			svc := NewAgentServiceServer(memory.New())
+			_, err := svc.CreateAgent(testCtx(), connect.NewRequest(&agentsv1.CreateAgentRequest{Agent: agent}))
+			requireInvalidArgument(t, err, "result_cards")
+		})
+	}
+}

@@ -6,14 +6,14 @@ import type {
 } from '@/types/api'
 
 /** 'allowed' leaves the generation unset, so the agent inherits. */
-export type ResultCardsGeneration = 'allowed' | 'off'
+export type CardGenerationChoice = 'allowed' | 'off'
 
 /** 'inherit' leaves the presentation unset: the nearest parent decides. */
-export type ResultCardsPresentation = 'inherit' | 'auto' | 'preferred'
+export type CardPresentationChoice = 'inherit' | 'auto' | 'preferred'
 
 export interface ResultCardsFormValues {
-  generation: ResultCardsGeneration
-  presentation: ResultCardsPresentation
+  generation: CardGenerationChoice
+  presentation: CardPresentationChoice
 }
 
 export const EMPTY_RESULT_CARDS_FORM_VALUES: ResultCardsFormValues = {
@@ -26,45 +26,51 @@ export const resultCardsFormSchema = z.object({
   presentation: z.enum(['inherit', 'auto', 'preferred']),
 })
 
-const PRESENTATIONS: Record<
-  Exclude<ResultCardsPresentation, 'inherit'>,
-  ResultCardPresentation
-> = {
+/** The explicit presentations, read in both directions. */
+const PRESENTATION_VALUES = {
   auto: 'RESULT_CARD_PRESENTATION_AUTO',
   preferred: 'RESULT_CARD_PRESENTATION_PREFERRED',
-}
+} as const satisfies Record<
+  Exclude<CardPresentationChoice, 'inherit'>,
+  ResultCardPresentation
+>
+
+const EXPLICIT_PRESENTATIONS = Object.keys(PRESENTATION_VALUES) as Array<
+  keyof typeof PRESENTATION_VALUES
+>
 
 export function resultCardsFormValuesFromConfig(
   config?: ResultCardConfig
 ): ResultCardsFormValues {
-  let presentation: ResultCardsPresentation = 'inherit'
-  if (config?.presentation === 'RESULT_CARD_PRESENTATION_AUTO')
-    presentation = 'auto'
-  if (config?.presentation === 'RESULT_CARD_PRESENTATION_PREFERRED')
-    presentation = 'preferred'
   return {
     generation:
       config?.generation === 'RESULT_CARD_GENERATION_DISABLED'
         ? 'off'
         : 'allowed',
-    presentation,
+    presentation:
+      EXPLICIT_PRESENTATIONS.find(
+        (choice) => PRESENTATION_VALUES[choice] === config?.presentation
+      ) ?? 'inherit',
   }
 }
 
 /**
  * Serializes the form. The default serializes to no config at all, and the
- * field is dropped for types that reject it. With cards off the
- * presentation means nothing anywhere below, so it is dropped too.
+ * field is dropped for types that reject it. A presentation chosen before
+ * cards were turned off is kept: it does nothing while they are off, and it
+ * is still there when they are turned back on.
  */
 export function buildResultCardsConfig(
   values: ResultCardsFormValues,
   type?: string
 ): AgentConfig['result_cards'] {
   if (!supportsResultCards(type)) return undefined
+  const config: ResultCardConfig = {}
   if (values.generation === 'off')
-    return { generation: 'RESULT_CARD_GENERATION_DISABLED' }
-  if (values.presentation === 'inherit') return undefined
-  return { presentation: PRESENTATIONS[values.presentation] }
+    config.generation = 'RESULT_CARD_GENERATION_DISABLED'
+  if (values.presentation !== 'inherit')
+    config.presentation = PRESENTATION_VALUES[values.presentation]
+  return Object.keys(config).length > 0 ? config : undefined
 }
 
 /**

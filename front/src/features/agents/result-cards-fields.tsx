@@ -16,9 +16,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type {
+  CardGenerationChoice,
+  CardPresentationChoice,
   ResultCardsFormValues,
-  ResultCardsGeneration,
-  ResultCardsPresentation,
 } from './result-cards-config'
 
 interface ResultCardsConfigurationCardProps {
@@ -26,8 +26,8 @@ interface ResultCardsConfigurationCardProps {
   onChange: (value: ResultCardsFormValues) => void
 }
 
-const GENERATIONS: readonly {
-  value: ResultCardsGeneration
+const GENERATION_OPTIONS: readonly {
+  value: CardGenerationChoice
   label: string
   description: string
 }[] = [
@@ -44,8 +44,8 @@ const GENERATIONS: readonly {
   },
 ]
 
-const PRESENTATIONS: readonly {
-  value: ResultCardsPresentation
+const PRESENTATION_OPTIONS: readonly {
+  value: CardPresentationChoice
   label: string
 }[] = [
   { value: 'inherit', label: 'Inherit' },
@@ -58,12 +58,12 @@ export function ResultCardsConfigurationCard({
   onChange,
 }: ResultCardsConfigurationCardProps) {
   function changeGeneration(generation: string) {
-    if (generation !== 'allowed' && generation !== 'off') return
-    onChange({ ...value, generation })
+    const option = GENERATION_OPTIONS.find((o) => o.value === generation)
+    if (option) onChange({ ...value, generation: option.value })
   }
 
   function changePresentation(presentation: string) {
-    const option = PRESENTATIONS.find((p) => p.value === presentation)
+    const option = PRESENTATION_OPTIONS.find((o) => o.value === presentation)
     if (option) onChange({ ...value, presentation: option.value })
   }
 
@@ -86,7 +86,7 @@ export function ResultCardsConfigurationCard({
             onValueChange={changeGeneration}
             className='grid gap-2 md:grid-cols-2'
           >
-            {GENERATIONS.map((option) => {
+            {GENERATION_OPTIONS.map((option) => {
               const id = `result-cards-${option.value}`
               return (
                 <Label
@@ -136,7 +136,7 @@ export function ResultCardsConfigurationCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PRESENTATIONS.map((option) => (
+              {PRESENTATION_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>

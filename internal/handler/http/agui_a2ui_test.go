@@ -54,6 +54,11 @@ type a2uiHarness struct {
 	router   *gin.Engine
 	handler  *AGUIHandler
 	guard    *fakeSessionGuard
+	// runner, repo and providers are what the last build wired, kept so a
+	// reload can apply a new config to them.
+	runner    *runner.Service
+	repo      *wsAgentRepo
+	providers []agentsv1.ModelProvider
 	// titler, when set before build, titles threads after successful runs.
 	titler AGUISessionTitler
 	// recorder, when set before build, records the runner's Invocations.
@@ -111,6 +116,7 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 	for i := range agents {
 		repo.agents = append(repo.agents, &agents[i])
 	}
+	h.runner, h.repo, h.providers = svc, repo, providers
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -151,6 +157,19 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 	handler.Register(r)
 	h.handler = handler
 	return r
+}
+
+// reload applies a new agent config to the running runner, as the reload
+// after an agent is saved does.
+func (h *a2uiHarness) reload(agents []agentsv1.Agent) {
+	h.t.Helper()
+	if err := h.runner.ReloadProtoAgents(context.Background(), agents, h.providers, nil, nil); err != nil {
+		h.t.Fatalf("reload: %v", err)
+	}
+	h.repo.agents = nil
+	for i := range agents {
+		h.repo.agents = append(h.repo.agents, &agents[i])
+	}
 }
 
 type a2uiRequest struct {
@@ -440,17 +459,29 @@ func (h *a2uiHarness) snapshotSurfaces(agentID, threadID string, opts ...a2uiOpt
 	return out
 }
 
-// offeredTools lists the tool names the model was offered on its last call.
-func (h *a2uiHarness) offeredTools(model string) []string {
+// offeredFunctions returns the declarations of the tools the model was
+// offered on its last call.
+func (h *a2uiHarness) offeredFunctions(model string) []map[string]any {
 	h.t.Helper()
 	req, ok := h.backend.LastRequest(model)
 	if !ok {
 		h.t.Fatalf("model %s was never called", model)
 	}
-	var names []string
+	var fns []map[string]any
 	tools, _ := req.Decoded["tools"].([]any)
 	for _, t := range tools {
-		fn, _ := t.(map[string]any)["function"].(map[string]any)
+		if fn, ok := t.(map[string]any)["function"].(map[string]any); ok {
+			fns = append(fns, fn)
+		}
+	}
+	return fns
+}
+
+// offeredTools lists the tool names the model was offered on its last call.
+func (h *a2uiHarness) offeredTools(model string) []string {
+	h.t.Helper()
+	var names []string
+	for _, fn := range h.offeredFunctions(model) {
 		if name, ok := fn["name"].(string); ok {
 			names = append(names, name)
 		}
@@ -1771,8 +1802,8 @@ func TestAGUIA2UI_CardPolicyLeavesFormsAlone(t *testing.T) {
 	}
 }
 
-// Turning cards off for an agent stops it changing cards; it does not hide
-// the cards its threads already hold.
+// Turning cards off for an agent applies from its next run and stops it
+// changing cards; it does not hide the cards its threads already hold.
 func TestAGUIA2UI_CardPolicyKeepsExistingCards(t *testing.T) {
 	h := newA2UIHarness(t, []agentsv1.Agent{cardAgent()}, "card-model")
 	h.scriptToolThenText("card-model", "render_ui", deployCardArgs(), "Deployed.")
@@ -1780,10 +1811,10 @@ func TestAGUIA2UI_CardPolicyKeepsExistingCards(t *testing.T) {
 		t.Fatalf("setup: card not rendered: %+v", got)
 	}
 
-	// The agent is switched to DISABLED; the runner rebuilds its trees.
+	// The agent is saved as DISABLED; the reload rebuilds the runner's trees.
 	off := []agentsv1.Agent{cardAgent()}
 	off[0].Config.ResultCards = cardsOff()
-	h.restart(off, "card-model")
+	h.reload(off)
 	h.backend.ScriptRequest("card-model", func(w http.ResponseWriter, req openaifake.ChatCompletionRequest) {
 		openaifake.WriteReply(w, req, "noted")
 	})
@@ -1803,13 +1834,7 @@ func TestAGUIA2UI_CardPolicyKeepsExistingCards(t *testing.T) {
 // offered on its last call.
 func (h *a2uiHarness) toolDescription(model, name string) string {
 	h.t.Helper()
-	req, ok := h.backend.LastRequest(model)
-	if !ok {
-		h.t.Fatalf("model %s was never called", model)
-	}
-	tools, _ := req.Decoded["tools"].([]any)
-	for _, t := range tools {
-		fn, _ := t.(map[string]any)["function"].(map[string]any)
+	for _, fn := range h.offeredFunctions(model) {
 		if fn["name"] == name {
 			desc, _ := fn["description"].(string)
 			return desc
