@@ -94,6 +94,10 @@ _Avoid_: widget, generative component
 A read-only Surface a model creates, updates, or removes with the `render_ui` tool during an A2UI-capable AG-UI run. Persisted in the session's hidden UI state namespace; it cannot collect input or trigger actions.
 _Avoid_: rich message, UI message
 
+**Card Policy**:
+An Agent's setting for Result Cards: whether models at and below it in a run may render them, and how readily they should. It can only narrow down the agent tree, and it never applies to Human Input Forms.
+_Avoid_: UI policy, A2UI config, card settings
+
 **Human Input Form**:
 The optional form presentation of a Human Input Node's question: ordered text and single-choice fields. Its binding to one Interrupt is frozen into the request-input event that opens it; submitting it answers exactly that Interrupt with a JSON object text, while other channels still answer in text.
 _Avoid_: HITL form, typed resume

@@ -92,7 +92,8 @@ two meet in Butter:
   require (every open interrupt) with the form's single entry, so the
   submission appears as a readable reply in the conversation.
 - A per-agent policy for card generation (disable, prefer) and pre-built card
-  templates are left for later (#381).
+  templates are left for later (#381). The policy has since been settled: see
+  the Card Policy amendment below.
 
 ## Amendment: the thread history (#376)
 
@@ -128,3 +129,35 @@ thread history (the amendment above) off the session lease:
 - They stop where the run began, keeping the turn that started it.
 - The run's own Surfaces reach the client through the replay of its Run Log,
   so none of them shows twice.
+
+## Amendment: the Card Policy (#381, #439)
+
+Since #409 the dashboard's Chat negotiates A2UI on every run, so every LLM
+agent opened from the dashboard is offered `render_ui`. An author's only
+control was the instruction, which guarantees nothing and also reaches entry
+points without cards. An Agent's `config.result_cards` now holds its Card
+Policy:
+
+- **Generation only narrows.** Unset inherits; `DISABLED` turns Result Cards
+  off for the agent and every agent below it in the run, and nothing below can
+  turn them back on. There is no `ENABLED`: under narrowing it would mean the
+  same as unset. An agent run directly answers only to its own policy; run
+  under a parent, to every agent on the path from the run's root.
+- **Presentation is a hint.** `AUTO` or `PREFERRED`, inherited down the tree,
+  the nearest explicit value winning; a run's root defaults to `AUTO`.
+  `PREFERRED` is a sentence in `render_ui`'s description, so it reaches only
+  model calls that can render a card and never enters the instruction.
+- **The policy is resolved when the runner builds an agent tree.** Each LLM
+  agent's `render_ui` toolset is built with the policy of its place in the
+  tree. A run keeps the tree it started with, so offering the tool and running
+  it read the same value, and a change applies from the next run. A disabled
+  agent has no `render_ui`; a call copied from history gets ADK's "tool not
+  found" error back and the run goes on. Resolving per run in the AG-UI
+  handler was rejected: it would walk the tree a second time, outside the
+  factory, keyed by agent name.
+- **Forms and existing cards are outside it.** Human Input Forms, the UI
+  Snapshot and the cards already in a thread are unchanged; a disabled agent
+  only stops changing cards. PI and CURSOR agents reject the field on write;
+  composite agents accept it to narrow their subtree.
+
+Pre-built card templates (#381) stay deferred.
