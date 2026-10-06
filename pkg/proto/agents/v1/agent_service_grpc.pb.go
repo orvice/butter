@@ -37,9 +37,7 @@ const (
 	AgentService_VerifyAgentIDCutover_FullMethodName     = "/agents.v1.AgentService/VerifyAgentIDCutover"
 	AgentService_UpdateAgentConfiguration_FullMethodName = "/agents.v1.AgentService/UpdateAgentConfiguration"
 	AgentService_RestoreAgent_FullMethodName             = "/agents.v1.AgentService/RestoreAgent"
-	AgentService_SubmitAgentInvocation_FullMethodName    = "/agents.v1.AgentService/SubmitAgentInvocation"
 	AgentService_GetAgentInvocation_FullMethodName       = "/agents.v1.AgentService/GetAgentInvocation"
-	AgentService_WatchAgentInvocation_FullMethodName     = "/agents.v1.AgentService/WatchAgentInvocation"
 	AgentService_GetAgentOperation_FullMethodName        = "/agents.v1.AgentService/GetAgentOperation"
 	AgentService_ListAgentOperations_FullMethodName      = "/agents.v1.AgentService/ListAgentOperations"
 	AgentService_RetryAgentOperation_FullMethodName      = "/agents.v1.AgentService/RetryAgentOperation"
@@ -118,24 +116,9 @@ type AgentServiceClient interface {
 	// retained configuration and Agent Content, flipping it from DELETED back to
 	// ACTIVE and re-publishing the retained content.
 	RestoreAgent(ctx context.Context, in *RestoreAgentRequest, opts ...grpc.CallOption) (*RestoreAgentResponse, error)
-	// SubmitAgentInvocation durably accepts a dashboard chat turn as an
-	// asynchronous Invocation. Creates a workspace-owned Session when session_id
-	// is empty. Returns promptly; the runner executes independently.
-	SubmitAgentInvocation(ctx context.Context, in *SubmitAgentInvocationRequest, opts ...grpc.CallOption) (*SubmitAgentInvocationResponse, error)
-	// GetAgentInvocation returns the authoritative state of one invocation,
-	// scoped by workspace and user ownership.
+	// GetAgentInvocation returns the authoritative state of one invocation by
+	// its ID, scoped by workspace and user ownership.
 	GetAgentInvocation(ctx context.Context, in *GetAgentInvocationRequest, opts ...grpc.CallOption) (*GetAgentInvocationResponse, error)
-	// WatchAgentInvocation is a read-only observer stream over one asynchronous
-	// invocation. Connecting, disconnecting, or reconnecting never starts,
-	// owns, cancels, or slows execution; any number of authorized observers may
-	// watch concurrently. The first frame is always a `state` frame carrying
-	// the authoritative current Invocation; live run events and text deltas
-	// follow, and the stream ends with exactly one terminal `state` frame. A
-	// watcher that falls too far behind the live run is disconnected with
-	// RESOURCE_EXHAUSTED and should reload persisted session state before
-	// re-watching. Scoped by workspace and private-session ownership (global
-	// admins retain support access).
-	WatchAgentInvocation(ctx context.Context, in *WatchAgentInvocationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchAgentInvocationResponse], error)
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(ctx context.Context, in *GetAgentOperationRequest, opts ...grpc.CallOption) (*GetAgentOperationResponse, error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -346,16 +329,6 @@ func (c *agentServiceClient) RestoreAgent(ctx context.Context, in *RestoreAgentR
 	return out, nil
 }
 
-func (c *agentServiceClient) SubmitAgentInvocation(ctx context.Context, in *SubmitAgentInvocationRequest, opts ...grpc.CallOption) (*SubmitAgentInvocationResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SubmitAgentInvocationResponse)
-	err := c.cc.Invoke(ctx, AgentService_SubmitAgentInvocation_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *agentServiceClient) GetAgentInvocation(ctx context.Context, in *GetAgentInvocationRequest, opts ...grpc.CallOption) (*GetAgentInvocationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetAgentInvocationResponse)
@@ -365,25 +338,6 @@ func (c *agentServiceClient) GetAgentInvocation(ctx context.Context, in *GetAgen
 	}
 	return out, nil
 }
-
-func (c *agentServiceClient) WatchAgentInvocation(ctx context.Context, in *WatchAgentInvocationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchAgentInvocationResponse], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[1], AgentService_WatchAgentInvocation_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[WatchAgentInvocationRequest, WatchAgentInvocationResponse]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type AgentService_WatchAgentInvocationClient = grpc.ServerStreamingClient[WatchAgentInvocationResponse]
 
 func (c *agentServiceClient) GetAgentOperation(ctx context.Context, in *GetAgentOperationRequest, opts ...grpc.CallOption) (*GetAgentOperationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -488,24 +442,9 @@ type AgentServiceServer interface {
 	// retained configuration and Agent Content, flipping it from DELETED back to
 	// ACTIVE and re-publishing the retained content.
 	RestoreAgent(context.Context, *RestoreAgentRequest) (*RestoreAgentResponse, error)
-	// SubmitAgentInvocation durably accepts a dashboard chat turn as an
-	// asynchronous Invocation. Creates a workspace-owned Session when session_id
-	// is empty. Returns promptly; the runner executes independently.
-	SubmitAgentInvocation(context.Context, *SubmitAgentInvocationRequest) (*SubmitAgentInvocationResponse, error)
-	// GetAgentInvocation returns the authoritative state of one invocation,
-	// scoped by workspace and user ownership.
+	// GetAgentInvocation returns the authoritative state of one invocation by
+	// its ID, scoped by workspace and user ownership.
 	GetAgentInvocation(context.Context, *GetAgentInvocationRequest) (*GetAgentInvocationResponse, error)
-	// WatchAgentInvocation is a read-only observer stream over one asynchronous
-	// invocation. Connecting, disconnecting, or reconnecting never starts,
-	// owns, cancels, or slows execution; any number of authorized observers may
-	// watch concurrently. The first frame is always a `state` frame carrying
-	// the authoritative current Invocation; live run events and text deltas
-	// follow, and the stream ends with exactly one terminal `state` frame. A
-	// watcher that falls too far behind the live run is disconnected with
-	// RESOURCE_EXHAUSTED and should reload persisted session state before
-	// re-watching. Scoped by workspace and private-session ownership (global
-	// admins retain support access).
-	WatchAgentInvocation(*WatchAgentInvocationRequest, grpc.ServerStreamingServer[WatchAgentInvocationResponse]) error
 	// GetAgentOperation returns a durable lifecycle operation record by ID.
 	GetAgentOperation(context.Context, *GetAgentOperationRequest) (*GetAgentOperationResponse, error)
 	// ListAgentOperations lists lifecycle operations in the workspace, optionally
@@ -578,14 +517,8 @@ func (UnimplementedAgentServiceServer) UpdateAgentConfiguration(context.Context,
 func (UnimplementedAgentServiceServer) RestoreAgent(context.Context, *RestoreAgentRequest) (*RestoreAgentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RestoreAgent not implemented")
 }
-func (UnimplementedAgentServiceServer) SubmitAgentInvocation(context.Context, *SubmitAgentInvocationRequest) (*SubmitAgentInvocationResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SubmitAgentInvocation not implemented")
-}
 func (UnimplementedAgentServiceServer) GetAgentInvocation(context.Context, *GetAgentInvocationRequest) (*GetAgentInvocationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAgentInvocation not implemented")
-}
-func (UnimplementedAgentServiceServer) WatchAgentInvocation(*WatchAgentInvocationRequest, grpc.ServerStreamingServer[WatchAgentInvocationResponse]) error {
-	return status.Error(codes.Unimplemented, "method WatchAgentInvocation not implemented")
 }
 func (UnimplementedAgentServiceServer) GetAgentOperation(context.Context, *GetAgentOperationRequest) (*GetAgentOperationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAgentOperation not implemented")
@@ -934,24 +867,6 @@ func _AgentService_RestoreAgent_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AgentService_SubmitAgentInvocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SubmitAgentInvocationRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServiceServer).SubmitAgentInvocation(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AgentService_SubmitAgentInvocation_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServiceServer).SubmitAgentInvocation(ctx, req.(*SubmitAgentInvocationRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AgentService_GetAgentInvocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAgentInvocationRequest)
 	if err := dec(in); err != nil {
@@ -969,17 +884,6 @@ func _AgentService_GetAgentInvocation_Handler(srv interface{}, ctx context.Conte
 	}
 	return interceptor(ctx, in, info, handler)
 }
-
-func _AgentService_WatchAgentInvocation_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(WatchAgentInvocationRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(AgentServiceServer).WatchAgentInvocation(m, &grpc.GenericServerStream[WatchAgentInvocationRequest, WatchAgentInvocationResponse]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type AgentService_WatchAgentInvocationServer = grpc.ServerStreamingServer[WatchAgentInvocationResponse]
 
 func _AgentService_GetAgentOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAgentOperationRequest)
@@ -1111,10 +1015,6 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AgentService_RestoreAgent_Handler,
 		},
 		{
-			MethodName: "SubmitAgentInvocation",
-			Handler:    _AgentService_SubmitAgentInvocation_Handler,
-		},
-		{
 			MethodName: "GetAgentInvocation",
 			Handler:    _AgentService_GetAgentInvocation_Handler,
 		},
@@ -1135,11 +1035,6 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamAgent",
 			Handler:       _AgentService_StreamAgent_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "WatchAgentInvocation",
-			Handler:       _AgentService_WatchAgentInvocation_Handler,
 			ServerStreams: true,
 		},
 	},

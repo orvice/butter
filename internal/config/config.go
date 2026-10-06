@@ -40,7 +40,6 @@ type AppConfig struct {
 	Skills         SkillsConfig     `yaml:"skills"`
 	MCPOAuth       MCPOAuthConfig   `yaml:"mcp_oauth"`
 	Git            GitConfig        `yaml:"git"`
-	ChatAsync      ChatAsyncConfig  `yaml:"chat_async"`
 	AGUI           AGUIConfig       `yaml:"agui"`
 	StorageBackend string           `yaml:"storage_backend"` // "mongo" (default) or "memory"
 }
@@ -298,21 +297,6 @@ func (c AuthConfig) EffectiveSessionTTL() time.Duration {
 		return 7 * 24 * time.Hour
 	}
 	return c.SessionTTL
-}
-
-// ChatAsyncConfig configures dashboard asynchronous chat execution.
-type ChatAsyncConfig struct {
-	// MaxRunDuration bounds how long a single async invocation may execute.
-	// Zero uses the default of 30 minutes.
-	MaxRunDuration time.Duration `yaml:"max_run_duration"`
-}
-
-// EffectiveMaxRunDuration returns the configured max duration or the default.
-func (c ChatAsyncConfig) EffectiveMaxRunDuration() time.Duration {
-	if c.MaxRunDuration <= 0 {
-		return 30 * time.Minute
-	}
-	return c.MaxRunDuration
 }
 
 // AGUIConfig configures the AG-UI endpoint.

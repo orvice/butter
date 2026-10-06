@@ -84,12 +84,6 @@ type SessionReadResult struct {
 	WorkspaceID    string
 }
 
-// sessionDeleteCoordinator is the subset of *asyncrun.Coordinator used by
-// DeleteSession to cancel active invocations and wait for quiescence.
-type sessionDeleteCoordinator interface {
-	CancelAndWait(ctx context.Context, invocationID, workspaceID string) bool
-}
-
 // aguiAppName is the app of AG-UI threads' sessions (the AG-UI handler's).
 const aguiAppName = "agui"
 
@@ -115,7 +109,6 @@ type SessionServiceServer struct {
 	readStore       SessionReadStore
 	invRepo         invocation.Repository
 	inputPartRepo   inputpart.Repository
-	asyncCoord      sessionDeleteCoordinator
 	aguiThreads     AGUIThreads
 	langfuseHost    string
 	deleteListeners []SessionDeleteListener
@@ -126,13 +119,6 @@ type SessionServiceServer struct {
 	// titleResolveModel is titleGenerator.resolveModel for this server: a
 	// seam for tests, nil selecting the production resolver.
 	titleResolveModel func(ctx context.Context, modelRef string, providers []*agentsv1.ModelProvider) (model.LLM, error)
-
-	// deletingMu guards the deleting set.
-	deletingMu sync.Mutex
-	// deleting tracks session IDs whose deletion is in progress. The
-	// submit path checks this set to reject new invocations on a session
-	// that is being deleted.
-	deleting map[string]struct{}
 }
 
 // SessionDeleteListener observes successful session deletions with the
@@ -259,23 +245,6 @@ func (s *SessionServiceServer) getInputPartRepo() inputpart.Repository {
 	return s.inputPartRepo
 }
 
-// SetAsyncCoordinator wires the async coordinator for cancelling active
-// invocations during session deletion.
-func (s *SessionServiceServer) SetAsyncCoordinator(c sessionDeleteCoordinator) {
-	if c == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.asyncCoord = c
-}
-
-func (s *SessionServiceServer) getAsyncCoord() sessionDeleteCoordinator {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.asyncCoord
-}
-
 // SetAGUIThreads wires how DeleteSession deletes an AG-UI thread: stopping
 // its Detached Run and holding the thread's lease while it deletes.
 func (s *SessionServiceServer) SetAGUIThreads(threads AGUIThreads) {
@@ -291,33 +260,6 @@ func (s *SessionServiceServer) getAGUIThreads() AGUIThreads {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.aguiThreads
-}
-
-// IsSessionDeleting reports whether a deletion is in progress for the given
-// session. The async submit path uses this to reject new invocations.
-func (s *SessionServiceServer) IsSessionDeleting(sessionID string) bool {
-	s.deletingMu.Lock()
-	defer s.deletingMu.Unlock()
-	if s.deleting == nil {
-		return false
-	}
-	_, ok := s.deleting[sessionID]
-	return ok
-}
-
-func (s *SessionServiceServer) markDeleting(sessionID string) {
-	s.deletingMu.Lock()
-	defer s.deletingMu.Unlock()
-	if s.deleting == nil {
-		s.deleting = make(map[string]struct{})
-	}
-	s.deleting[sessionID] = struct{}{}
-}
-
-func (s *SessionServiceServer) unmarkDeleting(sessionID string) {
-	s.deletingMu.Lock()
-	defer s.deletingMu.Unlock()
-	delete(s.deleting, sessionID)
 }
 
 func (s *SessionServiceServer) getWSStore() WorkspaceSessionStore {
@@ -760,13 +702,12 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 	invRepo := s.getInvRepo()
 
 	if threads := s.getAGUIThreads(); appName == aguiAppName && threads != nil {
-		// Steps 1–2 for an AG-UI thread (ADR-0016 decision 7): its Detached
+		// Step 1, for an AG-UI thread (ADR-0016 decision 7): its Detached
 		// Run is stopped on whichever Pod runs it, then the thread's lease is
 		// taken and held while the thread is deleted, so no run starts or
-		// writes in between on any Pod. This replaces the process-local
-		// deleting guard. A lease that does not come free in time, as under
-		// a run without the opt-in, fails the delete before anything is
-		// deleted.
+		// writes in between on any Pod. A lease that does not come free in
+		// time, as under a run without the opt-in, fails the delete before
+		// anything is deleted.
 		holdCtx, release, held, err := threads.HoldThreadForDelete(ctx, userID, sessionID)
 		if err != nil {
 			logger.Error("holding the AG-UI thread for its delete failed", "session_id", sessionID, "err", err)
@@ -777,30 +718,11 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 		}
 		defer release()
 		ctx = holdCtx
-	} else {
-		// Step 1: Mark the session as deleting so new submissions are rejected.
-		s.markDeleting(sessionID)
-		defer s.unmarkDeleting(sessionID)
-
-		// Step 2: Cancel any active invocation and wait for it to finish writing
-		// session events.
-		coord := s.getAsyncCoord()
-		if invRepo != nil && wsID != "" {
-			active, activeErr := invRepo.FindActiveBySession(ctx, wsID, sessionID)
-			if activeErr == nil && active != nil {
-				if coord != nil {
-					coord.CancelAndWait(ctx, active.GetId(), wsID)
-				}
-				logger.Info("cancelled active invocation for session deletion",
-					"invocation_id", active.GetId(),
-					"session_id", sessionID,
-				)
-			}
-		}
 	}
 
-	// Step 3: Delete input parts and redact invocation content for all
-	// invocations associated with this session.
+	// Step 2: Delete input parts and redact invocation content for all
+	// invocations associated with this session. Input parts are left only by
+	// the retired dashboard async chat (#410).
 	if invRepo != nil && wsID != "" {
 		invocations, listErr := invRepo.ListBySession(ctx, wsID, sessionID)
 		if listErr != nil {
@@ -822,7 +744,7 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 		}
 	}
 
-	// Step 4: Delete the session metadata and events.
+	// Step 3: Delete the session metadata and events.
 	err := sessionSvc.Delete(ctx, &session.DeleteRequest{
 		AppName:   appName,
 		UserID:    userID,
@@ -843,7 +765,7 @@ func (s *SessionServiceServer) DeleteSession(ctx context.Context, req *connect.R
 		"session_id", sessionID,
 	)
 
-	// Step 5: Notify delete listeners (cron, automation).
+	// Step 4: Notify delete listeners (cron, automation).
 	s.notifySessionDeleted(appName, userID, sessionID)
 	return connect.NewResponse(&agentsv1.DeleteSessionResponse{}), nil
 }
@@ -1281,9 +1203,8 @@ func (s *SessionServiceServer) GenerateSessionTitle(ctx context.Context, req *co
 // afterwards. Errors are Connect errors.
 //
 // It authorizes no one. GenerateSessionTitle checks the caller first; the
-// turn hooks (AsyncTurnComplete, the AG-UI handler after a successful run)
-// call it on the server's own behalf, for a turn that was authorized when it
-// started.
+// AG-UI handler's turn hook calls it on the server's own behalf after a
+// successful run, for a turn that was authorized when it started.
 func (s *SessionServiceServer) TitleSession(ctx context.Context, appName, userID, sessionID string) (info *agentsv1.SessionInfo, generated bool, err error) {
 	sessionSvc := s.getSessionSvc()
 	if sessionSvc == nil {

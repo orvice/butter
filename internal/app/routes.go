@@ -23,7 +23,6 @@ import (
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	"go.orx.me/apps/butter/internal/repo/workspace"
-	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	linearruntime "go.orx.me/apps/butter/internal/runtime/linear"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
@@ -97,7 +96,6 @@ type Handlers struct {
 	channelRepo            configrepo.ChannelRepository
 	cfg                    *config.AppConfig
 	reconciler             *Reconciler
-	asyncCoordinator       *asyncrun.Coordinator
 }
 
 // Authenticate implements httpHandler.TelegramReceiver. The public callback
@@ -175,16 +173,6 @@ func (h *Handlers) StopTelegramRuntime() {
 	if h.tgReconciler != nil {
 		h.tgReconciler.Stop()
 	}
-}
-
-// ShutdownAsync stops process-owned async dashboard work for a graceful
-// process exit. In-flight runs persist an honest FAILED terminal state; the
-// call blocks until those writes complete or ctx expires.
-func (h *Handlers) ShutdownAsync(ctx context.Context) error {
-	if h == nil || h.asyncCoordinator == nil {
-		return nil
-	}
-	return h.asyncCoordinator.Shutdown(ctx)
 }
 
 // ShutdownAGUI ends this process's Detached AG-UI runs for a graceful process
@@ -277,29 +265,14 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.aguiHandler.SetInvocationRepo(result.InvocationRepo)
 	}
 	if result.InputPartRepo != nil {
-		h.agentSvcServer.SetInputPartRepo(result.InputPartRepo)
-	}
-	if result.AsyncCoordinator != nil {
-		h.asyncCoordinator = result.AsyncCoordinator
-		h.agentSvcServer.SetAsyncCoordinator(result.AsyncCoordinator)
-		h.sessionSvcServer.SetAsyncCoordinator(result.AsyncCoordinator)
-		// Wire best-effort title generation after the first successful async turn.
-		if h.sessionSvcServer != nil {
-			sessServer := h.sessionSvcServer
-			result.AsyncCoordinator.SetTurnCompleteCallback(sessServer.AsyncTurnComplete)
-		}
-	}
-	if result.InputPartRepo != nil {
+		// DeleteSession deletes the input parts the retired dashboard async
+		// chat left on a session's Invocations (#410).
 		h.sessionSvcServer.SetInputPartRepo(result.InputPartRepo)
 	}
-	// Wire the session exclusion checker so the submit path rejects new
-	// invocations on sessions being deleted (issue #252).
-	h.agentSvcServer.SetSessionExcluder(h.sessionSvcServer)
 	if result.SessionSvc != nil {
 		// The AG-UI handler validates client tool results against the pending
 		// calls recorded on the session before resuming a run.
 		h.aguiHandler.SetSessionService(result.SessionSvc)
-		h.agentSvcServer.SetSessionService(result.SessionSvc)
 	}
 	if result.MCPOAuthSvc != nil {
 		h.mcpSvcServer.SetOAuthService(result.MCPOAuthSvc)

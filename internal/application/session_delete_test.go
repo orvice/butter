@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -14,82 +13,6 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-// stubDeleteCoordinator tracks cancel-and-wait calls and optionally blocks
-// until released, simulating an in-flight invocation.
-type stubDeleteCoordinator struct {
-	mu          sync.Mutex
-	cancelled   map[string]bool
-	waitBlocked chan struct{} // if set, CancelAndWait blocks until closed
-}
-
-func newStubDeleteCoordinator() *stubDeleteCoordinator {
-	return &stubDeleteCoordinator{cancelled: make(map[string]bool)}
-}
-
-func (c *stubDeleteCoordinator) CancelAndWait(_ context.Context, invocationID, _ string) bool {
-	if c.waitBlocked != nil {
-		<-c.waitBlocked
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cancelled[invocationID] = true
-	return true
-}
-
-func (c *stubDeleteCoordinator) wasCancelled(id string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.cancelled[id]
-}
-
-func TestDeleteSession_CancelsActiveInvocation(t *testing.T) {
-	invRepo := invocationmemory.New()
-	coord := newStubDeleteCoordinator()
-	stub := &stubSessionService{}
-
-	svc := NewSessionServiceServer()
-	svc.SetSessionService(stub)
-	svc.SetInvocationRepo(invRepo)
-	svc.SetAsyncCoordinator(coord)
-
-	wsID := "ws-test"
-	sessionID := "sess-1"
-
-	inv := &agentsv1.Invocation{
-		Id:          "inv-1",
-		AgentName:   "agent-1",
-		AppName:     "web-chat",
-		UserId:      "user-1",
-		SessionId:   sessionID,
-		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
-		Input:       "hello",
-		Output:      "world",
-		WorkspaceId: wsID,
-		StartedAt:   timestamppb.Now(),
-	}
-	if err := invRepo.Save(context.Background(), inv); err != nil {
-		t.Fatal(err)
-	}
-
-	ctx := testContextWithUser(wsID, "user-1")
-
-	_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
-		AppName:   "web-chat",
-		UserId:    "user-1",
-		SessionId: sessionID,
-	}))
-	if err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-
-	if !coord.wasCancelled("inv-1") {
-		t.Fatal("expected active invocation to be cancelled")
-	}
-	if len(stub.deleted) != 1 {
-		t.Fatalf("expected session to be deleted, got %d deletes", len(stub.deleted))
-	}
-}
 
 func TestDeleteSession_RedactsInvocationContent(t *testing.T) {
 	invRepo := invocationmemory.New()
@@ -300,87 +223,6 @@ func TestDeleteSession_SessionDeleteFailure_NoListenerNotification(t *testing.T)
 	}
 }
 
-func TestDeleteSession_ExclusionSetDuringDeletion(t *testing.T) {
-	svc := NewSessionServiceServer()
-	svc.SetSessionService(&stubSessionService{})
-
-	sessionID := "sess-1"
-
-	if svc.IsSessionDeleting(sessionID) {
-		t.Fatal("session should not be deleting initially")
-	}
-
-	svc.markDeleting(sessionID)
-	if !svc.IsSessionDeleting(sessionID) {
-		t.Fatal("session should be marked as deleting")
-	}
-
-	svc.unmarkDeleting(sessionID)
-	if svc.IsSessionDeleting(sessionID) {
-		t.Fatal("session should no longer be deleting")
-	}
-}
-
-func TestDeleteSession_BlocksRunnerAndReleasesAfterCompletion(t *testing.T) {
-	invRepo := invocationmemory.New()
-	coord := newStubDeleteCoordinator()
-	coord.waitBlocked = make(chan struct{})
-	stub := &stubSessionService{}
-
-	svc := NewSessionServiceServer()
-	svc.SetSessionService(stub)
-	svc.SetInvocationRepo(invRepo)
-	svc.SetAsyncCoordinator(coord)
-
-	wsID := "ws-test"
-	sessionID := "sess-1"
-
-	inv := &agentsv1.Invocation{
-		Id:          "inv-1",
-		AgentName:   "agent-1",
-		AppName:     "web-chat",
-		UserId:      "user-1",
-		SessionId:   sessionID,
-		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
-		Input:       "hello",
-		WorkspaceId: wsID,
-		StartedAt:   timestamppb.Now(),
-	}
-	if err := invRepo.Save(context.Background(), inv); err != nil {
-		t.Fatal(err)
-	}
-
-	deleteDone := make(chan error, 1)
-	go func() {
-		ctx := testContextWithUser(wsID, "user-1")
-		_, err := svc.DeleteSession(ctx, connect.NewRequest(&agentsv1.DeleteSessionRequest{
-			AppName:   "web-chat",
-			UserId:    "user-1",
-			SessionId: sessionID,
-		}))
-		deleteDone <- err
-	}()
-
-	// Give the goroutine time to enter CancelAndWait.
-	time.Sleep(50 * time.Millisecond)
-
-	if !svc.IsSessionDeleting(sessionID) {
-		t.Fatal("session should be marked as deleting during delete")
-	}
-
-	close(coord.waitBlocked)
-
-	if err := <-deleteDone; err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-
-	if !svc.IsSessionDeleting(sessionID) {
-		// After the function returns, the defer should have cleared it.
-		// But since we're checking after the function returned via channel,
-		// the defer has already run.
-	}
-}
-
 func TestDeleteSession_MultipleInvocationsAllRedacted(t *testing.T) {
 	invRepo := invocationmemory.New()
 	ipRepo := inputpartmemory.New()
@@ -503,48 +345,4 @@ func TestDeleteSession_WrongWorkspace_Rejected252(t *testing.T) {
 	if !errors.As(err, &ce) || ce.Code() != connect.CodeNotFound {
 		t.Fatalf("expected NotFound, got %v", err)
 	}
-}
-
-func TestSubmitAgentInvocation_RejectedDuringDeletion(t *testing.T) {
-	invRepo := invocationmemory.New()
-	ipRepo := inputpartmemory.New()
-	coord := &fakeAsyncCoordinator{}
-	fake := &asyncTestRunner{idToName: map[string]string{"test-agent": "test-agent-name"}, response: "ok"}
-
-	sessionSvc := newFakeWSStore()
-	sessionSvcServer := NewSessionServiceServer()
-	sessionSvcServer.markDeleting("existing-session")
-
-	agentSvc := &AgentServiceServer{
-		runnerSvc:       fake,
-		invRepo:         invRepo,
-		inputPartRepo:   ipRepo,
-		asyncCoord:      coord,
-		sessionSvc:      newFakeInMemorySessionSvc(),
-		sessionExcluder: sessionSvcServer,
-	}
-	_ = sessionSvc
-
-	ctx := testContextWithUser("ws-test", "user-1")
-
-	_, err := agentSvc.SubmitAgentInvocation(ctx, connect.NewRequest(&agentsv1.SubmitAgentInvocationRequest{
-		RequestId: "req-1",
-		AgentId:   "test-agent",
-		SessionId: "existing-session",
-		Message:   "hello",
-	}))
-	if err == nil {
-		t.Fatal("expected submit to fail during session deletion")
-	}
-	var ce *connect.Error
-	if !errors.As(err, &ce) || ce.Code() != connect.CodeFailedPrecondition {
-		t.Fatalf("expected FailedPrecondition, got %v", err)
-	}
-	if !errors.As(err, &ce) || ce.Message() != "session is being deleted" {
-		t.Fatalf("expected 'session is being deleted' message, got %q", ce.Message())
-	}
-}
-
-func newFakeInMemorySessionSvc() *fakeListSessionService {
-	return &fakeListSessionService{}
 }

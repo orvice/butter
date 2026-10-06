@@ -176,7 +176,7 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 
 配置类：
 
-- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `WatchAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent lifecycle 的 `UpdateAgentConfiguration` / `RestoreAgent` / `GetAgentOperation` / `ListAgentOperations` / `RetryAgentOperation` 和只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役，恒返回 `Unimplemented`）。`SubmitAgentInvocation` 提交后由后台 coordinator 独立执行（#409 起 dashboard 的 Chat 改走 AG-UI，不再调用它和 `WatchAgentInvocation`，#410 移除二者与 `asyncrun`）；同一 Session 只允许一个 QUEUED/RUNNING Invocation，不同 Session 可并发。Stop 是唯一普通取消动作，终态为 CANCELLED；导航和 observer 断开不取消。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
+- `AgentService`：Agent 配置 CRUD（含 `page_size`/`page_token` 分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，以及 Agent lifecycle 的 `UpdateAgentConfiguration` / `RestoreAgent` / `GetAgentOperation` / `ListAgentOperations` / `RetryAgentOperation` 和只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役，恒返回 `Unimplemented`）。旧 Chat 的异步 Invocation API（`SubmitAgentInvocation` / `WatchAgentInvocation` 与 `asyncrun`）已在 #410 移除，属破坏性变更、没有弃用期，仍调用它们的客户端得到 `unimplemented`；`GetAgentInvocation` 只按 ID 查询。Get/Cancel 校验 Workspace 与 private Session owner。interactive 调用以 `agent_id` 为**唯一引用**（必填，缺失 InvalidArgument，未知直接 NotFound，不回退 name）。
 - `MCPServerService`：共享 MCP Server CRUD + `GetMCPServerStatus`（live 探活）+ `ListMCPTools`（聚合工具列表）+ `StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`（MCP OAuth2 授权流程）。
 - `RemoteAgentService`：远程 Agent CRUD + `GetRemoteAgentStatus`（A2A `/.well-known/agent.json` 探测 / Daemon 注册表查找 / OpenCode HTTP `/global/health` 探测）。
 - `TelegramChannelService` / `TelegramDestinationService` / `TelegramAdminService` / `TelegramProcessingService`：Telegram 的配置、状态、投递与恢复。
@@ -310,7 +310,7 @@ app，固定路由到一个 Agent——它在 Linear 里的 app 用户就是这�
 - **ADK Memory**：由各 workspace 配置的 mem0 OSS 服务端保存长期记忆（Workspace Memory / Agent Memory，ADR-0013）。
 - **ContextInfo**：runner 调用统一携带 channel、session、user、source、uuid，作为执行上下文。
 - **会话维度的 Agent Runner 缓存**：按 `channel:agent:model` 维度缓存 ADK runner 实例。
-- **LLM 自动标题（Chat）**：一轮成功后，由服务端为还没有标题的会话生成标题：AG-UI 在 run 成功后（后台进行，失败的 run 不生成），异步 Invocation（`SubmitAgentInvocation`，#410 移除）在成功后。Chat 不自己调用 `GenerateSessionTitle`：run 结束后刷新 thread 列表，未命名的 thread 稍后再读一次列表以显示标题。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
+- **LLM 自动标题（Chat）**：一轮成功后，由服务端为还没有标题的会话生成标题：AG-UI 在 run 成功后进行（后台进行，失败的 run 不生成）。Chat 不自己调用 `GenerateSessionTitle`：run 结束后刷新 thread 列表，未命名的 thread 稍后再读一次列表以显示标题。服务端可选 YAML `chat_title_model`（模型别名）触发 LLM 标题；从 session events 推导 agent，按 agent 所属 workspace 过滤 model provider 并解析别名（优先 `chat_title_model`，否则 agent 配置的 model）。直接非流式 LLM 请求，固定指令，不跑 agent/工具/workflow；用首条用户消息与首条 assistant 回复，输出归一化为单行、最多 30 个 Unicode 码点。缺 agent、非 LLM agent、模型不可解析、超时或空输出时回退确定性文本截断。手动重命名与 legacy title 优先；不写 invocation、不追加 session 事件、不改 memory 与 `last_update_time`。
 
 ### 8.1 长期记忆（mem0 OSS，ADR-0013）
 
@@ -436,8 +436,8 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
   - Run 开始时记 `INVOCATION_STATUS_RUNNING` + `started_at`。
   - 命名返回 + defer 在结束时回写 `SUCCEEDED` / `FAILED` + `output` / `error` + `latency_ms`（input/output/error 截到 4096 字符）。
   - 记录失败只 warn 日志，不阻塞 Run。
-- `runner.Service.CancelInvocation(id)` 保留同步调用的 request-scoped 取消；异步 Invocation（`SubmitAgentInvocation`）由 `asyncrun.Coordinator` 持有外层 cancel context，`AgentService.CancelAgentInvocation` 在权限校验后优先取消该 context，确保显式 Stop 写为 `CANCELLED` 而非 `FAILED`。
-- **诚实失败与显式重试（首版单实例）**：async 运行超过 `chat_async.max_run_duration`（默认 30 分钟）、遇到优雅停机、或运行它的进程退出后（其存活键过期，另一个 Pod 启动不算）被遗留清理发现，均记 `FAILED` + 可行动的 error 原因；运维性错误只写 Invocation 记录，绝不作为 Agent 署名的 session event 混入对话上下文，也绝不自动重放。前端把失败/停止内联渲染在对应发送轮次旁（reload 后经 `GetAgentInvocation latest` 恢复），"恢复输入"按钮经 `include_input_parts` 取回保留的原始文本与图片供审阅编辑；重新发送使用全新 `request_id` 创建全新 Invocation，UI 明示可能重复外部工具副作用。
+- `runner.Service.CancelInvocation(id)` 提供同步调用的 request-scoped 取消；`AgentService.CancelAgentInvocation` 在权限校验后把 `agui-detached` 记录交给 AG-UI Stop（任一 Pod 都能停下，终态 `CANCELLED`），其余交给 runner。
+- **遗留清理**：运行它的进程退出后（其存活键过期，另一个 Pod 启动不算），遗留清理把它的 `QUEUED`/`RUNNING` 记录标为 `FAILED` 并写明丢失的 instance；只标记，绝不自动重放 Agent 或重复工具副作用。
 - `AgentService.ListAgentInvocations`：按 agent（`agent_id` 优先，legacy `agent_name` 兼容）/ session 过滤 + 分页；invocation 记录携带 `agent_id` 与 `agent_display_name` 快照。
 - `DashboardService.GetActivityFeed`：把最近 invocation 映射成 `ActivityEvent`（kind 派生自 status）。
 - `AgentRuntimeStatus`（`GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses`）从最近 100 条 invocation 派生 state / last_run_at / in_flight，驱动前端 Agents 表的 Status 列。

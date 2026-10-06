@@ -95,7 +95,6 @@ import (
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	workspacemongo "go.orx.me/apps/butter/internal/repo/workspace/mongo"
-	"go.orx.me/apps/butter/internal/runtime/asyncrun"
 	internalautomation "go.orx.me/apps/butter/internal/runtime/automation"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	"go.orx.me/apps/butter/internal/runtime/cursorbox"
@@ -161,7 +160,6 @@ type BootstrapResult struct {
 	SessionWSStore         application.WorkspaceSessionStore
 	SessionReadStore       application.SessionReadStore
 	ChatTitleModel         string
-	AsyncCoordinator       *asyncrun.Coordinator
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -530,17 +528,11 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	go mgr.Start(ctx)
 
-	// Create async coordinator for dashboard background execution.
-	asyncCoord := asyncrun.New(invRepo, inputPartRepo, runnerSvc, asyncrun.Config{
-		MaxRunDuration: cfg.ChatAsync.EffectiveMaxRunDuration(),
-	})
-
 	// Fail the QUEUED/RUNNING invocations whose owning process is gone, at
 	// startup and periodically. A record survives other Pods starting for as
 	// long as its owner's liveness holds. Owner-less records from before owner
 	// stamps wait out a cutoff longer than any run allowed to still be going.
-	startInvocationSweep(ctx, invRepo, live,
-		max(invocation.LegacyStaleAge, cfg.ChatAsync.EffectiveMaxRunDuration()))
+	startInvocationSweep(ctx, invRepo, live, invocation.LegacyStaleAge)
 
 	// Final Agent-ID cutover verifier (issue #241, replaces the retired #213
 	// startup backfill): read-only, logs each record that still violates the
@@ -621,6 +613,5 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LangfuseHost:           cfg.Langfuse.Host,
 		SessionCounter:         sessionSvc.CountSessions,
 		ChatTitleModel:         cfg.ChatTitleModel,
-		AsyncCoordinator:       asyncCoord,
 	}, nil
 }

@@ -6,9 +6,10 @@ Status: Superseded by
 > Since #409 the dashboard has one Chat, at `/chat`, built on AG-UI: its
 > runs are Detached Runs that outlive their request (ADR-0016), and its
 > history is the caller's AG-UI threads. This document describes the chat
-> that came before it. `SubmitAgentInvocation`, `WatchAgentInvocation` and
-> `asyncrun` stay in the backend, unused by the dashboard, until #410 removes
-> them; the `web-chat` sessions it kept are deleted by #411.
+> that came before it, and is kept as the record ADR-0016 cites.
+> `SubmitAgentInvocation`, `WatchAgentInvocation`, `asyncrun` and the
+> `chat_async` config were removed in #410, as a breaking change; the
+> `web-chat` sessions it kept are deleted by #411.
 
 ## Context
 

@@ -526,7 +526,7 @@ func (o aguiOutcome) err() error {
 	return &aguiRunError{message: o.reason, code: o.code}
 }
 
-// outcome claims the run's terminal state, with asyncrun's precedence: an
+// outcome claims the run's terminal state, in this precedence: an
 // accepted Stop wins; otherwise a run whose runner returned cleanly is
 // SUCCEEDED, even when a shutdown or the deadline raced it; after that come
 // the shutdown, the deadline, a lost lease and the run's own error. Every

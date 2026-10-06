@@ -119,7 +119,7 @@ Persistence
 
 启动时先创建 HTTP/ConnectRPC handler，再初始化配置仓库。配置仓库 seed 完成后，`StartChannels` 用当前配置构建 runner、cron 和渠道管理器。最后 `Handlers.Wire` 把 runner、session、cron、config runtime 等运行时依赖注入到已创建的 RPC/HTTP handler。
 
-**Invocation 的 owner 与遗留清理（#390，ADR-0016 决策 3）**：每个进程启动时生成一个 instance ID，在 Redis 写入存活键 `butter:instance:{id}`（TTL 30s，`liveness.Keep` 每 10s 续期，直到进程退出），并且先于任何 Invocation 记录的写入完成发布。invocation 仓库（`WithOwner`）在**创建**每条记录时把这个 ID 记为 owner；之后任何进程的保存（终态、redact）都保留它。owner 只存在于 Mongo 文档的顶层 `owner` 字段，不进 `Invocation` proto，不会出现在 API 响应里。`invocation.StaleSweeper` 在启动时运行一次，此后每分钟运行一次：只有当 owner 的存活键已消失时，才把它的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，原因里写明丢失的 instance；另一个 Pod 启动本身不会让任何记录失败，清理进程也从不把自己的记录判为遗留。本变更之前写入、没有 owner 的记录，只有超过 `LegacyStaleAge`（24h；`chat_async.max_run_duration` 更长时取后者）才会失败。读不到存活状态时这一轮什么都不改；失败操作只改与读取时完全一致的记录，读取之后又被保存过的记录留给下一轮判断。清理只改记录，从不重放 Agent。没有 Redis 时只有一个进程，内存版 registry 只含本进程：启动清理把所有不属于本进程的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，与之前一致，之后不再周期清理。
+**Invocation 的 owner 与遗留清理（#390，ADR-0016 决策 3）**：每个进程启动时生成一个 instance ID，在 Redis 写入存活键 `butter:instance:{id}`（TTL 30s，`liveness.Keep` 每 10s 续期，直到进程退出），并且先于任何 Invocation 记录的写入完成发布。invocation 仓库（`WithOwner`）在**创建**每条记录时把这个 ID 记为 owner；之后任何进程的保存（终态、redact）都保留它。owner 只存在于 Mongo 文档的顶层 `owner` 字段，不进 `Invocation` proto，不会出现在 API 响应里。`invocation.StaleSweeper` 在启动时运行一次，此后每分钟运行一次：只有当 owner 的存活键已消失时，才把它的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，原因里写明丢失的 instance；另一个 Pod 启动本身不会让任何记录失败，清理进程也从不把自己的记录判为遗留。本变更之前写入、没有 owner 的记录，只有超过 `LegacyStaleAge`（24h）才会失败。读不到存活状态时这一轮什么都不改；失败操作只改与读取时完全一致的记录，读取之后又被保存过的记录留给下一轮判断。清理只改记录，从不重放 Agent。没有 Redis 时只有一个进程，内存版 registry 只含本进程：启动清理把所有不属于本进程的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，与之前一致，之后不再周期清理。
 
 启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation / forum 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
 
@@ -245,40 +245,20 @@ input parts + ContextInfo
 
 当 Agent、Model Provider、MCP server 或 remote agent 配置发生变更时，`ConfigRuntime.ReloadRunner` 会同步扁平配置，重新构建 proto agent registry、source-aware ModelRegistry 与 plugin chain，然后在一次锁内推进单调 runtime generation、替换 registry 并清空 runner / model override cache。overridden Agent 与 ADK runner 在锁外构建时会携带 generation snapshot，发布前再次校验；若 reload 已推进 generation，旧 build 被丢弃并从新 snapshot 重试，避免旧 Agent 搭配新 plugin 回填 cache。`sessionSvc` 不参与 swap，因此 reload 只影响后续 model call，不删除或迁移 history，也不改变 ContextGuard state key。
 
-## 异步 Invocation 与只读观察流（issue #243 系列）
+## 已移除的异步 Invocation API（#410）
 
-> #409 起 dashboard 的 Chat 改走 AG-UI 的 Detached Run（见下文 “AG-UI 的 Detached Run”），不再使用本节的异步 Invocation 与观察流；它们留在后端，由 #410 移除。
+dashboard 先前的聊天用过一套进程内的异步 Invocation：`AgentService.SubmitAgentInvocation` 提交一轮对话，`internal/runtime/asyncrun.Coordinator` 在后台执行，`WatchAgentInvocation` 只读观察，配置项为 `chat_async`。它只能单实例运行。#409 起 dashboard 的 Chat 改走 AG-UI 的 Detached Run（见下文 “AG-UI 的 Detached Run”），#410 移除了这套 API，没有弃用期：仍调用这两个 RPC 的客户端得到 `unimplemented`。`GetAgentInvocation` 只按 `invocation_id` 查询，按 session 查询（`session_id`、`latest`）和 `include_input_parts` 一并移除。设计记录见 `docs/design-dashboard-chat-async.md`（已被 ADR-0016 取代）。
 
-`AgentService.SubmitAgentInvocation` 异步执行一轮对话：请求在输入持久化（`QUEUED` Invocation 落库）后立即返回，`internal/runtime/asyncrun.Coordinator` 在后台 goroutine 中驱动执行（`QUEUED → RUNNING → SUCCEEDED/FAILED/CANCELLED`），生命周期与浏览器连接完全解耦。执行复用共享编排 `streamorch.Run`（与 `StreamAgent` 同一条路径），不引入第二套执行实现。提交要求客户端幂等 `request_id`；同一 session 同时只允许一个活跃 Invocation。首个版本为单实例：执行、取消和观察者都在进程内。遗留的 `QUEUED/RUNNING` 记录由 invocation 层的遗留清理（`invocation.StaleSweeper`）在其 owner 进程退出后标记为 `FAILED`，不自动重放。
-
-**观察与执行分离**（`WatchAgentInvocation`，只读 server stream）：
-
-```text
-Coordinator.execute
-  -> streamorch.Run(sink = hubSink)
-       TextDelta / RunEvent -> watchHub.publish（非阻塞 fan-out）
-  -> RUNNING / 终态落库后 publishState（权威 Invocation 快照）
-  -> 终态帧发布后 closeAll（观察者看到 terminal-then-close）
-
-WatchAgentInvocation handler（internal/application/agent_watch.go）
-  -> 先 Subscribe 再读快照（终态帧在落库后才发布，保证不丢终态）
-  -> 首帧恒为权威 state 快照；已终态则单帧后干净关闭
-  -> 转发 run_event / text_delta / state 帧，一个终态帧后结束
-```
-
-任意数量的授权观察者可同时 attach；断开任何/全部观察者不影响执行。每个观察者持有有界 channel（256 帧），发布侧永不阻塞——落后的观察者被摘除并以 `resource_exhausted` 断开，客户端回读持久化 session events 与权威 Invocation 状态后重新 attach（token 级增量不做持久重放，ADR 精神同 #243 PRD）。鉴权与 `GetAgentInvocation` 一致：workspace 隔离 + `dashboard-async` 来源的私有会话仅提交者本人可见（含 watch 帧），全局 admin 保留支持通道；`GetAgentInvocation` 亦支持按 `session_id` 查活跃 Invocation（重连路径），`latest` 参数返回会话最近一次 Invocation（reload 后内联渲染失败/停止用），`include_input_parts` 返回失败/取消 Invocation 保留的 Input Parts（显式重试恢复输入用）。显式 Stop 走 `CancelAgentInvocation`（终态 `CANCELLED`），观察者断开不影响执行。
-
-**失败语义（诚实终态，首版单实例）**：async 执行为单实例进程内模型，部署不得多副本依赖异步 Invocation。三类运维性失败均记录可行动的 `Invocation.error`，且**绝不**写入 Agent 署名的 session events：(1) **超时** —— 超过 `chat_async.max_run_duration`（默认 30 分钟）的运行被取消并记 `FAILED`（原因含配置时长）；(2) **优雅停机** —— `Coordinator.Shutdown`（`cmd/butter/main.go` TeardownFunc 接线，15 s 上限）取消进程内运行并等待各自持久化 `FAILED` 停机原因；(3) **进程退出** —— 运行它的进程退出后（存活键过期），遗留清理把它的 `QUEUED`/`RUNNING` 记录标为 `FAILED`，原因里写明丢失的 instance；只标记、绝不自动重放 Agent 或重复工具副作用。用户显式 Stop 恒为 `CANCELLED`（应呈现为"已停止"而非失败），即使与停机竞争。重试始终显式：客户端恢复原始输入（文本 + Input Parts，失败/取消时保留）供用户审阅编辑，重新发送使用全新 `request_id` 创建全新 Invocation，并提示可能重复外部工具副作用。
+保留的部分：`CancelAgentInvocation`、按 ID 的 `GetAgentInvocation`、`ListAgentInvocations` 与 invocation 仓库；遗留清理（`invocation.StaleSweeper`）对所有入口写入的记录照常生效。旧聊天的 `web-chat` 记录仍只对提交者本人可见。它留下的 Input Parts（`internal/repo/inputpart`，集合 `invocation_input_parts`）不再有写入方，删除 session 时 `DeleteSession` 仍会一并删除；#411 的一次性清理会删除这些 session、它们的 Invocation 记录与 Input Parts。
 
 ## Session 标题生成（LLM）
 
-标题生成与鉴权分开：`SessionServiceServer.TitleSession` 只负责生成并存储标题，不做鉴权。三个入口都调用它：
+标题生成与鉴权分开：`SessionServiceServer.TitleSession` 只负责生成并存储标题，不做鉴权。两个入口都调用它：
 
-- **异步 Invocation**（`SubmitAgentInvocation`，#410 移除）：成功后，`asyncrun.Coordinator` 以 `context.Background()` 调用 `SessionServiceServer.AsyncTurnComplete`，后者直接调用 `TitleSession`（Invocation 提交时已鉴权）；标题生成不阻塞 Invocation 终态持久化。
 - **AG-UI**：run 成功、且 thread 的 session 在 run 开始时没有标题，handler 就在后台调用 `TitleSession`（`internal/handler/http/agui_title.go`）。它用脱离请求的 context（`context.WithoutCancel`，30 秒超时），不持有 thread lease，响应和该 thread 的下一次 run 都不等它。失败的 run 不生成标题。
 - **`GenerateSessionTitle` RPC**：先做 self-only 鉴权（非 admin 只能为自己的 session 生成），再调用 `TitleSession`。
 
-实现位于 `internal/application/session_async_title.go`、`session_service.go` 与 `session_title_llm.go`。
+实现位于 `internal/application/session_service.go` 与 `session_title_llm.go`。
 
 ```text
 TitleSession
@@ -527,9 +507,9 @@ HTTP handler 位于 `internal/handler/http`：
 - **Run state**：每次运行（无论是否 detached）都在租约旁记录 run state（`internal/runtime/runstate`：`runId`、Invocation ID、运行前 session 的事件数、是否 detached）。`runstate.Keep` 只在运行持有租约期间按租约节奏续期，续期与删除都以 Invocation ID 隔离，且只延长仍属于本次运行的 state，绝不重建已过期或已结束的 state；运行丢失租约或 Pod 挂掉时，它随租约一起过期。thread 读取用它在运行起点处截断（#403）。Detached Run 结束时，其 run state 标记为 ended（`End` 带保留时长），与其 Run Log 保留同样久，之后的 attach 仍能找到这次运行；读取、续期与 Stop 都把它当作不在运行，同一 thread 的下一次运行的 `Begin` 会替换它。
 - **Detached Run**：客户端带 `forwardedProps.butterRun = {"detach": true}` 时，租约在脱离请求的 context 上获取（上限 `agui.max_run_duration`，默认 30 分钟），由运行 goroutine 持有到终态落库、且终止事件写进其 Run Log 为止；没有 UI 绑定的 thread 在打开流之前以 400 拒绝。事件只写入 Run Log（见下一条），POST 响应只是第一个观察者，带 SSE 注释心跳；断开只摘掉这个观察者。
 - **Run Log 与 attach（issue #404，决定 5、6、7）**：每个 Detached Run 有一条 Run Log（`internal/runtime/runlog`），按 thread 租约的方式以调用者与 thread 为键、再加上本次运行的 Invocation ID（`butter:agui:log:session:{user}:{session}:{invocation}`）：有 Redis 时是一条 Redis Stream，否则是进程内实现，两者共用一套契约测试。写入方 `aguiLogWriter`（`agui_runlog.go`）就是运行的 `aguiEmitter`：只编码并入队，由自己的 goroutine 在后台批量追加，所以存储永远拖不慢模型循环；同一条消息相邻的 `TEXT_MESSAGE_CONTENT` 增量会合并（每段最多压 50 ms）。每次追加都带上写入方已知的条目数，丢失应答后的重试不会重复写入，也绝不会让已过期或已删除的日志复活。日志上限为 50,000 条、8 MiB；写入方积压超过 8 MiB（存储跟不上）同样截断：日志以截断标记结束，运行照常进行。运行存活期间由写入方续期（Pod 挂掉后随 TTL 过期，与 run state 一致），结束后保留 5 分钟；运行最多等 10 秒让最后的事件写进日志，然后才释放 thread 租约。Detached Run 总以 `STATE_SNAPSHOT` 开头，重放可以自成一体。每个观察者都从 `RUN_STARTED` 重放日志并跟随到运行结束：POST 响应，以及 `GET /api/agui/:agent_id/threads/:thread_id/run`（`AttachRun`，与 thread 读取相同的检查；没有日志时答 204：thread 空闲、结束已超过保留期、运行未 opt-in 或 thread 已删除）。读取永不阻塞，等待在每个进程内经一条 `XREAD` 复用（`tailer`），观察者不各自占用 Redis 连接。无法从头跟到尾的观察者（日志被截断或已不在、run state 已结束或消失且宽限期内没等到结束事件）以 `CUSTOM butter.fallback` 标记结束（`reason`：`truncated` / `expired` / `lost`），客户端改为读取 thread。删除 thread 时连同 run state 一起删掉这次运行的日志，复用的 `threadId` 不会重放已删除的对话。
-- **Invocation 记录**：Detached Run 自己写记录（`source = agui-detached`，`request_id` 为按 thread 限定的 `runId`，重复则 409 `run_exists`），runner 不再记录（`runner.WithoutInvocationRecording`）。状态 QUEUED → RUNNING → SUCCEEDED / FAILED / CANCELLED，终态优先级与 asyncrun 的 `claimTerminal` 相同；超时、优雅关闭（`AGUIHandler.Shutdown`；Butterfly 不会调用 `TeardownFunc`，所以 `cmd/butter` 在收到 SIGTERM/SIGINT 时自己执行 teardown 再退出）、丢失租约都记为 FAILED 并写明原因。sink 先扣住 `RUN_FINISHED`，等记录和 run state 落定后再发出。
+- **Invocation 记录**：Detached Run 自己写记录（`source = agui-detached`，`request_id` 为按 thread 限定的 `runId`，重复则 409 `run_exists`），runner 不再记录（`runner.WithoutInvocationRecording`）。状态 QUEUED → RUNNING → SUCCEEDED / FAILED / CANCELLED。终态优先级：被接受的 Stop 优先（CANCELLED）；其次 runner 正常返回即 SUCCEEDED，即使停机或超时同时发生；之后依次是停机、超时、丢失租约与运行自身的错误，都记为 FAILED；超时、优雅关闭（`AGUIHandler.Shutdown`；Butterfly 不会调用 `TeardownFunc`，所以 `cmd/butter` 在收到 SIGTERM/SIGINT 时自己执行 teardown 再退出）、丢失租约都记为 FAILED 并写明原因。sink 先扣住 `RUN_FINISHED`，等记录和 run state 落定后再发出。
 - **默认运行**：不带 opt-in 的运行仍活在请求里，断开即取消，记录仍由 runner 写入。
-- **Stop（issue #402，决定 3、4、7）**：`POST /api/agui/:agent_id/threads/:thread_id/stop`（`agui_stop.go`）做与 thread 读取相同的鉴权、工作区与绑定检查，从不拿租约：`runstate.Store.Stop` 一步之内在仍未认领终态的 Detached Run 的 run state 上写入绑定其租约 token 的标记，并在该 thread 的频道上发布 nudge（Redis 为 Lua 脚本 + `PUBLISH`，每个进程用一条 pattern 订阅分发给本进程的运行；进程内实现直接唤醒）。运行在 run state 存在之前就订阅 nudge，并在每次续期时检查标记，兜底丢失的 nudge；`sessionguard.Token` 暴露租约获取 token，所以标记永远到不了同一 thread 的后续运行。运行收到后取消本轮（Pi/Cursor 走 `AbortSession`），在同一 run state 上一步认领终态：认领前已接受的 Stop 一律记为 CANCELLED，`RUN_ERROR` 带 `code: "stopped"`；认领后的 Stop 什么也找不到（204）。`CancelAgentInvocation` 把 `agui-detached` 记录交给同一个 Stop；`DeleteSession` 删除 AG-UI thread 时先 Stop，再自己限时（10 秒）拿 thread 租约并在租约下删除、清掉 run state 和这次运行的 Run Log，拿不到（例如未 opt-in 的运行占着 thread）就以 `unavailable` 失败且什么都不删；这取代了进程内的 deleting 标记。
+- **Stop（issue #402，决定 3、4、7）**：`POST /api/agui/:agent_id/threads/:thread_id/stop`（`agui_stop.go`）做与 thread 读取相同的鉴权、工作区与绑定检查，从不拿租约：`runstate.Store.Stop` 一步之内在仍未认领终态的 Detached Run 的 run state 上写入绑定其租约 token 的标记，并在该 thread 的频道上发布 nudge（Redis 为 Lua 脚本 + `PUBLISH`，每个进程用一条 pattern 订阅分发给本进程的运行；进程内实现直接唤醒）。运行在 run state 存在之前就订阅 nudge，并在每次续期时检查标记，兜底丢失的 nudge；`sessionguard.Token` 暴露租约获取 token，所以标记永远到不了同一 thread 的后续运行。运行收到后取消本轮（Pi/Cursor 走 `AbortSession`），在同一 run state 上一步认领终态：认领前已接受的 Stop 一律记为 CANCELLED，`RUN_ERROR` 带 `code: "stopped"`；认领后的 Stop 什么也找不到（204）。`CancelAgentInvocation` 把 `agui-detached` 记录交给同一个 Stop；`DeleteSession` 删除 AG-UI thread 时先 Stop，再自己限时（10 秒）拿 thread 租约并在租约下删除、清掉 run state 和这次运行的 Run Log，拿不到（例如未 opt-in 的运行占着 thread）就以 `unavailable` 失败且什么都不删。
 - **运行中的读取（#403）**：thread 历史与 UI 快照不拿 lease，也不等运行结束（`agui_read.go`）。运行中立即返回 `running: {runId, invocationId}`，并按 run state 记下的事件数截断：保留运行之前的事件和启动这次运行的那一轮（用户消息、Human Input 回答或工具结果），运行已写入的其余事件不返回；卡片按截断点之前事件的 state delta 还原，因为 session state 已含本次运行写入的卡片。读取不加锁：读 session 前后各读一次 run state，不一致就重读；没有运行时再比较该 session 最新的 Invocation 记录（运行在写第一个事件之前写记录：Detached Run 总会，runner 除非写入失败），以发现在读取期间开始又结束的运行。运行刚开始、还没写入第一轮时，读取稍等片刻（合计不到一秒）。没有运行时，若该 thread 最近一次运行为 FAILED 或 CANCELLED，历史附带取自 Invocation 记录的 `lastRun: {status, error, input}`；只认本 app、本调用者的记录。
 - **Dashboard（#405，决定 1、4、7）**：Chat（`/chat`，#409 起 dashboard 唯一的聊天）的每次运行都带 `butterRun: {"detach": true}`（`ButterAGUIAgent`）。离开页面、刷新、切换 thread、New thread 都只中止请求，也就是只摘掉这个观察者。Stop 先调用 stop 端点，得到 202 或 204 之后才在本地取消，以立即结束这条流；端点出错时不取消，提示后可重试。删除当前 thread 只在本地经 runtime 断开，停止交给 `DeleteSession`。带 `code: "stopped"` 的 `RUN_ERROR` 不作为失败提示。
 - **Dashboard 打开运行中的 thread（#406、#407，决定 8）**：thread 历史或 UI 快照任一报告 `running` 时，history adapter 的 `load()` 返回截断后的对话并带 `unstable_resume`，runtime 于是在启动这次运行的那一轮下面放一条运行中的回复，并调用 adapter 的 `resume()`，即 `RunFollower.follow`（`front/src/features/agui-chat/run-follower.ts`）。
@@ -557,7 +537,7 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 
 配置 / 执行：
 
-- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `SubmitAgentInvocation` / `GetAgentInvocation` / `WatchAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，Agent lifecycle 的 `UpdateAgentConfiguration` / `RestoreAgent` / `GetAgentOperation` / `ListAgentOperations` / `RetryAgentOperation`，以及只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC 已退役，恒返回 `Unimplemented`）。`SubmitAgentInvocation`（#409 起 dashboard 不再使用，#410 移除）的短提交事务在单实例内串行化，保证每个 Session 最多一个 QUEUED/RUNNING Invocation；不同 Session 的 runner 并发执行。Get/Cancel 同时校验 Workspace 与 private Session owner，显式 Stop 终态为 CANCELLED，导航和观察者断开只停止本地 observer，不影响服务端执行。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status 查询仅接受 `agent_id`（携带 legacy `names` 过滤会被拒绝）；invocation 查询以 `agent_id` 为主，仅历史记录过滤仍兼容 `agent_name` 快照。
+- `AgentService`：Agent 配置 CRUD（分页）+ `InvokeAgent` / `StreamAgent`（同步兼容）/ `GetAgentInvocation` / `CancelAgentInvocation` / `ReloadAgents` / `GetAgentRuntimeStatus` / `ListAgentRuntimeStatuses` / `ListAgentInvocations`，Agent lifecycle 的 `UpdateAgentConfiguration` / `RestoreAgent` / `GetAgentOperation` / `ListAgentOperations` / `RetryAgentOperation`，以及只读 cutover 校验 RPC `VerifyAgentIDCutover`（迁移期 RPC 已退役，恒返回 `Unimplemented`）。`SubmitAgentInvocation` / `WatchAgentInvocation` 已在 #410 移除（见上文 “已移除的异步 Invocation API”）。`GetAgentInvocation` 只按 ID 查询；Get/Cancel 同时校验 Workspace 与 private Session owner（旧聊天的 `web-chat` 记录仅提交者本人可见），`CancelAgentInvocation` 把 `agui-detached` 记录交给 AG-UI Stop，其余交给 runner。interactive RPC 以 `agent_id` 为**唯一引用**（必填，未知直接 NotFound，不回退 name）；runtime-status 查询仅接受 `agent_id`（携带 legacy `names` 过滤会被拒绝）；invocation 查询以 `agent_id` 为主，仅历史记录过滤仍兼容 `agent_name` 快照。
 - `MCPServerService`：共享 MCP server CRUD + `GetMCPServerStatus`（live probing）+ `ListMCPTools` + MCP OAuth2 流程（`StartMCPServerOAuth` / `CompleteMCPServerOAuth` / `GetMCPServerOAuthStatus` / `DisconnectMCPServerOAuth`）。
 - `RemoteAgentService`：远程 agent CRUD + `GetRemoteAgentStatus`（A2A / Daemon / OpenCode HTTP live probing）。
 - `ChannelService`：**已废弃**的 generic `AgentChannel` 兼容 API，仅保留读取、状态查看和删除；创建/更新/重启/暂停/恢复均返回 `Unimplemented`。当前 Telegram 使用 `TelegramChannelService`、`TelegramDestinationService`、`TelegramAdminService` 与 `TelegramProcessingService`。
