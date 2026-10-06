@@ -30,12 +30,19 @@ import {
 import { PiAgentConfigurationCard } from './pi-agent-fields'
 import { ContextGuardConfigurationCard } from './context-guard-fields'
 import { MemoryConfigurationCard } from './memory-fields'
+import { ResultCardsConfigurationCard } from './result-cards-fields'
 import {
   buildMemoryConfig,
   EMPTY_MEMORY_FORM_VALUES,
   memoryFormSchema,
   supportsMemory,
 } from './memory-config'
+import {
+  buildResultCardsConfig,
+  EMPTY_RESULT_CARDS_FORM_VALUES,
+  resultCardsFormSchema,
+  supportsResultCards,
+} from './result-cards-config'
 import {
   buildContextGuardConfig,
   contextGuardFormSchema,
@@ -91,6 +98,7 @@ const agentSchema = z.object({
   icon_url: z.string().optional(),
   context_guard: contextGuardFormSchema,
   memory: memoryFormSchema,
+  result_cards: resultCardsFormSchema,
   pi: piAgentFormSchema,
   cursor: cursorAgentFormSchema,
 }).superRefine((values, ctx) => {
@@ -127,6 +135,7 @@ export function AgentCreate() {
       icon_url: '',
       context_guard: { ...EMPTY_CONTEXT_GUARD_FORM_VALUES },
       memory: { ...EMPTY_MEMORY_FORM_VALUES },
+      result_cards: { ...EMPTY_RESULT_CARDS_FORM_VALUES },
       pi: { ...EMPTY_PI_AGENT_FORM_VALUES },
       cursor: { ...EMPTY_CURSOR_AGENT_FORM_VALUES },
     },
@@ -136,6 +145,7 @@ export function AgentCreate() {
   const agentType = useWatch({ control: form.control, name: 'type' })
   const contextGuardValues = useWatch({ control: form.control, name: 'context_guard' })
   const memoryValues = useWatch({ control: form.control, name: 'memory' })
+  const resultCardsValues = useWatch({ control: form.control, name: 'result_cards' })
   const piValues = useWatch({ control: form.control, name: 'pi' })
   const cursorValues = useWatch({ control: form.control, name: 'cursor' })
 
@@ -178,6 +188,7 @@ export function AgentCreate() {
           ? buildContextGuardConfig(values.context_guard)
           : undefined,
         memory: buildMemoryConfig(values.memory, values.type),
+        result_cards: buildResultCardsConfig(values.result_cards, values.type),
       },
     }
     let agent: Agent = baseAgent
@@ -424,6 +435,15 @@ export function AgentCreate() {
                 topK: form.formState.errors.memory?.topK?.message,
                 threshold: form.formState.errors.memory?.threshold?.message,
               }}
+            />
+          )}
+
+          {supportsResultCards(agentType) && (
+            <ResultCardsConfigurationCard
+              value={resultCardsValues ?? EMPTY_RESULT_CARDS_FORM_VALUES}
+              onChange={(value) => form.setValue('result_cards', value, {
+                shouldDirty: true,
+              })}
             />
           )}
 

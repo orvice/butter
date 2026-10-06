@@ -22,6 +22,7 @@ import (
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/mcptoolset"
 
+	"go.orx.me/apps/butter/internal/a2ui"
 	"go.orx.me/apps/butter/internal/a2uitool"
 	"go.orx.me/apps/butter/internal/aguitool"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
@@ -62,36 +63,66 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 // NewFromProtoWithToolsetFactory creates an ADK agent with custom MCP HTTP,
 // built-in toolset, and box-backed (PI, CURSOR) agent factories. Children are declared via
 // child_agent_ids and resolved from the pool; embedded sub_agents are never
-// consumed (issue #241).
+// consumed (issue #241). pb is the root of the tree it builds, so its Card
+// Policy starts from a run's root (ADR-0014).
 func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, boxBuilders *BoxAgentBuilders, pool ...AgentPool) (agent.Agent, error) {
+	b := &treeBuilder{
+		providers:           providers,
+		mcpRegistry:         mcpRegistry,
+		remoteAgentRegistry: remoteAgentRegistry,
+		daemonRegistry:      daemonRegistry,
+		httpFactory:         httpFactory,
+		toolsetFactory:      toolsetFactory,
+		boxBuilders:         boxBuilders,
+	}
+	if len(pool) > 0 {
+		b.pool = pool[0]
+	}
+	return b.build(ctx, pb, a2ui.CardPolicy{})
+}
+
+// treeBuilder holds what every agent of one tree is built with.
+type treeBuilder struct {
+	providers           []agentsv1.ModelProvider
+	mcpRegistry         []agentsv1.MCPServer
+	remoteAgentRegistry []agentsv1.RemoteAgent
+	daemonRegistry      *daemon.Registry
+	httpFactory         MCPHTTPClientFactory
+	toolsetFactory      ToolsetFactory
+	boxBuilders         *BoxAgentBuilders
+	pool                AgentPool
+}
+
+// build builds pb under a parent whose Card Policy is parentCardPolicy.
+// Every child is built afresh under pb's own policy, so each LLM agent's
+// render_ui toolset carries the policy of its place in the tree; Workflow
+// node agents are among the children.
+func (b *treeBuilder) build(ctx context.Context, pb *agentsv1.Agent, parentCardPolicy a2ui.CardPolicy) (agent.Agent, error) {
 	if pb == nil {
 		return nil, fmt.Errorf("agent config is nil")
 	}
 
-	var agentPool AgentPool
-	if len(pool) > 0 {
-		agentPool = pool[0]
-	}
-
-	mcpServers, err := resolveMCPServers(pb, mcpRegistry)
+	mcpServers, err := resolveMCPServers(pb, b.mcpRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
 	}
 
+	cardPolicy := parentCardPolicy.Narrow(pb.GetConfig().GetResultCards())
+
 	subAgents := make([]agent.Agent, 0, len(pb.GetChildAgentIds()))
 	for _, childID := range pb.GetChildAgentIds() {
-		childPb, ok := agentPool[childID]
+		childPb, ok := b.pool[childID]
 		if !ok {
 			return nil, fmt.Errorf("agent %q: child_agent_id %q not found in agent pool", pb.GetName(), childID)
 		}
-		sa, err := NewFromProtoWithToolsetFactory(ctx, childPb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, toolsetFactory, boxBuilders, agentPool)
+		sa, err := b.build(ctx, childPb, cardPolicy)
 		if err != nil {
 			return nil, fmt.Errorf("building child agent %q (id=%s): %w", childPb.GetName(), childID, err)
 		}
 		subAgents = append(subAgents, sa)
 	}
 
-	remoteSubAgents, err := resolveRemoteAgents(pb, remoteAgentRegistry, daemonRegistry)
+	remoteSubAgents, err := resolveRemoteAgents(pb, b.remoteAgentRegistry, b.daemonRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: %w", pb.GetName(), err)
 	}
@@ -99,7 +130,7 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 
 	switch pb.GetType() {
 	case agentsv1.AgentType_AGENT_TYPE_LLM, agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED:
-		return newLLMAgent(ctx, pb, mcpServers, subAgents, providers, httpFactory, toolsetFactory)
+		return newLLMAgent(ctx, pb, mcpServers, subAgents, b.providers, b.httpFactory, b.toolsetFactory, cardPolicy)
 	case agentsv1.AgentType_AGENT_TYPE_LOOP:
 		return newLoopAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL:
@@ -107,17 +138,17 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 	case agentsv1.AgentType_AGENT_TYPE_PARALLEL:
 		return newParallelAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_WORKFLOW:
-		return newWorkflowAgent(pb, subAgents, agentPool)
+		return newWorkflowAgent(pb, subAgents, b.pool)
 	case agentsv1.AgentType_AGENT_TYPE_PI:
-		return newPiAgent(pb, boxBuilders.pi())
+		return newPiAgent(pb, b.boxBuilders.pi())
 	case agentsv1.AgentType_AGENT_TYPE_CURSOR:
-		return newCursorAgent(pb, boxBuilders.cursor())
+		return newCursorAgent(pb, b.boxBuilders.cursor())
 	default:
 		return nil, fmt.Errorf("unsupported agent type: %v", pb.GetType())
 	}
 }
 
-func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1.MCPServer, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory) (agent.Agent, error) {
+func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1.MCPServer, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, cardPolicy a2ui.CardPolicy) (agent.Agent, error) {
 	logger := log.FromContext(ctx)
 	acfg := pb.GetConfig()
 
@@ -160,8 +191,9 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1
 	// AG-UI client-declared frontend tools. Resolved per invocation from the
 	// run's context; inert (zero tools) for every non-AG-UI run.
 	toolsets = append(toolsets, aguitool.NewToolset())
-	// render_ui for A2UI-capable AG-UI runs; inert (zero tools) otherwise.
-	toolsets = append(toolsets, a2uitool.NewToolset())
+	// render_ui for A2UI-capable AG-UI runs; inert (zero tools) otherwise,
+	// and wherever the Card Policy of this agent's place turns cards off.
+	toolsets = append(toolsets, a2uitool.NewToolset(cardPolicy))
 
 	cfg := llmagent.Config{
 		Name:                     pb.GetName(),

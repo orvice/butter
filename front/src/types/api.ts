@@ -159,6 +159,23 @@ export interface MemoryConfig {
   threshold?: number;
 }
 
+/** Unset inherits the parent's generation; DISABLED only narrows. */
+export type ResultCardGeneration =
+  | "RESULT_CARD_GENERATION_UNSPECIFIED"
+  | "RESULT_CARD_GENERATION_DISABLED";
+
+/** Unset inherits the parent's presentation; a run's root uses AUTO. */
+export type ResultCardPresentation =
+  | "RESULT_CARD_PRESENTATION_UNSPECIFIED"
+  | "RESULT_CARD_PRESENTATION_AUTO"
+  | "RESULT_CARD_PRESENTATION_PREFERRED";
+
+/** An Agent's Card Policy for Result Cards (ADR-0014). */
+export interface ResultCardConfig {
+  generation?: ResultCardGeneration;
+  presentation?: ResultCardPresentation;
+}
+
 export interface AgentRuntime {
   streaming_mode?: StreamingMode;
   save_input_blobs_as_artifacts?: boolean;
@@ -238,6 +255,7 @@ export interface AgentConfig {
   mcp_servers?: MCPServer[];
   context_guard?: ContextGuardConfig;
   memory?: MemoryConfig;
+  result_cards?: ResultCardConfig;
   mcp_server_ids?: string[];
   remote_agent_ids?: string[];
   file_mounts?: AgentFileMount[];

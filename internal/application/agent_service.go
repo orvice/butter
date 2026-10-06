@@ -384,6 +384,9 @@ func (s *AgentServiceServer) CreateAgent(ctx context.Context, req *connect.Reque
 	if err := internalagent.ValidateMemoryConfig(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
+	if err := internalagent.ValidateResultCardConfig(agent); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	if err := internalagent.ValidateWorkflowAgent(agent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -517,6 +520,9 @@ func (s *AgentServiceServer) UpdateAgent(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := internalagent.ValidateMemoryConfig(update); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := internalagent.ValidateResultCardConfig(update); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := internalagent.ValidateWorkflowAgent(update); err != nil {
@@ -1119,6 +1125,9 @@ func (s *AgentServiceServer) UpdateAgentConfiguration(ctx context.Context, req *
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := internalagent.ValidateMemoryConfig(patch); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := internalagent.ValidateResultCardConfig(patch); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if err := internalagent.ValidateWorkflowAgent(patch); err != nil {

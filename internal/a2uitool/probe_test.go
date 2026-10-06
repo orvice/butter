@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +36,85 @@ import (
 // BUTTER_A2UI_PROBE_RUNS sets the repetitions per scenario (default 3) and
 // BUTTER_A2UI_PROBE_OUT writes every turn and call as JSON.
 func TestRenderUIProbe(t *testing.T) {
+	targets, reps := probeTargets(t)
+	cfg := probeConfig{instruction: probeInstruction}
+
+	var turns []probeTurn
+	for _, target := range targets {
+		for _, sc := range probeScenarios {
+			for rep := 1; rep <= reps; rep++ {
+				got := runProbeScenario(t, target, cfg, sc, rep)
+				for _, turn := range got {
+					t.Logf("%s %s#%d turn %d: %d call(s), card=%v, text=%v %s",
+						target.name, sc.name, rep, turn.Turn, len(turn.Calls), turn.cardShown(), turn.Text != "", turn.Err)
+				}
+				turns = append(turns, got...)
+			}
+		}
+	}
+
+	t.Log("\n" + summarizeProbe(turns))
+	writeProbeOut(t, turns)
+}
+
+// TestRenderUIPresentationProbe measures how often real models show a card
+// for borderline prompts under the AUTO and the PREFERRED presentation of
+// the Card Policy (#442). The instruction never mentions cards, so the only
+// difference between the two runs is the hint in render_ui's description.
+// Like TestRenderUIProbe it is a measurement, skipped unless
+// BUTTER_A2UI_PROBE names the targets; -parallel bounds the turns in flight:
+//
+//	BUTTER_A2UI_PROBE=openai:gpt-5.6-luna \
+//	go test ./internal/a2uitool/ -run TestRenderUIPresentationProbe -v -parallel 4 -timeout 60m
+func TestRenderUIPresentationProbe(t *testing.T) {
+	targets, reps := probeTargets(t)
+	presentations := []agentsv1.ResultCardPresentation{
+		agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_AUTO,
+		agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED,
+	}
+
+	var mu sync.Mutex
+	var turns []probeTurn
+	// The group returns once every parallel turn in it has finished.
+	t.Run("turns", func(t *testing.T) {
+		for _, target := range targets {
+			for _, pr := range presentations {
+				cfg := probeConfig{
+					instruction: borderlineInstruction,
+					cards:       &agentsv1.ResultCardConfig{Presentation: pr},
+					variant:     strings.ToLower(strings.TrimPrefix(pr.String(), "RESULT_CARD_PRESENTATION_")),
+				}
+				for _, sc := range borderlineScenarios {
+					for rep := 1; rep <= reps; rep++ {
+						t.Run(fmt.Sprintf("%s/%s/%s#%d", target.name, cfg.variant, sc.name, rep), func(t *testing.T) {
+							t.Parallel()
+							got := runProbeScenario(t, target, cfg, sc, rep)
+							for _, turn := range got {
+								t.Logf("card=%v, text=%v %s", turn.cardShown(), turn.Text != "", turn.Err)
+							}
+							mu.Lock()
+							turns = append(turns, got...)
+							mu.Unlock()
+						})
+					}
+				}
+			}
+		}
+	})
+
+	writeProbeOut(t, turns)
+	t.Log("\n" + summarizePresentation(turns))
+}
+
+type probeTarget struct {
+	name, model string
+	providers   []agentsv1.ModelProvider
+}
+
+// probeTargets reads the targets of BUTTER_A2UI_PROBE and the repetitions of
+// BUTTER_A2UI_PROBE_RUNS, skipping the test when no target is named.
+func probeTargets(t *testing.T) ([]probeTarget, int) {
+	t.Helper()
 	spec := os.Getenv("BUTTER_A2UI_PROBE")
 	if spec == "" {
 		t.Skip("set BUTTER_A2UI_PROBE to run render_ui against real models")
@@ -46,36 +127,30 @@ func TestRenderUIProbe(t *testing.T) {
 		}
 		reps = n
 	}
-
-	var turns []probeTurn
+	var targets []probeTarget
 	for _, target := range strings.Split(spec, ",") {
 		target = strings.TrimSpace(target)
 		kind, model, ok := strings.Cut(target, ":")
 		if !ok || model == "" {
 			t.Fatalf("target %q: want provider:model", target)
 		}
-		providers := probeProviders(t, kind, model)
-		for _, sc := range probeScenarios {
-			for rep := 1; rep <= reps; rep++ {
-				got := runProbeScenario(t, providers, target, model, sc, rep)
-				for _, turn := range got {
-					t.Logf("%s %s#%d turn %d: %d call(s), card=%v, text=%v %s",
-						target, sc.name, rep, turn.Turn, len(turn.Calls), turn.cardShown(), turn.Text != "", turn.Err)
-				}
-				turns = append(turns, got...)
-			}
-		}
+		targets = append(targets, probeTarget{name: target, model: model, providers: probeProviders(t, kind, model)})
 	}
+	return targets, reps
+}
 
-	t.Log("\n" + summarizeProbe(turns))
-	if out := os.Getenv("BUTTER_A2UI_PROBE_OUT"); out != "" {
-		raw, err := json.MarshalIndent(turns, "", "  ")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(out, raw, 0o600); err != nil {
-			t.Fatal(err)
-		}
+func writeProbeOut(t *testing.T, turns []probeTurn) {
+	t.Helper()
+	out := os.Getenv("BUTTER_A2UI_PROBE_OUT")
+	if out == "" {
+		return
+	}
+	raw, err := json.MarshalIndent(turns, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(out, raw, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -108,6 +183,39 @@ var probeScenarios = []probeScenario{
 	}},
 }
 
+// borderlineInstruction never mentions cards: in the presentation probe the
+// hint in render_ui's description is the only nudge.
+const borderlineInstruction = `You are an operations assistant in a chat app. Answer the user's questions briefly.`
+
+// borderlineScenarios are prompts a text answer serves as well as a card:
+// a little structure, nothing that asks for a view.
+var borderlineScenarios = []probeScenario{
+	{"sla-facts", []string{
+		"Remind me of our SLA: 99.9% monthly uptime, 4-hour response for SEV-2 and 1-hour response for SEV-1.",
+	}},
+	{"build-times", []string{
+		"Our last three builds took 4m12s, 6m03s and 5m40s. Is that normal?",
+	}},
+	{"regions", []string{
+		"Which regions is checkout running in? It is in us-east-1, eu-west-1 and ap-southeast-2.",
+	}},
+	{"disk-trend", []string{
+		"The disk on db-03 is at 87% and grows about 2% a day. Should I worry?",
+	}},
+	{"open-prs", []string{
+		"We have three open PRs: #120 by Alice is ready, #121 by Bob is a draft, #124 by Carol needs review. What is left to do?",
+	}},
+	{"key-rotation", []string{
+		"How do I rotate the billing service's API key? The old key expires on Friday.",
+	}},
+	{"probes", []string{
+		"What is the difference between a liveness probe and a readiness probe?",
+	}},
+	{"p95", []string{
+		"What does p95 latency mean?",
+	}},
+}
+
 func probeProviders(t *testing.T, kind, model string) []agentsv1.ModelProvider {
 	t.Helper()
 	models := []*agentsv1.ModelConfig{{Name: model}}
@@ -137,6 +245,7 @@ func probeProviders(t *testing.T, kind, model string) []agentsv1.ModelProvider {
 // answering it.
 type probeTurn struct {
 	Target   string      `json:"target"`
+	Variant  string      `json:"variant,omitempty"`
 	Scenario string      `json:"scenario"`
 	Rep      int         `json:"rep"`
 	Turn     int         `json:"turn"`
@@ -168,28 +277,36 @@ func (t probeTurn) cardShown() bool {
 	return false
 }
 
-func runProbeScenario(t *testing.T, providers []agentsv1.ModelProvider, target, model string, sc probeScenario, rep int) []probeTurn {
+// probeConfig is the configuration a probe runs its agent with.
+type probeConfig struct {
+	instruction string
+	cards       *agentsv1.ResultCardConfig
+	// variant names the configuration in the results.
+	variant string
+}
+
+func runProbeScenario(t *testing.T, target probeTarget, cfg probeConfig, sc probeScenario, rep int) []probeTurn {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	pb := &agentsv1.Agent{
 		Name: "prober", AgentId: "prober", WorkspaceId: "ws-probe",
-		Config: &agentsv1.AgentConfig{Model: model, Instruction: probeInstruction},
+		Config: &agentsv1.AgentConfig{Model: target.model, Instruction: cfg.instruction, ResultCards: cfg.cards},
 	}
-	ag, err := internalagent.NewFromProto(ctx, pb, providers, nil, nil, nil)
+	ag, err := internalagent.NewFromProto(ctx, pb, target.providers, nil, nil, nil)
 	if err != nil {
-		t.Fatalf("%s: build agent: %v", target, err)
+		t.Fatalf("%s: build agent: %v", target.name, err)
 	}
 	r, err := adkrunner.New(adkrunner.Config{AppName: "probe", Agent: ag, SessionService: session.InMemoryService(), AutoCreateSession: true})
 	if err != nil {
-		t.Fatalf("%s: build runner: %v", target, err)
+		t.Fatalf("%s: build runner: %v", target.name, err)
 	}
 	sessionID := fmt.Sprintf("%s-%d", sc.name, rep)
 
 	var turns []probeTurn
 	for i, prompt := range sc.turns {
-		turn := probeTurn{Target: target, Scenario: sc.name, Rep: rep, Turn: i + 1}
+		turn := probeTurn{Target: target.name, Variant: cfg.variant, Scenario: sc.name, Rep: rep, Turn: i + 1}
 		runCtx := a2ui.WithRun(ctx, &a2ui.Run{ThreadID: sessionID, RunID: fmt.Sprintf("run-%d", i+1), MessageID: fmt.Sprintf("msg-%d", i+1)})
 		calls := map[string]*probeCall{}
 		var order []string
@@ -376,4 +493,85 @@ func summarizeProbe(turns []probeTurn) string {
 		fmt.Fprintf(&b, "failures: %s\n", strings.Join(cats, ", "))
 	}
 	return b.String()
+}
+
+// summarizePresentation reports, per target, how many turns showed a card
+// under each presentation, scenario by scenario, with the run errors that
+// would void a comparison and the text answers and first-try validity that a
+// hint must not cost.
+func summarizePresentation(turns []probeTurn) string {
+	type key struct{ target, variant, scenario string }
+	type tally struct{ turns, errors, cards, text, calls, firstTry int }
+	counts := map[key]*tally{}
+	var targets, variants, scenarios []string
+	for _, turn := range turns {
+		targets = appendNew(targets, turn.Target)
+		variants = appendNew(variants, turn.Variant)
+		scenarios = appendNew(scenarios, turn.Scenario)
+		// The empty scenario is the target's total for the variant.
+		for _, k := range []key{{turn.Target, turn.Variant, turn.Scenario}, {turn.Target, turn.Variant, ""}} {
+			c := counts[k]
+			if c == nil {
+				c = &tally{}
+				counts[k] = c
+			}
+			c.turns++
+			if turn.Err != "" {
+				c.errors++
+			}
+			if turn.cardShown() {
+				c.cards++
+			}
+			if turn.Text != "" {
+				c.text++
+			}
+			if len(turn.Calls) > 0 {
+				c.calls++
+				if turn.Calls[0].OK {
+					c.firstTry++
+				}
+			}
+		}
+	}
+	sort.Strings(targets)
+	sort.Strings(variants)
+	sort.Strings(scenarios)
+
+	var b strings.Builder
+	for _, target := range targets {
+		fmt.Fprintf(&b, "== %s: turns showing a card\n%-14s", target, "scenario")
+		for _, v := range variants {
+			fmt.Fprintf(&b, "%12s", v)
+		}
+		b.WriteString("\n")
+		for _, sc := range append(scenarios, "") {
+			name := sc
+			if name == "" {
+				name = "total"
+			}
+			fmt.Fprintf(&b, "%-14s", name)
+			for _, v := range variants {
+				c := counts[key{target, v, sc}]
+				if c == nil {
+					c = &tally{}
+				}
+				fmt.Fprintf(&b, "%12s", fmt.Sprintf("%d/%d", c.cards, c.turns))
+			}
+			b.WriteString("\n")
+		}
+		for _, v := range variants {
+			if c := counts[key{target, v, ""}]; c != nil {
+				fmt.Fprintf(&b, "%s: run errors %d/%d, text answers %d/%d, turns calling render_ui %d, first call valid %d\n",
+					v, c.errors, c.turns, c.text, c.turns, c.calls, c.firstTry)
+			}
+		}
+	}
+	return b.String()
+}
+
+func appendNew(list []string, v string) []string {
+	if slices.Contains(list, v) {
+		return list
+	}
+	return append(list, v)
 }

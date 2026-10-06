@@ -71,6 +71,7 @@ func rejectBoxOwnedFields(cfg *agentsv1.AgentConfig, kind, hint string) error {
 		{cfg.GetContextGuard() != nil, "context_guard"},
 		{len(cfg.GetRemoteAgentIds()) > 0, "remote_agent_ids"},
 		{cfg.GetMemory() != nil, "memory"},
+		{cfg.GetResultCards() != nil, "result_cards"},
 	}
 	for _, f := range boxOwned {
 		if f.set {

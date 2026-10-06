@@ -16,6 +16,7 @@ import (
 	adkrunner "google.golang.org/adk/v2/runner"
 	adksession "google.golang.org/adk/v2/session"
 
+	"go.orx.me/apps/butter/internal/a2uitool"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -53,6 +54,11 @@ type a2uiHarness struct {
 	router   *gin.Engine
 	handler  *AGUIHandler
 	guard    *fakeSessionGuard
+	// runner, repo and providers are what the last build wired, kept so a
+	// reload can apply a new config to them.
+	runner    *runner.Service
+	repo      *wsAgentRepo
+	providers []agentsv1.ModelProvider
 	// titler, when set before build, titles threads after successful runs.
 	titler AGUISessionTitler
 	// recorder, when set before build, records the runner's Invocations.
@@ -110,6 +116,7 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 	for i := range agents {
 		repo.agents = append(repo.agents, &agents[i])
 	}
+	h.runner, h.repo, h.providers = svc, repo, providers
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -150,6 +157,19 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 	handler.Register(r)
 	h.handler = handler
 	return r
+}
+
+// reload applies a new agent config to the running runner, as the reload
+// after an agent is saved does.
+func (h *a2uiHarness) reload(agents []agentsv1.Agent) {
+	h.t.Helper()
+	if err := h.runner.ReloadProtoAgents(context.Background(), agents, h.providers, nil, nil); err != nil {
+		h.t.Fatalf("reload: %v", err)
+	}
+	h.repo.agents = nil
+	for i := range agents {
+		h.repo.agents = append(h.repo.agents, &agents[i])
+	}
 }
 
 type a2uiRequest struct {
@@ -439,17 +459,29 @@ func (h *a2uiHarness) snapshotSurfaces(agentID, threadID string, opts ...a2uiOpt
 	return out
 }
 
-// offeredTools lists the tool names the model was offered on its last call.
-func (h *a2uiHarness) offeredTools(model string) []string {
+// offeredFunctions returns the declarations of the tools the model was
+// offered on its last call.
+func (h *a2uiHarness) offeredFunctions(model string) []map[string]any {
 	h.t.Helper()
 	req, ok := h.backend.LastRequest(model)
 	if !ok {
 		h.t.Fatalf("model %s was never called", model)
 	}
-	var names []string
+	var fns []map[string]any
 	tools, _ := req.Decoded["tools"].([]any)
 	for _, t := range tools {
-		fn, _ := t.(map[string]any)["function"].(map[string]any)
+		if fn, ok := t.(map[string]any)["function"].(map[string]any); ok {
+			fns = append(fns, fn)
+		}
+	}
+	return fns
+}
+
+// offeredTools lists the tool names the model was offered on its last call.
+func (h *a2uiHarness) offeredTools(model string) []string {
+	h.t.Helper()
+	var names []string
+	for _, fn := range h.offeredFunctions(model) {
 		if name, ok := fn["name"].(string); ok {
 			names = append(names, name)
 		}
@@ -1654,5 +1686,182 @@ func TestAGUIA2UI_FormSubmissionFromAnotherContext(t *testing.T) {
 	}
 	if len(h.snapshotSurfaces("approval", "t-ctx")) != 1 {
 		t.Fatal("the owner's form is gone")
+	}
+}
+
+// --- #440: the Card Policy ---
+
+// cardsOff is a Card Policy that turns Result Cards off for its agent and
+// every agent below it in a run.
+func cardsOff() *agentsv1.ResultCardConfig {
+	return &agentsv1.ResultCardConfig{Generation: agentsv1.ResultCardGeneration_RESULT_CARD_GENERATION_DISABLED}
+}
+
+// An LLM agent whose policy turns cards off is not offered render_ui. A
+// model that calls it anyway, as one copying an earlier call from the
+// thread's history would, gets ADK's "not found" error back, and the run
+// goes on to a text reply with no card.
+func TestAGUIA2UI_CardPolicyDisabledRootOffersNoRenderUI(t *testing.T) {
+	agents := []agentsv1.Agent{cardAgent()}
+	agents[0].Config.ResultCards = cardsOff()
+	h := newA2UIHarness(t, agents, "card-model")
+	h.scriptToolThenText("card-model", "render_ui", deployCardArgs(), "Here it is in text.")
+
+	w := h.post("carder", a2uiBody("t-off", "deploy please"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if tools := h.offeredTools("card-model"); containsString(tools, "render_ui") {
+		t.Errorf("render_ui offered under a disabled policy: %v", tools)
+	}
+	if got := a2uiValues(sseEvents(t, w.Body.String())); len(got) != 0 {
+		t.Errorf("a card was streamed under a disabled policy: %+v", got)
+	}
+	if msg, _ := h.lastToolResult("card-model")["error"].(string); !strings.Contains(msg, "not found") {
+		t.Errorf("tool result = %q, want ADK's not-found error", msg)
+	}
+	if !strings.Contains(w.Body.String(), `"delta":"Here it is in text."`) {
+		t.Errorf("the run did not go on to its text reply:\n%s", w.Body.String())
+	}
+	if got := h.snapshotSurfaces("carder", "t-off"); len(got) != 0 {
+		t.Errorf("a card was persisted under a disabled policy: %+v", got)
+	}
+}
+
+// pipeline is a Sequential root over the LLM agents first and second, each on
+// its own model, with the given Card Policies.
+func pipeline(root, first, second *agentsv1.ResultCardConfig) []agentsv1.Agent {
+	return []agentsv1.Agent{
+		{
+			Name: "pipeline", AgentId: "pipeline", WorkspaceId: "ws-a",
+			Type:          agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL,
+			ChildAgentIds: []string{"first", "second"},
+			Config:        &agentsv1.AgentConfig{ResultCards: root},
+		},
+		{Name: "first", AgentId: "first", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "first-model", ResultCards: first}},
+		{Name: "second", AgentId: "second", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "second-model", ResultCards: second}},
+	}
+}
+
+// The Card Policy narrows down the agent tree: a disabled agent turns cards
+// off for every agent below it and a disabled child only for itself, while
+// an agent run directly answers only to its own policy.
+func TestAGUIA2UI_CardPolicyNarrowsDownTheTree(t *testing.T) {
+	cases := []struct {
+		name                string
+		root, first, second *agentsv1.ResultCardConfig
+		run                 string
+		offered             map[string]bool
+	}{
+		{name: "no policy", run: "pipeline", offered: map[string]bool{"first-model": true, "second-model": true}},
+		{name: "composite root disabled", root: cardsOff(), run: "pipeline", offered: map[string]bool{"first-model": false, "second-model": false}},
+		{name: "one child disabled", second: cardsOff(), run: "pipeline", offered: map[string]bool{"first-model": true, "second-model": false}},
+		{name: "child of a disabled root, run directly", root: cardsOff(), run: "first", offered: map[string]bool{"first-model": true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newA2UIHarness(t, pipeline(tc.root, tc.first, tc.second), "first-model", "second-model")
+			h.echoModels("first-model", "second-model")
+			w := h.post(tc.run, a2uiBody("t-tree", "go"))
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+			}
+			for model, want := range tc.offered {
+				if got := containsString(h.offeredTools(model), "render_ui"); got != want {
+					t.Errorf("%s offered render_ui = %v, want %v", model, got, want)
+				}
+			}
+		})
+	}
+}
+
+// Forms are outside the Card Policy: a Workflow root that turns cards off
+// still opens its Human Input form, and submitting the form resumes the
+// workflow. Its node agents, built as its children, get no render_ui.
+func TestAGUIA2UI_CardPolicyLeavesFormsAlone(t *testing.T) {
+	agents := approvalWorkflow(deployForm())
+	agents[0].Config.ResultCards = cardsOff()
+	h := newA2UIHarness(t, agents, "drafter", "publisher")
+	h.echoModels("drafter", "publisher")
+
+	fx := h.pauseWithForm("t-off-form")
+	w := h.post("approval", resumeBody("t-off-form", "run-2", fx.interruptID, formSubmission(fx.form, fx.surfaceID, validDeployValues())))
+	if w.Code != http.StatusOK {
+		t.Fatalf("submit status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if outcome := finishedOutcome(t, w.Body.String()); outcome["type"] != "success" {
+		t.Fatalf("outcome = %+v, want the resumed workflow to finish", outcome)
+	}
+	if h.backend.CallCount("publisher") == 0 || len(h.storedAnswers("t-off-form")) != 1 {
+		t.Fatal("the form's submission did not resume the workflow")
+	}
+	for _, model := range []string{"drafter", "publisher"} {
+		if containsString(h.offeredTools(model), "render_ui") {
+			t.Errorf("%s was offered render_ui under a disabled Workflow root", model)
+		}
+	}
+}
+
+// Turning cards off for an agent applies from its next run and stops it
+// changing cards; it does not hide the cards its threads already hold.
+func TestAGUIA2UI_CardPolicyKeepsExistingCards(t *testing.T) {
+	h := newA2UIHarness(t, []agentsv1.Agent{cardAgent()}, "card-model")
+	h.scriptToolThenText("card-model", "render_ui", deployCardArgs(), "Deployed.")
+	if got := a2uiValues(sseEvents(t, h.post("carder", a2uiBody("t-kept", "deploy")).Body.String())); len(got) != 3 {
+		t.Fatalf("setup: card not rendered: %+v", got)
+	}
+
+	// The agent is saved as DISABLED; the reload rebuilds the runner's trees.
+	off := []agentsv1.Agent{cardAgent()}
+	off[0].Config.ResultCards = cardsOff()
+	h.reload(off)
+	h.backend.ScriptRequest("card-model", func(w http.ResponseWriter, req openaifake.ChatCompletionRequest) {
+		openaifake.WriteReply(w, req, "noted")
+	})
+	w := h.post("carder", updateBody("t-kept", "run-2", "anything new?"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if containsString(h.offeredTools("card-model"), "render_ui") {
+		t.Error("render_ui offered after the agent turned cards off")
+	}
+	if got := h.snapshotSurfaces("carder", "t-kept"); len(got) != 1 {
+		t.Errorf("snapshot after turning cards off = %+v, want the thread's card", got)
+	}
+}
+
+// toolDescription returns the description of the tool name that model was
+// offered on its last call.
+func (h *a2uiHarness) toolDescription(model, name string) string {
+	h.t.Helper()
+	for _, fn := range h.offeredFunctions(model) {
+		if fn["name"] == name {
+			desc, _ := fn["description"].(string)
+			return desc
+		}
+	}
+	h.t.Fatalf("model %s was not offered %s", model, name)
+	return ""
+}
+
+// --- #442: the presentation hint ---
+
+// A composite root's PREFERRED reaches the render_ui description of the LLM
+// agents below it, while a child that sets AUTO explicitly is not asked.
+func TestAGUIA2UI_CardPolicyPreferredReachesTheTree(t *testing.T) {
+	preferred := &agentsv1.ResultCardConfig{Presentation: agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_PREFERRED}
+	auto := &agentsv1.ResultCardConfig{Presentation: agentsv1.ResultCardPresentation_RESULT_CARD_PRESENTATION_AUTO}
+	h := newA2UIHarness(t, pipeline(preferred, nil, auto), "first-model", "second-model")
+	h.echoModels("first-model", "second-model")
+
+	w := h.post("pipeline", a2uiBody("t-prefer", "go"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if desc := h.toolDescription("first-model", "render_ui"); !strings.Contains(desc, a2uitool.PreferredHint) {
+		t.Errorf("first, below a PREFERRED root, was not asked to prefer cards:\n%s", desc)
+	}
+	if desc := h.toolDescription("second-model", "render_ui"); strings.Contains(desc, a2uitool.PreferredHint) {
+		t.Errorf("second, explicitly AUTO, was asked to prefer cards:\n%s", desc)
 	}
 }

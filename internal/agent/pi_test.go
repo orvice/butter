@@ -124,6 +124,9 @@ func TestValidatePiAgent_RejectsBoxOwnedFields(t *testing.T) {
 		}},
 		{"remote_agent_ids", func(pb *agentsv1.Agent) { pb.Config.RemoteAgentIds = []string{"r1"} }},
 		{"memory", func(pb *agentsv1.Agent) { pb.Config.Memory = &agentsv1.MemoryConfig{Enabled: true} }},
+		{"result_cards", func(pb *agentsv1.Agent) {
+			pb.Config.ResultCards = &agentsv1.ResultCardConfig{Generation: agentsv1.ResultCardGeneration_RESULT_CARD_GENERATION_DISABLED}
+		}},
 	}
 	for _, tc := range cases {
 		pb := validPiAgent()

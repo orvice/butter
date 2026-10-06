@@ -6,6 +6,8 @@
 // a2ui.Run — an AG-UI run whose client negotiated A2UI and whose session is
 // bound to the caller. Every other entry point (Telegram, the classic chat,
 // cron, OpenAI-compatible, Pi/Cursor leaves) sees no tool and pays nothing.
+// Each Toolset is also built with the Card Policy of its agent's place in the
+// tree, and offers nothing where that policy turns cards off.
 //
 // A batch is validated completely before anything is written; the card is
 // then persisted through the tool's state delta and reaches the client only
@@ -28,20 +30,28 @@ import (
 // ToolName is the model-facing name of the tool.
 const ToolName = "render_ui"
 
-// Toolset offers render_ui for A2UI runs only.
+// Toolset offers render_ui for A2UI runs only, where its Card Policy allows
+// cards.
 type Toolset struct {
-	tool tool.Tool
+	policy a2ui.CardPolicy
+	tool   tool.Tool
 }
 
-// NewToolset builds the render_ui toolset. It is inert outside A2UI runs.
-func NewToolset() Toolset {
-	t, err := functiontool.New(functiontool.Config{Name: ToolName, Description: description()}, render)
+// NewToolset builds the render_ui toolset of an agent whose place in the
+// agent tree has policy. It is inert outside A2UI runs and wherever policy
+// turns cards off. Offering the tool and running it read the same policy, so
+// a run sees one policy from start to end.
+func NewToolset(policy a2ui.CardPolicy) Toolset {
+	handler := func(ctx agent.Context, args renderArgs) (renderResult, error) {
+		return render(ctx, policy, args)
+	}
+	t, err := functiontool.New(functiontool.Config{Name: ToolName, Description: description(policy)}, handler)
 	if err != nil {
 		// The handler signature is fixed at compile time; a failure here is
 		// a programming error, not a runtime condition.
 		panic(fmt.Sprintf("a2uitool: build %s: %v", ToolName, err))
 	}
-	return Toolset{tool: t}
+	return Toolset{policy: policy, tool: t}
 }
 
 var _ tool.Toolset = Toolset{}
@@ -49,6 +59,9 @@ var _ tool.Toolset = Toolset{}
 func (Toolset) Name() string { return "a2ui" }
 
 func (t Toolset) Tools(ctx agent.ReadonlyContext) ([]tool.Tool, error) {
+	if !t.policy.Allowed() {
+		return nil, nil
+	}
 	if _, ok := a2ui.RunFrom(ctx); !ok {
 		return nil, nil
 	}
@@ -76,9 +89,9 @@ const maxConsecutiveFailures = 3
 // errRenderStopped tells the model why render_ui refuses the rest of a run.
 var errRenderStopped = fmt.Errorf("render_ui has failed %d times in a row, so cards are off for the rest of this turn; answer in text", maxConsecutiveFailures)
 
-func render(ctx agent.Context, args renderArgs) (renderResult, error) {
+func render(ctx agent.Context, policy a2ui.CardPolicy, args renderArgs) (renderResult, error) {
 	run, ok := a2ui.RunFrom(ctx)
-	if !ok {
+	if !ok || !policy.Allowed() {
 		return renderResult{}, errors.New("cards cannot be shown in this conversation; answer in text instead")
 	}
 	if run.RenderFailures() >= maxConsecutiveFailures {
@@ -127,9 +140,19 @@ func apply(ctx agent.Context, run *a2ui.Run, args renderArgs) (renderResult, err
 	return renderResult{SurfaceID: card.ID, Revision: card.Revision, Status: status}, nil
 }
 
-func description() string {
+// PreferredHint is the sentence a PREFERRED Card Policy adds to render_ui's
+// description. The description is sent only with the tool, so the hint
+// reaches exactly the model calls that can render a card, and never the
+// instruction.
+const PreferredHint = "Prefer a card: whenever your answer has structured results (key facts, a status, a list of results), show them in a card as well as in text."
+
+func description(policy a2ui.CardPolicy) string {
+	purpose := "Show a read-only result card to the user, next to your text answer. Use it when a structured view (a summary with key facts, a status, a short list of results) is easier to read than prose. The card cannot collect input or contain buttons; keep answering in text as well."
+	if policy.Preferred() {
+		purpose += " " + PreferredHint
+	}
 	limits := a2ui.DefaultLimits
-	return fmt.Sprintf(`Show a read-only result card to the user, next to your text answer. Use it when a structured view (a summary with key facts, a status, a short list of results) is easier to read than prose. The card cannot collect input or contain buttons; keep answering in text as well.
+	return purpose + fmt.Sprintf(`
 
 Pass A2UI v0.9.1 messages. To create a card, omit surface_id and send an updateComponents message whose components form a tree under a component with id "root", optionally followed by updateDataModel. The result returns the card's surface_id; pass it later to update the same card (send only the components that change, and/or new data) or to remove it with {"deleteSurface": {}}.
 
