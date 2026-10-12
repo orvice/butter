@@ -714,6 +714,22 @@ are accepted:
 }
 ```
 
+**Model selection:** send `forwardedProps.butterModel = {"override":"model-alias"}`
+(or a configured model name) to override an LLM agent's model for this run.
+Omitting the extension, omitting `override`, or sending an empty string uses the
+agent's configured model. This does not modify the agent configuration, thread
+identity, conversation history, or shared state. The override must name a model
+in the agent's workspace. Unknown models, malformed extensions, unknown
+`butterModel` fields, and non-empty overrides on Pi, Cursor or composite agents
+are refused with HTTP 400 before streaming; an unavailable catalog returns 503.
+Legacy unspecified agent types are treated as LLM agents. Both request-bound and
+detached runs use the override, and Invocation records keep it in `model_override`.
+
+The dashboard Chat offers this picker before the first message and in an LLM
+thread's composer, disabled while a run is active. The choice applies to subsequent
+runs (including interrupt replies and frontend tool continuations) while that
+thread remains open on the page; reopening or reloading returns to Agent default.
+
 **Response** is `text/event-stream`, one AG-UI event per frame:
 
 ```

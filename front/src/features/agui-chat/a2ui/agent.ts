@@ -85,6 +85,15 @@ export const DETACHED_RUN = { detach: true } as const
 // and its request carries only the answer, if any.
 export class ButterAGUIAgent extends HttpAgent {
   private nextRun?: NextRun
+  private modelOverride = ''
+
+  setModelOverride(value: string) {
+    this.modelOverride = value
+  }
+
+  getModelOverride() {
+    return this.modelOverride
+  }
 
   // resumeNextRunWith makes the next run answer exactly this Interrupt.
   resumeNextRunWith(interruptId: string, payload: unknown) {
@@ -126,6 +135,7 @@ export class ButterAGUIAgent extends HttpAgent {
           {}),
         butterA2UI: A2UI_CAPABILITY,
         butterRun: DETACHED_RUN,
+        butterModel: { override: this.modelOverride },
       },
     }
     const next = this.nextRun

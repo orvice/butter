@@ -10,12 +10,14 @@ import {
   ImageThumb,
   RemoveImageButton,
 } from './composer-attachments'
+import { ChatModelSelector, supportsChatModelOverride } from './model-selector'
 
 // DraftMessage is the first message of a thread, written in the draft: its
 // text and the images attached to it.
 export interface DraftMessage {
   text: string
   images: File[]
+  modelOverride?: string
 }
 
 // DraftView is a new chat before its first message: the agent it will run
@@ -33,6 +35,7 @@ export function DraftView({
   onSend: (message: DraftMessage) => void
 }) {
   const [draft, setDraft] = useState('')
+  const [modelOverride, setModelOverride] = useState('')
   const {
     attachments: images,
     previewUrls,
@@ -52,7 +55,11 @@ export function DraftView({
 
   function send() {
     if (!canSend) return
-    onSend({ text: draft.trim(), images })
+    onSend({
+      text: draft.trim(),
+      images,
+      modelOverride: supportsChatModelOverride(agent) ? modelOverride : '',
+    })
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -97,7 +104,15 @@ export function DraftView({
             </div>
           )}
 
-          <div className='mb-4 flex justify-center'>{agentSelector}</div>
+          <div className='mb-4 flex flex-wrap justify-center gap-2'>
+            {agentSelector}
+            {supportsChatModelOverride(agent) && (
+              <ChatModelSelector
+                value={modelOverride}
+                onChange={setModelOverride}
+              />
+            )}
+          </div>
 
           {images.length > 0 && (
             <div className='mb-3 flex flex-wrap gap-1.5'>

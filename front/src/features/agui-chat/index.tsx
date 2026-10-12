@@ -93,6 +93,7 @@ import {
 } from './history'
 import { runningInput, type LastRun, type TurnInput } from './last-run'
 import { LastRunNotice } from './last-run-notice'
+import { ChatModelSelector, supportsChatModelOverride } from './model-selector'
 import {
   ThreadLoadFailed,
   ThreadLoading,
@@ -666,7 +667,11 @@ function AGUIChatWithRuntime({
   onThreadRefused: (message: string) => void
   onHistoryFailed: (err: unknown) => void
 }) {
-  const [httpAgent] = useState(() => makeHttpAgent(agentId, threadId))
+  const [httpAgent] = useState(() => {
+    const client = makeHttpAgent(agentId, threadId)
+    client.setModelOverride(firstMessage?.modelOverride ?? '')
+    return client
+  })
   // The runtime reads the thread once, when it starts.
   const [readsHistory] = useState(!fresh)
   const store = useOwnedA2UIStore(httpAgent)
@@ -814,6 +819,7 @@ function AGUIChatWithRuntime({
           />
           <SharedStatePanel />
           <ComposerArea
+            agent={agent}
             httpAgent={httpAgent}
             imageAdapter={imageAdapter}
             onSendError={reportError}
@@ -1187,11 +1193,13 @@ function SharedStatePanel() {
 // Stop takes Send's place. While the page waits out a run, the composer is
 // disabled, images included.
 function ComposerArea({
+  agent,
   httpAgent,
   imageAdapter,
   onSendError,
   onStop,
 }: {
+  agent: Agent | undefined
   httpAgent: ButterAGUIAgent
   imageAdapter: ImageAttachmentAdapter
   onSendError: (err: unknown) => void
@@ -1199,6 +1207,10 @@ function ComposerArea({
 }) {
   const answering = useAgUiInterrupts().length > 0
   const disabled = useAuiState((s) => s.thread.isDisabled)
+  const running = useAuiState((s) => s.thread.isRunning)
+  const [modelOverride, setModelOverride] = useState(() =>
+    httpAgent.getModelOverride()
+  )
   const replies = useReplies(httpAgent, onSendError)
   const aui = useAui()
   const hintId = useId()
@@ -1236,6 +1248,18 @@ function ComposerArea({
 
   return (
     <div className='border-t border-border/60 px-4 py-3'>
+      {supportsChatModelOverride(agent) && (
+        <div className='mx-auto mb-2 max-w-3xl'>
+          <ChatModelSelector
+            value={modelOverride}
+            disabled={disabled || running}
+            onChange={(value) => {
+              httpAgent.setModelOverride(value)
+              setModelOverride(value)
+            }}
+          />
+        </div>
+      )}
       {answering && (
         <p
           id={hintId}

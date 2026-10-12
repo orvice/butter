@@ -72,6 +72,7 @@ type AGUIRunnerService interface {
 // runner. See docs/api.md and docs/research/ag-ui-integration.md.
 type AGUIHandler struct {
 	agentRepo configrepo.AgentRepository
+	modelRepo configrepo.ModelProviderRepository
 
 	mu            sync.RWMutex
 	runnerSvc     AGUIRunnerService
@@ -116,6 +117,11 @@ func NewAGUIHandler(repo configrepo.AgentRepository) *AGUIHandler {
 		readBackoff:  aguiReadBackoff,
 		runs:         newAGUIRuns(),
 	}
+}
+
+// SetModelProviderRepo wires the workspace-scoped model catalog before serving requests.
+func (h *AGUIHandler) SetModelProviderRepo(repo configrepo.ModelProviderRepository) {
+	h.modelRepo = repo
 }
 
 // SetRunnerService sets the runner service after bootstrap completes.
@@ -307,13 +313,14 @@ func (r *aguiRefusal) write(c *gin.Context) { c.JSON(r.status, r.body) }
 
 // aguiRunContext is the validated, prepared state for one AG-UI run.
 type aguiRunContext struct {
-	input       aguitypes.RunAgentInput
-	agent       *agentsv1.Agent
-	agentName   string // the name the runner registers agent under
-	svc         AGUIRunnerService
-	parts       []*genai.Part
-	ctxInfo     *agentsv1.ContextInfo
-	clientTools []aguitool.Declaration
+	input         aguitypes.RunAgentInput
+	agent         *agentsv1.Agent
+	agentName     string // the name the runner registers agent under
+	svc           AGUIRunnerService
+	parts         []*genai.Part
+	ctxInfo       *agentsv1.ContextInfo
+	clientTools   []aguitool.Declaration
+	modelOverride string
 
 	// Shared state mapping for this run: stateArmed gates the whole feature
 	// (off without a session store), stateInitial is the pre-run
@@ -501,6 +508,11 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: err.Error()})
 		return nil, false
 	}
+	modelOverride, status, err := h.prepareModelOverride(ctx, target, input.ForwardedProps)
+	if err != nil {
+		c.JSON(status, aguiErrorResponse{Error: err.Error()})
+		return nil, false
+	}
 	detach, err := negotiateDetach(input.ForwardedProps)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, aguiErrorResponse{Error: err.Error()})
@@ -536,6 +548,7 @@ func (h *AGUIHandler) validateAndPrepare(c *gin.Context) (*aguiRunContext, bool)
 		svc:            target.runner,
 		parts:          parts,
 		ctxInfo:        ctxInfo,
+		modelOverride:  modelOverride,
 		clientTools:    clientToolDeclarations(input.Tools),
 		a2uiNegotiated: negotiated,
 		formEntries:    formEntries,
