@@ -252,7 +252,34 @@ describe('ButterAGUIAgent', () => {
       fromRuntime: true,
       butterA2UI: { version: 'v0.9.1', catalogs: ['butter-basic-v1'] },
       butterRun: { detach: true },
+      butterModel: { override: '' },
     })
+  })
+
+  it('uses the selected model on each run, including interrupt answers and tool continuations', async () => {
+    const { agent: a, bodies } = agent()
+    a.messages = [user('u1', 'hi')]
+    a.setModelOverride('fast')
+    await a.runAgent({})
+    a.pendingInterrupts = open('a')
+    a.resumeNextRunWith('a', 'yes')
+    await a.runAgent({ resume: steerAway('a') })
+    a.pendingInterrupts = []
+    a.messages = [user('u1', 'hi'), reply('a1', 'call-1'), result('call-1')]
+    a.setModelOverride('quality')
+    await a.runAgent({})
+    a.setModelOverride('')
+    await a.runAgent({})
+    expect(bodies.map((body) => body.forwardedProps)).toMatchObject([
+      { butterModel: { override: 'fast' } },
+      { butterModel: { override: 'fast' } },
+      { butterModel: { override: 'quality' } },
+      { butterModel: { override: '' } },
+    ])
+    expect(bodies.every((body) => body.threadId === 't')).toBe(true)
+    expect(bodies[1].resume).toEqual([
+      { interruptId: 'a', status: 'resolved', payload: 'yes' },
+    ])
   })
 
   it('asks to detach whatever the run carries', async () => {

@@ -482,7 +482,7 @@ func (r *aguiRun) runTurn(ctx context.Context) (runErr error) {
 	}
 	return streamorch.Run(ctx, rc.svc,
 		streamorch.AgentRef{Name: rc.agentName, ID: rc.agent.GetAgentId()},
-		rc.parts, "", rc.ctxInfo, r.sink)
+		rc.parts, rc.modelOverride, rc.ctxInfo, r.sink)
 }
 
 // settle ends a run that lives in its request. The runner recorded its
@@ -806,6 +806,7 @@ func (r *aguiRun) recordQueued() error {
 		AgentName:        rc.agentName,
 		AgentId:          rc.agent.GetAgentId(),
 		AgentDisplayName: displayName,
+		ModelOverride:    rc.modelOverride,
 		AppName:          aguiAppName,
 		UserId:           rc.ctxInfo.GetUserId(),
 		SessionId:        rc.ctxInfo.GetSessionId(),
