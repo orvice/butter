@@ -223,7 +223,10 @@ message RedeemOAuthHandoffRequest {
   string state = 2 [(validate.rules).string.min_len = 1];
   string handoff_code = 3 [(validate.rules).string.min_len = 1];
   // PKCE code_verifier (RFC 7636: 43-128 unreserved characters).
-  string code_verifier = 4 [(validate.rules).string = {min_len: 43, max_len: 128}];
+  string code_verifier = 4 [(validate.rules).string = {
+    min_len: 43
+    max_len: 128
+  }];
 }
 
 // RedeemOAuthHandoffResponse mirrors LoginResponse.
