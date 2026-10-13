@@ -1,0 +1,114 @@
+name: Mobile
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'proto/**'
+      - 'buf*'
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/mobile.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - 'proto/**'
+      - 'buf*'
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/mobile.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Mobile / ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [format, analyze, test, codegen, contract]
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: stable
+          cache: true
+      - uses: bufbuild/buf-setup-action@v1
+        if: matrix.check == 'codegen'
+        with:
+          version: '1.71.0'
+          github_token: ${{ github.token }}
+      - uses: actions/setup-go@v5
+        if: matrix.check == 'contract'
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Generated binding drift (including untracked files)
+        if: matrix.check == 'codegen'
+        run: bash tool/generate.sh --check
+      - name: ${{ matrix.check }}
+        if: matrix.check != 'codegen'
+        run: bash tool/check.sh '${{ matrix.check }}'
+
+  android:
+    name: Mobile / Android debug build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: stable
+          cache: true
+      - name: Locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Build development APK (HTTPS by default)
+        run: flutter build apk --debug --no-pub
+
+  ios:
+    name: Mobile / iOS unsigned simulator build
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: stable
+          cache: true
+      - name: Locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Prepare simulator configuration
+        run: flutter build ios --simulator --debug --no-codesign --no-pub --config-only
+      - name: Install native plugin dependencies
+        working-directory: mobile/ios
+        run: pod install
+      - name: Compile development simulator app (no signing credentials)
+        run: flutter build ios --simulator --debug --no-codesign --no-pub

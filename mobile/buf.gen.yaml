@@ -1,0 +1,15 @@
+version: v2
+plugins:
+  - local: [dart, run, protoc_plugin]
+    out: lib/gen
+    include_imports: true
+    include_wkt: true
+  - local: [dart, run, connectrpc:protoc-gen-connect-dart]
+    out: lib/gen
+    include_imports: true
+inputs:
+  - directory: ..
+    paths:
+      - ../proto/agents/v1/auth.proto
+      - ../proto/agents/v1/workspace.proto
+      - ../proto/agents/v1/agent_service.proto

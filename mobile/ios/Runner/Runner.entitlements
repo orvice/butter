@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- flutter_secure_storage 10: use the app's default Keychain group,
+         not a cross-app group. Token accessibility is configured in Dart as
+         first_unlock_this_device (no migration to another device). -->
+    <key>keychain-access-groups</key>
+    <array/>
+</dict>
+</plist>
