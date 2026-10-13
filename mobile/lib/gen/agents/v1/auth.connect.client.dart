@@ -8,7 +8,7 @@ import "auth.pb.dart" as agentsv1auth;
 import "auth.connect.spec.dart" as specs;
 
 /// AuthService manages dashboard user authentication.
-extension type AuthServiceClient(connect.Transport _transport) {
+extension type AuthServiceClient (connect.Transport _transport) {
   /// Login is public and exchanges username/password for a session token.
   Future<agentsv1auth.LoginResponse> login(
     agentsv1auth.LoginRequest input, {
