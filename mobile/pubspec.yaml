@@ -1,0 +1,28 @@
+name: butter_mobile
+description: Butter native development client (Android and iOS).
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  connectrpc: 2.0.0
+  protobuf: 6.1.0
+  fixnum: ^1.1.1
+  flutter_secure_storage: 10.0.0
+  shared_preferences: ^2.5.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  protoc_plugin: 25.1.0
+  shared_preferences_platform_interface: ^2.4.2
+
+flutter:
+  uses-material-design: true
