@@ -15,6 +15,13 @@ class TestServer {
   final requests = <({String path, String? token, String? workspace})>[];
   Future<ListAgentsResponse> Function(String, ListAgentsRequest)? agentReply;
   Future<LoginResponse> Function(LoginRequest)? loginReply;
+  List<OAuthProvider> oauthProviders = [];
+  final begins = <BeginOAuthFlowRequest>[];
+  final redeems = <RedeemOAuthHandoffRequest>[];
+  (int, String)? beginFailure;
+  String? beginAuthorizeUrl;
+  Future<RedeemOAuthHandoffResponse> Function(RedeemOAuthHandoffRequest)?
+  redeemReply;
   bool expired = false;
   bool denyAgents = false;
   bool denyWorkspaces = false;
@@ -47,7 +54,41 @@ class TestServer {
               : await loginReply!(input),
         );
       } else if (path.endsWith('/ListOAuthProviders')) {
-        write(r, ListOAuthProvidersResponse());
+        write(r, ListOAuthProvidersResponse(providers: oauthProviders));
+      } else if (path.endsWith('/BeginOAuthFlow')) {
+        final input = BeginOAuthFlowRequest.fromBuffer(bytes);
+        begins.add(input);
+        if (beginFailure != null) {
+          error(r, beginFailure!.$1, beginFailure!.$2);
+          return;
+        }
+        final state = 'state-${begins.length}';
+        write(
+          r,
+          BeginOAuthFlowResponse(
+            authorizeUrl:
+                beginAuthorizeUrl ?? 'https://provider.test/authorize?s=$state',
+            state: state,
+          ),
+        );
+      } else if (path.endsWith('/RedeemOAuthHandoff')) {
+        final input = RedeemOAuthHandoffRequest.fromBuffer(bytes);
+        redeems.add(input);
+        final reply = redeemReply;
+        if (reply != null) {
+          write(r, await reply(input));
+        } else if (input.handoffCode.startsWith('good-')) {
+          write(
+            r,
+            RedeemOAuthHandoffResponse(
+              token: 'oauth-${input.provider}',
+              user: User(id: 'oauth-user', username: 'oauth-user'),
+            ),
+          );
+        } else {
+          error(r, 403, 'permission_denied');
+          return;
+        }
       } else if (token == null || expired) {
         error(r, 401, 'unauthenticated');
         return;

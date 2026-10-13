@@ -46,7 +46,8 @@ final class ButterApi {
         );
 
   /// Uses a public generated RPC too, so an arbitrary HTTP 200 is not enough.
-  Future<void> verify() async {
+  /// Returns the OAuth providers that RPC reported.
+  Future<List<OAuthProvider>> verify() async {
     final request = await _client.getUrl(address.endpoint('ping'));
     request.followRedirects = false;
     final response = await request.close().timeout(const Duration(seconds: 10));
@@ -57,11 +58,51 @@ final class ButterApi {
         'Server check failed.',
       );
     }
-    await _auth.listOAuthProviders(
+    return (await _auth.listOAuthProviders(
       ListOAuthProvidersRequest(),
       signal: _deadline,
-    );
+    )).providers;
   }
+
+  Future<List<OAuthProvider>> oauthProviders() async =>
+      (await _auth.listOAuthProviders(
+        ListOAuthProvidersRequest(),
+        signal: _deadline,
+      )).providers;
+
+  /// Public: begins a native sign-in with the App's return URI and PKCE
+  /// challenge. Carries no credential.
+  Future<BeginOAuthFlowResponse> beginOAuth(
+    String provider,
+    String returnUri,
+    String codeChallenge,
+  ) => _auth.beginOAuthFlow(
+    BeginOAuthFlowRequest(
+      provider: provider,
+      native: NativeOAuthClient(
+        returnUri: returnUri,
+        codeChallenge: codeChallenge,
+      ),
+    ),
+    signal: _deadline,
+  );
+
+  /// Public: exchanges the browser's one-time handoff code, proven by the PKCE
+  /// verifier, for a session. Carries no credential.
+  Future<RedeemOAuthHandoffResponse> redeemOAuth(
+    String provider,
+    String state,
+    String handoffCode,
+    String codeVerifier,
+  ) => _auth.redeemOAuthHandoff(
+    RedeemOAuthHandoffRequest(
+      provider: provider,
+      state: state,
+      handoffCode: handoffCode,
+      codeVerifier: codeVerifier,
+    ),
+    signal: _deadline,
+  );
 
   Future<LoginResponse> login(String username, String password) => _auth.login(
     LoginRequest(username: username, password: password),

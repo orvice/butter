@@ -110,4 +110,15 @@ abstract final class AuthService {
     agentsv1auth.CompleteOAuthFlowRequest.new,
     agentsv1auth.CompleteOAuthFlowResponse.new,
   );
+
+  /// RedeemOAuthHandoff is public and completes a native (mobile) OAuth login.
+  /// The browser leg ends with a one-time handoff code delivered to the App's
+  /// return URI; the App proves it began the flow with the PKCE code_verifier
+  /// and receives the session token directly, never through a URL.
+  static const redeemOAuthHandoff = connect.Spec(
+    '/$name/RedeemOAuthHandoff',
+    connect.StreamType.unary,
+    agentsv1auth.RedeemOAuthHandoffRequest.new,
+    agentsv1auth.RedeemOAuthHandoffResponse.new,
+  );
 }

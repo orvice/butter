@@ -385,6 +385,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if result.OAuthStateRepo != nil {
 			h.authSvcServer.SetOAuthStateRepo(result.OAuthStateRepo)
 		}
+		if result.OAuthHandoffRepo != nil {
+			h.authSvcServer.SetOAuthHandoffRepo(result.OAuthHandoffRepo)
+		}
 		if result.OAuthProviders != nil {
 			h.authSvcServer.SetProviderRegistry(result.OAuthProviders)
 		}
@@ -751,6 +754,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	globalMCPSvcServer := application.NewGlobalMCPServerServiceServer(configStore, mcpSvcServer)
 	globalMCPConnectPath, globalMCPConnectHandler := agentsv1connect.NewGlobalMCPServerServiceHandler(globalMCPSvcServer, connectOpts...)
 	authSvcServer := application.NewAuthServiceServer(nil, cfg.Auth.EffectiveSessionTTL())
+	authSvcServer.SetNativeReturnURIs(cfg.Auth.NativeReturnURIs)
 	authConnectPath, authConnectHandler := agentsv1connect.NewAuthServiceHandler(authSvcServer, connectOpts...)
 	workspaceSvcServer := application.NewWorkspaceServiceServer(nil)
 	workspaceConnectPath, workspaceConnectHandler := agentsv1connect.NewWorkspaceServiceHandler(workspaceSvcServer, connectOpts...)

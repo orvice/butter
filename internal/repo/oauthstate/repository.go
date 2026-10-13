@@ -19,8 +19,13 @@ type Entry struct {
 	State       string
 	Provider    string
 	RedirectURI string
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
+	// NativeReturnURI and CodeChallenge are set only for a flow a native App
+	// began (an allow-listed return URI and the App's PKCE S256 challenge);
+	// a web flow leaves both empty.
+	NativeReturnURI string
+	CodeChallenge   string
+	CreatedAt       time.Time
+	ExpiresAt       time.Time
 }
 
 // Repository persists OAuth state tokens with a TTL.

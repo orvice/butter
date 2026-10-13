@@ -64,6 +64,9 @@ const (
 	// AuthServiceCompleteOAuthFlowProcedure is the fully-qualified name of the AuthService's
 	// CompleteOAuthFlow RPC.
 	AuthServiceCompleteOAuthFlowProcedure = "/agents.v1.AuthService/CompleteOAuthFlow"
+	// AuthServiceRedeemOAuthHandoffProcedure is the fully-qualified name of the AuthService's
+	// RedeemOAuthHandoff RPC.
+	AuthServiceRedeemOAuthHandoffProcedure = "/agents.v1.AuthService/RedeemOAuthHandoff"
 )
 
 // AuthServiceClient is a client for the agents.v1.AuthService service.
@@ -96,6 +99,11 @@ type AuthServiceClient interface {
 	// CompleteOAuthFlow is public and exchanges the provider's authorization
 	// code for a session token. The response mirrors LoginResponse.
 	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
+	// RedeemOAuthHandoff is public and completes a native (mobile) OAuth login.
+	// The browser leg ends with a one-time handoff code delivered to the App's
+	// return URI; the App proves it began the flow with the PKCE code_verifier
+	// and receives the session token directly, never through a URL.
+	RedeemOAuthHandoff(context.Context, *connect.Request[v1.RedeemOAuthHandoffRequest]) (*connect.Response[v1.RedeemOAuthHandoffResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the agents.v1.AuthService service. By default, it
@@ -181,6 +189,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
 			connect.WithClientOptions(opts...),
 		),
+		redeemOAuthHandoff: connect.NewClient[v1.RedeemOAuthHandoffRequest, v1.RedeemOAuthHandoffResponse](
+			httpClient,
+			baseURL+AuthServiceRedeemOAuthHandoffProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RedeemOAuthHandoff")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -198,6 +212,7 @@ type authServiceClient struct {
 	listOAuthProviders *connect.Client[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse]
 	beginOAuthFlow     *connect.Client[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse]
 	completeOAuthFlow  *connect.Client[v1.CompleteOAuthFlowRequest, v1.CompleteOAuthFlowResponse]
+	redeemOAuthHandoff *connect.Client[v1.RedeemOAuthHandoffRequest, v1.RedeemOAuthHandoffResponse]
 }
 
 // Login calls agents.v1.AuthService.Login.
@@ -260,6 +275,11 @@ func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, req *connect.
 	return c.completeOAuthFlow.CallUnary(ctx, req)
 }
 
+// RedeemOAuthHandoff calls agents.v1.AuthService.RedeemOAuthHandoff.
+func (c *authServiceClient) RedeemOAuthHandoff(ctx context.Context, req *connect.Request[v1.RedeemOAuthHandoffRequest]) (*connect.Response[v1.RedeemOAuthHandoffResponse], error) {
+	return c.redeemOAuthHandoff.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the agents.v1.AuthService service.
 type AuthServiceHandler interface {
 	// Login is public and exchanges username/password for a session token.
@@ -290,6 +310,11 @@ type AuthServiceHandler interface {
 	// CompleteOAuthFlow is public and exchanges the provider's authorization
 	// code for a session token. The response mirrors LoginResponse.
 	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
+	// RedeemOAuthHandoff is public and completes a native (mobile) OAuth login.
+	// The browser leg ends with a one-time handoff code delivered to the App's
+	// return URI; the App proves it began the flow with the PKCE code_verifier
+	// and receives the session token directly, never through a URL.
+	RedeemOAuthHandoff(context.Context, *connect.Request[v1.RedeemOAuthHandoffRequest]) (*connect.Response[v1.RedeemOAuthHandoffResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -371,6 +396,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceRedeemOAuthHandoffHandler := connect.NewUnaryHandler(
+		AuthServiceRedeemOAuthHandoffProcedure,
+		svc.RedeemOAuthHandoff,
+		connect.WithSchema(authServiceMethods.ByName("RedeemOAuthHandoff")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceLoginProcedure:
@@ -397,6 +428,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceBeginOAuthFlowHandler.ServeHTTP(w, r)
 		case AuthServiceCompleteOAuthFlowProcedure:
 			authServiceCompleteOAuthFlowHandler.ServeHTTP(w, r)
+		case AuthServiceRedeemOAuthHandoffProcedure:
+			authServiceRedeemOAuthHandoffHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -452,4 +485,8 @@ func (UnimplementedAuthServiceHandler) BeginOAuthFlow(context.Context, *connect.
 
 func (UnimplementedAuthServiceHandler) CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.CompleteOAuthFlow is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) RedeemOAuthHandoff(context.Context, *connect.Request[v1.RedeemOAuthHandoffRequest]) (*connect.Response[v1.RedeemOAuthHandoffResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.AuthService.RedeemOAuthHandoff is not implemented"))
 }

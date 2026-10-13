@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/butter/internal/auth/provider"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/oauthhandoff"
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -33,13 +34,20 @@ type AuthServiceServer struct {
 	sessionTTL time.Duration
 	providers  *provider.Registry
 	stateRepo  oauthstate.Repository
+
+	// handoffRepo and nativeReturnURIs serve the native (mobile) OAuth login.
+	// Without both, a native flow is refused and web OAuth is unaffected.
+	handoffRepo      oauthhandoff.Repository
+	nativeReturnURIs []string
+	// now is the clock of the OAuth flows; tests replace it.
+	now func() time.Time
 }
 
 func NewAuthServiceServer(repo auth.Repository, sessionTTL time.Duration) *AuthServiceServer {
 	if sessionTTL <= 0 {
 		sessionTTL = 7 * 24 * time.Hour
 	}
-	return &AuthServiceServer{repo: repo, sessionTTL: sessionTTL}
+	return &AuthServiceServer{repo: repo, sessionTTL: sessionTTL, now: time.Now}
 }
 
 func (s *AuthServiceServer) SetRepo(repo auth.Repository) {

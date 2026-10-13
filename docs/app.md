@@ -197,9 +197,9 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
 - `GlobalMCPServerService`：workspace-agnostic MCP server 预设 CRUD（创建/更新/删除限 admin）+ `InstallGlobalMCPServer`（克隆到 workspace；admin 可跨 workspace 安装）。
 - `WorkspaceService`：workspace 与成员 CRUD。
-- `AuthService`：登录、OAuth 登录、当前用户、用户管理、资料更新与 `ChangePassword`。
+- `AuthService`：登录、OAuth 登录（网页直接登录；原生 App 经 PKCE 绑定的一次性 handoff：`BeginOAuthFlow(native)` → 系统浏览器 → `CompleteOAuthFlow` 返回 `native_handoff.return_url` → App 调 `RedeemOAuthHandoff`，会话令牌从不出现在 URL；回跳地址须精确匹配 `auth.native_return_uris`，默认空即关闭）、当前用户、用户管理、资料更新与 `ChangePassword`。
 
-除 `/ping`、`OPTIONS` 预检、MCP OAuth 回调以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` 外，所有 HTTP/RPC 请求统一经过 `AuthMiddleware`：先查 Redis auth session（key `butter:auth:session:<sha256(token)>`），再 root token（`cfg.apiToken`，constant-time），再 `api_tokens` 集合中的 sha256 哈希；命中均会异步更新 `last_used_at`。鉴权通过后再解析 `X-Workspace-ID`：user session 走成员校验，API token 用其绑定的 workspace，root token 接受 header 原值。
+除 `/ping`、`OPTIONS` 预检、MCP OAuth 回调以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` / `RedeemOAuthHandoff` 外，所有 HTTP/RPC 请求统一经过 `AuthMiddleware`：先查 Redis auth session（key `butter:auth:session:<sha256(token)>`），再 root token（`cfg.apiToken`，constant-time），再 `api_tokens` 集合中的 sha256 哈希；命中均会异步更新 `last_used_at`。鉴权通过后再解析 `X-Workspace-ID`：user session 走成员校验，API token 用其绑定的 workspace，root token 接受 header 原值。
 
 ### gRPC
 

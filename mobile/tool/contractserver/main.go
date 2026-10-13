@@ -22,11 +22,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.orx.me/apps/butter/internal/application"
+	"go.orx.me/apps/butter/internal/auth/provider"
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
+	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
+	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	"go.orx.me/apps/butter/internal/service"
@@ -51,6 +54,22 @@ func (s *authStore) FindUserByUsername(_ context.Context, username string) (*age
 		return nil, "", auth.ErrUserNotFound
 	}
 	return proto.Clone(s.user).(*agentsv1.User), s.hash, nil
+}
+
+func (s *authStore) GetUser(_ context.Context, id string) (*agentsv1.User, error) {
+	if id != s.user.GetId() {
+		return nil, auth.ErrUserNotFound
+	}
+	return proto.Clone(s.user).(*agentsv1.User), nil
+}
+
+// The fixture's one user is the account the fake provider identity is linked
+// to, so OAuth sign-in never has to create users.
+func (s *authStore) FindUserByExternalID(_ context.Context, providerName, externalID string) (*agentsv1.User, error) {
+	if providerName != fakeProviderName || externalID != fakeExternalID {
+		return nil, auth.ErrUserNotFound
+	}
+	return proto.Clone(s.user).(*agentsv1.User), nil
 }
 
 func (s *authStore) CreateSession(_ context.Context, session *auth.Session) error {
@@ -96,6 +115,31 @@ func (s *authStore) RevokeSession(_ context.Context, id string) error {
 	return nil
 }
 
+const (
+	fakeProviderName = "github"
+	fakeProviderCode = "contract-provider-code"
+	fakeExternalID   = "contract-external-id"
+	// nativeReturnURI is the mobile App's development return URI.
+	nativeReturnURI = "ee.orz.butter:/oauth/callback"
+)
+
+// fakeProvider stands in for the third-party OAuth provider, the only thing the
+// fixture replaces on the OAuth path: AuthService, its state and handoff
+// handling, and the HTTP middleware are the production ones.
+type fakeProvider struct{}
+
+func (fakeProvider) Name() string        { return fakeProviderName }
+func (fakeProvider) DisplayName() string { return "GitHub" }
+func (fakeProvider) AuthorizeURL(state string) string {
+	return "https://provider.invalid/authorize?state=" + state
+}
+func (fakeProvider) Exchange(_ context.Context, code string) (*provider.Claims, error) {
+	if code != fakeProviderCode {
+		return nil, errors.New("fake provider: unknown code")
+	}
+	return &provider.Claims{Provider: fakeProviderName, ExternalID: fakeExternalID, Login: "mobile-test"}, nil
+}
+
 func fixture(ctx context.Context) (http.Handler, error) {
 	// These public credentials must never be used outside this loopback fixture.
 	hash, err := bcrypt.GenerateFromPassword([]byte("contract-test-password"), bcrypt.DefaultCost)
@@ -121,6 +165,12 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	authSvc := application.NewAuthServiceServer(authRepo, time.Hour)
 	authSvc.SetWorkspaceRepo(wsRepo)
+	providers := provider.NewRegistry()
+	providers.Register(fakeProvider{})
+	authSvc.SetProviderRegistry(providers)
+	authSvc.SetOAuthStateRepo(oauthstatememory.New())
+	authSvc.SetOAuthHandoffRepo(oauthhandoffmemory.New())
+	authSvc.SetNativeReturnURIs([]string{nativeReturnURI})
 	opts := connectx.HandlerOptions()
 	_, authHandler := agentsv1connect.NewAuthServiceHandler(authSvc, opts...)
 	_, wsHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceServer(wsRepo), opts...)
@@ -143,6 +193,9 @@ func fixture(ctx context.Context) (http.Handler, error) {
 		agentsv1connect.AuthServiceMeProcedure,
 		agentsv1connect.AuthServiceLogoutProcedure,
 		agentsv1connect.AuthServiceListOAuthProvidersProcedure,
+		agentsv1connect.AuthServiceBeginOAuthFlowProcedure,
+		agentsv1connect.AuthServiceCompleteOAuthFlowProcedure,
+		agentsv1connect.AuthServiceRedeemOAuthHandoffProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", authHandler)))
 	}

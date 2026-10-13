@@ -1834,14 +1834,15 @@ a `state` token that must be passed back to `CompleteOAuthFlow`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `provider` | string | Provider key (e.g. `github`) |
-| `redirect_uri` | string | Client callback URI stored with the OAuth state |
+| `redirect_uri` | string | Client callback URI stored with the OAuth state. Informational only: the provider always returns to its configured `redirect_url`, so this never selects where the browser lands |
+| `native` | NativeOAuthClient | Optional. A native App begins its sign-in here; see [Native App sign-in](#native-app-sign-in) |
 
 **Response:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `authorize_url` | string | Redirect the user here |
-| `state` | string | Opaque state token |
+| `state` | string | Opaque state token (valid for 10 minutes) |
 
 #### CompleteOAuthFlow
 
@@ -1860,6 +1861,51 @@ Public endpoint. Exchanges the provider authorization code for a session, mirror
 | `state` | string | State token from `BeginOAuthFlow` |
 
 **Response:** Same shape as `Login` response (`token`, `user`, `expires_at`, `workspaces`).
+
+For a state begun with `native`, the response carries **no session**: `token`
+is empty and `native_handoff.return_url` is set instead (next section).
+
+#### Native App sign-in
+
+A native App cannot be the provider's callback (the provider returns to one
+fixed, configured `redirect_url`), and a session token must never travel in a
+URL. The App therefore signs in with a PKCE-bound, one-time handoff:
+
+1. The App generates a random `code_verifier` (43–128 characters of
+   `[A-Za-z0-9-._~]`) and calls `BeginOAuthFlow` with
+   `native: { return_uri, code_challenge }`, where `code_challenge` is
+   `base64url(SHA-256(code_verifier))` without padding (RFC 7636 `S256`).
+   `return_uri` must exactly equal one of the server's
+   `auth.native_return_uris`; with an empty list, native sign-in is refused
+   (`invalid_argument`).
+2. The App opens `authorize_url` in the **system browser** (never an embedded
+   web view). The provider returns to the web callback page, which calls
+   `CompleteOAuthFlow`. The server performs the provider exchange and answers
+   `native_handoff.return_url`: the allow-listed `return_uri` plus
+   `handoff` (a random one-time code) and `state` query parameters. The page
+   navigates to it, which opens the App.
+3. The App checks `state` against its pending flow and calls the public
+   `RedeemOAuthHandoff`.
+
+```
+POST /api/agents.v1.AuthService/RedeemOAuthHandoff
+```
+
+| Request field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Provider key used by `BeginOAuthFlow` |
+| `state` | string | State from `BeginOAuthFlow` |
+| `handoff_code` | string | `handoff` from the return URL |
+| `code_verifier` | string | The verifier whose challenge was sent to Begin |
+
+**Response:** Same shape as `Login`. The session is minted only here.
+
+Properties: the handoff is stored hashed, single-use and valid for 2 minutes,
+and bound to its provider and state. A wrong verifier spends it
+(`permission_denied`), so an app that only intercepted the link cannot
+redeem it, and a replay finds nothing; a malformed verifier is rejected
+(`invalid_argument`) without spending it. A user disabled after the browser leg
+is refused at redeem. A web sign-in (no `native`) is unchanged.
 
 ---
 

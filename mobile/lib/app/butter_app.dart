@@ -310,7 +310,80 @@ class _LoginFormState extends State<_LoginForm> {
           ],
         ),
       ),
+      if (widget.client.oauthWaitingFor case final provider?)
+        _OAuthWaiting(client: widget.client, provider: provider)
+      else if (widget.client.oauthProviders.isNotEmpty)
+        _OAuthProviders(client: widget.client),
     ],
+  );
+}
+
+/// Sign-in through a provider's page in the system browser.
+class _OAuthProviders extends StatelessWidget {
+  const _OAuthProviders({required this.client});
+  final ClientContext client;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(),
+        const SizedBox(height: 8),
+        for (final provider in client.oauthProviders)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: OutlinedButton(
+              key: Key('oauth-${provider.name}'),
+              onPressed: client.busy
+                  ? null
+                  : () => client.beginOAuth(provider.name),
+              child: Text(
+                'Continue with ${provider.displayName.isEmpty ? provider.name : provider.displayName}',
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// Shown while the browser leg is open; the App never sees the provider page.
+class _OAuthWaiting extends StatelessWidget {
+  const _OAuthWaiting({required this.client, required this.provider});
+  final ClientContext client;
+  final String provider;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 24),
+    child: Semantics(
+      liveRegion: true,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Finish signing in with $provider in your browser.',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              const Text('Butter opens again when you are done.'),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  key: const Key('oauth-cancel'),
+                  onPressed: client.cancelOAuth,
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 }
 
