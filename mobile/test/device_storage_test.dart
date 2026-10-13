@@ -7,17 +7,24 @@ import 'package:shared_preferences_platform_interface/types.dart';
 // OS plugin boundary, not an application store replacement.
 final class PreferencesPlatform extends SharedPreferencesAsyncPlatform {
   final values = <String, String>{};
+  bool failSave = false;
+  Future<void> Function()? beforeRead;
   @override
   Future<String?> getString(
     String key,
     SharedPreferencesOptions options,
-  ) async => values[key];
+  ) async {
+    await beforeRead?.call();
+    return values[key];
+  }
+
   @override
   Future<void> setString(
     String key,
     String value,
     SharedPreferencesOptions options,
   ) async {
+    if (failSave) throw StateError('OS preferences unavailable');
     values[key] = value;
   }
 

@@ -15,7 +15,7 @@ esac
 flutter pub get --enforce-lockfile
 
 format() {
-  paths=(lib/app lib/core lib/main.dart test)
+  paths=(lib/app lib/core lib/features lib/main.dart test)
   if [[ -d integration_test ]]; then
     paths+=(integration_test)
   fi

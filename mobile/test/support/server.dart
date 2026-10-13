@@ -15,6 +15,7 @@ class TestServer {
   final requests = <({String path, String? token, String? workspace})>[];
   Future<ListAgentsResponse> Function(String, ListAgentsRequest)? agentReply;
   Future<LoginResponse> Function(LoginRequest)? loginReply;
+  Future<bool> Function(HttpRequest, List<int>)? authorizedReply;
   bool expired = false;
   bool denyAgents = false;
   bool denyWorkspaces = false;
@@ -50,6 +51,9 @@ class TestServer {
         write(r, ListOAuthProvidersResponse());
       } else if (token == null || expired) {
         error(r, 401, 'unauthenticated');
+        return;
+      } else if (authorizedReply != null && await authorizedReply!(r, bytes)) {
+        await r.response.close();
         return;
       } else if (path.endsWith('/Me')) {
         final name = token.substring(7);

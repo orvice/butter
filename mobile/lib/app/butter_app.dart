@@ -3,24 +3,33 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'client_context.dart';
+import 'app_preferences.dart';
+import '../core/management_page.dart';
+import '../features/profile/profile_page.dart';
+import '../features/settings/settings_page.dart';
+import '../features/workspaces/workspace_pages.dart';
 
 class ButterApp extends StatefulWidget {
-  const ButterApp({super.key, required this.context});
+  const ButterApp({super.key, required this.context, this.preferences});
   final ClientContext context;
+  final AppPreferences? preferences;
   @override
   State<ButterApp> createState() => _ButterAppState();
 }
 
 class _ButterAppState extends State<ButterApp> with WidgetsBindingObserver {
+  late final _preferences = widget.preferences ?? AppPreferences();
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (widget.preferences == null) unawaited(_preferences.start());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (widget.preferences == null) _preferences.dispose();
     super.dispose();
   }
 
@@ -33,23 +42,28 @@ class _ButterAppState extends State<ButterApp> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Butter Dev',
-    theme: ThemeData(
-      colorSchemeSeed: Colors.amber,
-      brightness: Brightness.light,
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _preferences,
+    builder: (context, _) => MaterialApp(
+      title: 'Butter Dev',
+      themeMode: _preferences.theme,
+      theme: ThemeData(
+        colorSchemeSeed: Colors.amber,
+        brightness: Brightness.light,
+      ),
+      darkTheme: ThemeData(
+        colorSchemeSeed: Colors.amber,
+        brightness: Brightness.dark,
+      ),
+      home: _Home(client: widget.context, preferences: _preferences),
     ),
-    darkTheme: ThemeData(
-      colorSchemeSeed: Colors.amber,
-      brightness: Brightness.dark,
-    ),
-    home: _Home(client: widget.context),
   );
 }
 
 class _Home extends StatelessWidget {
-  const _Home({required this.client});
+  const _Home({required this.client, required this.preferences});
   final ClientContext client;
+  final AppPreferences preferences;
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: client,
@@ -57,10 +71,40 @@ class _Home extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Butter Dev'),
         actions: [
+          IconButton(
+            tooltip: 'Appearance and display',
+            icon: const Icon(
+              Icons.palette,
+              semanticLabel: 'Appearance and display',
+            ),
+            onPressed: preferences.busy
+                ? null
+                : () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SettingsPage(preferences: preferences),
+                    ),
+                  ),
+          ),
+          if (client.user != null)
+            IconButton(
+              tooltip: 'My profile',
+              icon: const Icon(
+                Icons.account_circle,
+                semanticLabel: 'My profile',
+              ),
+              onPressed: client.busy
+                  ? null
+                  : () => openManagementPage(
+                      context,
+                      client,
+                      ProfilePage(client: client),
+                    ),
+            ),
           if (client.address != null)
             IconButton(
               tooltip: 'Change server',
-              icon: const Icon(Icons.settings),
+              icon: const Icon(Icons.settings, semanticLabel: 'Change server'),
               onPressed: client.busy
                   ? null
                   : () async {
@@ -101,7 +145,7 @@ class _Home extends StatelessWidget {
           if (client.address != null)
             IconButton(
               tooltip: 'Sign out',
-              icon: const Icon(Icons.logout),
+              icon: const Icon(Icons.logout, semanticLabel: 'Sign out'),
               onPressed: client.busy ? null : client.logout,
             ),
         ],
@@ -151,7 +195,10 @@ class _Home extends StatelessWidget {
                   client: client,
                 ),
                 ClientStage.workspaces => _Workspaces(client: client),
-                ClientStage.agents => _Agents(client: client),
+                ClientStage.agents => _Agents(
+                  client: client,
+                  showIdentifiers: preferences.showIdentifiers,
+                ),
               },
             ),
           ],
@@ -325,6 +372,17 @@ class _Workspaces extends StatelessWidget {
         'Choose Workspace',
         style: Theme.of(context).textTheme.headlineSmall,
       ),
+      FilledButton.icon(
+        onPressed: client.busy
+            ? null
+            : () => openManagementPage(
+                context,
+                client,
+                WorkspaceFormPage(client: client),
+              ),
+        icon: const Icon(Icons.add),
+        label: const Text('Create Workspace'),
+      ),
       TextButton.icon(
         onPressed: client.busy ? null : client.refreshWorkspaces,
         icon: const Icon(Icons.refresh),
@@ -342,7 +400,16 @@ class _Workspaces extends StatelessWidget {
                 ? workspace.id
                 : workspace.description,
           ),
-          trailing: const Icon(Icons.chevron_right),
+          trailing: IconButton(
+            tooltip: 'Manage ${workspace.name}',
+            icon: Icon(
+              Icons.manage_accounts,
+              semanticLabel: 'Manage ${workspace.name}',
+            ),
+            onPressed: client.busy
+                ? null
+                : () => openWorkspaceDetails(context, client, workspace.id),
+          ),
           onTap: client.busy
               ? null
               : () => client.selectWorkspace(workspace.id),
@@ -352,8 +419,9 @@ class _Workspaces extends StatelessWidget {
 }
 
 class _Agents extends StatelessWidget {
-  const _Agents({required this.client});
+  const _Agents({required this.client, required this.showIdentifiers});
   final ClientContext client;
+  final bool showIdentifiers;
   @override
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.all(16),
@@ -365,6 +433,17 @@ class _Agents extends StatelessWidget {
       Wrap(
         spacing: 12,
         children: [
+          TextButton.icon(
+            onPressed: client.busy
+                ? null
+                : () => openWorkspaceDetails(
+                    context,
+                    client,
+                    client.workspace!.id,
+                  ),
+            icon: const Icon(Icons.manage_accounts),
+            label: const Text('Manage Workspace'),
+          ),
           TextButton.icon(
             onPressed: client.busy ? null : client.refreshWorkspaces,
             icon: const Icon(Icons.swap_horiz),
@@ -386,7 +465,7 @@ class _Agents extends StatelessWidget {
           ),
           subtitle: Text(
             [
-              agent.agentId,
+              if (showIdentifiers) agent.agentId,
               agent.description,
             ].where((s) => s.isNotEmpty).join('\n'),
           ),

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -13,6 +15,7 @@ import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/workspace.connect.client.dart';
 import '../gen/agents/v1/workspace.pb.dart';
 import 'server_address.dart';
+import 'avatar.dart';
 
 /// A disposable request scope. No retry interceptor or shared credentials.
 final class ButterApi {
@@ -89,6 +92,154 @@ final class ButterApi {
     headers: _headers(token),
     signal: _deadline,
   );
+
+  Future<GetWorkspaceResponse> workspace(String token, String id) =>
+      _workspaces.getWorkspace(
+        GetWorkspaceRequest(id: id),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+  Future<ListWorkspaceMembersResponse> members(String token, String id) =>
+      _workspaces.listWorkspaceMembers(
+        ListWorkspaceMembersRequest(workspaceId: id),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+  Future<Workspace> saveWorkspace(String token, Workspace workspace) async {
+    if (workspace.id.isEmpty) {
+      return (await _workspaces.createWorkspace(
+        CreateWorkspaceRequest(workspace: workspace),
+        headers: _headers(token),
+        signal: _deadline,
+      )).workspace;
+    }
+    return (await _workspaces.updateWorkspace(
+      UpdateWorkspaceRequest(workspace: workspace),
+      headers: _headers(token),
+      signal: _deadline,
+    )).workspace;
+  }
+
+  Future<void> deleteWorkspace(String token, String id) =>
+      _workspaces.deleteWorkspace(
+        DeleteWorkspaceRequest(id: id),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+  Future<WorkspaceMember> addMember(
+    String token,
+    String id,
+    String userId,
+    String role,
+  ) async => (await _workspaces.addWorkspaceMember(
+    AddWorkspaceMemberRequest(workspaceId: id, userId: userId, role: role),
+    headers: _headers(token),
+    signal: _deadline,
+  )).member;
+  Future<WorkspaceMember> updateMember(
+    String token,
+    String id,
+    String userId,
+    String role,
+  ) async => (await _workspaces.updateWorkspaceMember(
+    UpdateWorkspaceMemberRequest(workspaceId: id, userId: userId, role: role),
+    headers: _headers(token),
+    signal: _deadline,
+  )).member;
+  Future<void> removeMember(String token, String id, String userId) =>
+      _workspaces.removeWorkspaceMember(
+        RemoveWorkspaceMemberRequest(workspaceId: id, userId: userId),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+
+  Future<UpdateProfileResponse> profile(
+    String token,
+    String name, {
+    String? avatarUrl,
+  }) => _auth.updateProfile(
+    UpdateProfileRequest(displayName: name, avatarUrl: avatarUrl),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+  Future<ChangePasswordResponse> changePassword(
+    String token,
+    String current,
+    String next,
+  ) => _auth.changePassword(
+    ChangePasswordRequest(currentPassword: current, newPassword: next),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+
+  Future<String> uploadAvatar(String token, Uint8List bytes) async {
+    final type = avatarContentType(bytes);
+    final suffix = type.split('/').last == 'jpeg'
+        ? 'jpg'
+        : type.split('/').last;
+    final random = Random.secure();
+    final boundary =
+        'butter-${List.generate(24, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
+    final request = await _client.postUrl(
+      address.endpoint('api/uploads/avatar'),
+    );
+    request.followRedirects = false;
+    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+    request.headers.set(
+      HttpHeaders.contentTypeHeader,
+      'multipart/form-data; boundary=$boundary',
+    );
+    request.add(
+      utf8.encode(
+        '--$boundary\r\nContent-Disposition: form-data; name="file"; filename="avatar.$suffix"\r\nContent-Type: $type\r\n\r\n',
+      ),
+    );
+    request.add(bytes);
+    request.add(utf8.encode('\r\n--$boundary--\r\n'));
+    try {
+      final response = await request.close().timeout(
+        const Duration(seconds: 20),
+      );
+      final body = await response
+          .fold<List<int>>([], (buffer, chunk) {
+            if (buffer.length + chunk.length > 64 * 1024) {
+              throw StateError('Upload reply too large');
+            }
+            return buffer..addAll(chunk);
+          })
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        if (response.statusCode == 413) {
+          throw const FormatException(
+            'The image exceeds the server upload limit. Choose a smaller image.',
+          );
+        }
+        if (response.statusCode == 415) {
+          throw const FormatException('The server rejected this image type.');
+        }
+        final code = switch (response.statusCode) {
+          401 => connect.Code.unauthenticated,
+          403 => connect.Code.permissionDenied,
+          400 => connect.Code.invalidArgument,
+          503 => connect.Code.unavailable,
+          _ => connect.Code.unknown,
+        };
+        throw connect.ConnectException(code, 'Avatar upload failed');
+      }
+      final value = jsonDecode(utf8.decode(body)) as Map<String, dynamic>;
+      final url = value['url'] as String;
+      final uri = Uri.parse(url);
+      if (!['https', 'http'].contains(uri.scheme) ||
+          uri.host.isEmpty ||
+          uri.userInfo.isNotEmpty) {
+        throw StateError('Invalid avatar URL');
+      }
+      return url;
+    } catch (failure) {
+      request.abort();
+      rethrow;
+    }
+  }
 
   // The stock native adapter follows redirects. Explicitly refuse them so an
   // endpoint cannot redirect a credential-bearing request to another address.

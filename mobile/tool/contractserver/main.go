@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/config"
@@ -35,8 +36,8 @@ import (
 	"go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
 
-// Only the auth boundary needed by Login and AuthMiddleware is implemented.
-// Unsupported RPCs are not registered, so the embedded interface is never used.
+// Only the self-service auth boundary is implemented. Global administration
+// RPCs are not registered, so the embedded interface is never used.
 // Session copies keep the middleware's asynchronous TouchSession race-free.
 type authStore struct {
 	auth.Repository
@@ -47,10 +48,46 @@ type authStore struct {
 }
 
 func (s *authStore) FindUserByUsername(_ context.Context, username string) (*agentsv1.User, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if username != s.user.GetUsername() {
 		return nil, "", auth.ErrUserNotFound
 	}
 	return proto.Clone(s.user).(*agentsv1.User), s.hash, nil
+}
+
+func (s *authStore) FindUserByID(_ context.Context, id string) (*agentsv1.User, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id != s.user.GetId() {
+		return nil, "", auth.ErrUserNotFound
+	}
+	return proto.Clone(s.user).(*agentsv1.User), s.hash, nil
+}
+
+func (s *authStore) UpdateUserProfile(_ context.Context, id, name string, avatarURL *string, at time.Time) (*agentsv1.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id != s.user.GetId() {
+		return nil, auth.ErrUserNotFound
+	}
+	s.user.DisplayName = name
+	if avatarURL != nil {
+		s.user.AvatarUrl = *avatarURL
+	}
+	s.user.UpdatedAt = timestamppb.New(at)
+	return proto.Clone(s.user).(*agentsv1.User), nil
+}
+
+func (s *authStore) UpdateUserPassword(_ context.Context, id, hash string, at time.Time) (*agentsv1.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id != s.user.GetId() {
+		return nil, auth.ErrUserNotFound
+	}
+	s.hash = hash
+	s.user.UpdatedAt = timestamppb.New(at)
+	return proto.Clone(s.user).(*agentsv1.User), nil
 }
 
 func (s *authStore) CreateSession(_ context.Context, session *auth.Session) error {
@@ -143,10 +180,26 @@ func fixture(ctx context.Context) (http.Handler, error) {
 		agentsv1connect.AuthServiceMeProcedure,
 		agentsv1connect.AuthServiceLogoutProcedure,
 		agentsv1connect.AuthServiceListOAuthProvidersProcedure,
+		agentsv1connect.AuthServiceUpdateProfileProcedure,
+		agentsv1connect.AuthServiceChangePasswordProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", authHandler)))
 	}
-	r.POST("/api"+agentsv1connect.WorkspaceServiceListWorkspacesProcedure, gin.WrapH(http.StripPrefix("/api", wsHandler)))
+	for _, procedure := range []string{
+		agentsv1connect.WorkspaceServiceListWorkspacesProcedure,
+		agentsv1connect.WorkspaceServiceGetWorkspaceProcedure,
+		agentsv1connect.WorkspaceServiceCreateWorkspaceProcedure,
+		agentsv1connect.WorkspaceServiceUpdateWorkspaceProcedure,
+		agentsv1connect.WorkspaceServiceDeleteWorkspaceProcedure,
+		agentsv1connect.WorkspaceServiceListWorkspaceMembersProcedure,
+		agentsv1connect.WorkspaceServiceAddWorkspaceMemberProcedure,
+		agentsv1connect.WorkspaceServiceUpdateWorkspaceMemberProcedure,
+		agentsv1connect.WorkspaceServiceRemoveWorkspaceMemberProcedure,
+	} {
+		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", wsHandler)))
+	}
+	// Exercise the real REST handler's honest storage-not-configured response.
+	httpHandler.NewUploadHandler(nil).Register(r)
 	r.POST("/api"+agentsv1connect.AgentServiceListAgentsProcedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
 	mux := http.NewServeMux()
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
