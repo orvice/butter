@@ -8,7 +8,7 @@ import "auth.pb.dart" as agentsv1auth;
 import "auth.connect.spec.dart" as specs;
 
 /// AuthService manages dashboard user authentication.
-extension type AuthServiceClient (connect.Transport _transport) {
+extension type AuthServiceClient(connect.Transport _transport) {
   /// Login is public and exchanges username/password for a session token.
   Future<agentsv1auth.LoginResponse> login(
     agentsv1auth.LoginRequest input, {
@@ -221,6 +221,27 @@ extension type AuthServiceClient (connect.Transport _transport) {
   }) {
     return connect.Client(_transport).unary(
       specs.AuthService.completeOAuthFlow,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// RedeemOAuthHandoff is public and completes a native (mobile) OAuth login.
+  /// The browser leg ends with a one-time handoff code delivered to the App's
+  /// return URI; the App proves it began the flow with the PKCE code_verifier
+  /// and receives the session token directly, never through a URL.
+  Future<agentsv1auth.RedeemOAuthHandoffResponse> redeemOAuthHandoff(
+    agentsv1auth.RedeemOAuthHandoffRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.redeemOAuthHandoff,
       input,
       signal: signal,
       headers: headers,

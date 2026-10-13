@@ -1,6 +1,10 @@
 package config
 
 import (
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/achetronic/adk-utils-go/plugin/langfuse"
@@ -271,6 +275,37 @@ type AuthConfig struct {
 	// silently exposing all data.
 	AllowUnauthenticated bool                           `yaml:"allow_unauthenticated"`
 	OAuthProviders       map[string]OAuthProviderConfig `yaml:"oauth_providers"`
+	// NativeReturnURIs is the exact set of return URIs native (mobile) Apps
+	// may use to sign in through an OAuth provider, e.g.
+	// "ee.orz.butter:/oauth/callback". Empty (the default) disables native
+	// OAuth sign-in; web sign-in is unaffected. Entries must be absolute URIs
+	// without userinfo, query or fragment; invalid entries are ignored.
+	NativeReturnURIs []string `yaml:"native_return_uris"`
+}
+
+// ValidNativeReturnURI reports why uri cannot be an allow-listed native
+// return URI, or nil. The check is deliberately strict: the server appends
+// its own query, and a return URI is where a one-time handoff code is sent.
+func ValidNativeReturnURI(uri string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return fmt.Errorf("invalid URI: %w", err)
+	}
+	switch {
+	case u.Scheme == "":
+		return errors.New("must be an absolute URI with a scheme")
+	case u.User != nil:
+		return errors.New("must not contain userinfo")
+	case u.RawQuery != "" || u.ForceQuery:
+		return errors.New("must not contain a query")
+	case u.Fragment != "" || strings.Contains(uri, "#"):
+		return errors.New("must not contain a fragment")
+	case u.Opaque != "":
+		return errors.New("must have a path, as in scheme:/path")
+	case (u.Scheme == "http" || u.Scheme == "https") && u.Host == "":
+		return errors.New("an http(s) URI needs a host")
+	}
+	return nil
 }
 
 // OAuthProviderConfig holds the client credentials and OAuth endpoints for a

@@ -35,6 +35,12 @@ auth:
   #     redirect_url: "https://dashboard.example.com/auth/oauth/callback/google"
   #     scopes: ["openid", "email", "profile"]
   #     display_name: "Google"
+  # Return URIs a native App (the Flutter client) may be sent back to after
+  # OAuth sign-in. Exact match only; empty (the default) disables native
+  # sign-in. The App's registered scheme must be listed here, for example the
+  # development scheme of mobile/. Pick your release scheme before shipping.
+  native_return_uris: []
+  #   - "ee.orz.butter:/oauth/callback"
 
 # MongoDB for ADK session persistence, dashboard users, and runtime repositories
 mongo_uri: "mongodb://localhost:27017"

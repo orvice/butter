@@ -38,6 +38,11 @@ service AuthService {
   // CompleteOAuthFlow is public and exchanges the provider's authorization
   // code for a session token. The response mirrors LoginResponse.
   rpc CompleteOAuthFlow(CompleteOAuthFlowRequest) returns (CompleteOAuthFlowResponse);
+  // RedeemOAuthHandoff is public and completes a native (mobile) OAuth login.
+  // The browser leg ends with a one-time handoff code delivered to the App's
+  // return URI; the App proves it began the flow with the PKCE code_verifier
+  // and receives the session token directly, never through a URL.
+  rpc RedeemOAuthHandoff(RedeemOAuthHandoffRequest) returns (RedeemOAuthHandoffResponse);
 }
 
 message User {
@@ -166,6 +171,21 @@ message BeginOAuthFlowRequest {
   // Where the browser should land after a successful login. The backend
   // returns this as part of the state so CompleteOAuthFlow can echo it back.
   string redirect_uri = 2;
+  // Set by native (mobile) clients. The provider still returns to the
+  // server's fixed callback; this makes the callback hand the browser back to
+  // the App instead of logging the browser in. Rejected unless the server
+  // lists native.return_uri in auth.native_return_uris.
+  NativeOAuthClient native = 3;
+}
+
+// NativeOAuthClient binds one OAuth flow to a native App.
+message NativeOAuthClient {
+  // The App's return URI. Must exactly match an entry of the server's
+  // auth.native_return_uris allow-list.
+  string return_uri = 1 [(validate.rules).string.min_len = 1];
+  // PKCE (RFC 7636) S256 challenge: base64url(sha256(code_verifier)) without
+  // padding. The matching verifier never leaves the App until redemption.
+  string code_challenge = 2 [(validate.rules).string = {len: 43}];
 }
 
 message BeginOAuthFlowResponse {
@@ -182,6 +202,32 @@ message CompleteOAuthFlowRequest {
 // CompleteOAuthFlowResponse mirrors LoginResponse — duplicated rather than
 // shared so each RPC has a dedicated response type (buf STANDARD lint).
 message CompleteOAuthFlowResponse {
+  string token = 1;
+  User user = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  repeated Workspace workspaces = 4;
+  // Set instead of token/user/workspaces when the flow began with a native
+  // client: the browser must navigate to native_handoff.return_url.
+  NativeOAuthHandoff native_handoff = 5;
+}
+
+// NativeOAuthHandoff tells the browser where to send the user back to the App.
+message NativeOAuthHandoff {
+  // The allow-listed return URI with a one-time `handoff` code and the flow's
+  // `state` appended as query parameters. Contains no session token.
+  string return_url = 1;
+}
+
+message RedeemOAuthHandoffRequest {
+  string provider = 1 [(validate.rules).string.min_len = 1];
+  string state = 2 [(validate.rules).string.min_len = 1];
+  string handoff_code = 3 [(validate.rules).string.min_len = 1];
+  // PKCE code_verifier (RFC 7636: 43-128 unreserved characters).
+  string code_verifier = 4 [(validate.rules).string = {min_len: 43, max_len: 128}];
+}
+
+// RedeemOAuthHandoffResponse mirrors LoginResponse.
+message RedeemOAuthHandoffResponse {
   string token = 1;
   User user = 2;
   google.protobuf.Timestamp expires_at = 3;

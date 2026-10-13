@@ -76,7 +76,14 @@ export interface BeginOAuthFlowResponse {
   state: string;
 }
 
-export type CompleteOAuthFlowResponse = LoginResponse;
+export type CompleteOAuthFlowResponse = LoginResponse & {
+  /**
+   * Set instead of a session when a native App began the flow: the browser
+   * must navigate here to return to the App. Carries a one-time handoff code,
+   * never a session token.
+   */
+  nativeReturnUrl?: string;
+};
 
 const client = makeClient(AuthService);
 
@@ -125,7 +132,11 @@ export async function completeOAuthFlow(
   code: string,
   state: string,
 ): Promise<CompleteOAuthFlowResponse> {
-  return toLoginResponse(await client.completeOAuthFlow({ provider, code, state }));
+  const res = await client.completeOAuthFlow({ provider, code, state });
+  return {
+    ...toLoginResponse(res),
+    nativeReturnUrl: res.nativeHandoff?.returnUrl || undefined,
+  };
 }
 
 export async function me(): Promise<{ user?: AuthUser }> {

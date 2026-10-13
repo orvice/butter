@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/auth.proto.
  */
 export const file_agents_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIoQCCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmF2YXRhcl91cmwYCCABKAkSDQoFZW1haWwYCSABKAkSEAoIcHJvdmlkZXIYCiABKAkSEwoLZXh0ZXJuYWxfaWQYCyABKAkiRAoMTG9naW5SZXF1ZXN0EhkKCHVzZXJuYW1lGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIpcBCg1Mb2dpblJlc3BvbnNlEg0KBXRva2VuGAEgASgJEh0KBHVzZXIYAiABKAsyDy5hZ2VudHMudjEuVXNlchIuCgpleHBpcmVzX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgp3b3Jrc3BhY2VzGAQgAygLMhQuYWdlbnRzLnYxLldvcmtzcGFjZSILCglNZVJlcXVlc3QiKwoKTWVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSISChBMaXN0VXNlcnNSZXF1ZXN0IjMKEUxpc3RVc2Vyc1Jlc3BvbnNlEh4KBXVzZXJzGAEgAygLMg8uYWdlbnRzLnYxLlVzZXIifwoRQ3JlYXRlVXNlclJlcXVlc3QSGQoIdXNlcm5hbWUYASABKAlCB/pCBHICEAESGQoIcGFzc3dvcmQYAiABKAlCB/pCBHICEAESFAoMZGlzcGxheV9uYW1lGAMgASgJEgwKBHJvbGUYBCABKAkSEAoIZGlzYWJsZWQYBSABKAgiMwoSQ3JlYXRlVXNlclJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJLChlVcGRhdGVVc2VyUGFzc3dvcmRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIjsKGlVwZGF0ZVVzZXJQYXNzd29yZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciI/ChZTZXRVc2VyRGlzYWJsZWRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhAKCGRpc2FibGVkGAIgASgIIjgKF1NldFVzZXJEaXNhYmxlZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJdChRVcGRhdGVQcm9maWxlUmVxdWVzdBIdCgxkaXNwbGF5X25hbWUYASABKAlCB/pCBHICEAESFwoKYXZhdGFyX3VybBgCIAEoCUgAiAEBQg0KC19hdmF0YXJfdXJsIjYKFVVwZGF0ZVByb2ZpbGVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiWQoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EiEKEGN1cnJlbnRfcGFzc3dvcmQYASABKAlCB/pCBHICEAESHQoMbmV3X3Bhc3N3b3JkGAIgASgJQgf6QgRyAhABIjcKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USHQoEdXNlchgBIAEoCzIPLmFnZW50cy52MS5Vc2VyIjMKDU9BdXRoUHJvdmlkZXISDAoEbmFtZRgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkiGwoZTGlzdE9BdXRoUHJvdmlkZXJzUmVxdWVzdCJJChpMaXN0T0F1dGhQcm92aWRlcnNSZXNwb25zZRIrCglwcm92aWRlcnMYASADKAsyGC5hZ2VudHMudjEuT0F1dGhQcm92aWRlciJIChVCZWdpbk9BdXRoRmxvd1JlcXVlc3QSGQoIcHJvdmlkZXIYASABKAlCB/pCBHICEAESFAoMcmVkaXJlY3RfdXJpGAIgASgJIj4KFkJlZ2luT0F1dGhGbG93UmVzcG9uc2USFQoNYXV0aG9yaXplX3VybBgBIAEoCRINCgVzdGF0ZRgCIAEoCSJkChhDb21wbGV0ZU9BdXRoRmxvd1JlcXVlc3QSGQoIcHJvdmlkZXIYASABKAlCB/pCBHICEAESFQoEY29kZRgCIAEoCUIH+kIEcgIQARIWCgVzdGF0ZRgDIAEoCUIH+kIEcgIQASKjAQoZQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRINCgV0b2tlbhgBIAEoCRIdCgR1c2VyGAIgASgLMg8uYWdlbnRzLnYxLlVzZXISLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKAoKd29ya3NwYWNlcxgEIAMoCzIULmFnZW50cy52MS5Xb3Jrc3BhY2Uy0AcKC0F1dGhTZXJ2aWNlEjoKBUxvZ2luEhcuYWdlbnRzLnYxLkxvZ2luUmVxdWVzdBoYLmFnZW50cy52MS5Mb2dpblJlc3BvbnNlEjEKAk1lEhQuYWdlbnRzLnYxLk1lUmVxdWVzdBoVLmFnZW50cy52MS5NZVJlc3BvbnNlEj0KBkxvZ291dBIYLmFnZW50cy52MS5Mb2dvdXRSZXF1ZXN0GhkuYWdlbnRzLnYxLkxvZ291dFJlc3BvbnNlEkYKCUxpc3RVc2VycxIbLmFnZW50cy52MS5MaXN0VXNlcnNSZXF1ZXN0GhwuYWdlbnRzLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlEkkKCkNyZWF0ZVVzZXISHC5hZ2VudHMudjEuQ3JlYXRlVXNlclJlcXVlc3QaHS5hZ2VudHMudjEuQ3JlYXRlVXNlclJlc3BvbnNlEmEKElVwZGF0ZVVzZXJQYXNzd29yZBIkLmFnZW50cy52MS5VcGRhdGVVc2VyUGFzc3dvcmRSZXF1ZXN0GiUuYWdlbnRzLnYxLlVwZGF0ZVVzZXJQYXNzd29yZFJlc3BvbnNlElgKD1NldFVzZXJEaXNhYmxlZBIhLmFnZW50cy52MS5TZXRVc2VyRGlzYWJsZWRSZXF1ZXN0GiIuYWdlbnRzLnYxLlNldFVzZXJEaXNhYmxlZFJlc3BvbnNlElIKDVVwZGF0ZVByb2ZpbGUSHy5hZ2VudHMudjEuVXBkYXRlUHJvZmlsZVJlcXVlc3QaIC5hZ2VudHMudjEuVXBkYXRlUHJvZmlsZVJlc3BvbnNlElUKDkNoYW5nZVBhc3N3b3JkEiAuYWdlbnRzLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBohLmFnZW50cy52MS5DaGFuZ2VQYXNzd29yZFJlc3BvbnNlEmEKEkxpc3RPQXV0aFByb3ZpZGVycxIkLmFnZW50cy52MS5MaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0GiUuYWdlbnRzLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlElUKDkJlZ2luT0F1dGhGbG93EiAuYWdlbnRzLnYxLkJlZ2luT0F1dGhGbG93UmVxdWVzdBohLmFnZW50cy52MS5CZWdpbk9BdXRoRmxvd1Jlc3BvbnNlEl4KEUNvbXBsZXRlT0F1dGhGbG93EiMuYWdlbnRzLnYxLkNvbXBsZXRlT0F1dGhGbG93UmVxdWVzdBokLmFnZW50cy52MS5Db21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_agents_v1_workspace, file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChRhZ2VudHMvdjEvYXV0aC5wcm90bxIJYWdlbnRzLnYxIoQCCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRIMCgRyb2xlGAQgASgJEhAKCGRpc2FibGVkGAUgASgIEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmF2YXRhcl91cmwYCCABKAkSDQoFZW1haWwYCSABKAkSEAoIcHJvdmlkZXIYCiABKAkSEwoLZXh0ZXJuYWxfaWQYCyABKAkiRAoMTG9naW5SZXF1ZXN0EhkKCHVzZXJuYW1lGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIpcBCg1Mb2dpblJlc3BvbnNlEg0KBXRva2VuGAEgASgJEh0KBHVzZXIYAiABKAsyDy5hZ2VudHMudjEuVXNlchIuCgpleHBpcmVzX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgp3b3Jrc3BhY2VzGAQgAygLMhQuYWdlbnRzLnYxLldvcmtzcGFjZSILCglNZVJlcXVlc3QiKwoKTWVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSISChBMaXN0VXNlcnNSZXF1ZXN0IjMKEUxpc3RVc2Vyc1Jlc3BvbnNlEh4KBXVzZXJzGAEgAygLMg8uYWdlbnRzLnYxLlVzZXIifwoRQ3JlYXRlVXNlclJlcXVlc3QSGQoIdXNlcm5hbWUYASABKAlCB/pCBHICEAESGQoIcGFzc3dvcmQYAiABKAlCB/pCBHICEAESFAoMZGlzcGxheV9uYW1lGAMgASgJEgwKBHJvbGUYBCABKAkSEAoIZGlzYWJsZWQYBSABKAgiMwoSQ3JlYXRlVXNlclJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJLChlVcGRhdGVVc2VyUGFzc3dvcmRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhkKCHBhc3N3b3JkGAIgASgJQgf6QgRyAhABIjsKGlVwZGF0ZVVzZXJQYXNzd29yZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciI/ChZTZXRVc2VyRGlzYWJsZWRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABEhAKCGRpc2FibGVkGAIgASgIIjgKF1NldFVzZXJEaXNhYmxlZFJlc3BvbnNlEh0KBHVzZXIYASABKAsyDy5hZ2VudHMudjEuVXNlciJdChRVcGRhdGVQcm9maWxlUmVxdWVzdBIdCgxkaXNwbGF5X25hbWUYASABKAlCB/pCBHICEAESFwoKYXZhdGFyX3VybBgCIAEoCUgAiAEBQg0KC19hdmF0YXJfdXJsIjYKFVVwZGF0ZVByb2ZpbGVSZXNwb25zZRIdCgR1c2VyGAEgASgLMg8uYWdlbnRzLnYxLlVzZXIiWQoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EiEKEGN1cnJlbnRfcGFzc3dvcmQYASABKAlCB/pCBHICEAESHQoMbmV3X3Bhc3N3b3JkGAIgASgJQgf6QgRyAhABIjcKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USHQoEdXNlchgBIAEoCzIPLmFnZW50cy52MS5Vc2VyIjMKDU9BdXRoUHJvdmlkZXISDAoEbmFtZRgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkiGwoZTGlzdE9BdXRoUHJvdmlkZXJzUmVxdWVzdCJJChpMaXN0T0F1dGhQcm92aWRlcnNSZXNwb25zZRIrCglwcm92aWRlcnMYASADKAsyGC5hZ2VudHMudjEuT0F1dGhQcm92aWRlciJ2ChVCZWdpbk9BdXRoRmxvd1JlcXVlc3QSGQoIcHJvdmlkZXIYASABKAlCB/pCBHICEAESFAoMcmVkaXJlY3RfdXJpGAIgASgJEiwKBm5hdGl2ZRgDIAEoCzIcLmFnZW50cy52MS5OYXRpdmVPQXV0aENsaWVudCJSChFOYXRpdmVPQXV0aENsaWVudBIbCgpyZXR1cm5fdXJpGAEgASgJQgf6QgRyAhABEiAKDmNvZGVfY2hhbGxlbmdlGAIgASgJQgj6QgVyA5gBKyI+ChZCZWdpbk9BdXRoRmxvd1Jlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkSDQoFc3RhdGUYAiABKAkiZAoYQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0EhkKCHByb3ZpZGVyGAEgASgJQgf6QgRyAhABEhUKBGNvZGUYAiABKAlCB/pCBHICEAESFgoFc3RhdGUYAyABKAlCB/pCBHICEAEi2gEKGUNvbXBsZXRlT0F1dGhGbG93UmVzcG9uc2USDQoFdG9rZW4YASABKAkSHQoEdXNlchgCIAEoCzIPLmFnZW50cy52MS5Vc2VyEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKCndvcmtzcGFjZXMYBCADKAsyFC5hZ2VudHMudjEuV29ya3NwYWNlEjUKDm5hdGl2ZV9oYW5kb2ZmGAUgASgLMh0uYWdlbnRzLnYxLk5hdGl2ZU9BdXRoSGFuZG9mZiIoChJOYXRpdmVPQXV0aEhhbmRvZmYSEgoKcmV0dXJuX3VybBgBIAEoCSKQAQoZUmVkZWVtT0F1dGhIYW5kb2ZmUmVxdWVzdBIZCghwcm92aWRlchgBIAEoCUIH+kIEcgIQARIWCgVzdGF0ZRgCIAEoCUIH+kIEcgIQARIdCgxoYW5kb2ZmX2NvZGUYAyABKAlCB/pCBHICEAESIQoNY29kZV92ZXJpZmllchgEIAEoCUIK+kIHcgUQKxiAASKkAQoaUmVkZWVtT0F1dGhIYW5kb2ZmUmVzcG9uc2USDQoFdG9rZW4YASABKAkSHQoEdXNlchgCIAEoCzIPLmFnZW50cy52MS5Vc2VyEi4KCmV4cGlyZXNfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKCndvcmtzcGFjZXMYBCADKAsyFC5hZ2VudHMudjEuV29ya3NwYWNlMrMICgtBdXRoU2VydmljZRI6CgVMb2dpbhIXLmFnZW50cy52MS5Mb2dpblJlcXVlc3QaGC5hZ2VudHMudjEuTG9naW5SZXNwb25zZRIxCgJNZRIULmFnZW50cy52MS5NZVJlcXVlc3QaFS5hZ2VudHMudjEuTWVSZXNwb25zZRI9CgZMb2dvdXQSGC5hZ2VudHMudjEuTG9nb3V0UmVxdWVzdBoZLmFnZW50cy52MS5Mb2dvdXRSZXNwb25zZRJGCglMaXN0VXNlcnMSGy5hZ2VudHMudjEuTGlzdFVzZXJzUmVxdWVzdBocLmFnZW50cy52MS5MaXN0VXNlcnNSZXNwb25zZRJJCgpDcmVhdGVVc2VyEhwuYWdlbnRzLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0Gh0uYWdlbnRzLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJhChJVcGRhdGVVc2VyUGFzc3dvcmQSJC5hZ2VudHMudjEuVXBkYXRlVXNlclBhc3N3b3JkUmVxdWVzdBolLmFnZW50cy52MS5VcGRhdGVVc2VyUGFzc3dvcmRSZXNwb25zZRJYCg9TZXRVc2VyRGlzYWJsZWQSIS5hZ2VudHMudjEuU2V0VXNlckRpc2FibGVkUmVxdWVzdBoiLmFnZW50cy52MS5TZXRVc2VyRGlzYWJsZWRSZXNwb25zZRJSCg1VcGRhdGVQcm9maWxlEh8uYWdlbnRzLnYxLlVwZGF0ZVByb2ZpbGVSZXF1ZXN0GiAuYWdlbnRzLnYxLlVwZGF0ZVByb2ZpbGVSZXNwb25zZRJVCg5DaGFuZ2VQYXNzd29yZBIgLmFnZW50cy52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaIS5hZ2VudHMudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJhChJMaXN0T0F1dGhQcm92aWRlcnMSJC5hZ2VudHMudjEuTGlzdE9BdXRoUHJvdmlkZXJzUmVxdWVzdBolLmFnZW50cy52MS5MaXN0T0F1dGhQcm92aWRlcnNSZXNwb25zZRJVCg5CZWdpbk9BdXRoRmxvdxIgLmFnZW50cy52MS5CZWdpbk9BdXRoRmxvd1JlcXVlc3QaIS5hZ2VudHMudjEuQmVnaW5PQXV0aEZsb3dSZXNwb25zZRJeChFDb21wbGV0ZU9BdXRoRmxvdxIjLmFnZW50cy52MS5Db21wbGV0ZU9BdXRoRmxvd1JlcXVlc3QaJC5hZ2VudHMudjEuQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRJhChJSZWRlZW1PQXV0aEhhbmRvZmYSJC5hZ2VudHMudjEuUmVkZWVtT0F1dGhIYW5kb2ZmUmVxdWVzdBolLmFnZW50cy52MS5SZWRlZW1PQXV0aEhhbmRvZmZSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_agents_v1_workspace, file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * @generated from message agents.v1.User
@@ -537,6 +537,16 @@ export type BeginOAuthFlowRequest = Message<"agents.v1.BeginOAuthFlowRequest"> &
    * @generated from field: string redirect_uri = 2;
    */
   redirectUri: string;
+
+  /**
+   * Set by native (mobile) clients. The provider still returns to the
+   * server's fixed callback; this makes the callback hand the browser back to
+   * the App instead of logging the browser in. Rejected unless the server
+   * lists native.return_uri in auth.native_return_uris.
+   *
+   * @generated from field: agents.v1.NativeOAuthClient native = 3;
+   */
+  native?: NativeOAuthClient;
 };
 
 /**
@@ -545,6 +555,36 @@ export type BeginOAuthFlowRequest = Message<"agents.v1.BeginOAuthFlowRequest"> &
  */
 export const BeginOAuthFlowRequestSchema: GenMessage<BeginOAuthFlowRequest> = /*@__PURE__*/
   messageDesc(file_agents_v1_auth, 22);
+
+/**
+ * NativeOAuthClient binds one OAuth flow to a native App.
+ *
+ * @generated from message agents.v1.NativeOAuthClient
+ */
+export type NativeOAuthClient = Message<"agents.v1.NativeOAuthClient"> & {
+  /**
+   * The App's return URI. Must exactly match an entry of the server's
+   * auth.native_return_uris allow-list.
+   *
+   * @generated from field: string return_uri = 1;
+   */
+  returnUri: string;
+
+  /**
+   * PKCE (RFC 7636) S256 challenge: base64url(sha256(code_verifier)) without
+   * padding. The matching verifier never leaves the App until redemption.
+   *
+   * @generated from field: string code_challenge = 2;
+   */
+  codeChallenge: string;
+};
+
+/**
+ * Describes the message agents.v1.NativeOAuthClient.
+ * Use `create(NativeOAuthClientSchema)` to create a new message.
+ */
+export const NativeOAuthClientSchema: GenMessage<NativeOAuthClient> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 23);
 
 /**
  * @generated from message agents.v1.BeginOAuthFlowResponse
@@ -566,7 +606,7 @@ export type BeginOAuthFlowResponse = Message<"agents.v1.BeginOAuthFlowResponse">
  * Use `create(BeginOAuthFlowResponseSchema)` to create a new message.
  */
 export const BeginOAuthFlowResponseSchema: GenMessage<BeginOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_auth, 23);
+  messageDesc(file_agents_v1_auth, 24);
 
 /**
  * @generated from message agents.v1.CompleteOAuthFlowRequest
@@ -593,7 +633,7 @@ export type CompleteOAuthFlowRequest = Message<"agents.v1.CompleteOAuthFlowReque
  * Use `create(CompleteOAuthFlowRequestSchema)` to create a new message.
  */
 export const CompleteOAuthFlowRequestSchema: GenMessage<CompleteOAuthFlowRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_auth, 24);
+  messageDesc(file_agents_v1_auth, 25);
 
 /**
  * CompleteOAuthFlowResponse mirrors LoginResponse — duplicated rather than
@@ -621,6 +661,14 @@ export type CompleteOAuthFlowResponse = Message<"agents.v1.CompleteOAuthFlowResp
    * @generated from field: repeated agents.v1.Workspace workspaces = 4;
    */
   workspaces: Workspace[];
+
+  /**
+   * Set instead of token/user/workspaces when the flow began with a native
+   * client: the browser must navigate to native_handoff.return_url.
+   *
+   * @generated from field: agents.v1.NativeOAuthHandoff native_handoff = 5;
+   */
+  nativeHandoff?: NativeOAuthHandoff;
 };
 
 /**
@@ -628,7 +676,97 @@ export type CompleteOAuthFlowResponse = Message<"agents.v1.CompleteOAuthFlowResp
  * Use `create(CompleteOAuthFlowResponseSchema)` to create a new message.
  */
 export const CompleteOAuthFlowResponseSchema: GenMessage<CompleteOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_auth, 25);
+  messageDesc(file_agents_v1_auth, 26);
+
+/**
+ * NativeOAuthHandoff tells the browser where to send the user back to the App.
+ *
+ * @generated from message agents.v1.NativeOAuthHandoff
+ */
+export type NativeOAuthHandoff = Message<"agents.v1.NativeOAuthHandoff"> & {
+  /**
+   * The allow-listed return URI with a one-time `handoff` code and the flow's
+   * `state` appended as query parameters. Contains no session token.
+   *
+   * @generated from field: string return_url = 1;
+   */
+  returnUrl: string;
+};
+
+/**
+ * Describes the message agents.v1.NativeOAuthHandoff.
+ * Use `create(NativeOAuthHandoffSchema)` to create a new message.
+ */
+export const NativeOAuthHandoffSchema: GenMessage<NativeOAuthHandoff> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 27);
+
+/**
+ * @generated from message agents.v1.RedeemOAuthHandoffRequest
+ */
+export type RedeemOAuthHandoffRequest = Message<"agents.v1.RedeemOAuthHandoffRequest"> & {
+  /**
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+
+  /**
+   * @generated from field: string state = 2;
+   */
+  state: string;
+
+  /**
+   * @generated from field: string handoff_code = 3;
+   */
+  handoffCode: string;
+
+  /**
+   * PKCE code_verifier (RFC 7636: 43-128 unreserved characters).
+   *
+   * @generated from field: string code_verifier = 4;
+   */
+  codeVerifier: string;
+};
+
+/**
+ * Describes the message agents.v1.RedeemOAuthHandoffRequest.
+ * Use `create(RedeemOAuthHandoffRequestSchema)` to create a new message.
+ */
+export const RedeemOAuthHandoffRequestSchema: GenMessage<RedeemOAuthHandoffRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 28);
+
+/**
+ * RedeemOAuthHandoffResponse mirrors LoginResponse.
+ *
+ * @generated from message agents.v1.RedeemOAuthHandoffResponse
+ */
+export type RedeemOAuthHandoffResponse = Message<"agents.v1.RedeemOAuthHandoffResponse"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: agents.v1.User user = 2;
+   */
+  user?: User;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 3;
+   */
+  expiresAt?: Timestamp;
+
+  /**
+   * @generated from field: repeated agents.v1.Workspace workspaces = 4;
+   */
+  workspaces: Workspace[];
+};
+
+/**
+ * Describes the message agents.v1.RedeemOAuthHandoffResponse.
+ * Use `create(RedeemOAuthHandoffResponseSchema)` to create a new message.
+ */
+export const RedeemOAuthHandoffResponseSchema: GenMessage<RedeemOAuthHandoffResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_auth, 29);
 
 /**
  * AuthService manages dashboard user authentication.
@@ -759,6 +897,19 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof CompleteOAuthFlowRequestSchema;
     output: typeof CompleteOAuthFlowResponseSchema;
+  },
+  /**
+   * RedeemOAuthHandoff is public and completes a native (mobile) OAuth login.
+   * The browser leg ends with a one-time handoff code delivered to the App's
+   * return URI; the App proves it began the flow with the PKCE code_verifier
+   * and receives the session token directly, never through a URL.
+   *
+   * @generated from rpc agents.v1.AuthService.RedeemOAuthHandoff
+   */
+  redeemOAuthHandoff: {
+    methodKind: "unary";
+    input: typeof RedeemOAuthHandoffRequestSchema;
+    output: typeof RedeemOAuthHandoffResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_auth, 0);

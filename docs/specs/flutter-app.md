@@ -161,6 +161,8 @@
 
 `AuthService.BeginOAuthFlow` 存储 `redirect_uri`，但当前 Provider 的 authorize/code exchange 使用配置的固定 RedirectURL；不能假设其支持任意 App deep link。需验证当前 Web callback 与原生回跳可如何安全衔接，明确 code 的兑换方、state 校验、防重放、取消、超时和允许地址。
 
+**验证结果与实现（#448）**：已确认 `redirect_uri` 仅存储、不被使用，Provider 始终回到配置的固定 Web callback。采用 PKCE 绑定的一次性 handoff：`BeginOAuthFlow(native{return_uri, code_challenge})` → 系统浏览器 → Web callback 页调用 `CompleteOAuthFlow`，服务端完成 code 兑换并返回 `native_handoff.return_url`（不含会话）→ 回跳 App → `RedeemOAuthHandoff(…, code_verifier)` 才签发会话。回跳地址须精确匹配服务端 `auth.native_return_uris`（默认空即关闭）；handoff 哈希存储、单次使用、2 分钟 TTL、绑定 provider 与 state。详见 `docs/api.md` “Native App sign-in”。回跳 scheme `ee.orz.butter` 为开发值；iOS 与真机验收尚未执行，因此 OAuth 验收仍不得标记完成。
+
 MCP OAuth 与 Linear 安装是不同授权流程，各自复用服务端回调和凭证管理；不得拿用户登录 OAuth 的设计直接套用。浏览器返回 App 后重新读取安装/授权状态。未解决登录回跳前不得标记 OAuth 验收完成。
 
 ## 7. 仓库与模块边界（提案）
