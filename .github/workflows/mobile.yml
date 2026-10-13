@@ -90,7 +90,7 @@ jobs:
       - name: Locked dependencies
         run: flutter pub get --enforce-lockfile
       - name: Build development APK (HTTPS by default)
-        run: flutter build apk --debug --no-pub
+        run: flutter build apk --debug --no-pub --verbose
 
   ios:
     name: Mobile / iOS unsigned simulator build
