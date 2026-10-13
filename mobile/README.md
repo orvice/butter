@@ -1,6 +1,6 @@
-# Butter mobile — development client (#447, #449)
+# Butter mobile — development client (#447, #448, #449)
 
-Independent Android/iOS Flutter app: configure **one** Butter address → password sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password and device appearance settings are available too. This is not the complete Flutter product. There are no global administration, OAuth sign-in, chat, Skills management or server-list screens.
+Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password and device appearance settings are available too. This is not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
 
 ## Develop
 
@@ -37,6 +37,15 @@ flutter build ios --simulator --debug --no-codesign
 - Generated protobuf messages remain intact in memory: optional absence/explicit zero and unknown fields survive list decoding. This ticket does not write Agent configuration. Future editing must prove enum/optional/oneof/int64/bytes round-trips before offering save; retaining unknown bytes alone is not proof that a form handles future enum values safely.
 - One request scope is disposable. Switching server, account or Workspace closes its HTTP client and increments a generation. Late responses cannot restore old identities or lists. Secure-store writes/deletes are serialized, including writes that outlive a cancelled login. Entering the background closes observation/request scope; foreground recovery performs reads only, never repeats Login or side effects.
 - No automatic retries, refresh tokens, root/API-token login or persistent Agent cache. 401/Unauthenticated clears sensitive state and secure credentials; 403 remains a permission error. Logout clears locally first and explicitly reports unconfirmed remote revocation. Storage failures remain visible and fail closed; if the OS refuses deletion, the app cannot honestly promise that the OS record was erased.
+
+## OAuth sign-in (#448)
+
+The provider only ever returns to the server's one configured `redirect_url`, which is a web page, so the App cannot be the callback and `BeginOAuthFlow.redirect_uri` is not honored. The App uses a PKCE-bound one-time handoff (`docs/api.md` § Native App sign-in): `BeginOAuthFlow(native{return_uri, code_challenge})` → system browser (`url_launcher`, external application; only `http(s)` URLs are opened) → the web callback page → `ee.orz.butter:/oauth/callback?handoff=…&state=…` → `RedeemOAuthHandoff(…, code_verifier)`. The session token never appears in a URL; the handoff is single-use, expires in 2 minutes and is useless without the verifier that never left the App.
+
+- The pending flow (server, provider, state, verifier, start time) lives in secure storage so it survives the OS killing the App during the browser leg, and expires after 10 minutes. Cancel, a timeout, a stray link with another state or path, a duplicate callback and a late response from a replaced flow all leave the user signed out with a clear message and never repeat a side-effecting call.
+- Links arrive through `app_links` (its stream includes the cold-start link). Flutter's own deep-link routing is disabled in the Android manifest and iOS `Info.plist`, so the scheme reaches only this handler.
+- **Operator step:** the server must list the return URI in `auth.native_return_uris` (exact match). The default is empty, which disables native sign-in; the App then reports that this server does not support it. `ee.orz.butter` is a **development** scheme, not an approved release identifier. A custom scheme can be claimed by another installed app, which is why PKCE binds redemption to this App instance; choose the release scheme (or verified App/Universal Links) with the other release decisions above.
+- Not exercised here: iOS builds and real-device browser round trips (this Linux environment has neither). The Go↔Dart contract test (`test/native_oauth_contract_test.dart`) drives the real handlers with a fake provider only.
 
 ## Credential boundary
 
@@ -90,7 +99,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Native OAuth return/exchange is not implemented. The existing provider uses configured fixed callbacks; no arbitrary deep link or token-in-URL mechanism is assumed. See the proposed root ADR-0017/spec for the separate security review.
 - Connect streaming, AG-UI/SSE, Detached Run/A2UI and complex Agent configuration writes are not validated by these tickets. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
-- No refresh mechanism exists on the server. Reauthentication is password login, not invented refresh-token rotation.
+- No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.

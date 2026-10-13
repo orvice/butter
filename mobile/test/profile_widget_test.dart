@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
-import 'client_context_test.dart' show MemoryStorage;
+import 'support/memory_storage.dart';
 import 'management_widget_test.dart' show tapRequest;
 import 'support/management_server.dart';
 

@@ -5,7 +5,7 @@ import 'package:butter_mobile/app/client_context.dart';
 import 'package:butter_mobile/gen/agents/v1/workspace.pb.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'client_context_test.dart' show MemoryStorage;
+import 'support/memory_storage.dart';
 import 'support/management_server.dart';
 
 void main() {

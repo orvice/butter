@@ -1533,10 +1533,12 @@ class BeginOAuthFlowRequest extends $pb.GeneratedMessage {
   factory BeginOAuthFlowRequest({
     $core.String? provider,
     $core.String? redirectUri,
+    NativeOAuthClient? native,
   }) {
     final result = BeginOAuthFlowRequest._();
     if (provider != null) result.provider = provider;
     if (redirectUri != null) result.redirectUri = redirectUri;
+    if (native != null) result.native = native;
     return result;
   }
 
@@ -1555,6 +1557,8 @@ class BeginOAuthFlowRequest extends $pb.GeneratedMessage {
       createEmptyInstance: BeginOAuthFlowRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'provider')
     ..aOS(2, _omitFieldNames ? '' : 'redirectUri')
+    ..aOM<NativeOAuthClient>(3, _omitFieldNames ? '' : 'native',
+        subBuilder: NativeOAuthClient.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1600,6 +1604,95 @@ class BeginOAuthFlowRequest extends $pb.GeneratedMessage {
   $core.bool hasRedirectUri() => $_has(1);
   @$pb.TagNumber(2)
   void clearRedirectUri() => $_clearField(2);
+
+  /// Set by native (mobile) clients. The provider still returns to the
+  /// server's fixed callback; this makes the callback hand the browser back to
+  /// the App instead of logging the browser in. Rejected unless the server
+  /// lists native.return_uri in auth.native_return_uris.
+  @$pb.TagNumber(3)
+  NativeOAuthClient get native => $_getN(2);
+  @$pb.TagNumber(3)
+  set native(NativeOAuthClient value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasNative() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearNative() => $_clearField(3);
+  @$pb.TagNumber(3)
+  NativeOAuthClient ensureNative() => $_ensure(2);
+}
+
+/// NativeOAuthClient binds one OAuth flow to a native App.
+class NativeOAuthClient extends $pb.GeneratedMessage {
+  factory NativeOAuthClient({
+    $core.String? returnUri,
+    $core.String? codeChallenge,
+  }) {
+    final result = NativeOAuthClient._();
+    if (returnUri != null) result.returnUri = returnUri;
+    if (codeChallenge != null) result.codeChallenge = codeChallenge;
+    return result;
+  }
+
+  NativeOAuthClient._();
+
+  factory NativeOAuthClient.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NativeOAuthClient()..mergeFromBuffer(data, registry);
+  factory NativeOAuthClient.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NativeOAuthClient()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NativeOAuthClient',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'agents.v1'),
+      createEmptyInstance: NativeOAuthClient.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'returnUri')
+    ..aOS(2, _omitFieldNames ? '' : 'codeChallenge')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NativeOAuthClient clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NativeOAuthClient copyWith(void Function(NativeOAuthClient) updates) =>
+      super.copyWith((message) => updates(message as NativeOAuthClient))
+          as NativeOAuthClient;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use NativeOAuthClient() / NativeOAuthClient.new instead')
+  static NativeOAuthClient create() => NativeOAuthClient._();
+  static $pb.GeneratedMessage $_createMessage() => NativeOAuthClient._();
+  @$core.override
+  NativeOAuthClient createEmptyInstance() => NativeOAuthClient._();
+  @$core.pragma('dart2js:noInline')
+  static NativeOAuthClient getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<NativeOAuthClient>(
+          NativeOAuthClient.$_createMessage);
+  static NativeOAuthClient? _defaultInstance;
+
+  /// The App's return URI. Must exactly match an entry of the server's
+  /// auth.native_return_uris allow-list.
+  @$pb.TagNumber(1)
+  $core.String get returnUri => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set returnUri($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReturnUri() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReturnUri() => $_clearField(1);
+
+  /// PKCE (RFC 7636) S256 challenge: base64url(sha256(code_verifier)) without
+  /// padding. The matching verifier never leaves the App until redemption.
+  @$pb.TagNumber(2)
+  $core.String get codeChallenge => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set codeChallenge($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCodeChallenge() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCodeChallenge() => $_clearField(2);
 }
 
 class BeginOAuthFlowResponse extends $pb.GeneratedMessage {
@@ -1765,12 +1858,14 @@ class CompleteOAuthFlowResponse extends $pb.GeneratedMessage {
     User? user,
     $0.Timestamp? expiresAt,
     $core.Iterable<$1.Workspace>? workspaces,
+    NativeOAuthHandoff? nativeHandoff,
   }) {
     final result = CompleteOAuthFlowResponse._();
     if (token != null) result.token = token;
     if (user != null) result.user = user;
     if (expiresAt != null) result.expiresAt = expiresAt;
     if (workspaces != null) result.workspaces.addAll(workspaces);
+    if (nativeHandoff != null) result.nativeHandoff = nativeHandoff;
     return result;
   }
 
@@ -1794,6 +1889,8 @@ class CompleteOAuthFlowResponse extends $pb.GeneratedMessage {
         subBuilder: $0.Timestamp.$_createMessage)
     ..pPM<$1.Workspace>(4, _omitFieldNames ? '' : 'workspaces',
         subBuilder: $1.Workspace.$_createMessage)
+    ..aOM<NativeOAuthHandoff>(5, _omitFieldNames ? '' : 'nativeHandoff',
+        subBuilder: NativeOAuthHandoff.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1821,6 +1918,277 @@ class CompleteOAuthFlowResponse extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<CompleteOAuthFlowResponse>(
           CompleteOAuthFlowResponse.$_createMessage);
   static CompleteOAuthFlowResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get token => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set token($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasToken() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearToken() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  User get user => $_getN(1);
+  @$pb.TagNumber(2)
+  set user(User value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUser() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUser() => $_clearField(2);
+  @$pb.TagNumber(2)
+  User ensureUser() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  $0.Timestamp get expiresAt => $_getN(2);
+  @$pb.TagNumber(3)
+  set expiresAt($0.Timestamp value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasExpiresAt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearExpiresAt() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Timestamp ensureExpiresAt() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  $pb.PbList<$1.Workspace> get workspaces => $_getList(3);
+
+  /// Set instead of token/user/workspaces when the flow began with a native
+  /// client: the browser must navigate to native_handoff.return_url.
+  @$pb.TagNumber(5)
+  NativeOAuthHandoff get nativeHandoff => $_getN(4);
+  @$pb.TagNumber(5)
+  set nativeHandoff(NativeOAuthHandoff value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasNativeHandoff() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearNativeHandoff() => $_clearField(5);
+  @$pb.TagNumber(5)
+  NativeOAuthHandoff ensureNativeHandoff() => $_ensure(4);
+}
+
+/// NativeOAuthHandoff tells the browser where to send the user back to the App.
+class NativeOAuthHandoff extends $pb.GeneratedMessage {
+  factory NativeOAuthHandoff({
+    $core.String? returnUrl,
+  }) {
+    final result = NativeOAuthHandoff._();
+    if (returnUrl != null) result.returnUrl = returnUrl;
+    return result;
+  }
+
+  NativeOAuthHandoff._();
+
+  factory NativeOAuthHandoff.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NativeOAuthHandoff()..mergeFromBuffer(data, registry);
+  factory NativeOAuthHandoff.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NativeOAuthHandoff()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NativeOAuthHandoff',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'agents.v1'),
+      createEmptyInstance: NativeOAuthHandoff.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'returnUrl')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NativeOAuthHandoff clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NativeOAuthHandoff copyWith(void Function(NativeOAuthHandoff) updates) =>
+      super.copyWith((message) => updates(message as NativeOAuthHandoff))
+          as NativeOAuthHandoff;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use NativeOAuthHandoff() / NativeOAuthHandoff.new instead')
+  static NativeOAuthHandoff create() => NativeOAuthHandoff._();
+  static $pb.GeneratedMessage $_createMessage() => NativeOAuthHandoff._();
+  @$core.override
+  NativeOAuthHandoff createEmptyInstance() => NativeOAuthHandoff._();
+  @$core.pragma('dart2js:noInline')
+  static NativeOAuthHandoff getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<NativeOAuthHandoff>(
+          NativeOAuthHandoff.$_createMessage);
+  static NativeOAuthHandoff? _defaultInstance;
+
+  /// The allow-listed return URI with a one-time `handoff` code and the flow's
+  /// `state` appended as query parameters. Contains no session token.
+  @$pb.TagNumber(1)
+  $core.String get returnUrl => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set returnUrl($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReturnUrl() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReturnUrl() => $_clearField(1);
+}
+
+class RedeemOAuthHandoffRequest extends $pb.GeneratedMessage {
+  factory RedeemOAuthHandoffRequest({
+    $core.String? provider,
+    $core.String? state,
+    $core.String? handoffCode,
+    $core.String? codeVerifier,
+  }) {
+    final result = RedeemOAuthHandoffRequest._();
+    if (provider != null) result.provider = provider;
+    if (state != null) result.state = state;
+    if (handoffCode != null) result.handoffCode = handoffCode;
+    if (codeVerifier != null) result.codeVerifier = codeVerifier;
+    return result;
+  }
+
+  RedeemOAuthHandoffRequest._();
+
+  factory RedeemOAuthHandoffRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      RedeemOAuthHandoffRequest()..mergeFromBuffer(data, registry);
+  factory RedeemOAuthHandoffRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      RedeemOAuthHandoffRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RedeemOAuthHandoffRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'agents.v1'),
+      createEmptyInstance: RedeemOAuthHandoffRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'provider')
+    ..aOS(2, _omitFieldNames ? '' : 'state')
+    ..aOS(3, _omitFieldNames ? '' : 'handoffCode')
+    ..aOS(4, _omitFieldNames ? '' : 'codeVerifier')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemOAuthHandoffRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemOAuthHandoffRequest copyWith(
+          void Function(RedeemOAuthHandoffRequest) updates) =>
+      super.copyWith((message) => updates(message as RedeemOAuthHandoffRequest))
+          as RedeemOAuthHandoffRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RedeemOAuthHandoffRequest() / RedeemOAuthHandoffRequest.new instead')
+  static RedeemOAuthHandoffRequest create() => RedeemOAuthHandoffRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RedeemOAuthHandoffRequest._();
+  @$core.override
+  RedeemOAuthHandoffRequest createEmptyInstance() =>
+      RedeemOAuthHandoffRequest._();
+  @$core.pragma('dart2js:noInline')
+  static RedeemOAuthHandoffRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RedeemOAuthHandoffRequest>(
+          RedeemOAuthHandoffRequest.$_createMessage);
+  static RedeemOAuthHandoffRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get provider => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set provider($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProvider() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProvider() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get state => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set state($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasState() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearState() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get handoffCode => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set handoffCode($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasHandoffCode() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearHandoffCode() => $_clearField(3);
+
+  /// PKCE code_verifier (RFC 7636: 43-128 unreserved characters).
+  @$pb.TagNumber(4)
+  $core.String get codeVerifier => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set codeVerifier($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCodeVerifier() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCodeVerifier() => $_clearField(4);
+}
+
+/// RedeemOAuthHandoffResponse mirrors LoginResponse.
+class RedeemOAuthHandoffResponse extends $pb.GeneratedMessage {
+  factory RedeemOAuthHandoffResponse({
+    $core.String? token,
+    User? user,
+    $0.Timestamp? expiresAt,
+    $core.Iterable<$1.Workspace>? workspaces,
+  }) {
+    final result = RedeemOAuthHandoffResponse._();
+    if (token != null) result.token = token;
+    if (user != null) result.user = user;
+    if (expiresAt != null) result.expiresAt = expiresAt;
+    if (workspaces != null) result.workspaces.addAll(workspaces);
+    return result;
+  }
+
+  RedeemOAuthHandoffResponse._();
+
+  factory RedeemOAuthHandoffResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      RedeemOAuthHandoffResponse()..mergeFromBuffer(data, registry);
+  factory RedeemOAuthHandoffResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      RedeemOAuthHandoffResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RedeemOAuthHandoffResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'agents.v1'),
+      createEmptyInstance: RedeemOAuthHandoffResponse.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'token')
+    ..aOM<User>(2, _omitFieldNames ? '' : 'user',
+        subBuilder: User.$_createMessage)
+    ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'expiresAt',
+        subBuilder: $0.Timestamp.$_createMessage)
+    ..pPM<$1.Workspace>(4, _omitFieldNames ? '' : 'workspaces',
+        subBuilder: $1.Workspace.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemOAuthHandoffResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RedeemOAuthHandoffResponse copyWith(
+          void Function(RedeemOAuthHandoffResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as RedeemOAuthHandoffResponse))
+          as RedeemOAuthHandoffResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RedeemOAuthHandoffResponse() / RedeemOAuthHandoffResponse.new instead')
+  static RedeemOAuthHandoffResponse create() => RedeemOAuthHandoffResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RedeemOAuthHandoffResponse._();
+  @$core.override
+  RedeemOAuthHandoffResponse createEmptyInstance() =>
+      RedeemOAuthHandoffResponse._();
+  @$core.pragma('dart2js:noInline')
+  static RedeemOAuthHandoffResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RedeemOAuthHandoffResponse>(
+          RedeemOAuthHandoffResponse.$_createMessage);
+  static RedeemOAuthHandoffResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get token => $_getSZ(0);
@@ -1937,6 +2305,15 @@ class AuthServiceApi {
           $pb.ClientContext? ctx, CompleteOAuthFlowRequest request) =>
       _client.invoke<CompleteOAuthFlowResponse>(ctx, 'AuthService',
           'CompleteOAuthFlow', request, CompleteOAuthFlowResponse());
+
+  /// RedeemOAuthHandoff is public and completes a native (mobile) OAuth login.
+  /// The browser leg ends with a one-time handoff code delivered to the App's
+  /// return URI; the App proves it began the flow with the PKCE code_verifier
+  /// and receives the session token directly, never through a URL.
+  $async.Future<RedeemOAuthHandoffResponse> redeemOAuthHandoff(
+          $pb.ClientContext? ctx, RedeemOAuthHandoffRequest request) =>
+      _client.invoke<RedeemOAuthHandoffResponse>(ctx, 'AuthService',
+          'RedeemOAuthHandoff', request, RedeemOAuthHandoffResponse());
 }
 
 const $core.bool _omitFieldNames =

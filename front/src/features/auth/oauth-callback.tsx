@@ -26,6 +26,7 @@ export function OAuthCallback() {
       ? 'Missing provider, code, or state in callback URL.'
       : ''
   const [error, setError] = useState<string>(callbackError)
+  const [nativeReturnUrl, setNativeReturnUrl] = useState<string>('')
   const consumed = useRef(false)
 
   useEffect(() => {
@@ -35,6 +36,13 @@ export function OAuthCallback() {
 
     completeOAuthFlow(provider, code, state)
       .then((res) => {
+        if (res.nativeReturnUrl) {
+          // A native App began this sign-in: hand the browser back to it. The
+          // URL carries a one-time handoff code, not a session.
+          setNativeReturnUrl(res.nativeReturnUrl)
+          window.location.replace(res.nativeReturnUrl)
+          return
+        }
         if (!res.token) {
           setError('Login response missing token.')
           return
@@ -66,6 +74,16 @@ export function OAuthCallback() {
                 onClick={() => navigate({ to: '/sign-in', replace: true })}
               >
                 Back to sign in
+              </Button>
+            </div>
+          ) : nativeReturnUrl ? (
+            <div className='space-y-3 text-sm'>
+              <p className='text-muted-foreground'>
+                Returning to the Butter app. If nothing happens, open it
+                manually.
+              </p>
+              <Button asChild className='w-full'>
+                <a href={nativeReturnUrl}>Open the Butter app</a>
               </Button>
             </div>
           ) : (

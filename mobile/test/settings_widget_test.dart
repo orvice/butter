@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'client_context_test.dart' show MemoryStorage;
+import 'support/memory_storage.dart';
 import 'device_storage_test.dart' show PreferencesPlatform;
 
 void main() {

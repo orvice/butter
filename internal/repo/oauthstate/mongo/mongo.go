@@ -16,11 +16,14 @@ import (
 const collection = "oauth_states"
 
 type stateDoc struct {
-	State       string    `bson:"_id"`
-	Provider    string    `bson:"provider"`
-	RedirectURI string    `bson:"redirect_uri,omitempty"`
-	CreatedAt   time.Time `bson:"created_at"`
-	ExpiresAt   time.Time `bson:"expires_at"`
+	State       string `bson:"_id"`
+	Provider    string `bson:"provider"`
+	RedirectURI string `bson:"redirect_uri,omitempty"`
+	// Set only for a flow a native App began.
+	NativeReturnURI string    `bson:"native_return_uri,omitempty"`
+	CodeChallenge   string    `bson:"code_challenge,omitempty"`
+	CreatedAt       time.Time `bson:"created_at"`
+	ExpiresAt       time.Time `bson:"expires_at"`
 }
 
 // Store persists OAuth state in MongoDB with a TTL index on expires_at so
@@ -51,11 +54,13 @@ func (s *Store) Create(ctx context.Context, entry *oauthstate.Entry) error {
 		return errors.New("oauth state entry invalid")
 	}
 	doc := stateDoc{
-		State:       entry.State,
-		Provider:    entry.Provider,
-		RedirectURI: entry.RedirectURI,
-		CreatedAt:   entry.CreatedAt,
-		ExpiresAt:   entry.ExpiresAt,
+		State:           entry.State,
+		Provider:        entry.Provider,
+		RedirectURI:     entry.RedirectURI,
+		NativeReturnURI: entry.NativeReturnURI,
+		CodeChallenge:   entry.CodeChallenge,
+		CreatedAt:       entry.CreatedAt,
+		ExpiresAt:       entry.ExpiresAt,
 	}
 	if _, err := s.coll.InsertOne(ctx, doc); err != nil {
 		return fmt.Errorf("insert oauth state: %w", err)
@@ -79,10 +84,12 @@ func (s *Store) Consume(ctx context.Context, state string, now time.Time) (*oaut
 		return nil, fmt.Errorf("consume oauth state: %w", err)
 	}
 	return &oauthstate.Entry{
-		State:       doc.State,
-		Provider:    doc.Provider,
-		RedirectURI: doc.RedirectURI,
-		CreatedAt:   doc.CreatedAt,
-		ExpiresAt:   doc.ExpiresAt,
+		State:           doc.State,
+		Provider:        doc.Provider,
+		RedirectURI:     doc.RedirectURI,
+		NativeReturnURI: doc.NativeReturnURI,
+		CodeChallenge:   doc.CodeChallenge,
+		CreatedAt:       doc.CreatedAt,
+		ExpiresAt:       doc.ExpiresAt,
 	}, nil
 }

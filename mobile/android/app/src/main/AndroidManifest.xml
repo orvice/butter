@@ -29,6 +29,19 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Flutter's own deep-link routing is off: app_links delivers the
+                 OAuth return link to ClientContext instead (#448). -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
+            <!-- OAuth return: ee.orz.butter:/oauth/callback. A custom scheme is
+                 not exclusive to this app; the link only carries a one-time
+                 handoff code that is useless without the PKCE verifier kept in
+                 this app. Development value, see the README. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="ee.orz.butter"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

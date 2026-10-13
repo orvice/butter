@@ -43,4 +43,4 @@ if [[ "$url" != http://* ]]; then
 fi
 
 cd -- "$root/mobile"
-flutter test test/contract_test.dart "--dart-define=BUTTER_TEST_SERVER=$url"
+flutter test test/contract_test.dart test/native_oauth_contract_test.dart "--dart-define=BUTTER_TEST_SERVER=$url"

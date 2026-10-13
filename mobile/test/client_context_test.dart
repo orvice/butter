@@ -4,41 +4,11 @@ import 'package:butter_mobile/gen/agents/v1/agent.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/agent_service.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/auth.pb.dart';
 import 'package:butter_mobile/app/client_context.dart';
-import 'package:butter_mobile/core/client_storage.dart';
+import 'package:butter_mobile/core/client_storage.dart' show StoredSession;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/memory_storage.dart';
 import 'support/server.dart';
-
-class MemoryStorage implements ClientStorage {
-  String? server;
-  StoredSession? credential;
-  bool failSave = false;
-  Future<void> Function()? beforeSave;
-  Future<StoredSession?> Function()? readSessionOverride;
-  bool failClear = false;
-  @override
-  Future<String?> readServer() async => server;
-  @override
-  Future<void> saveServer(String address) async {
-    server = address;
-  }
-
-  @override
-  Future<StoredSession?> readSession() async =>
-      readSessionOverride == null ? credential : await readSessionOverride!();
-  @override
-  Future<void> saveSession(StoredSession session) async {
-    if (failSave) throw StateError('OS vault is locked');
-    await beforeSave?.call();
-    credential = session;
-  }
-
-  @override
-  Future<void> clearSession() async {
-    if (failClear) throw StateError('OS vault is locked');
-    credential = null;
-  }
-}
 
 void main() {
   late TestServer server;

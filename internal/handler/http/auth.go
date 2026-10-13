@@ -281,6 +281,7 @@ func isPublicPath(path string) bool {
 		"/api/agents.v1.AuthService/ListOAuthProviders",
 		"/api/agents.v1.AuthService/BeginOAuthFlow",
 		"/api/agents.v1.AuthService/CompleteOAuthFlow",
+		"/api/agents.v1.AuthService/RedeemOAuthHandoff",
 		"/api/agents.v1.DaemonConnectorService/Connect",
 		"/api/agents.v1.DaemonConnectorService/Register",
 		"/api/agents.v1.DaemonConnectorService/Poll",

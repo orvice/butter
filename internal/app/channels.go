@@ -71,6 +71,9 @@ import (
 	memoryconfigrepo "go.orx.me/apps/butter/internal/repo/memoryconfig"
 	memoryconfigmem "go.orx.me/apps/butter/internal/repo/memoryconfig/memory"
 	memoryconfigmongo "go.orx.me/apps/butter/internal/repo/memoryconfig/mongo"
+	"go.orx.me/apps/butter/internal/repo/oauthhandoff"
+	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
+	oauthhandoffmongo "go.orx.me/apps/butter/internal/repo/oauthhandoff/mongo"
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
@@ -125,6 +128,7 @@ type BootstrapResult struct {
 	Redis                  *redis.Client
 	AuthRepo               auth.Repository
 	OAuthStateRepo         oauthstate.Repository
+	OAuthHandoffRepo       oauthhandoff.Repository
 	OAuthProviders         *provider.Registry
 	APITokenRepo           apitoken.Repository
 	InvocationRepo         invocation.Repository
@@ -200,6 +204,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		fileRepo               agentfile.Repository
 		skillRepo              skillrepo.Repository
 		oauthStateRepo         oauthstate.Repository
+		oauthHandoffRepo       oauthhandoff.Repository
 		gitHostRepo            githostrepo.Repository
 		butterBoxRepo          butterboxrepo.Repository
 		memoryConfigRepo       memoryconfigrepo.Repository
@@ -245,6 +250,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		fileRepo = agentfilemongo.New(db, setupAgentFileContentStore(ctx, cfg))
 		skillRepo = skillmongo.New(db, setupSkillContentStore(ctx, cfg))
 		oauthStateRepo = oauthstatemongo.New(db)
+		oauthHandoffRepo = oauthhandoffmongo.New(db)
 		gitHostRepo = githostmongo.New(db)
 		butterBoxRepo = butterboxmongo.New(db)
 		memoryConfigRepo = memoryconfigmongo.New(db)
@@ -275,6 +281,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		fileRepo = agentfilememory.New()
 		skillRepo = skillmemory.New()
 		oauthStateRepo = oauthstatememory.New()
+		oauthHandoffRepo = oauthhandoffmemory.New()
 		gitHostRepo = githostmemory.New()
 		butterBoxRepo = butterboxmemory.New()
 		memoryConfigRepo = memoryconfigmem.New()
@@ -321,6 +328,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	if err := oauthStateRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create oauth state indexes", "err", err)
+		return nil, err
+	}
+	if err := oauthHandoffRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create oauth handoff indexes", "err", err)
 		return nil, err
 	}
 	if err := gitHostRepo.EnsureIndexes(ctx); err != nil {
@@ -587,6 +598,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		Redis:                  rdb,
 		AuthRepo:               authRepo,
 		OAuthStateRepo:         oauthStateRepo,
+		OAuthHandoffRepo:       oauthHandoffRepo,
 		OAuthProviders:         oauthProviders,
 		APITokenRepo:           tokenRepo,
 		InvocationRepo:         invRepo,

@@ -44,6 +44,8 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $2.BeginOAuthFlowRequest request);
   $async.Future<$2.CompleteOAuthFlowResponse> completeOAuthFlow(
       $pb.ServerContext ctx, $2.CompleteOAuthFlowRequest request);
+  $async.Future<$2.RedeemOAuthHandoffResponse> redeemOAuthHandoff(
+      $pb.ServerContext ctx, $2.RedeemOAuthHandoffRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -71,6 +73,8 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
         return $2.BeginOAuthFlowRequest();
       case 'CompleteOAuthFlow':
         return $2.CompleteOAuthFlowRequest();
+      case 'RedeemOAuthHandoff':
+        return $2.RedeemOAuthHandoffRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -103,6 +107,8 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
         return beginOAuthFlow(ctx, request as $2.BeginOAuthFlowRequest);
       case 'CompleteOAuthFlow':
         return completeOAuthFlow(ctx, request as $2.CompleteOAuthFlowRequest);
+      case 'RedeemOAuthHandoff':
+        return redeemOAuthHandoff(ctx, request as $2.RedeemOAuthHandoffRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

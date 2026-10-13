@@ -2829,6 +2829,35 @@ func (m *BeginOAuthFlowRequest) validate(all bool) error {
 
 	// no validation rules for RedirectUri
 
+	if all {
+		switch v := interface{}(m.GetNative()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, BeginOAuthFlowRequestValidationError{
+					field:  "Native",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, BeginOAuthFlowRequestValidationError{
+					field:  "Native",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNative()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return BeginOAuthFlowRequestValidationError{
+				field:  "Native",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return BeginOAuthFlowRequestMultiError(errors)
 	}
@@ -2908,6 +2937,131 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = BeginOAuthFlowRequestValidationError{}
+
+// Validate checks the field values on NativeOAuthClient with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *NativeOAuthClient) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NativeOAuthClient with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// NativeOAuthClientMultiError, or nil if none found.
+func (m *NativeOAuthClient) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NativeOAuthClient) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetReturnUri()) < 1 {
+		err := NativeOAuthClientValidationError{
+			field:  "ReturnUri",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetCodeChallenge()) != 43 {
+		err := NativeOAuthClientValidationError{
+			field:  "CodeChallenge",
+			reason: "value length must be 43 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+
+	}
+
+	if len(errors) > 0 {
+		return NativeOAuthClientMultiError(errors)
+	}
+
+	return nil
+}
+
+// NativeOAuthClientMultiError is an error wrapping multiple validation errors
+// returned by NativeOAuthClient.ValidateAll() if the designated constraints
+// aren't met.
+type NativeOAuthClientMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NativeOAuthClientMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NativeOAuthClientMultiError) AllErrors() []error { return m }
+
+// NativeOAuthClientValidationError is the validation error returned by
+// NativeOAuthClient.Validate if the designated constraints aren't met.
+type NativeOAuthClientValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NativeOAuthClientValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NativeOAuthClientValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NativeOAuthClientValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NativeOAuthClientValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NativeOAuthClientValidationError) ErrorName() string {
+	return "NativeOAuthClientValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e NativeOAuthClientValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNativeOAuthClient.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NativeOAuthClientValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NativeOAuthClientValidationError{}
 
 // Validate checks the field values on BeginOAuthFlowResponse with the rules
 // defined in the proto definition for this message. If any rules are
@@ -3266,6 +3420,35 @@ func (m *CompleteOAuthFlowResponse) validate(all bool) error {
 
 	}
 
+	if all {
+		switch v := interface{}(m.GetNativeHandoff()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CompleteOAuthFlowResponseValidationError{
+					field:  "NativeHandoff",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CompleteOAuthFlowResponseValidationError{
+					field:  "NativeHandoff",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNativeHandoff()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CompleteOAuthFlowResponseValidationError{
+				field:  "NativeHandoff",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return CompleteOAuthFlowResponseMultiError(errors)
 	}
@@ -3345,3 +3528,449 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = CompleteOAuthFlowResponseValidationError{}
+
+// Validate checks the field values on NativeOAuthHandoff with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *NativeOAuthHandoff) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NativeOAuthHandoff with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// NativeOAuthHandoffMultiError, or nil if none found.
+func (m *NativeOAuthHandoff) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NativeOAuthHandoff) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for ReturnUrl
+
+	if len(errors) > 0 {
+		return NativeOAuthHandoffMultiError(errors)
+	}
+
+	return nil
+}
+
+// NativeOAuthHandoffMultiError is an error wrapping multiple validation errors
+// returned by NativeOAuthHandoff.ValidateAll() if the designated constraints
+// aren't met.
+type NativeOAuthHandoffMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NativeOAuthHandoffMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NativeOAuthHandoffMultiError) AllErrors() []error { return m }
+
+// NativeOAuthHandoffValidationError is the validation error returned by
+// NativeOAuthHandoff.Validate if the designated constraints aren't met.
+type NativeOAuthHandoffValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NativeOAuthHandoffValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NativeOAuthHandoffValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NativeOAuthHandoffValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NativeOAuthHandoffValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NativeOAuthHandoffValidationError) ErrorName() string {
+	return "NativeOAuthHandoffValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e NativeOAuthHandoffValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNativeOAuthHandoff.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NativeOAuthHandoffValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NativeOAuthHandoffValidationError{}
+
+// Validate checks the field values on RedeemOAuthHandoffRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RedeemOAuthHandoffRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RedeemOAuthHandoffRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RedeemOAuthHandoffRequestMultiError, or nil if none found.
+func (m *RedeemOAuthHandoffRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RedeemOAuthHandoffRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetProvider()) < 1 {
+		err := RedeemOAuthHandoffRequestValidationError{
+			field:  "Provider",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetState()) < 1 {
+		err := RedeemOAuthHandoffRequestValidationError{
+			field:  "State",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetHandoffCode()) < 1 {
+		err := RedeemOAuthHandoffRequestValidationError{
+			field:  "HandoffCode",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if l := utf8.RuneCountInString(m.GetCodeVerifier()); l < 43 || l > 128 {
+		err := RedeemOAuthHandoffRequestValidationError{
+			field:  "CodeVerifier",
+			reason: "value length must be between 43 and 128 runes, inclusive",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return RedeemOAuthHandoffRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// RedeemOAuthHandoffRequestMultiError is an error wrapping multiple validation
+// errors returned by RedeemOAuthHandoffRequest.ValidateAll() if the
+// designated constraints aren't met.
+type RedeemOAuthHandoffRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RedeemOAuthHandoffRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RedeemOAuthHandoffRequestMultiError) AllErrors() []error { return m }
+
+// RedeemOAuthHandoffRequestValidationError is the validation error returned by
+// RedeemOAuthHandoffRequest.Validate if the designated constraints aren't met.
+type RedeemOAuthHandoffRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RedeemOAuthHandoffRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RedeemOAuthHandoffRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RedeemOAuthHandoffRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RedeemOAuthHandoffRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RedeemOAuthHandoffRequestValidationError) ErrorName() string {
+	return "RedeemOAuthHandoffRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RedeemOAuthHandoffRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRedeemOAuthHandoffRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RedeemOAuthHandoffRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RedeemOAuthHandoffRequestValidationError{}
+
+// Validate checks the field values on RedeemOAuthHandoffResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RedeemOAuthHandoffResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RedeemOAuthHandoffResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RedeemOAuthHandoffResponseMultiError, or nil if none found.
+func (m *RedeemOAuthHandoffResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RedeemOAuthHandoffResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Token
+
+	if all {
+		switch v := interface{}(m.GetUser()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RedeemOAuthHandoffResponseValidationError{
+					field:  "User",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RedeemOAuthHandoffResponseValidationError{
+					field:  "User",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUser()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RedeemOAuthHandoffResponseValidationError{
+				field:  "User",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetExpiresAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RedeemOAuthHandoffResponseValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RedeemOAuthHandoffResponseValidationError{
+					field:  "ExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExpiresAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RedeemOAuthHandoffResponseValidationError{
+				field:  "ExpiresAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	for idx, item := range m.GetWorkspaces() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RedeemOAuthHandoffResponseValidationError{
+						field:  fmt.Sprintf("Workspaces[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RedeemOAuthHandoffResponseValidationError{
+						field:  fmt.Sprintf("Workspaces[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RedeemOAuthHandoffResponseValidationError{
+					field:  fmt.Sprintf("Workspaces[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return RedeemOAuthHandoffResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// RedeemOAuthHandoffResponseMultiError is an error wrapping multiple
+// validation errors returned by RedeemOAuthHandoffResponse.ValidateAll() if
+// the designated constraints aren't met.
+type RedeemOAuthHandoffResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RedeemOAuthHandoffResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RedeemOAuthHandoffResponseMultiError) AllErrors() []error { return m }
+
+// RedeemOAuthHandoffResponseValidationError is the validation error returned
+// by RedeemOAuthHandoffResponse.Validate if the designated constraints aren't met.
+type RedeemOAuthHandoffResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RedeemOAuthHandoffResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RedeemOAuthHandoffResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RedeemOAuthHandoffResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RedeemOAuthHandoffResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RedeemOAuthHandoffResponseValidationError) ErrorName() string {
+	return "RedeemOAuthHandoffResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RedeemOAuthHandoffResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRedeemOAuthHandoffResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RedeemOAuthHandoffResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RedeemOAuthHandoffResponseValidationError{}

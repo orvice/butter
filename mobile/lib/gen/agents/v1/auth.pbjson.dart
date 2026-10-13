@@ -440,13 +440,43 @@ const BeginOAuthFlowRequest$json = {
   '2': [
     {'1': 'provider', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'provider'},
     {'1': 'redirect_uri', '3': 2, '4': 1, '5': 9, '10': 'redirectUri'},
+    {
+      '1': 'native',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.agents.v1.NativeOAuthClient',
+      '10': 'native'
+    },
   ],
 };
 
 /// Descriptor for `BeginOAuthFlowRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List beginOAuthFlowRequestDescriptor = $convert.base64Decode(
     'ChVCZWdpbk9BdXRoRmxvd1JlcXVlc3QSIwoIcHJvdmlkZXIYASABKAlCB/pCBHICEAFSCHByb3'
-    'ZpZGVyEiEKDHJlZGlyZWN0X3VyaRgCIAEoCVILcmVkaXJlY3RVcmk=');
+    'ZpZGVyEiEKDHJlZGlyZWN0X3VyaRgCIAEoCVILcmVkaXJlY3RVcmkSNAoGbmF0aXZlGAMgASgL'
+    'MhwuYWdlbnRzLnYxLk5hdGl2ZU9BdXRoQ2xpZW50UgZuYXRpdmU=');
+
+@$core.Deprecated('Use nativeOAuthClientDescriptor instead')
+const NativeOAuthClient$json = {
+  '1': 'NativeOAuthClient',
+  '2': [
+    {'1': 'return_uri', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'returnUri'},
+    {
+      '1': 'code_challenge',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'codeChallenge'
+    },
+  ],
+};
+
+/// Descriptor for `NativeOAuthClient`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List nativeOAuthClientDescriptor = $convert.base64Decode(
+    'ChFOYXRpdmVPQXV0aENsaWVudBImCgpyZXR1cm5fdXJpGAEgASgJQgf6QgRyAhABUglyZXR1cm'
+    '5VcmkSLwoOY29kZV9jaGFsbGVuZ2UYAiABKAlCCPpCBXIDmAErUg1jb2RlQ2hhbGxlbmdl');
 
 @$core.Deprecated('Use beginOAuthFlowResponseDescriptor instead')
 const BeginOAuthFlowResponse$json = {
@@ -508,6 +538,14 @@ const CompleteOAuthFlowResponse$json = {
       '6': '.agents.v1.Workspace',
       '10': 'workspaces'
     },
+    {
+      '1': 'native_handoff',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.agents.v1.NativeOAuthHandoff',
+      '10': 'nativeHandoff'
+    },
   ],
 };
 
@@ -516,7 +554,85 @@ final $typed_data.Uint8List completeOAuthFlowResponseDescriptor = $convert.base6
     'ChlDb21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlEhQKBXRva2VuGAEgASgJUgV0b2tlbhIjCgR1c2'
     'VyGAIgASgLMg8uYWdlbnRzLnYxLlVzZXJSBHVzZXISOQoKZXhwaXJlc19hdBgDIAEoCzIaLmdv'
     'b2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCWV4cGlyZXNBdBI0Cgp3b3Jrc3BhY2VzGAQgAygLMh'
-    'QuYWdlbnRzLnYxLldvcmtzcGFjZVIKd29ya3NwYWNlcw==');
+    'QuYWdlbnRzLnYxLldvcmtzcGFjZVIKd29ya3NwYWNlcxJECg5uYXRpdmVfaGFuZG9mZhgFIAEo'
+    'CzIdLmFnZW50cy52MS5OYXRpdmVPQXV0aEhhbmRvZmZSDW5hdGl2ZUhhbmRvZmY=');
+
+@$core.Deprecated('Use nativeOAuthHandoffDescriptor instead')
+const NativeOAuthHandoff$json = {
+  '1': 'NativeOAuthHandoff',
+  '2': [
+    {'1': 'return_url', '3': 1, '4': 1, '5': 9, '10': 'returnUrl'},
+  ],
+};
+
+/// Descriptor for `NativeOAuthHandoff`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List nativeOAuthHandoffDescriptor =
+    $convert.base64Decode(
+        'ChJOYXRpdmVPQXV0aEhhbmRvZmYSHQoKcmV0dXJuX3VybBgBIAEoCVIJcmV0dXJuVXJs');
+
+@$core.Deprecated('Use redeemOAuthHandoffRequestDescriptor instead')
+const RedeemOAuthHandoffRequest$json = {
+  '1': 'RedeemOAuthHandoffRequest',
+  '2': [
+    {'1': 'provider', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'provider'},
+    {'1': 'state', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'state'},
+    {'1': 'handoff_code', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'handoffCode'},
+    {
+      '1': 'code_verifier',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'codeVerifier'
+    },
+  ],
+};
+
+/// Descriptor for `RedeemOAuthHandoffRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List redeemOAuthHandoffRequestDescriptor = $convert.base64Decode(
+    'ChlSZWRlZW1PQXV0aEhhbmRvZmZSZXF1ZXN0EiMKCHByb3ZpZGVyGAEgASgJQgf6QgRyAhABUg'
+    'hwcm92aWRlchIdCgVzdGF0ZRgCIAEoCUIH+kIEcgIQAVIFc3RhdGUSKgoMaGFuZG9mZl9jb2Rl'
+    'GAMgASgJQgf6QgRyAhABUgtoYW5kb2ZmQ29kZRIvCg1jb2RlX3ZlcmlmaWVyGAQgASgJQgr6Qg'
+    'dyBRArGIABUgxjb2RlVmVyaWZpZXI=');
+
+@$core.Deprecated('Use redeemOAuthHandoffResponseDescriptor instead')
+const RedeemOAuthHandoffResponse$json = {
+  '1': 'RedeemOAuthHandoffResponse',
+  '2': [
+    {'1': 'token', '3': 1, '4': 1, '5': 9, '10': 'token'},
+    {
+      '1': 'user',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.agents.v1.User',
+      '10': 'user'
+    },
+    {
+      '1': 'expires_at',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'expiresAt'
+    },
+    {
+      '1': 'workspaces',
+      '3': 4,
+      '4': 3,
+      '5': 11,
+      '6': '.agents.v1.Workspace',
+      '10': 'workspaces'
+    },
+  ],
+};
+
+/// Descriptor for `RedeemOAuthHandoffResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List redeemOAuthHandoffResponseDescriptor = $convert.base64Decode(
+    'ChpSZWRlZW1PQXV0aEhhbmRvZmZSZXNwb25zZRIUCgV0b2tlbhgBIAEoCVIFdG9rZW4SIwoEdX'
+    'NlchgCIAEoCzIPLmFnZW50cy52MS5Vc2VyUgR1c2VyEjkKCmV4cGlyZXNfYXQYAyABKAsyGi5n'
+    'b29nbGUucHJvdG9idWYuVGltZXN0YW1wUglleHBpcmVzQXQSNAoKd29ya3NwYWNlcxgEIAMoCz'
+    'IULmFnZW50cy52MS5Xb3Jrc3BhY2VSCndvcmtzcGFjZXM=');
 
 const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
   '1': 'AuthService',
@@ -577,6 +693,11 @@ const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
       '2': '.agents.v1.CompleteOAuthFlowRequest',
       '3': '.agents.v1.CompleteOAuthFlowResponse'
     },
+    {
+      '1': 'RedeemOAuthHandoff',
+      '2': '.agents.v1.RedeemOAuthHandoffRequest',
+      '3': '.agents.v1.RedeemOAuthHandoffResponse'
+    },
   ],
 };
 
@@ -608,9 +729,13 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.agents.v1.ListOAuthProvidersResponse': ListOAuthProvidersResponse$json,
   '.agents.v1.OAuthProvider': OAuthProvider$json,
   '.agents.v1.BeginOAuthFlowRequest': BeginOAuthFlowRequest$json,
+  '.agents.v1.NativeOAuthClient': NativeOAuthClient$json,
   '.agents.v1.BeginOAuthFlowResponse': BeginOAuthFlowResponse$json,
   '.agents.v1.CompleteOAuthFlowRequest': CompleteOAuthFlowRequest$json,
   '.agents.v1.CompleteOAuthFlowResponse': CompleteOAuthFlowResponse$json,
+  '.agents.v1.NativeOAuthHandoff': NativeOAuthHandoff$json,
+  '.agents.v1.RedeemOAuthHandoffRequest': RedeemOAuthHandoffRequest$json,
+  '.agents.v1.RedeemOAuthHandoffResponse': RedeemOAuthHandoffResponse$json,
 };
 
 /// Descriptor for `AuthService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -632,4 +757,6 @@ final $typed_data.Uint8List authServiceDescriptor = $convert.base64Decode(
     'cm92aWRlcnNSZXNwb25zZRJVCg5CZWdpbk9BdXRoRmxvdxIgLmFnZW50cy52MS5CZWdpbk9BdX'
     'RoRmxvd1JlcXVlc3QaIS5hZ2VudHMudjEuQmVnaW5PQXV0aEZsb3dSZXNwb25zZRJeChFDb21w'
     'bGV0ZU9BdXRoRmxvdxIjLmFnZW50cy52MS5Db21wbGV0ZU9BdXRoRmxvd1JlcXVlc3QaJC5hZ2'
-    'VudHMudjEuQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZQ==');
+    'VudHMudjEuQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRJhChJSZWRlZW1PQXV0aEhhbmRvZmYS'
+    'JC5hZ2VudHMudjEuUmVkZWVtT0F1dGhIYW5kb2ZmUmVxdWVzdBolLmFnZW50cy52MS5SZWRlZW'
+    '1PQXV0aEhhbmRvZmZSZXNwb25zZQ==');

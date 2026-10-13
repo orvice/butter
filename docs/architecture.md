@@ -559,10 +559,10 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 - `APITokenService`：`ListAPITokens` / `CreateAPIToken` / `RevokeAPIToken`。
 - `GlobalMCPServerService`：admin 管理的 workspace-agnostic MCP server 预设；`InstallGlobalMCPServer` 把预设克隆到目标 workspace（admin 可跨 workspace 安装，审计日志记录）。
 - `WorkspaceService`：workspace 与成员 CRUD（无需 `X-Workspace-ID`）。
-- `AuthService`：登录、OAuth 登录、当前用户、用户管理、资料更新与 `ChangePassword`。
+- `AuthService`：登录、OAuth 登录（原生 App 走 PKCE 绑定的一次性 handoff，`RedeemOAuthHandoff` 才签发会话，见 `docs/api.md` “Native App sign-in”；`internal/repo/oauthhandoff` 存哈希后的 handoff，2 分钟 TTL、单次消费）、当前用户、用户管理、资料更新与 `ChangePassword`。
 - `GitHostService` / `WorkspaceRepoBindingService`：Git endpoint allowlist、workspace repository binding、Agent Content onboarding/sync/publish/commit/rollback 和安全 detach。
 
-除 `/ping`、OPTIONS 预检、MCP OAuth 回调、Telegram webhook、daemon connector 方法以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` 之外，所有 HTTP/RPC 请求经过 `AuthMiddleware`。Telegram webhook 和 daemon connector 会在各自 handler 内执行专用鉴权：
+除 `/ping`、OPTIONS 预检、MCP OAuth 回调、Telegram webhook、daemon connector 方法以及 `AuthService.Login` / `ListOAuthProviders` / `BeginOAuthFlow` / `CompleteOAuthFlow` / `RedeemOAuthHandoff` 之外，所有 HTTP/RPC 请求经过 `AuthMiddleware`。Telegram webhook 和 daemon connector 会在各自 handler 内执行专用鉴权：
 
 1. 优先解析 `Authorization: Bearer <token>` 中的 user session（Redis `butter:auth:session:<sha256(token)>`，命中后异步 `TouchSession`）。
 2. 不匹配则用 `subtle.ConstantTimeCompare` 比对配置的 root token (`cfg.apiToken`)。
