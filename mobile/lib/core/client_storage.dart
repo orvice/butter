@@ -28,7 +28,8 @@ final class PendingOAuth {
   final DateTime expiresAt;
 }
 
-/// OS storage boundary. The only ordinary preference is the server address.
+/// OS identity storage boundary. Only the server address uses ordinary storage;
+/// device appearance preferences are managed separately by AppPreferences.
 abstract interface class ClientStorage {
   Future<String?> readServer();
   Future<void> saveServer(String address);

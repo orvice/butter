@@ -76,8 +76,25 @@ final class ClientContext extends ChangeNotifier {
   Workspace? workspace;
   List<Workspace> workspaces = const [];
   List<Agent> agents = const [];
+  Workspace? managedWorkspace;
+  List<WorkspaceMember> members = const [];
+  int scope = 0;
+  bool get canManageWorkspace =>
+      managedWorkspace != null &&
+      (user?.role == 'admin' ||
+          members.any((m) => m.userId == user?.id && m.role == 'owner'));
+
+  void _clearManagement() {
+    managedWorkspace = null;
+    members = const [];
+  }
+
   bool busy = false;
   String? error;
+  String? writeNotice;
+  int? _writingGeneration;
+  static const _unconfirmedWrite =
+      'Change not confirmed; it may already have been applied. Refresh before retrying.';
 
   /// OAuth providers the server offers for sign-in.
   List<OAuthProvider> oauthProviders = const [];
@@ -117,6 +134,7 @@ final class ClientContext extends ChangeNotifier {
   }
 
   int _begin({bool clearIdentity = false}) {
+    if (_writingGeneration == _generation) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
     _api = address == null ? null : ButterApi(address!);
@@ -128,6 +146,10 @@ final class ClientContext extends ChangeNotifier {
   }
 
   void _clearIdentity() {
+    scope++;
+    writeNotice = null;
+    _writingGeneration = null;
+    _clearManagement();
     _token = null;
     user = null;
     workspace = null;
@@ -480,12 +502,30 @@ final class ClientContext extends ChangeNotifier {
     if (!_current(generation)) return;
     user = me.user;
     workspaces = List.unmodifiable(list.workspaces);
+    if (managedWorkspace != null &&
+        !workspaces.any((w) => w.id == managedWorkspace!.id)) {
+      scope++;
+      _clearManagement();
+    }
+    if (workspace != null) {
+      final matching = workspaces.where((w) => w.id == workspace!.id);
+      if (matching.isEmpty) {
+        scope++;
+        workspace = null;
+        agents = const [];
+        _nextPage = '';
+      } else {
+        workspace = matching.first;
+      }
+    }
   }
 
   void suspend() {
+    if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
     busy = false;
+    members = const [];
     _emit();
   }
 
@@ -496,10 +536,11 @@ final class ClientContext extends ChangeNotifier {
     await _run(generation, () async {
       await _identity(generation);
       if (!_current(generation)) return;
-      if (workspace != null && !workspaces.any((w) => w.id == workspace!.id)) {
-        workspace = null;
-        agents = const [];
-        _nextPage = '';
+      final managedId = managedWorkspace?.id;
+      if (managedId != null) {
+        _clearManagement();
+        await _loadWorkspace(generation, managedId);
+        if (!_current(generation)) return;
       }
       if (workspace != null) {
         agents = const [];
@@ -511,7 +552,10 @@ final class ClientContext extends ChangeNotifier {
 
   Future<void> refreshWorkspaces() async {
     if (_token == null) return;
+    scope++;
+    _clearManagement();
     final generation = _begin();
+    writeNotice = null;
     workspace = null;
     agents = const [];
     _nextPage = '';
@@ -521,7 +565,10 @@ final class ClientContext extends ChangeNotifier {
 
   Future<void> selectWorkspace(String id) async {
     if (_token == null || !workspaces.any((w) => w.id == id)) return;
+    scope++;
+    _clearManagement();
     final generation = _begin();
+    writeNotice = null;
     workspace = workspaces.firstWhere((w) => w.id == id);
     agents = const [];
     _nextPage = '';
@@ -550,6 +597,149 @@ final class ClientContext extends ChangeNotifier {
     agents = List.unmodifiable([...agents, ...reply.agents]);
     _nextPage = reply.nextPageToken;
   }
+
+  Future<void> openWorkspace(String id) async {
+    if (_token == null || busy) return;
+    if (managedWorkspace != null && managedWorkspace!.id != id) scope++;
+    _clearManagement();
+    final generation = _begin();
+    await _run(generation, () => _loadWorkspace(generation, id));
+  }
+
+  Future<void> _loadWorkspace(int generation, String id) async {
+    final api = _api!;
+    final token = _token!;
+    final detail = await api.workspace(token, id);
+    if (!_current(generation)) return;
+    final membership = await api.members(token, id);
+    if (!_current(generation)) return;
+    managedWorkspace = detail.workspace;
+    members = List.unmodifiable(membership.members);
+  }
+
+  /// A single explicit write; success is never inferred from a stale response.
+  Future<bool> _write(Future<void> Function(int) action) async {
+    if (_token == null || busy) return false;
+    writeNotice = null;
+    final generation = _begin();
+    _writingGeneration = generation;
+    var succeeded = false;
+    var ambiguous = false;
+    await _run(generation, () async {
+      try {
+        await action(generation);
+        succeeded = _current(generation);
+      } catch (failure) {
+        ambiguous =
+            failure is! FormatException &&
+            (failure is! ConnectException ||
+                [
+                  Code.unavailable,
+                  Code.deadlineExceeded,
+                  Code.unknown,
+                  Code.internal,
+                ].contains(failure.code));
+        rethrow;
+      }
+    });
+    if (_writingGeneration == generation) _writingGeneration = null;
+    if (!succeeded && ambiguous && _current(generation) && user != null) {
+      writeNotice = _unconfirmedWrite;
+      _emit();
+    }
+    return succeeded && _current(generation);
+  }
+
+  Future<bool> saveWorkspace(Workspace draft) => _write((generation) async {
+    final result = await _api!.saveWorkspace(_token!, draft);
+    if (!_current(generation)) return;
+    workspaces = List.unmodifiable([
+      for (final w in workspaces) w.id == result.id ? result : w,
+      if (!workspaces.any((w) => w.id == result.id)) result,
+    ]);
+    if (workspace?.id == result.id) workspace = result;
+    if (managedWorkspace?.id == result.id) managedWorkspace = result;
+  });
+
+  Future<bool> deleteWorkspace() {
+    final id = managedWorkspace?.id;
+    if (id == null) return Future.value(false);
+    return _write((generation) async {
+      await _api!.deleteWorkspace(_token!, id);
+      if (!_current(generation)) return;
+      workspaces = List.unmodifiable(workspaces.where((w) => w.id != id));
+      _clearManagement();
+      if (workspace?.id == id) {
+        scope++;
+        workspace = null;
+        agents = const [];
+        _nextPage = '';
+      }
+    });
+  }
+
+  Future<bool> addMember(String userId, String role) =>
+      _saveMember(userId, role, add: true);
+  Future<bool> updateMember(String userId, String role) =>
+      _saveMember(userId, role, add: false);
+  Future<bool> _saveMember(String userId, String role, {required bool add}) {
+    final id = managedWorkspace?.id;
+    if (id == null) return Future.value(false);
+    return _write((generation) async {
+      final result = add
+          ? await _api!.addMember(_token!, id, userId, role)
+          : await _api!.updateMember(_token!, id, userId, role);
+      if (!_current(generation)) return;
+      members = List.unmodifiable([
+        for (final m in members)
+          if (m.userId != userId) m,
+        result,
+      ]);
+    });
+  }
+
+  Future<bool> removeMember(String userId) {
+    final id = managedWorkspace?.id;
+    if (id == null) return Future.value(false);
+    return _write((generation) async {
+      await _api!.removeMember(_token!, id, userId);
+      if (!_current(generation)) return;
+      members = List.unmodifiable(members.where((m) => m.userId != userId));
+      // Global admins still have access without an explicit membership.
+      if (userId == user?.id && user?.role != 'admin') {
+        scope++;
+        _clearManagement();
+        workspaces = List.unmodifiable(workspaces.where((w) => w.id != id));
+        if (workspace?.id == id) {
+          workspace = null;
+          agents = const [];
+          _nextPage = '';
+        }
+      }
+    });
+  }
+
+  Future<bool> saveProfile(
+    String name, {
+    String? avatarUrl,
+    Uint8List? avatar,
+  }) => _write((generation) async {
+    final api = _api!;
+    final token = _token!;
+    var url = avatarUrl;
+    if (avatar != null) {
+      url = await api.uploadAvatar(token, avatar);
+      if (!_current(generation)) return;
+    }
+    final reply = await api.profile(token, name.trim(), avatarUrl: url);
+    if (_current(generation)) user = reply.user;
+  });
+
+  Future<bool> changePassword(String current, String next) =>
+      _write((generation) async {
+        final reply = await _api!.changePassword(_token!, current, next);
+        if (_current(generation)) user = reply.user;
+      });
 
   Future<void> logout() async {
     final oldAddress = address;

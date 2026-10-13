@@ -1,6 +1,6 @@
-# Butter mobile — development client (#447)
+# Butter mobile — development client (#447, #448, #449)
 
-Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. This is the foundation ticket, not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
+Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password and device appearance settings are available too. This is not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
 
 ## Develop
 
@@ -49,9 +49,28 @@ The provider only ever returns to the server's one configured `redirect_url`, wh
 
 ## Credential boundary
 
-`flutter_secure_storage 10.0.0`: Android Keystore-backed encrypted storage; iOS Keychain with `first_unlock_this_device` (not migratable to another device), Keychain entitlements in every app build configuration. Android application backup/transfer is disabled. Only the server address is in ordinary preferences. The secure record contains its server binding and token; a mismatched server record is deleted before any authorized request. Passwords are never persisted, printed or placed in URLs, and the password field is cleared on submission. No shared server/account session pool exists.
+`flutter_secure_storage 10.0.0`: Android Keystore-backed encrypted storage; iOS Keychain with `first_unlock_this_device` (not migratable to another device), Keychain entitlements in every app build configuration. Android application backup/transfer is disabled. Only the server address and non-sensitive device appearance settings are in ordinary preferences. The secure record contains its server binding and token; a mismatched server record is deleted before any authorized request. Passwords are never persisted, printed or placed in URLs, and the password field is cleared on submission. No shared server/account session pool exists.
 
 Changing the address requires confirmation, closes the old scope and clears credentials/cache **before** verifying the new address. This does not call Stop or revoke the old server's Detached Run. Future run observers must live under the same context lifetime.
+
+## Workspace, self-service and appearance (#449)
+
+| Web operation | API/storage | App entry | Tests |
+| --- | --- | --- | --- |
+| Workspace list/create/edit/delete | WorkspaceService | Workspace picker, Create Workspace, Manage | `management_context_test`, `management_widget_test`, real Go `contract_test` |
+| Member list/add/role/remove | WorkspaceService | Workspace details; existing user ID, not admin-only ListUsers | same tests |
+| My display name/avatar/password/logout | AuthService + `POST /api/uploads/avatar` multipart `file` | My profile | `management_context_test`, `profile_widget_test`, `management_widget_test`, `contract_test` |
+| Theme/display preferences | device `butter.appearance` JSON, no identity/secret | Appearance and display | `preferences_test`, `settings_widget_test` |
+
+Permissions come from a fresh GetWorkspace + ListWorkspaceMembers read. Current server rules allow any signed-in user to create a Workspace, members to read, and **owners** (or global admins) to edit/delete and manage members. Workspace admin alone cannot write these resources. Unknown member roles are displayed but not offered in the role editor. No user-directory/admin RPC, user creation/disable or another user's password reset is used.
+
+Edits copy the generated Workspace message, retaining untouched timestamps/unknown fields. Profile avatar optional absence keeps the existing value, explicit empty removes it. The API has no Workspace CAS or last-owner guard; the App does not claim either. Delete confirms Workspace/membership removal and loss of access, not guaranteed deletion of all scoped resources (the current backend does not cascade those collections).
+
+Gallery selection uses `image_picker 1.2.3`, with iOS photo-library purpose text and no camera entry. Selection/preview is local until Save, accepts PNG/JPEG/GIF/WebP by signature and caps reads at 10 MiB; the server's configured limit still wins. Multipart requests carry the user's Bearer token, no Workspace header, refuse redirects and bound responses. Upload followed by UpdateProfile is not atomic: if interrupted, a stored object may be orphaned; no upload or profile write is automatically replayed. A 503 can mean avatar storage is not configured; the form explains that dependency.
+
+All account/Workspace replacements unmount management routes' draft subtrees; foreground recovery refreshes permissions and clears inaccessible management data. Denials preserve safe fields, passwords clear on submission, and interrupted writes retain an unconfirmed-outcome notice through foreground reads. Back warns on unsaved drafts; destructive/access-changing operations name the target and require confirmation. Theme defaults to system; system/light/dark and showing Agent identifiers are device preferences, restored after restart. System font scaling is not overridden, lists/forms scroll above the keyboard and icon actions have reader labels.
+
+The real Go contract fixture now covers Workspace/member CRUD and member/admin denial, profile optional avatar semantics, password checks and revocation at both root and `/butter`. It also exercises the production upload handler's storage-not-configured response. Successful multipart bodies, photo-picker/OS preferences and failure drafts are checked using external-boundary fixtures. A phone-sized widget test exercises 2× system text and reader labels; this is **not** Android/iOS physical-device accessibility acceptance. Language/localization, tablet acceptance and release identifiers/OS/distribution remain undecided. Avatar S3 success, device photo permissions/restart and iOS build still need native/deployment verification.
 
 ## Tests and device acceptance
 
@@ -80,6 +99,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Connect streaming, AG-UI/SSE, Detached Run/A2UI, uploads and complex configuration writes are not validated by this unary foundation ticket.
-- No refresh mechanism exists on the server. Reauthentication is password login, not invented refresh-token rotation.
+- Connect streaming, AG-UI/SSE, Detached Run/A2UI and complex Agent configuration writes are not validated by these tickets. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
+- No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.
