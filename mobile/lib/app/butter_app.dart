@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'client_context.dart';
 import 'app_preferences.dart';
 import '../core/management_page.dart';
+import '../features/model_providers/model_provider_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/workspaces/workspace_pages.dart';
@@ -516,6 +517,13 @@ class _Agents extends StatelessWidget {
                   ),
             icon: const Icon(Icons.manage_accounts),
             label: const Text('Manage Workspace'),
+          ),
+          TextButton.icon(
+            onPressed: client.busy
+                ? null
+                : () => openModelProviders(context, client),
+            icon: const Icon(Icons.memory),
+            label: const Text('Model providers'),
           ),
           TextButton.icon(
             onPressed: client.busy ? null : client.refreshWorkspaces,

@@ -1,4 +1,4 @@
-# Butter mobile — development client (#447, #448, #449)
+# Butter mobile — development client (#447, #448, #449, #450)
 
 Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password and device appearance settings are available too. This is not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
 
@@ -71,6 +71,25 @@ Gallery selection uses `image_picker 1.2.3`, with iOS photo-library purpose text
 All account/Workspace replacements unmount management routes' draft subtrees; foreground recovery refreshes permissions and clears inaccessible management data. Denials preserve safe fields, passwords clear on submission, and interrupted writes retain an unconfirmed-outcome notice through foreground reads. Back warns on unsaved drafts; destructive/access-changing operations name the target and require confirmation. Theme defaults to system; system/light/dark and showing Agent identifiers are device preferences, restored after restart. System font scaling is not overridden, lists/forms scroll above the keyboard and icon actions have reader labels.
 
 The real Go contract fixture now covers Workspace/member CRUD and member/admin denial, profile optional avatar semantics, password checks and revocation at both root and `/butter`. It also exercises the production upload handler's storage-not-configured response. Successful multipart bodies, photo-picker/OS preferences and failure drafts are checked using external-boundary fixtures. A phone-sized widget test exercises 2× system text and reader labels; this is **not** Android/iOS physical-device accessibility acceptance. Language/localization, tablet acceptance and release identifiers/OS/distribution remain undecided. Avatar S3 success, device photo permissions/restart and iOS build still need native/deployment verification.
+
+## Model providers (#450)
+
+| Web operation | API/storage | App entry | Tests |
+| --- | --- | --- | --- |
+| List / view providers | ModelProviderService List/Get, `X-Workspace-ID` | Agents page → Model providers | `model_provider_context_test`, `model_provider_widget_test`, real `model_provider_contract_test` |
+| Create / edit (type, base URL, API key, models with ID, alias, context window) | Create / Update (the whole object is replaced) | Add provider, Edit provider | `provider_draft_test`, widget and contract tests |
+| Delete | Delete, after a confirmation naming the provider | Provider details | same tests, plus `mobile/tool/contractserver/main_test.go` |
+| Refused change because Telegram Destinations use an alias | `FailedPrecondition` with the alias and Destination IDs | Shown on the form or the delete dialog | contract tests against the real `TelegramReferenceGuard` |
+
+Any member of the Workspace may use these calls: the server has no owner/admin check here, so the App does not invent one. The provider belongs to the selected Workspace; switching Workspace, account or server drops the list, the detail and unsaved drafts.
+
+**Credentials.** The API exposes no `credential_set`, write-only field or connection test, and returns the key in plain text, so the App does not pretend otherwise. It never displays the key: lists and details show only "API key: Set / Not set", logs and errors do not carry it and drafts are not persisted. Editing offers Keep (default, the stored value is untouched), Replace (an obscured field) and Remove (asks for confirmation). Nothing is auto-retried.
+
+**Model fields.** Model ID is what the provider is called with; Alias is the name Agents and Telegram select; Context window is the **input** capacity in tokens (0 to 4,294,967,295). Empty and 0 both mean unset, and the server then uses its own default. It is not the maximum output tokens, and the provider API has no output-limit field, so the App offers none. (An Agent's `context_guard.max_tokens` is likewise an input-context override, not an output limit.) The form needs at least one model, like the Web page.
+
+**Unchanged fields.** An edit starts from a deep copy of the stored message and each model row keeps its own original, so unedited and unknown protobuf fields survive an update, also when rows are removed or reordered. If a save reply is lost the App reports an unconfirmed outcome and reloads instead of replaying the write.
+
+Limits: Agent model/parameter selection (#451), key rotation policies and a live connection test do not exist in this ticket. The widget tests include a phone-sized 2× text run with reader labels; that is **not** device accessibility acceptance, and no Android/iOS device or release verification was done for this ticket.
 
 ## Tests and device acceptance
 

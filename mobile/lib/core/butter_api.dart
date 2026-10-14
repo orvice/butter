@@ -8,6 +8,7 @@ import 'package:connectrpc/connect.dart' as connect;
 import 'package:connectrpc/protobuf.dart';
 import 'package:connectrpc/protocol/connect.dart' as protocol;
 
+import '../gen/agents/v1/agent.pb.dart';
 import '../gen/agents/v1/agent_service.connect.client.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/auth.connect.client.dart';
@@ -29,6 +30,7 @@ final class ButterApi {
     _auth = AuthServiceClient(transport);
     _workspaces = WorkspaceServiceClient(transport);
     _agents = AgentServiceClient(transport);
+    _modelProviders = ModelProviderServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -36,6 +38,7 @@ final class ButterApi {
   late final AuthServiceClient _auth;
   late final WorkspaceServiceClient _workspaces;
   late final AgentServiceClient _agents;
+  late final ModelProviderServiceClient _modelProviders;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -128,6 +131,77 @@ final class ButterApi {
     headers: _headers(token, workspace),
     signal: _deadline,
   );
+  Future<List<ModelProvider>> modelProviders(
+    String token,
+    String workspace,
+  ) async => (await _modelProviders.listModelProviders(
+    ListModelProvidersRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).modelProviders;
+  Future<ModelProvider> modelProvider(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _modelProviders.getModelProvider(
+      GetModelProviderRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasModelProvider()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Model provider missing.',
+      );
+    }
+    return reply.modelProvider;
+  }
+
+  /// Create and update are different calls with different failure modes
+  /// (already exists vs. not found), so the caller states which one it means.
+  Future<ModelProvider> saveModelProvider(
+    String token,
+    String workspace,
+    ModelProvider provider, {
+    required bool create,
+  }) async {
+    final headers = _headers(token, workspace);
+    final ModelProvider? saved;
+    if (create) {
+      final reply = await _modelProviders.createModelProvider(
+        CreateModelProviderRequest(modelProvider: provider),
+        headers: headers,
+        signal: _deadline,
+      );
+      saved = reply.hasModelProvider() ? reply.modelProvider : null;
+    } else {
+      final reply = await _modelProviders.updateModelProvider(
+        UpdateModelProviderRequest(modelProvider: provider),
+        headers: headers,
+        signal: _deadline,
+      );
+      saved = reply.hasModelProvider() ? reply.modelProvider : null;
+    }
+    if (saved == null) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Model provider reply missing.',
+      );
+    }
+    return saved;
+  }
+
+  Future<void> deleteModelProvider(
+    String token,
+    String workspace,
+    String name,
+  ) => _modelProviders.deleteModelProvider(
+    DeleteModelProviderRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
   Future<LogoutResponse> logout(String token) => _auth.logout(
     LogoutRequest(),
     headers: _headers(token),
