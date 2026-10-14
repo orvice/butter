@@ -43,4 +43,8 @@ if [[ "$url" != http://* ]]; then
 fi
 
 cd -- "$root/mobile"
-flutter test test/contract_test.dart test/native_oauth_contract_test.dart test/model_provider_contract_test.dart "--dart-define=BUTTER_TEST_SERVER=$url"
+# The files share one single-user, mutable fixture: contract_test.dart
+# temporarily changes the mobile-test password and revokes sessions, which
+# would fail another file's login if the files ran in parallel. flutter test
+# runs files concurrently by default, so run them one at a time.
+flutter test --concurrency=1 test/contract_test.dart test/native_oauth_contract_test.dart test/model_provider_contract_test.dart "--dart-define=BUTTER_TEST_SERVER=$url"
