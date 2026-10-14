@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/butter_api.dart';
 import '../core/client_storage.dart';
+import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
 import '../core/server_address.dart';
 import '../gen/agents/v1/agent.pb.dart';
@@ -79,6 +80,15 @@ final class ClientContext extends ChangeNotifier {
   Workspace? managedWorkspace;
   List<WorkspaceMember> members = const [];
   int scope = 0;
+
+  /// Model Providers of the selected Workspace. They carry API keys as the
+  /// server returns them, so they are in memory only, never displayed, and
+  /// dropped with every identity/Workspace change and when the app pauses.
+  List<ModelProvider> modelProviders = const [];
+  bool modelProvidersLoaded = false;
+  ModelProvider? modelProvider;
+  bool _providersShown = false;
+  String? _providerName;
   bool get canManageWorkspace =>
       managedWorkspace != null &&
       (user?.role == 'admin' ||
@@ -87,6 +97,14 @@ final class ClientContext extends ChangeNotifier {
   void _clearManagement() {
     managedWorkspace = null;
     members = const [];
+  }
+
+  void _clearModelProviders() {
+    modelProviders = const [];
+    modelProvidersLoaded = false;
+    modelProvider = null;
+    _providersShown = false;
+    _providerName = null;
   }
 
   bool busy = false;
@@ -150,6 +168,7 @@ final class ClientContext extends ChangeNotifier {
     writeNotice = null;
     _writingGeneration = null;
     _clearManagement();
+    _clearModelProviders();
     _token = null;
     user = null;
     workspace = null;
@@ -170,6 +189,7 @@ final class ClientContext extends ChangeNotifier {
     int generation,
     Future<void> Function() action, {
     bool clearOnFailure = false,
+    String? Function(Object failure)? describe,
   }) async {
     try {
       await action();
@@ -210,7 +230,7 @@ final class ClientContext extends ChangeNotifier {
         ].whereType<String>().join(' ');
         return;
       }
-      error = errorMessage(failure);
+      error = describe?.call(failure) ?? errorMessage(failure);
     } finally {
       if (_current(generation)) {
         busy = false;
@@ -514,6 +534,7 @@ final class ClientContext extends ChangeNotifier {
         workspace = null;
         agents = const [];
         _nextPage = '';
+        _clearModelProviders();
       } else {
         workspace = matching.first;
       }
@@ -526,6 +547,11 @@ final class ClientContext extends ChangeNotifier {
     _api?.close();
     busy = false;
     members = const [];
+    // Keys must not wait in memory while the app is in the background; the
+    // read-only foreground recovery reloads what was open.
+    modelProviders = const [];
+    modelProvidersLoaded = false;
+    modelProvider = null;
     _emit();
   }
 
@@ -533,27 +559,44 @@ final class ClientContext extends ChangeNotifier {
   Future<void> revalidate() async {
     if (_token == null) return;
     final generation = _begin();
-    await _run(generation, () async {
-      await _identity(generation);
-      if (!_current(generation)) return;
-      final managedId = managedWorkspace?.id;
-      if (managedId != null) {
-        _clearManagement();
-        await _loadWorkspace(generation, managedId);
+    // Provider wording applies only while the provider reads run; identity,
+    // Workspace management and Agent failures keep the generic handling.
+    var readingProviders = false;
+    await _run(
+      generation,
+      () async {
+        await _identity(generation);
         if (!_current(generation)) return;
-      }
-      if (workspace != null) {
-        agents = const [];
-        _nextPage = '';
-        await _loadAgents(generation, '');
-      }
-    });
+        final managedId = managedWorkspace?.id;
+        if (managedId != null) {
+          _clearManagement();
+          await _loadWorkspace(generation, managedId);
+          if (!_current(generation)) return;
+        }
+        if (workspace != null) {
+          agents = const [];
+          _nextPage = '';
+          await _loadAgents(generation, '');
+          if (!_current(generation)) return;
+          if (_providersShown) {
+            readingProviders = true;
+            await _loadModelProviders(generation);
+            final open = _providerName;
+            if (open != null && _current(generation)) {
+              await _loadModelProvider(generation, open);
+            }
+          }
+        }
+      },
+      describe: (failure) => readingProviders ? _describeLoad(failure) : null,
+    );
   }
 
   Future<void> refreshWorkspaces() async {
     if (_token == null) return;
     scope++;
     _clearManagement();
+    _clearModelProviders();
     final generation = _begin();
     writeNotice = null;
     workspace = null;
@@ -567,6 +610,7 @@ final class ClientContext extends ChangeNotifier {
     if (_token == null || !workspaces.any((w) => w.id == id)) return;
     scope++;
     _clearManagement();
+    _clearModelProviders();
     final generation = _begin();
     writeNotice = null;
     workspace = workspaces.firstWhere((w) => w.id == id);
@@ -618,7 +662,10 @@ final class ClientContext extends ChangeNotifier {
   }
 
   /// A single explicit write; success is never inferred from a stale response.
-  Future<bool> _write(Future<void> Function(int) action) async {
+  Future<bool> _write(
+    Future<void> Function(int) action, {
+    String? Function(Object failure)? describe,
+  }) async {
     if (_token == null || busy) return false;
     writeNotice = null;
     final generation = _begin();
@@ -641,7 +688,7 @@ final class ClientContext extends ChangeNotifier {
                 ].contains(failure.code));
         rethrow;
       }
-    });
+    }, describe: describe);
     if (_writingGeneration == generation) _writingGeneration = null;
     if (!succeeded && ambiguous && _current(generation) && user != null) {
       writeNotice = _unconfirmedWrite;
@@ -674,6 +721,7 @@ final class ClientContext extends ChangeNotifier {
         workspace = null;
         agents = const [];
         _nextPage = '';
+        _clearModelProviders();
       }
     });
   }
@@ -714,6 +762,7 @@ final class ClientContext extends ChangeNotifier {
           workspace = null;
           agents = const [];
           _nextPage = '';
+          _clearModelProviders();
         }
       }
     });
@@ -740,6 +789,102 @@ final class ClientContext extends ChangeNotifier {
         final reply = await _api!.changePassword(_token!, current, next);
         if (_current(generation)) user = reply.user;
       });
+
+  /// Reads the selected Workspace's Model Providers. A response that arrives
+  /// after the scope changed is dropped, never shown in the new one.
+  Future<void> loadModelProviders() async {
+    if (_token == null || workspace == null) return;
+    _providersShown = true;
+    _providerName = null;
+    modelProvider = null;
+    final generation = _begin();
+    await _run(
+      generation,
+      () => _loadModelProviders(generation),
+      describe: _describeLoad,
+    );
+  }
+
+  Future<void> _loadModelProviders(int generation) async {
+    final id = workspace!.id;
+    final list = await _api!.modelProviders(_token!, id);
+    if (!_current(generation) || workspace?.id != id) return;
+    modelProviders = List.unmodifiable(list);
+    modelProvidersLoaded = true;
+  }
+
+  /// Reads one provider fresh from the server; its copy is what an edit is
+  /// built from, so an edit never starts from a stale list row.
+  Future<void> loadModelProvider(String name) async {
+    if (_token == null || workspace == null) return;
+    _providersShown = true;
+    _providerName = name;
+    modelProvider = null;
+    final generation = _begin();
+    await _run(
+      generation,
+      () => _loadModelProvider(generation, name),
+      describe: _describeLoad,
+    );
+  }
+
+  Future<void> _loadModelProvider(int generation, String name) async {
+    final id = workspace!.id;
+    final result = await _api!.modelProvider(_token!, id, name);
+    if (!_current(generation) || workspace?.id != id) return;
+    modelProvider = result;
+    _providerName = name;
+  }
+
+  String? _describeLoad(Object failure) =>
+      describeModelProviderFailure(failure, ModelProviderOperation.load);
+
+  /// One explicit create or whole-object update; never repeated on its own.
+  /// [draft] is the complete message to store, built from the server's own copy.
+  Future<bool> saveModelProvider(ModelProvider draft, {required bool create}) {
+    final id = workspace?.id;
+    if (id == null) return Future.value(false);
+    return _write(
+      (generation) async {
+        final result = await _api!.saveModelProvider(
+          _token!,
+          id,
+          draft,
+          create: create,
+        );
+        if (!_current(generation) || workspace?.id != id) return;
+        modelProviders = List.unmodifiable([
+          for (final p in modelProviders) p.name == result.name ? result : p,
+          if (!modelProviders.any((p) => p.name == result.name)) result,
+        ]);
+        modelProvider = result;
+        _providerName = result.name;
+        modelProvidersLoaded = true;
+      },
+      describe: (failure) => describeModelProviderFailure(
+        failure,
+        create ? ModelProviderOperation.create : ModelProviderOperation.update,
+      ),
+    );
+  }
+
+  Future<bool> deleteModelProvider(String name) {
+    final id = workspace?.id;
+    if (id == null) return Future.value(false);
+    return _write(
+      (generation) async {
+        await _api!.deleteModelProvider(_token!, id, name);
+        if (!_current(generation) || workspace?.id != id) return;
+        modelProviders = List.unmodifiable(
+          modelProviders.where((p) => p.name != name),
+        );
+        if (modelProvider?.name == name) modelProvider = null;
+        if (_providerName == name) _providerName = null;
+      },
+      describe: (failure) =>
+          describeModelProviderFailure(failure, ModelProviderOperation.delete),
+    );
+  }
 
   Future<void> logout() async {
     final oldAddress = address;

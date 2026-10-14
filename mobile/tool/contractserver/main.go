@@ -31,6 +31,8 @@ import (
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
+	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
+	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
 	"go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	"go.orx.me/apps/butter/internal/service"
@@ -159,6 +161,15 @@ func (s *authStore) RevokeSession(_ context.Context, id string) error {
 }
 
 const (
+	// Seeded Telegram references in Workspace alpha only. The real
+	// ModelProviderService guard blocks removing these model aliases there,
+	// and ignores them in beta (references are Workspace-scoped).
+	guardedModelAlias      = "guarded-default"
+	guardedSelectableAlias = "guarded-choice"
+	guardedDestinationID   = "contract-destination"
+)
+
+const (
 	fakeProviderName = "github"
 	fakeProviderCode = "contract-provider-code"
 	fakeExternalID   = "contract-external-id"
@@ -206,6 +217,26 @@ func fixture(ctx context.Context) (http.Handler, error) {
 			return nil, err
 		}
 	}
+	// A real Telegram Destination routes to two model aliases in alpha, so the
+	// real reference guard has something to refuse.
+	telegramRepo := telegrammemory.New()
+	if _, err := telegramRepo.CreateChannel(ctx, "alpha",
+		&agentsv1.TelegramChannel{Id: "contract-channel", Key: "contract", Name: "contract", BotId: "424242"},
+		telegramrepo.ChannelCredentials{BotToken: telegramrepo.Credential{Ciphertext: "unused", KeyID: "contract"}}); err != nil {
+		return nil, err
+	}
+	if _, err := telegramRepo.CreateDestination(ctx, "alpha", &agentsv1.TelegramDestination{
+		Id: guardedDestinationID, Key: "contract-topic", ChannelId: "contract-channel", ChatId: "-1001",
+		Config: &agentsv1.TelegramDestinationConfig{
+			AgentId:          "shared",
+			Model:            guardedModelAlias,
+			SelectableModels: []string{guardedSelectableAlias},
+		},
+	}); err != nil {
+		return nil, err
+	}
+	modelProviderSvc := application.NewModelProviderServiceServer(agentRepo)
+	modelProviderSvc.SetTelegramGuard(application.NewTelegramReferenceGuard(telegramRepo))
 	authSvc := application.NewAuthServiceServer(authRepo, time.Hour)
 	authSvc.SetWorkspaceRepo(wsRepo)
 	providers := provider.NewRegistry()
@@ -218,6 +249,7 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	_, authHandler := agentsv1connect.NewAuthServiceHandler(authSvc, opts...)
 	_, wsHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceServer(wsRepo), opts...)
 	_, agentHandler := agentsv1connect.NewAgentServiceHandler(application.NewAgentServiceServer(agentRepo), opts...)
+	_, modelProviderHandler := agentsv1connect.NewModelProviderServiceHandler(modelProviderSvc, opts...)
 
 	gin.SetMode(gin.ReleaseMode)
 	gin.DefaultWriter = os.Stderr
@@ -260,6 +292,15 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	// Exercise the real REST handler's honest storage-not-configured response.
 	httpHandler.NewUploadHandler(nil).Register(r)
 	r.POST("/api"+agentsv1connect.AgentServiceListAgentsProcedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
+	for _, procedure := range []string{
+		agentsv1connect.ModelProviderServiceListModelProvidersProcedure,
+		agentsv1connect.ModelProviderServiceGetModelProviderProcedure,
+		agentsv1connect.ModelProviderServiceCreateModelProviderProcedure,
+		agentsv1connect.ModelProviderServiceUpdateModelProviderProcedure,
+		agentsv1connect.ModelProviderServiceDeleteModelProviderProcedure,
+	} {
+		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", modelProviderHandler)))
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
 	mux.Handle("/", r)
