@@ -4,11 +4,13 @@ import 'package:connectrpc/connect.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/butter_api.dart';
+import '../core/agent_errors.dart';
 import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
 import '../core/server_address.dart';
 import '../gen/agents/v1/agent.pb.dart';
+import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/workspace.pb.dart';
 
@@ -77,6 +79,33 @@ final class ClientContext extends ChangeNotifier {
   Workspace? workspace;
   List<Workspace> workspaces = const [];
   List<Agent> agents = const [];
+  Agent? managedAgent;
+  AgentRuntimeStatus? agentStatus;
+  String? _agentId;
+  List<Agent> agentChoices = const [];
+  List<String> agentModelChoices = const [];
+  List<String> agentSkillChoices = const [];
+  bool agentContentGitOwned = false;
+  bool agentEditorReady = false;
+  bool agentRepositoryBound = false;
+  bool _agentEditorShown = false;
+
+  void _clearAgentEditor() {
+    agentChoices = const [];
+    agentModelChoices = const [];
+    agentEditorReady = false;
+    agentRepositoryBound = false;
+    agentContentGitOwned = false;
+    agentSkillChoices = const [];
+    _agentEditorShown = false;
+  }
+
+  void _clearAgentDetail() {
+    managedAgent = null;
+    agentStatus = null;
+    _agentId = null;
+  }
+
   Workspace? managedWorkspace;
   List<WorkspaceMember> members = const [];
   int scope = 0;
@@ -95,6 +124,8 @@ final class ClientContext extends ChangeNotifier {
           members.any((m) => m.userId == user?.id && m.role == 'owner'));
 
   void _clearManagement() {
+    _clearAgentDetail();
+    _clearAgentEditor();
     managedWorkspace = null;
     members = const [];
   }
@@ -535,6 +566,8 @@ final class ClientContext extends ChangeNotifier {
         agents = const [];
         _nextPage = '';
         _clearModelProviders();
+        _clearAgentDetail();
+        _clearAgentEditor();
       } else {
         workspace = matching.first;
       }
@@ -547,6 +580,12 @@ final class ClientContext extends ChangeNotifier {
     _api?.close();
     busy = false;
     members = const [];
+    managedAgent = null;
+    agentStatus = null;
+    agentChoices = const [];
+    agentModelChoices = const [];
+    agentEditorReady = false;
+    agentSkillChoices = const [];
     // Keys must not wait in memory while the app is in the background; the
     // read-only foreground recovery reloads what was open.
     modelProviders = const [];
@@ -578,6 +617,15 @@ final class ClientContext extends ChangeNotifier {
           _nextPage = '';
           await _loadAgents(generation, '');
           if (!_current(generation)) return;
+          if (_agentEditorShown) {
+            await _loadAgentEditor(generation);
+            if (!_current(generation)) return;
+          }
+          final openAgent = _agentId;
+          if (openAgent != null) {
+            await _loadAgent(generation, openAgent);
+            if (!_current(generation)) return;
+          }
           if (_providersShown) {
             readingProviders = true;
             await _loadModelProviders(generation);
@@ -640,6 +688,104 @@ final class ClientContext extends ChangeNotifier {
     if (!_current(generation)) return;
     agents = List.unmodifiable([...agents, ...reply.agents]);
     _nextPage = reply.nextPageToken;
+  }
+
+  Future<void> prepareAgentEditor() async {
+    if (_token == null || workspace == null) return;
+    _agentEditorShown = true;
+    agentEditorReady = false;
+    final generation = _begin();
+    await _run(generation, () => _loadAgentEditor(generation));
+  }
+
+  Future<void> _loadAgentEditor(int generation) async {
+    final api = _api!;
+    final token = _token!;
+    final ws = workspace!.id;
+    final choices = <Agent>[];
+    final seen = <String>{};
+    var page = '';
+    do {
+      final reply = await api.agents(token, ws, pageToken: page);
+      if (!_current(generation)) return;
+      choices.addAll(reply.agents);
+      page = reply.nextPageToken;
+      if (page.isNotEmpty && !seen.add(page)) {
+        throw const FormatException(
+          'Agent pagination did not advance. Refresh before editing.',
+        );
+      }
+    } while (page.isNotEmpty);
+    final providers = await api.modelProviders(token, ws);
+    if (!_current(generation)) return;
+    final binding = await api.repositoryBinding(token, ws);
+    if (!_current(generation)) return;
+    final skills = await api.skillNames(token, ws);
+    if (!_current(generation)) return;
+    agentChoices = List.unmodifiable(choices);
+    agentModelChoices = List.unmodifiable({
+      for (final p in providers)
+        for (final m in p.models)
+          if (m.alias.isNotEmpty) m.alias else if (m.name.isNotEmpty) m.name,
+    });
+    agentRepositoryBound = binding != null;
+    agentContentGitOwned = binding?.activeCommitSha.isNotEmpty ?? false;
+    agentSkillChoices = List.unmodifiable(skills);
+    agentEditorReady = true;
+  }
+
+  Future<void> loadAgent(String id) async {
+    if (_token == null || workspace == null) return;
+    _clearAgentDetail();
+    _agentId = id;
+    final generation = _begin();
+    await _run(generation, () async {
+      await _loadAgent(generation, id);
+      // An explicit authoritative detail reload is the user's reconciliation
+      // step. Foreground recovery does not silently dismiss the notice.
+      if (_current(generation)) writeNotice = null;
+    }, describe: describeAgentFailure);
+  }
+
+  Future<void> _loadAgent(int generation, String id) async {
+    final api = _api!;
+    final ws = workspace!.id;
+    final token = _token!;
+    final result = await api.agent(token, ws, id);
+    if (!_current(generation)) return;
+    managedAgent = result;
+    final status = await api.agentStatus(token, ws, id);
+    if (_current(generation)) agentStatus = status;
+  }
+
+  Future<bool> saveAgent(Agent draft, {required bool create, Agent? previous}) {
+    final ws = workspace?.id;
+    if (ws == null) return Future.value(false);
+    return _write((generation) async {
+      final api = _api!;
+      final token = _token!;
+      // Re-read binding for each explicit save; a failed read must never route
+      // a Git-owned prompt through UpdateAgent, where it would be ignored.
+      final binding = await api.repositoryBinding(token, ws);
+      if (!_current(generation)) return;
+      final saved = await api.saveAgent(
+        token,
+        ws,
+        draft,
+        create: create,
+        contentGitOwned: binding?.activeCommitSha.isNotEmpty ?? false,
+        baseCommitSha: binding?.activeCommitSha ?? '',
+        previous: previous,
+      );
+
+      if (!_current(generation)) return;
+      managedAgent = saved;
+      _agentId = saved.agentId;
+      agents = List.unmodifiable([
+        for (final a in agents) a.agentId == saved.agentId ? saved : a,
+        if (!agents.any((a) => a.agentId == saved.agentId)) saved,
+      ]);
+    }, describe: describeAgentFailure);
   }
 
   Future<void> openWorkspace(String id) async {

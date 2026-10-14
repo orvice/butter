@@ -1,6 +1,6 @@
-# Butter mobile — development client (#447, #448, #449, #450)
+# Butter mobile — development client (#447–#451)
 
-Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password and device appearance settings are available too. This is not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
+Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password, appearance settings, Model Providers and LLM/Loop/Sequential/Parallel Agent configuration are available too. This is not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
 
 ## Develop
 
@@ -34,7 +34,7 @@ flutter build ios --simulator --debug --no-codesign
 - `tool/contractserver` registers production Connect handlers with `connectx.HandlerOptions()`, real application Login/Me/Logout/ListWorkspaces/ListAgents, real auth/Workspace middleware and `/ping`. Only database persistence is replaced by ephemeral repositories. `test/contract_test.dart` calls those handlers from Dart, including invalid password, unauthorized Workspace and revocation, both at root and at a reverse-proxy `/butter` prefix. It proves actual backend protocol interoperability, not deployment/device acceptance. The fixture cannot bind non-loopback addresses and never executes an Agent.
 - Address verification calls `/ping` **and** the generated, public `ListOAuthProviders` RPC without credentials. The second check distinguishes a Butter RPC endpoint from an arbitrary web page. Auth/Workspace requests carry no Workspace header; Agent requests carry the selected `X-Workspace-ID`.
 - HTTPS is default, normal OS/Dart certificate validation stays enabled, redirects are refused, userinfo/query/fragment and dot paths are rejected. A deployment prefix is supported; enter the public root/prefix, not `/api`. Proxies must serve `/ping` and Connect beneath that prefix without redirects.
-- Generated protobuf messages remain intact in memory: optional absence/explicit zero and unknown fields survive list decoding. This ticket does not write Agent configuration. Future editing must prove enum/optional/oneof/int64/bytes round-trips before offering save; retaining unknown bytes alone is not proof that a form handles future enum values safely.
+- Generated protobuf messages remain intact in memory: optional absence/explicit zero and unknown fields survive list decoding. Agent editing (#451) copies the complete generated message and changes only edited fields; tests cover optional/int64, nested unknown fields and future enum retention. Unknown type/lifecycle and legacy embedded children block editing; unknown Include Contents/ContextGuard strategy is shown as retained and has no rewriting control. Server validation still wins.
 - One request scope is disposable. Switching server, account or Workspace closes its HTTP client and increments a generation. Late responses cannot restore old identities or lists. Secure-store writes/deletes are serialized, including writes that outlive a cancelled login. Entering the background closes observation/request scope; foreground recovery performs reads only, never repeats Login or side effects.
 - No automatic retries, refresh tokens, root/API-token login or persistent Agent cache. 401/Unauthenticated clears sensitive state and secure credentials; 403 remains a permission error. Logout clears locally first and explicitly reports unconfirmed remote revocation. Storage failures remain visible and fail closed; if the OS refuses deletion, the app cannot honestly promise that the OS record was erased.
 
@@ -89,7 +89,28 @@ Any member of the Workspace may use these calls: the server has no owner/admin c
 
 **Unchanged fields.** An edit starts from a deep copy of the stored message and each model row keeps its own original, so unedited and unknown protobuf fields survive an update, also when rows are removed or reordered. If a save reply is lost the App reports an unconfirmed outcome and reloads instead of replaying the write.
 
-Limits: Agent model/parameter selection (#451), key rotation policies and a live connection test do not exist in this ticket. The widget tests include a phone-sized 2× text run with reader labels; that is **not** device accessibility acceptance, and no Android/iOS device or release verification was done for this ticket.
+Limits: key rotation policies and a live connection test do not exist in this ticket. The widget tests include a phone-sized 2× text run with reader labels; that is **not** device accessibility acceptance, and no Android/iOS device or release verification was done for this ticket.
+
+## LLM and composite Agents (#451)
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Paginated Agent list / fresh detail / lifecycle + runtime status | ListAgents / GetAgent / GetAgentRuntimeStatus, by immutable Agent ID | Agents → row | `agent_context_test`, `agent_contract_test` |
+| Create / edit LLM, Loop, Sequential, Parallel | CreateAgent / UpdateAgent | Create Agent / detail → Edit Agent | `agent_widget_test`, real `agent_contract_test` |
+| LLM model/alias, instruction/global instruction, schemas, output key, include contents, transfer flags | AgentConfig | Structured LLM fields | widget, draft and contract tests |
+| ContextGuard Off / Threshold / Sliding Window | ContextGuardConfig | LLM editor | same tests; real backend rejects negative, wrong-strategy and non-LLM settings |
+| Ordered independent child references / labels / metadata / API exposure | child_agent_ids, map rows, interface switches | Structured rows, ID picker, reorder/remove controls | widget and real contract relationship validation |
+| Associate/remove existing Skills | SkillService.ListSkills + AgentConfig.skills | Agent editor checkboxes (no Skill CRUD/content/resource management) | widget and real contract catalog/round-trip tests |
+
+Unbound Agent configuration writes are available to Workspace members under the existing backend rules. The App does not invent an owner-only restriction. The immutable ID is the only lookup/reference key; the display name is never resolved. Runtime name is supplied on create and server-controlled thereafter. Existing type is retained by this editor (type selection is offered on create); changing existing type stays with Web to avoid discarding future type-specific fields. Blocked lifecycle states, unknown types and historical embedded-child configurations are read-only (composite saves would discard embedded children). No Workflow/Box editor, run, deletion, restore, purge or operation-management action is provided by this ticket.
+
+Model choices include every configured provider's alias (model ID when no alias is set), keep custom/current values, and never cache or display provider keys. Child choices load every Agent page; choosing an ID does not embed or modify that resource. The server enforces existence, Workspace scope, cycles and single-parent ownership. Existing unavailable references remain visible and can be removed, not silently dropped.
+
+**Advanced fields.** Input/output schema text is validated as JSON on edit; it is stored configuration, not a claim of runtime structured-output support. Labels and metadata have separate key/value rows, not a whole-Agent JSON editor. ContextGuard's Threshold has only an Agent Context Override in input tokens (0 inherits Model Context Capacity); Sliding Window has only its content-entry limit (0 defaults to 20). Neither sets maximum output tokens. Switching a known strategy clears the other strategy's field; leaving it unchanged preserves the message including unknown fields. Known backend ContextGuard errors have specific safe explanations; arbitrary server payloads are not echoed. Existing Skills are selectable/removable by name from the read-only Workspace catalog; missing previously selected names remain until deliberately removed. Unedited MCP/Remote/files/Memory/Card Policy/runtime associations remain intact for their separate tickets.
+
+**Git boundary.** Every explicit save first reads GetWorkspaceRepoBinding; an unavailable read never falls back to a DB-only write. Create includes initial Agent Content. An update uses UpdateAgentConfiguration only once the binding has an Active Revision (`active_commit_sha`), matching backend Git ownership. Bound-but-not-onboarded content remains database-owned and editable by members through UpdateAgent. Git-owned updates carry the original int64 version, the active SHA and only changed description/prompt/global-prompt file actions (empty means DELETE). A response that silently ignores DB-path content changes is treated as unconfirmed, not success. CAS conflicts ask for a reload, never force overwrite. Unbound UpdateAgent does not accept a client-observed version, so the App does not promise stale-editor CAS there. Production-service Dart tests cover unbound CRUD, bound-but-not-onboarded member edits, read-only Skill catalogs and real validators at root and `/butter`; bound routing/version/path mapping is tested at the controllable HTTP boundary. A real Git-bound deployment and operation-recovery/device acceptance are **not** established by these tests.
+
+Drafts live only in memory, warn before leaving, and unmount when the server/account/Workspace changes. All fields stay mounted in a scrolling form so off-screen errors cannot bypass validation. Background closes requests; foreground only reads. Ambiguous writes remain explicitly unconfirmed, are never replayed, and the draft refuses another Save until the user leaves and explicitly reloads the Agent. The detail reload reconciles the notice; foreground reads alone do not dismiss it. A phone-sized 2× system-text test covers the large form, not physical-device accessibility acceptance.
 
 ## Tests and device acceptance
 
@@ -118,6 +139,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Connect streaming, AG-UI/SSE, Detached Run/A2UI and complex Agent configuration writes are not validated by these tickets. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
+- Connect streaming, AG-UI/SSE and Detached Run/A2UI are not validated by these tickets. Workflow/Box/lifecycle and the remaining association editors are separate tickets. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
 - No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.

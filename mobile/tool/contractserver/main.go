@@ -29,8 +29,11 @@ import (
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
+	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
+	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
+	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
 	"go.orx.me/apps/butter/internal/repo/workspace"
@@ -248,7 +251,26 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	opts := connectx.HandlerOptions()
 	_, authHandler := agentsv1connect.NewAuthServiceHandler(authSvc, opts...)
 	_, wsHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceServer(wsRepo), opts...)
-	_, agentHandler := agentsv1connect.NewAgentServiceHandler(application.NewAgentServiceServer(agentRepo), opts...)
+	bindingRepo := repobindingmemory.New()
+	// beta is bound but has no Active Revision: Agent Content remains
+	// database-owned for existing Agent edits, including member writes.
+	if _, err := bindingRepo.Put(ctx, "beta", &agentsv1.WorkspaceRepoBinding{
+		GitHostId: "contract-host", Repository: "owner/repo", Branch: "main",
+	}); err != nil {
+		return nil, err
+	}
+	bindingSvc := application.NewRepoBindingServiceServer(bindingRepo, githostmemory.New())
+	bindingSvc.SetWorkspaceRepo(wsRepo)
+	_, bindingHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(bindingSvc, opts...)
+	agentSvc := application.NewAgentServiceServer(agentRepo)
+	agentSvc.SetWorkspaceRepo(wsRepo)
+	agentSvc.SetContentCoordinator(bindingSvc)
+	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
+	skillRepo := skillmemory.New()
+	if _, err := skillRepo.Create(ctx, "alpha", &agentsv1.Skill{Name: "existing-skill"}, "fixture content"); err != nil {
+		return nil, err
+	}
+	_, skillHandler := agentsv1connect.NewSkillServiceHandler(application.NewSkillServiceServer(skillRepo), opts...)
 	_, modelProviderHandler := agentsv1connect.NewModelProviderServiceHandler(modelProviderSvc, opts...)
 
 	gin.SetMode(gin.ReleaseMode)
@@ -291,7 +313,21 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	// Exercise the real REST handler's honest storage-not-configured response.
 	httpHandler.NewUploadHandler(nil).Register(r)
-	r.POST("/api"+agentsv1connect.AgentServiceListAgentsProcedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
+	for _, procedure := range []string{
+		agentsv1connect.AgentServiceListAgentsProcedure,
+		agentsv1connect.AgentServiceGetAgentProcedure,
+		agentsv1connect.AgentServiceCreateAgentProcedure,
+		agentsv1connect.AgentServiceUpdateAgentProcedure,
+		agentsv1connect.AgentServiceGetAgentRuntimeStatusProcedure,
+	} {
+		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
+	}
+	// Skill selection is read-only; no standalone CRUD or content/resource API.
+	r.POST("/api"+agentsv1connect.SkillServiceListSkillsProcedure,
+		gin.WrapH(http.StripPrefix("/api", skillHandler)))
+	// Read-only binding discovery, not repository onboarding or Git writes.
+	r.POST("/api"+agentsv1connect.WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure,
+		gin.WrapH(http.StripPrefix("/api", bindingHandler)))
 	for _, procedure := range []string{
 		agentsv1connect.ModelProviderServiceListModelProvidersProcedure,
 		agentsv1connect.ModelProviderServiceGetModelProviderProcedure,
