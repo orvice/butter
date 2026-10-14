@@ -28,9 +28,35 @@ void main() {
           )).token;
         });
         test(
+          'member edits database-owned content in a bound but not onboarded Workspace',
+          () async {
+            final binding = await api.repositoryBinding(token, 'beta');
+            expect(binding, isNotNull);
+            expect(binding!.activeCommitSha, isEmpty);
+            final before = await api.agent(token, 'beta', 'shared');
+            final draft = before.deepCopy();
+            draft.ensureConfig().instruction = 'Member DB prompt $tag';
+            final saved = await api.saveAgent(
+              token,
+              'beta',
+              draft,
+              create: false,
+              contentGitOwned: binding.activeCommitSha.isNotEmpty,
+              previous: before,
+            );
+            expect(saved.config.instruction, 'Member DB prompt $tag');
+            expect(
+              (await api.agent(token, 'beta', 'shared')).config.instruction,
+              'Member DB prompt $tag',
+            );
+          },
+        );
+        test(
           'member creates and edits LLM without losing fields or resolving by name',
           () async {
-            expect(await api.repositoryBound(token, 'alpha'), isFalse);
+            expect(await api.repositoryBinding(token, 'alpha'), isNull);
+            expect(await api.skillNames(token, 'alpha'), ['existing-skill']);
+            expect(await api.skillNames(token, 'beta'), isEmpty);
             final id = 'llm-$tag';
             final input = Agent(
               agentId: id,

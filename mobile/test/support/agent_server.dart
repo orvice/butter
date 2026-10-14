@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:butter_mobile/gen/agents/v1/agent.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/agent_service.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/repobinding.pb.dart';
+import 'package:butter_mobile/gen/agents/v1/skill.pb.dart';
 
 import 'server.dart';
 
@@ -18,6 +19,7 @@ class AgentServer extends TestServer {
   (int, String, String)? refusal;
   bool loseWriteReply = false;
   bool bound = false;
+  String activeCommitSha = 'active-revision';
 
   AgentServer() {
     authorizedReply = (r, bytes) async {
@@ -27,9 +29,18 @@ class AgentServer extends TestServer {
         write(
           r,
           GetWorkspaceRepoBindingResponse(
-            binding: bound ? WorkspaceRepoBinding(workspaceId: ws) : null,
+            binding: bound
+                ? WorkspaceRepoBinding(
+                    workspaceId: ws,
+                    activeCommitSha: activeCommitSha,
+                  )
+                : null,
           ),
         );
+        return true;
+      }
+      if (method == 'ListSkills') {
+        write(r, ListSkillsResponse(skills: [Skill(name: 'writing')]));
         return true;
       }
       if (method == 'ListModelProviders') {

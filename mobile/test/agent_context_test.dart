@@ -22,6 +22,30 @@ Future<ClientContext> signedIn(AgentServer server) async {
 
 void main() {
   test(
+    'bound but not onboarded content remains editable through the DB-owned API',
+    () async {
+      final server = AgentServer()
+        ..bound = true
+        ..activeCommitSha = '';
+      server.agents['alpha']!['stable'] = Agent(
+        agentId: 'stable',
+        name: 'runtime',
+        type: AgentType.AGENT_TYPE_LLM,
+      );
+      final client = await signedIn(server);
+      await client.loadAgent('stable');
+      final before = client.managedAgent!;
+      final draft = before.deepCopy();
+      draft.ensureConfig().instruction = 'Database owned';
+      expect(
+        await client.saveAgent(draft, create: false, previous: before),
+        isTrue,
+      );
+      expect(server.calls.last.method, 'UpdateAgent');
+    },
+  );
+
+  test(
     'late Agent detail and in-flight writes cannot fill another Workspace',
     () async {
       final held = Completer<void>();
@@ -108,6 +132,13 @@ void main() {
       expect(await client.saveAgent(draft, create: true), isFalse);
       expect(client.error, contains('Sliding Window uses the entry limit'));
       expect(client.error, isNot(contains('sk-secret')));
+      server.refusal = (
+        400,
+        'invalid_argument',
+        'agent "secret": config.context_guard.strategy 99 is not a known strategy',
+      );
+      expect(await client.saveAgent(draft, create: true), isFalse);
+      expect(client.error, contains('unsupported ContextGuard strategy'));
       expect(client.writeNotice, isNull);
       server.refusal = (403, 'permission_denied', 'secret');
       expect(await client.saveAgent(draft, create: true), isFalse);
@@ -175,6 +206,7 @@ void main() {
       await client.prepareAgentEditor();
       expect(client.agentChoices.length, 55);
       expect(client.agentModelChoices, ['fast']);
+      expect(client.agentSkillChoices, ['writing']);
       expect(client.modelProviders, isEmpty);
       expect(client.agentEditorReady, isTrue);
     },

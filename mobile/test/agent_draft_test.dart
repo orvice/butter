@@ -19,6 +19,13 @@ void main() {
       isFalse,
     );
     expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_LLM)), isTrue);
+    expect(
+      canEditAgent(
+        Agent(type: AgentType.AGENT_TYPE_LLM)
+          ..mergeFromBuffer([26, 8, 10, 6, 108, 101, 103, 97, 99, 121]),
+      ),
+      isFalse,
+    );
   });
 
   test('ContextGuard mode edits clear only the other strategy fields', () {

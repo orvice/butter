@@ -70,6 +70,34 @@ Future<void> saveForm(WidgetTester tester, ClientContext client) async {
 
 void main() {
   testWidgets(
+    'Agent can associate existing Skills without standalone Skill management',
+    (tester) async {
+      final base = Agent(
+        agentId: 'stable',
+        name: 'runtime',
+        type: AgentType.AGENT_TYPE_LLM,
+        config: AgentConfig(skills: ['missing-but-retained']),
+      );
+      final h = await editor(tester, base: base);
+      final skill = find.byKey(const ValueKey('skill-writing'));
+      await visible(tester, skill);
+      await tester.tap(skill);
+      await tester.pumpAndSettle();
+      await saveForm(tester, h.client);
+      final sent = UpdateAgentRequest.fromBuffer(
+        h.server.calls.lastWhere((c) => c.method == 'UpdateAgent').body,
+      ).agent;
+      expect(sent.config.skills, ['missing-but-retained', 'writing']);
+      expect(
+        h.server.requests
+            .where((r) => r.path.contains('SkillService'))
+            .map((r) => r.path.split('/').last),
+        ['ListSkills'],
+      );
+    },
+  );
+
+  testWidgets(
     'editing a label keeps unknown include/guard enum and unedited nested configuration',
     (tester) async {
       final base = Agent(

@@ -31,6 +31,9 @@ String? describeAgentFailure(Object failure) {
         return 'Server validation: ${entry.value}';
       }
     }
+    if (message.contains('config.context_guard.strategy')) {
+      return 'Server validation: unsupported ContextGuard strategy. The stored value is retained; use a compatible server/app before editing this strategy.';
+    }
     return 'The server rejected the Agent configuration. Check the ID, type and child references (existing IDs, no cycles, only one parent).';
   }
   return null;

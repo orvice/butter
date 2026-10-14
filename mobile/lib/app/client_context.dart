@@ -84,6 +84,8 @@ final class ClientContext extends ChangeNotifier {
   String? _agentId;
   List<Agent> agentChoices = const [];
   List<String> agentModelChoices = const [];
+  List<String> agentSkillChoices = const [];
+  bool agentContentGitOwned = false;
   bool agentEditorReady = false;
   bool agentRepositoryBound = false;
   bool _agentEditorShown = false;
@@ -93,6 +95,8 @@ final class ClientContext extends ChangeNotifier {
     agentModelChoices = const [];
     agentEditorReady = false;
     agentRepositoryBound = false;
+    agentContentGitOwned = false;
+    agentSkillChoices = const [];
     _agentEditorShown = false;
   }
 
@@ -581,6 +585,7 @@ final class ClientContext extends ChangeNotifier {
     agentChoices = const [];
     agentModelChoices = const [];
     agentEditorReady = false;
+    agentSkillChoices = const [];
     // Keys must not wait in memory while the app is in the background; the
     // read-only foreground recovery reloads what was open.
     modelProviders = const [];
@@ -713,7 +718,9 @@ final class ClientContext extends ChangeNotifier {
     } while (page.isNotEmpty);
     final providers = await api.modelProviders(token, ws);
     if (!_current(generation)) return;
-    final bound = await api.repositoryBound(token, ws);
+    final binding = await api.repositoryBinding(token, ws);
+    if (!_current(generation)) return;
+    final skills = await api.skillNames(token, ws);
     if (!_current(generation)) return;
     agentChoices = List.unmodifiable(choices);
     agentModelChoices = List.unmodifiable({
@@ -721,7 +728,9 @@ final class ClientContext extends ChangeNotifier {
         for (final m in p.models)
           if (m.alias.isNotEmpty) m.alias else if (m.name.isNotEmpty) m.name,
     });
-    agentRepositoryBound = bound;
+    agentRepositoryBound = binding != null;
+    agentContentGitOwned = binding?.activeCommitSha.isNotEmpty ?? false;
+    agentSkillChoices = List.unmodifiable(skills);
     agentEditorReady = true;
   }
 
@@ -757,14 +766,15 @@ final class ClientContext extends ChangeNotifier {
       final token = _token!;
       // Re-read binding for each explicit save; a failed read must never route
       // a Git-owned prompt through UpdateAgent, where it would be ignored.
-      final bound = await api.repositoryBound(token, ws);
+      final binding = await api.repositoryBinding(token, ws);
       if (!_current(generation)) return;
       final saved = await api.saveAgent(
         token,
         ws,
         draft,
         create: create,
-        repositoryBound: bound,
+        contentGitOwned: binding?.activeCommitSha.isNotEmpty ?? false,
+        baseCommitSha: binding?.activeCommitSha ?? '',
         previous: previous,
       );
 

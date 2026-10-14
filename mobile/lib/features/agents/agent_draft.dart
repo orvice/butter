@@ -2,7 +2,7 @@ import 'package:protobuf/protobuf.dart';
 
 import '../../gen/agents/v1/agent.pb.dart';
 
-enum GuardMode { off, threshold, slidingWindow }
+enum GuardMode { off, threshold, slidingWindow, retained }
 
 const editableAgentTypes = [
   AgentType.AGENT_TYPE_LLM,
@@ -23,6 +23,10 @@ int? unknownEnum(GeneratedMessage message, int tag) {
 }
 
 bool canEditAgent(Agent agent) =>
+    // Legacy content must be detected to prevent the composite backend from
+    // discarding it; it is never edited or resolved through this field.
+    // ignore: deprecated_member_use_from_same_package
+    agent.subAgents.isEmpty &&
     unknownEnum(agent, 20) == null &&
     unknownEnum(agent, 26) == null &&
     (agent.lifecycleStatus ==
@@ -70,6 +74,7 @@ final class AgentDraft {
   }
 
   void setGuard(GuardMode mode) {
+    if (mode == GuardMode.retained) return;
     if (mode == GuardMode.off) {
       if (agent.hasConfig()) config.clearContextGuard();
       return;

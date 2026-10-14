@@ -114,6 +114,54 @@ class ChildAgentFields extends StatelessWidget {
   }
 }
 
+/// Read-only Skill catalog, with association edits on the Agent only. Missing
+/// selected names remain selected until the user removes them deliberately.
+class ExistingSkillFields extends StatelessWidget {
+  const ExistingSkillFields({
+    super.key,
+    required this.selected,
+    required this.choices,
+    required this.enabled,
+    required this.onChanged,
+  });
+  final List<String> selected;
+  final List<String> choices;
+  final bool enabled;
+  final void Function(List<String>) onChanged;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 16),
+      Text('Existing Skills', style: Theme.of(context).textTheme.titleMedium),
+      const Text(
+        'Associate existing Workspace Skills. Skill creation and content editing remain in Web.',
+      ),
+      for (final name in {...selected, ...choices})
+        CheckboxListTile(
+          key: ValueKey('skill-$name'),
+          contentPadding: EdgeInsets.zero,
+          title: Text(name),
+          subtitle: choices.contains(name)
+              ? null
+              : const Text(
+                  'Not in the current Workspace catalog; retained until removed.',
+                ),
+          value: selected.contains(name),
+          onChanged: !enabled
+              ? null
+              : (value) => onChanged([
+                  for (final old in selected)
+                    if (old != name) old,
+                  if (value == true) name,
+                ]),
+        ),
+      if (selected.isEmpty && choices.isEmpty)
+        const Text('No existing Skills in this Workspace.'),
+    ],
+  );
+}
+
 class StringMapFields extends StatefulWidget {
   const StringMapFields({
     super.key,

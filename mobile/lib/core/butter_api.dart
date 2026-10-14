@@ -15,6 +15,8 @@ import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/repobinding.connect.client.dart';
 import '../gen/agents/v1/repobinding.pb.dart';
+import '../gen/agents/v1/skill.connect.client.dart';
+import '../gen/agents/v1/skill.pb.dart';
 import '../gen/agents/v1/workspace.connect.client.dart';
 import '../gen/agents/v1/workspace.pb.dart';
 import 'server_address.dart';
@@ -33,6 +35,7 @@ final class ButterApi {
     _workspaces = WorkspaceServiceClient(transport);
     _agents = AgentServiceClient(transport);
     _repoBindings = WorkspaceRepoBindingServiceClient(transport);
+    _skills = SkillServiceClient(transport);
     _modelProviders = ModelProviderServiceClient(transport);
   }
 
@@ -42,6 +45,7 @@ final class ButterApi {
   late final WorkspaceServiceClient _workspaces;
   late final AgentServiceClient _agents;
   late final WorkspaceRepoBindingServiceClient _repoBindings;
+  late final SkillServiceClient _skills;
   late final ModelProviderServiceClient _modelProviders;
 
   connect.AbortSignal get _deadline =>
@@ -160,19 +164,35 @@ final class ButterApi {
     return reply.hasStatus() ? reply.status : null;
   }
 
-  Future<bool> repositoryBound(String token, String workspace) async =>
-      (await _repoBindings.getWorkspaceRepoBinding(
-        GetWorkspaceRepoBindingRequest(),
-        headers: _headers(token, workspace),
-        signal: _deadline,
-      )).hasBinding();
+  Future<WorkspaceRepoBinding?> repositoryBinding(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _repoBindings.getWorkspaceRepoBinding(
+      GetWorkspaceRepoBindingRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.hasBinding() ? reply.binding : null;
+  }
+
+  /// Read-only catalog for Agent associations, not standalone Skill management.
+  Future<List<String>> skillNames(String token, String workspace) async => [
+    for (final skill in (await _skills.listSkills(
+      ListSkillsRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    )).skills)
+      skill.name,
+  ];
 
   Future<Agent> saveAgent(
     String token,
     String workspace,
     Agent agent, {
     required bool create,
-    bool repositoryBound = false,
+    bool contentGitOwned = false,
+    String baseCommitSha = '',
     Agent? previous,
   }) async {
     final headers = _headers(token, workspace);
@@ -191,7 +211,7 @@ final class ButterApi {
         signal: _deadline,
       );
       saved = reply.hasAgent() ? reply.agent : null;
-    } else if (repositoryBound) {
+    } else if (contentGitOwned) {
       if (previous == null || previous.agentId != agent.agentId) {
         throw const FormatException('Reload this Agent before editing.');
       }
@@ -208,6 +228,7 @@ final class ButterApi {
         UpdateAgentConfigurationRequest(
           agentPatch: agent,
           expectedAgentVersion: previous.version,
+          baseCommitSha: baseCommitSha,
           contentChanges: [
             for (final field in fields)
               if (field.$2 != field.$3)
@@ -241,6 +262,18 @@ final class ButterApi {
       throw connect.ConnectException(
         connect.Code.unknown,
         'Agent reply missing.',
+      );
+    }
+    if (!create &&
+        !contentGitOwned &&
+        (saved.description != agent.description ||
+            saved.config.instruction != agent.config.instruction ||
+            saved.config.globalInstruction != agent.config.globalInstruction)) {
+      // Ownership may have changed between discovery and the write. Some
+      // operational fields may already have saved; never call that success.
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Agent Content was not confirmed.',
       );
     }
     return saved;

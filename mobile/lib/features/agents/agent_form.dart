@@ -104,7 +104,7 @@ class _AgentFormPageState extends State<AgentFormPage> {
           child: !supported
               ? const Center(
                   child: Text(
-                    'This Agent type cannot be safely edited by this app.',
+                    'This Agent cannot be safely edited here (unsupported type, blocked lifecycle or legacy embedded children). Use the Web dashboard.',
                   ),
                 )
               : Form(
@@ -123,7 +123,9 @@ class _AgentFormPageState extends State<AgentFormPage> {
                                 : client.prepareAgentEditor,
                             child: const Text('Load editor choices'),
                           ),
-                        if (client.agentRepositoryBound)
+                        if (client.agentContentGitOwned ||
+                            (widget.base == null &&
+                                client.agentRepositoryBound))
                           const Text(
                             'Repository-bound Workspace: prompt and description save through Agent Content. Owner/admin permission and the observed Agent version are checked by the server.',
                           ),
@@ -263,10 +265,19 @@ class _AgentFormPageState extends State<AgentFormPage> {
                           _agent.enableAgui,
                           (v) => _agent.enableAgui = v,
                         ),
-                        if (_agent.config.skills.isNotEmpty)
-                          Text(
-                            'Existing Skills retained: ${_agent.config.skills.join(', ')}',
-                          ),
+                        ExistingSkillFields(
+                          selected: _agent.config.skills,
+                          choices: client.agentSkillChoices,
+                          enabled:
+                              !client.busy &&
+                              !_saved &&
+                              client.agentEditorReady,
+                          onChanged: (names) => _change(() {
+                            _draft.config.skills
+                              ..clear()
+                              ..addAll(names);
+                          }),
+                        ),
                         const Text(
                           'Other associations and configuration are retained unchanged. No Agent run or lifecycle action is performed by Save.',
                         ),
@@ -419,55 +430,49 @@ class _AgentFormPageState extends State<AgentFormPage> {
     final guard = config.contextGuard;
     final unknown = unknownEnum(guard, 1);
     final mode = !config.hasContextGuard()
-        ? 'off'
+        ? GuardMode.off
         : switch (guard.strategy) {
             ContextGuardStrategy.CONTEXT_GUARD_STRATEGY_THRESHOLD =>
-              'threshold',
+              GuardMode.threshold,
             ContextGuardStrategy.CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW =>
-              'window',
-            _ => 'keep',
+              GuardMode.slidingWindow,
+            _ => GuardMode.retained,
           };
     return [
       const SizedBox(height: 12),
       if (unknown != null)
         Text('ContextGuard: unknown strategy $unknown retained unchanged')
       else
-        DropdownButtonFormField<String>(
-          key: ValueKey('guard-mode'),
+        DropdownButtonFormField<GuardMode>(
+          key: const Key('guard-mode'),
           initialValue: mode,
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'ContextGuard'),
           items: [
-            if (mode == 'keep')
+            if (mode == GuardMode.retained)
               const DropdownMenuItem(
-                value: 'keep',
+                value: GuardMode.retained,
                 child: Text('Unspecified (retained)'),
               ),
-            const DropdownMenuItem(value: 'off', child: Text('Off')),
+            const DropdownMenuItem(value: GuardMode.off, child: Text('Off')),
             const DropdownMenuItem(
-              value: 'threshold',
+              value: GuardMode.threshold,
               child: Text('Threshold'),
             ),
             const DropdownMenuItem(
-              value: 'window',
+              value: GuardMode.slidingWindow,
               child: Text('Sliding Window'),
             ),
           ],
           onChanged: widget.client.busy || _saved
               ? null
               : (v) {
-                  if (v != null && v != 'keep') {
-                    _change(
-                      () => _draft.setGuard(switch (v) {
-                        'threshold' => GuardMode.threshold,
-                        'window' => GuardMode.slidingWindow,
-                        _ => GuardMode.off,
-                      }),
-                    );
+                  if (v != null && v != GuardMode.retained) {
+                    _change(() => _draft.setGuard(v));
                   }
                 },
         ),
-      if (unknown == null && mode == 'threshold')
+      if (unknown == null && mode == GuardMode.threshold)
         _text(
           'guard-tokens',
           'Agent Context Override (input tokens)',
@@ -480,7 +485,7 @@ class _AgentFormPageState extends State<AgentFormPage> {
               '0 inherits Model Context Capacity or embedded model metadata. This is not maximum output tokens.',
           validator: (v) => validateWholeNumber(v, 2147483647),
         ),
-      if (unknown == null && mode == 'window')
+      if (unknown == null && mode == GuardMode.slidingWindow)
         _text(
           'guard-turns',
           'Sliding Window content-entry limit',
