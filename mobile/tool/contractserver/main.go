@@ -29,8 +29,10 @@ import (
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
+	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
+	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
 	"go.orx.me/apps/butter/internal/repo/workspace"
@@ -248,7 +250,12 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	opts := connectx.HandlerOptions()
 	_, authHandler := agentsv1connect.NewAuthServiceHandler(authSvc, opts...)
 	_, wsHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceServer(wsRepo), opts...)
-	_, agentHandler := agentsv1connect.NewAgentServiceHandler(application.NewAgentServiceServer(agentRepo), opts...)
+	agentSvc := application.NewAgentServiceServer(agentRepo)
+	agentSvc.SetWorkspaceRepo(wsRepo)
+	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
+	bindingSvc := application.NewRepoBindingServiceServer(repobindingmemory.New(), githostmemory.New())
+	bindingSvc.SetWorkspaceRepo(wsRepo)
+	_, bindingHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(bindingSvc, opts...)
 	_, modelProviderHandler := agentsv1connect.NewModelProviderServiceHandler(modelProviderSvc, opts...)
 
 	gin.SetMode(gin.ReleaseMode)
@@ -291,7 +298,18 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	// Exercise the real REST handler's honest storage-not-configured response.
 	httpHandler.NewUploadHandler(nil).Register(r)
-	r.POST("/api"+agentsv1connect.AgentServiceListAgentsProcedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
+	for _, procedure := range []string{
+		agentsv1connect.AgentServiceListAgentsProcedure,
+		agentsv1connect.AgentServiceGetAgentProcedure,
+		agentsv1connect.AgentServiceCreateAgentProcedure,
+		agentsv1connect.AgentServiceUpdateAgentProcedure,
+		agentsv1connect.AgentServiceGetAgentRuntimeStatusProcedure,
+	} {
+		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
+	}
+	// Read-only binding discovery, not repository onboarding or Git writes.
+	r.POST("/api"+agentsv1connect.WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure,
+		gin.WrapH(http.StripPrefix("/api", bindingHandler)))
 	for _, procedure := range []string{
 		agentsv1connect.ModelProviderServiceListModelProvidersProcedure,
 		agentsv1connect.ModelProviderServiceGetModelProviderProcedure,

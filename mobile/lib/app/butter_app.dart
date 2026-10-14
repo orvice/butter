@@ -6,6 +6,7 @@ import 'client_context.dart';
 import 'app_preferences.dart';
 import '../core/management_page.dart';
 import '../features/model_providers/model_provider_pages.dart';
+import '../features/agents/agent_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/workspaces/workspace_pages.dart';
@@ -530,6 +531,13 @@ class _Agents extends StatelessWidget {
             icon: const Icon(Icons.swap_horiz),
             label: const Text('Change Workspace'),
           ),
+          FilledButton.icon(
+            onPressed: client.busy
+                ? null
+                : () => openAgentEditor(context, client),
+            icon: const Icon(Icons.add),
+            label: const Text('Create Agent'),
+          ),
           TextButton.icon(
             onPressed: client.busy ? null : client.refreshAgents,
             icon: const Icon(Icons.refresh),
@@ -548,8 +556,12 @@ class _Agents extends StatelessWidget {
             [
               if (showIdentifiers) agent.agentId,
               agent.description,
+              agentStatusLabel(agent),
             ].where((s) => s.isNotEmpty).join('\n'),
           ),
+          onTap: client.busy
+              ? null
+              : () => openAgentDetail(context, client, agent.agentId),
         ),
       if (client.hasMoreAgents)
         FilledButton(

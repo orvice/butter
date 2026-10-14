@@ -1,0 +1,520 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+
+import '../../app/client_context.dart';
+import '../../core/management_page.dart';
+import '../../gen/agents/v1/agent.pb.dart';
+import 'agent_draft.dart';
+import 'structured_fields.dart';
+
+class AgentFormPage extends StatefulWidget {
+  const AgentFormPage({super.key, required this.client, this.base});
+  final ClientContext client;
+  final Agent? base;
+  @override
+  State<AgentFormPage> createState() => _AgentFormPageState();
+}
+
+class _AgentFormPageState extends State<AgentFormPage> {
+  final _form = GlobalKey<FormState>();
+  late final _draft = AgentDraft(base: widget.base);
+  Agent get _agent => _draft.agent;
+  bool _dirty = false;
+  bool _saved = false;
+  late final _model = TextEditingController(text: _agent.config.model);
+  @override
+  void dispose() {
+    _model.dispose();
+    super.dispose();
+  }
+
+  void _change(VoidCallback change) => setState(() {
+    change();
+    _dirty = true;
+  });
+
+  Future<void> _save() async {
+    if (!_form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+    final saved = await widget.client.saveAgent(
+      _draft.build(),
+      create: widget.base == null,
+      previous: widget.base,
+    );
+    if (!mounted || !saved) return;
+    setState(() {
+      _saved = true;
+      _dirty = false;
+    });
+    if (Navigator.canPop(context)) Navigator.pop(context);
+  }
+
+  Widget _text(
+    String key,
+    String label,
+    String value,
+    void Function(String) onChanged, {
+    int lines = 1,
+    String? helper,
+    String? Function(String?)? validator,
+    bool enabled = true,
+    TextEditingController? controller,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: TextFormField(
+      key: Key(key),
+      initialValue: controller == null ? value : null,
+      controller: controller,
+      enabled: enabled && !widget.client.busy && !_saved,
+      maxLines: lines,
+      autocorrect: false,
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: helper,
+        helperMaxLines: 5,
+      ),
+      validator: validator,
+      onChanged: (text) => _change(() => onChanged(text)),
+    ),
+  );
+
+  Widget _toggle(String label, bool value, void Function(bool) change) =>
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(label),
+        value: value,
+        onChanged: widget.client.busy || _saved
+            ? null
+            : (v) => _change(() => change(v)),
+      );
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.client,
+    builder: (context, _) {
+      final client = widget.client;
+      final supported = canEditAgent(_agent);
+      return DraftGuard(
+        dirty: _dirty,
+        busy: client.busy,
+        child: ManagementPage(
+          client: client,
+          title: widget.base == null ? 'Create Agent' : 'Edit Agent',
+          child: !supported
+              ? const Center(
+                  child: Text(
+                    'This Agent type cannot be safely edited by this app.',
+                  ),
+                )
+              : Form(
+                  key: _form,
+                  // Keep every field mounted: validation must include invalid
+                  // fields scrolled off-screen, not just visible lazy rows.
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (!client.agentEditorReady)
+                          TextButton(
+                            onPressed: client.busy
+                                ? null
+                                : client.prepareAgentEditor,
+                            child: const Text('Load editor choices'),
+                          ),
+                        if (client.agentRepositoryBound)
+                          const Text(
+                            'Repository-bound Workspace: prompt and description save through Agent Content. Owner/admin permission and the observed Agent version are checked by the server.',
+                          ),
+                        _text(
+                          'agent-id',
+                          'Agent ID',
+                          _agent.agentId,
+                          (v) => _agent.agentId = v.trim(),
+                          enabled: widget.base == null,
+                          helper:
+                              'Immutable ID; references never use the display name.',
+                          validator: (v) =>
+                              v == null ||
+                                  !RegExp(
+                                    r'^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$',
+                                  ).hasMatch(v.trim()) ||
+                                  v.trim().length > 64
+                              ? 'Use 1–64 lowercase letters, digits or internal hyphens.'
+                              : null,
+                        ),
+                        _text(
+                          'agent-name',
+                          'Runtime name',
+                          _agent.name,
+                          (v) => _agent.name = v.trim(),
+                          enabled: widget.base == null,
+                          helper: 'Server-controlled after creation.',
+                          validator: (v) =>
+                              v == null ||
+                                  v.trim().isEmpty ||
+                                  v.trim() == 'user'
+                              ? 'Enter a runtime name other than user.'
+                              : null,
+                        ),
+                        _text(
+                          'display-name',
+                          'Display name',
+                          _agent.displayName,
+                          (v) => _agent.displayName = v,
+                        ),
+                        _text(
+                          'description',
+                          'Description',
+                          _agent.description,
+                          (v) => _agent.description = v,
+                          lines: 3,
+                        ),
+                        DropdownButtonFormField<AgentType>(
+                          key: const Key('agent-type'),
+                          initialValue: _agent.type,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Agent type',
+                          ),
+                          items: [
+                            for (final type in {
+                              if (_agent.type ==
+                                  AgentType.AGENT_TYPE_UNSPECIFIED)
+                                _agent.type,
+                              ...editableAgentTypes,
+                            })
+                              DropdownMenuItem(
+                                value: type,
+                                child: Text(
+                                  type.name.replaceFirst('AGENT_TYPE_', ''),
+                                ),
+                              ),
+                          ],
+                          // Existing resources keep their type here; changing type can discard
+                          // future type-specific fields. Create selects any supported type.
+                          onChanged:
+                              client.busy || widget.base != null || _saved
+                              ? null
+                              : (v) {
+                                  if (v != null) {
+                                    _change(() {
+                                      _draft.setType(v);
+                                      _model.text = _agent.config.model;
+                                    });
+                                  }
+                                },
+                        ),
+                        if (isLLM(_agent)) ..._llmFields(),
+                        if (_agent.type == AgentType.AGENT_TYPE_LOOP)
+                          _text(
+                            'max-iterations',
+                            'Max iterations',
+                            '${_agent.config.maxIterations}',
+                            (v) {
+                              final n = parseWholeNumber(v, 4294967295);
+                              if (n != null) _draft.config.maxIterations = n;
+                            },
+                            helper: '0 runs until escalation or termination.',
+                            validator: (v) =>
+                                validateWholeNumber(v, 4294967295),
+                          ),
+                        if (!isLLM(_agent))
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              'Children remain independent resources. Sequential and Loop execute in the listed order; Parallel runs children concurrently. ContextGuard belongs on each child LLM.',
+                            ),
+                          ),
+                        ChildAgentFields(
+                          agent: _agent,
+                          choices: client.agentChoices,
+                          enabled:
+                              !client.busy &&
+                              !_saved &&
+                              client.agentEditorReady,
+                          onChanged: () => _change(() {}),
+                        ),
+                        StringMapFields(
+                          title: 'Labels',
+                          values: _agent.labels,
+                          enabled: !client.busy && !_saved,
+                          onChanged: () => _change(() {}),
+                        ),
+                        StringMapFields(
+                          title: 'Metadata',
+                          values: _agent.metadata,
+                          enabled: !client.busy && !_saved,
+                          onChanged: () => _change(() {}),
+                        ),
+                        _toggle(
+                          'Expose A2A',
+                          _agent.enableA2a,
+                          (v) => _agent.enableA2a = v,
+                        ),
+                        _toggle(
+                          'Expose OpenAI-compatible API',
+                          _agent.enableOpenaiApi,
+                          (v) => _agent.enableOpenaiApi = v,
+                        ),
+                        _toggle(
+                          'Expose AG-UI',
+                          _agent.enableAgui,
+                          (v) => _agent.enableAgui = v,
+                        ),
+                        if (_agent.config.skills.isNotEmpty)
+                          Text(
+                            'Existing Skills retained: ${_agent.config.skills.join(', ')}',
+                          ),
+                        const Text(
+                          'Other associations and configuration are retained unchanged. No Agent run or lifecycle action is performed by Save.',
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          key: const Key('save-agent'),
+                          onPressed:
+                              client.busy ||
+                                  !client.agentEditorReady ||
+                                  _saved ||
+                                  client.writeNotice != null
+                              ? null
+                              : _save,
+                          child: Text(_saved ? 'Saved' : 'Save Agent'),
+                        ),
+                        if (client.writeNotice != null)
+                          const Text(
+                            'Leave this draft and reload the Agent to reconcile the outcome before editing again.',
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      );
+    },
+  );
+
+  List<Widget> _llmFields() {
+    final config = _agent.config;
+    final unknownContents = unknownEnum(config, 25);
+    return [
+      _text(
+        'model',
+        'Model / alias',
+        config.model,
+        (v) => _draft.config.model = v.trim(),
+        controller: _model,
+        helper:
+            'Uses the model alias (or model ID when no alias is configured). Existing or custom values are kept.',
+      ),
+      if (widget.client.agentModelChoices.isNotEmpty)
+        DropdownButtonFormField<String>(
+          key: ValueKey('model-choice-${config.model}'),
+          initialValue: widget.client.agentModelChoices.contains(config.model)
+              ? config.model
+              : null,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Configured model choices',
+          ),
+          items: [
+            for (final model in widget.client.agentModelChoices)
+              DropdownMenuItem(value: model, child: Text(model)),
+          ],
+          onChanged: widget.client.busy || _saved
+              ? null
+              : (v) {
+                  if (v != null) {
+                    _change(() {
+                      _draft.config.model = v;
+                      _model.text = v;
+                    });
+                  }
+                },
+        ),
+      _text(
+        'instruction',
+        'Instruction',
+        config.instruction,
+        (v) => _draft.config.instruction = v,
+        lines: 5,
+      ),
+      _text(
+        'global-instruction',
+        'Global instruction',
+        config.globalInstruction,
+        (v) => _draft.config.globalInstruction = v,
+        lines: 4,
+      ),
+      _text(
+        'input-schema',
+        'Input schema (JSON)',
+        config.inputSchemaJson,
+        (v) => _draft.config.inputSchemaJson = v,
+        lines: 3,
+        validator: validateSchema,
+      ),
+      _text(
+        'output-schema',
+        'Output schema (JSON)',
+        config.outputSchemaJson,
+        (v) => _draft.config.outputSchemaJson = v,
+        lines: 3,
+        validator: validateSchema,
+        helper:
+            'Stored configuration only. Saving a schema does not mean the runtime or provider enforces structured output.',
+      ),
+      _text(
+        'output-key',
+        'Output key',
+        config.outputKey,
+        (v) => _draft.config.outputKey = v,
+      ),
+      if (unknownContents != null)
+        Text(
+          'Include contents: unknown value $unknownContents retained unchanged',
+        )
+      else
+        DropdownButtonFormField<LLMIncludeContents>(
+          key: const Key('include-contents'),
+          initialValue: config.includeContents,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Include conversation contents',
+          ),
+          items: [
+            for (final value in LLMIncludeContents.values)
+              DropdownMenuItem(
+                value: value,
+                child: Text(
+                  value.name.replaceFirst('LLM_INCLUDE_CONTENTS_', ''),
+                ),
+              ),
+          ],
+          onChanged: widget.client.busy || _saved
+              ? null
+              : (v) {
+                  if (v != null) {
+                    _change(() => _draft.config.includeContents = v);
+                  }
+                },
+        ),
+      _toggle(
+        'Disallow transfer to parent',
+        config.disallowTransferToParent,
+        (v) => _draft.config.disallowTransferToParent = v,
+      ),
+      _toggle(
+        'Disallow transfer to peers',
+        config.disallowTransferToPeers,
+        (v) => _draft.config.disallowTransferToPeers = v,
+      ),
+      ..._guardFields(),
+    ];
+  }
+
+  List<Widget> _guardFields() {
+    final config = _agent.config;
+    final guard = config.contextGuard;
+    final unknown = unknownEnum(guard, 1);
+    final mode = !config.hasContextGuard()
+        ? 'off'
+        : switch (guard.strategy) {
+            ContextGuardStrategy.CONTEXT_GUARD_STRATEGY_THRESHOLD =>
+              'threshold',
+            ContextGuardStrategy.CONTEXT_GUARD_STRATEGY_SLIDING_WINDOW =>
+              'window',
+            _ => 'keep',
+          };
+    return [
+      const SizedBox(height: 12),
+      if (unknown != null)
+        Text('ContextGuard: unknown strategy $unknown retained unchanged')
+      else
+        DropdownButtonFormField<String>(
+          key: ValueKey('guard-mode'),
+          initialValue: mode,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'ContextGuard'),
+          items: [
+            if (mode == 'keep')
+              const DropdownMenuItem(
+                value: 'keep',
+                child: Text('Unspecified (retained)'),
+              ),
+            const DropdownMenuItem(value: 'off', child: Text('Off')),
+            const DropdownMenuItem(
+              value: 'threshold',
+              child: Text('Threshold'),
+            ),
+            const DropdownMenuItem(
+              value: 'window',
+              child: Text('Sliding Window'),
+            ),
+          ],
+          onChanged: widget.client.busy || _saved
+              ? null
+              : (v) {
+                  if (v != null && v != 'keep') {
+                    _change(
+                      () => _draft.setGuard(switch (v) {
+                        'threshold' => GuardMode.threshold,
+                        'window' => GuardMode.slidingWindow,
+                        _ => GuardMode.off,
+                      }),
+                    );
+                  }
+                },
+        ),
+      if (unknown == null && mode == 'threshold')
+        _text(
+          'guard-tokens',
+          'Agent Context Override (input tokens)',
+          '${guard.maxTokens}',
+          (v) {
+            final n = parseWholeNumber(v, 2147483647);
+            if (n != null) _draft.config.contextGuard.maxTokens = n;
+          },
+          helper:
+              '0 inherits Model Context Capacity or embedded model metadata. This is not maximum output tokens.',
+          validator: (v) => validateWholeNumber(v, 2147483647),
+        ),
+      if (unknown == null && mode == 'window')
+        _text(
+          'guard-turns',
+          'Sliding Window content-entry limit',
+          '${guard.maxTurns}',
+          (v) {
+            final n = parseWholeNumber(v, 2147483647);
+            if (n != null) _draft.config.contextGuard.maxTurns = n;
+          },
+          helper:
+              '0 uses the backend default of 20 entries; no input-token override applies.',
+          validator: (v) => validateWholeNumber(v, 2147483647),
+        ),
+    ];
+  }
+}
+
+int? parseWholeNumber(String? value, int maximum) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty) return 0;
+  if (!RegExp(r'^\d+$').hasMatch(text)) return null;
+  final number = int.tryParse(text);
+  return number == null || number > maximum ? null : number;
+}
+
+String? validateWholeNumber(String? value, int maximum) =>
+    parseWholeNumber(value, maximum) == null
+    ? 'Use a whole number from 0 to $maximum.'
+    : null;
+String? validateSchema(String? value) {
+  if (value == null || value.trim().isEmpty) return null;
+  try {
+    if (jsonDecode(value) is Map<String, dynamic>) return null;
+  } catch (_) {
+    /* Form error only. */
+  }
+  return 'Enter a JSON schema object, or leave this empty.';
+}

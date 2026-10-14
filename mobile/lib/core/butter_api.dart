@@ -13,6 +13,8 @@ import '../gen/agents/v1/agent_service.connect.client.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
+import '../gen/agents/v1/repobinding.connect.client.dart';
+import '../gen/agents/v1/repobinding.pb.dart';
 import '../gen/agents/v1/workspace.connect.client.dart';
 import '../gen/agents/v1/workspace.pb.dart';
 import 'server_address.dart';
@@ -30,6 +32,7 @@ final class ButterApi {
     _auth = AuthServiceClient(transport);
     _workspaces = WorkspaceServiceClient(transport);
     _agents = AgentServiceClient(transport);
+    _repoBindings = WorkspaceRepoBindingServiceClient(transport);
     _modelProviders = ModelProviderServiceClient(transport);
   }
 
@@ -38,6 +41,7 @@ final class ButterApi {
   late final AuthServiceClient _auth;
   late final WorkspaceServiceClient _workspaces;
   late final AgentServiceClient _agents;
+  late final WorkspaceRepoBindingServiceClient _repoBindings;
   late final ModelProviderServiceClient _modelProviders;
 
   connect.AbortSignal get _deadline =>
@@ -131,6 +135,117 @@ final class ButterApi {
     headers: _headers(token, workspace),
     signal: _deadline,
   );
+  Future<Agent> agent(String token, String workspace, String id) async {
+    final reply = await _agents.getAgent(
+      GetAgentRequest(agentId: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasAgent()) {
+      throw connect.ConnectException(connect.Code.notFound, 'Agent missing.');
+    }
+    return reply.agent;
+  }
+
+  Future<AgentRuntimeStatus?> agentStatus(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _agents.getAgentRuntimeStatus(
+      GetAgentRuntimeStatusRequest(agentId: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.hasStatus() ? reply.status : null;
+  }
+
+  Future<bool> repositoryBound(String token, String workspace) async =>
+      (await _repoBindings.getWorkspaceRepoBinding(
+        GetWorkspaceRepoBindingRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      )).hasBinding();
+
+  Future<Agent> saveAgent(
+    String token,
+    String workspace,
+    Agent agent, {
+    required bool create,
+    bool repositoryBound = false,
+    Agent? previous,
+  }) async {
+    final headers = _headers(token, workspace);
+    final Agent? saved;
+    if (create) {
+      final reply = await _agents.createAgent(
+        CreateAgentRequest(
+          agent: agent,
+          initialContent: AgentContentInput(
+            description: agent.description,
+            prompt: agent.config.instruction,
+            globalPrompt: agent.config.globalInstruction,
+          ),
+        ),
+        headers: headers,
+        signal: _deadline,
+      );
+      saved = reply.hasAgent() ? reply.agent : null;
+    } else if (repositoryBound) {
+      if (previous == null || previous.agentId != agent.agentId) {
+        throw const FormatException('Reload this Agent before editing.');
+      }
+      final fields = [
+        ('description.md', previous.description, agent.description),
+        ('prompt.md', previous.config.instruction, agent.config.instruction),
+        (
+          'global-prompt.md',
+          previous.config.globalInstruction,
+          agent.config.globalInstruction,
+        ),
+      ];
+      final reply = await _agents.updateAgentConfiguration(
+        UpdateAgentConfigurationRequest(
+          agentPatch: agent,
+          expectedAgentVersion: previous.version,
+          contentChanges: [
+            for (final field in fields)
+              if (field.$2 != field.$3)
+                ContentFileAction(
+                  path: 'agents/${agent.agentId}/${field.$1}',
+                  content: field.$3,
+                  operation: field.$3.isEmpty
+                      ? ContentFileOperation.CONTENT_FILE_OPERATION_DELETE
+                      : ContentFileOperation.CONTENT_FILE_OPERATION_PUT,
+                ),
+          ],
+        ),
+        headers: headers,
+        signal: _deadline,
+      );
+      if (reply.validationErrors.isNotEmpty) {
+        throw const FormatException(
+          'Agent Content failed server validation. Review the prompt and references before saving.',
+        );
+      }
+      saved = reply.hasAgent() ? reply.agent : null;
+    } else {
+      final reply = await _agents.updateAgent(
+        UpdateAgentRequest(agent: agent),
+        headers: headers,
+        signal: _deadline,
+      );
+      saved = reply.hasAgent() ? reply.agent : null;
+    }
+    if (saved == null) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Agent reply missing.',
+      );
+    }
+    return saved;
+  }
+
   Future<List<ModelProvider>> modelProviders(
     String token,
     String workspace,

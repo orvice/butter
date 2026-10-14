@@ -1,0 +1,137 @@
+import 'package:flutter/material.dart';
+
+import '../../app/client_context.dart';
+import '../../core/management_page.dart';
+import '../../gen/agents/v1/agent.pb.dart';
+import 'agent_draft.dart';
+import 'agent_form.dart';
+export 'agent_form.dart' show AgentFormPage;
+
+Future<void> openAgentDetail(
+  BuildContext context,
+  ClientContext client,
+  String id,
+) async {
+  final scope = client.scope;
+  await client.loadAgent(id);
+  if (context.mounted && client.scope == scope && client.user != null) {
+    await openManagementPage(
+      context,
+      client,
+      AgentDetailPage(client: client, id: id),
+    );
+  }
+}
+
+Future<void> openAgentEditor(
+  BuildContext context,
+  ClientContext client, {
+  String? id,
+}) async {
+  final scope = client.scope;
+  if (id != null) {
+    await client.loadAgent(id);
+    if (client.scope != scope || client.error != null) return;
+  }
+  await client.prepareAgentEditor();
+  if (!context.mounted || client.scope != scope || client.user == null) return;
+  await openManagementPage(
+    context,
+    client,
+    AgentFormPage(
+      client: client,
+      base: id == null ? null : client.managedAgent,
+    ),
+  );
+}
+
+String agentStatusLabel(Agent agent) => unknownEnum(agent, 26) == null
+    ? agent.lifecycleStatus.name.replaceFirst('AGENT_LIFECYCLE_STATUS_', '')
+    : 'Unknown lifecycle (${unknownEnum(agent, 26)})';
+
+class AgentDetailPage extends StatelessWidget {
+  const AgentDetailPage({super.key, required this.client, required this.id});
+  final ClientContext client;
+  final String id;
+  @override
+  Widget build(BuildContext context) => ManagementPage(
+    client: client,
+    title: 'Agent details',
+    child: AnimatedBuilder(
+      animation: client,
+      builder: (context, _) {
+        final agent = client.managedAgent;
+        if (agent == null || agent.agentId != id) {
+          return Center(
+            child: TextButton(
+              onPressed: client.busy ? null : () => client.loadAgent(id),
+              child: const Text('Load Agent'),
+            ),
+          );
+        }
+        final status = client.agentStatus;
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            SelectableText(
+              agent.displayName.isEmpty ? agent.name : agent.displayName,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            SelectableText('Agent ID: ${agent.agentId}'),
+            Text('Type: ${agentTypeLabel(agent)}'),
+            Text('Lifecycle: ${agentStatusLabel(agent)}'),
+            Text(
+              status == null
+                  ? 'Runtime status unavailable'
+                  : 'Runtime: ${status.state.name.replaceFirst('AGENT_RUNTIME_STATE_', '')} · ${status.inFlight} in flight',
+            ),
+            if (status?.hasLastRunAt() == true)
+              Text('Last run: ${status!.lastRunAt.toDateTime().toLocal()}'),
+            TextButton.icon(
+              onPressed: client.busy ? null : () => client.loadAgent(id),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh Agent'),
+            ),
+            if (canEditAgent(agent))
+              FilledButton.icon(
+                onPressed: client.busy
+                    ? null
+                    : () => openAgentEditor(context, client, id: id),
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit Agent'),
+              )
+            else
+              const Text(
+                'Editing this Agent type is not supported here. Use the Web dashboard; no configuration will be overwritten.',
+              ),
+            const SizedBox(height: 16),
+            SelectableText(agent.description),
+            if (isLLM(agent)) ...[
+              Text('Model: ${agent.config.model}'),
+              const Text('Instruction'),
+              SelectableText(agent.config.instruction),
+              const Text('Global instruction'),
+              SelectableText(agent.config.globalInstruction),
+              Text('Output key: ${agent.config.outputKey}'),
+            ],
+            for (final id in agent.childAgentIds)
+              ListTile(
+                title: Text('Child: $id'),
+                onTap: client.busy
+                    ? null
+                    : () => openAgentDetail(context, client, id),
+              ),
+            Text(
+              'Interfaces: A2A ${agent.enableA2a} · OpenAI ${agent.enableOpenaiApi} · AG-UI ${agent.enableAgui}',
+            ),
+            for (final entry in agent.labels.entries)
+              Text('Label ${entry.key}: ${entry.value}'),
+            for (final entry in agent.metadata.entries)
+              // Metadata is editable in the form, but never dumped in status/errors.
+              Text('Metadata key: ${entry.key}'),
+          ],
+        );
+      },
+    ),
+  );
+}
