@@ -21,6 +21,31 @@ class AgentServer extends TestServer {
   bool bound = false;
   String activeCommitSha = 'active-revision';
 
+  /// Active Revision content per Workspace and Agent, keyed by file name
+  /// (`prompt.md`, `description.md`, `global-prompt.md`). Like production,
+  /// reads overlay it onto the stored Agent, while a composite save answers
+  /// with the stored record and never writes Git content back into it.
+  final gitContent = <String, Map<String, Map<String, String>>>{
+    'alpha': {},
+    'beta': {},
+  };
+
+  /// Refuses `GetAgent` while set, e.g. the read-back after a composite save.
+  (int, String, String)? getRefusal;
+
+  Agent _overlaid(String ws, Agent stored) {
+    final files = gitContent[ws]?[stored.agentId];
+    if (files == null) return stored;
+    final agent = stored.deepCopy();
+    final description = files['description.md'];
+    final prompt = files['prompt.md'];
+    final global = files['global-prompt.md'];
+    if (description != null) agent.description = description;
+    if (prompt != null) agent.ensureConfig().instruction = prompt;
+    if (global != null) agent.ensureConfig().globalInstruction = global;
+    return agent;
+  }
+
   AgentServer() {
     authorizedReply = (r, bytes) async {
       final method = r.uri.path.split('/').last;
@@ -73,17 +98,21 @@ class AgentServer extends TestServer {
           write(
             r,
             ListAgentsResponse(
-              agents: list.skip(offset).take(50),
+              agents: list.skip(offset).take(50).map((a) => _overlaid(ws!, a)),
               nextPageToken: list.length > offset + 50 ? '${offset + 50}' : '',
             ),
           );
         case 'GetAgent':
           await beforeGet?.call();
+          if (getRefusal case final failure?) {
+            _fail(r, failure.$1, failure.$2, failure.$3);
+            return true;
+          }
           final found = bucket[GetAgentRequest.fromBuffer(bytes).agentId];
           if (found == null) {
             _fail(r, 404, 'not_found', 'Agent missing');
           } else {
-            write(r, GetAgentResponse(agent: found));
+            write(r, GetAgentResponse(agent: _overlaid(ws!, found)));
           }
         case 'GetAgentRuntimeStatus':
           write(
@@ -112,6 +141,28 @@ class AgentServer extends TestServer {
             ).agentPatch;
           }
           final stored = incoming.deepCopy()..workspaceId = ws!;
+          if (method == 'UpdateAgentConfiguration') {
+            // Production keeps the stored description/instructions: Git owns
+            // them, so the patch's values for those fields are not written.
+            final request = UpdateAgentConfigurationRequest.fromBuffer(bytes);
+            final previous = bucket[stored.agentId];
+            if (previous != null) {
+              stored.description = previous.description;
+              stored.ensureConfig()
+                ..instruction = previous.config.instruction
+                ..globalInstruction = previous.config.globalInstruction;
+            }
+            for (final change in request.contentChanges) {
+              final parts = change.path.split('/');
+              final files = gitContent[ws]!.putIfAbsent(parts[1], () => {});
+              if (change.operation ==
+                  ContentFileOperation.CONTENT_FILE_OPERATION_DELETE) {
+                files.remove(parts.last);
+              } else {
+                files[parts.last] = change.content;
+              }
+            }
+          }
           bucket[stored.agentId] = stored;
           if (loseWriteReply) {
             _fail(r, 503, 'unavailable', 'Reply lost');

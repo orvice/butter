@@ -172,8 +172,9 @@ void main() {
         await client.saveAgent(draft, create: false, previous: before),
         isTrue,
       );
-      final call = server.calls.last;
-      expect(call.method, 'UpdateAgentConfiguration');
+      final call = server.calls.lastWhere(
+        (c) => c.method == 'UpdateAgentConfiguration',
+      );
       final request = UpdateAgentConfigurationRequest.fromBuffer(call.body);
       expect(request.expectedAgentVersion, before.version);
       expect(request.contentChanges.single.path, 'agents/stable/prompt.md');
@@ -181,6 +182,131 @@ void main() {
       expect(
         request.contentChanges.single.operation,
         ContentFileOperation.CONTENT_FILE_OPERATION_PUT,
+      );
+    },
+  );
+
+  group(
+    'Git-owned composite save shows the Active Revision, not the DB reply',
+    () {
+      Future<ClientContext> gitBound(AgentServer server) async {
+        server.bound = true;
+        server.agents['alpha']!['stable'] = Agent(
+          agentId: 'stable',
+          name: 'runtime',
+          type: AgentType.AGENT_TYPE_LLM,
+          description: 'DB description',
+          config: AgentConfig(instruction: 'DB prompt'),
+        );
+        server.gitContent['alpha']!['stable'] = {
+          'prompt.md': 'Git prompt',
+          'description.md': 'Git description',
+        };
+        final client = await signedIn(server);
+        await client.loadAgent('stable');
+        expect(client.managedAgent!.config.instruction, 'Git prompt');
+        return client;
+      }
+
+      int count(AgentServer server, String method) =>
+          server.calls.where((c) => c.method == method).length;
+
+      test(
+        'a prompt change reads back instead of adopting the DB reply',
+        () async {
+          final server = AgentServer();
+          final client = await gitBound(server);
+          final before = client.managedAgent!;
+          final draft = before.deepCopy()..config.instruction = 'New prompt';
+          expect(
+            await client.saveAgent(draft, create: false, previous: before),
+            isTrue,
+          );
+          expect(client.managedAgent!.config.instruction, 'New prompt');
+          expect(client.managedAgent!.description, 'Git description');
+          final listed = client.agents.singleWhere(
+            (a) => a.agentId == 'stable',
+          );
+          expect(listed.config.instruction, 'New prompt');
+          // Only a read, never a replayed write.
+          expect(count(server, 'UpdateAgentConfiguration'), 1);
+          expect(server.calls.last.method, isNot('UpdateAgentConfiguration'));
+        },
+      );
+
+      test('a labels-only change keeps the Git content on screen', () async {
+        final server = AgentServer();
+        final client = await gitBound(server);
+        final before = client.managedAgent!;
+        final draft = before.deepCopy()..labels['team'] = 'core';
+        expect(
+          await client.saveAgent(draft, create: false, previous: before),
+          isTrue,
+        );
+        expect(client.managedAgent!.labels['team'], 'core');
+        expect(client.managedAgent!.config.instruction, 'Git prompt');
+        expect(client.managedAgent!.description, 'Git description');
+        final listed = client.agents.singleWhere((a) => a.agentId == 'stable');
+        expect(listed.config.instruction, 'Git prompt');
+        expect(count(server, 'UpdateAgentConfiguration'), 1);
+      });
+
+      test(
+        'a failed read-back never shows the DB reply and is not replayed',
+        () async {
+          final server = AgentServer();
+          final client = await gitBound(server);
+          final before = client.managedAgent!;
+          final draft = before.deepCopy()..config.instruction = 'New prompt';
+          server.getRefusal = (503, 'unavailable', 'down');
+          expect(
+            await client.saveAgent(draft, create: false, previous: before),
+            isFalse,
+          );
+          expect(client.error, contains('could not be reloaded'));
+          expect(client.managedAgent, isNull);
+          expect(
+            client.agents.every((a) => a.config.instruction != 'DB prompt'),
+            isTrue,
+          );
+          expect(client.writeNotice, isNull);
+
+          server.getRefusal = null;
+          client.suspend();
+          await client.revalidate();
+          expect(client.managedAgent?.config.instruction, 'New prompt');
+          expect(count(server, 'UpdateAgentConfiguration'), 1);
+        },
+      );
+
+      test(
+        'a read-back that outlives its Workspace cannot fill another',
+        () async {
+          final server = AgentServer();
+          final client = await gitBound(server);
+          server.agents['beta']!['stable'] = Agent(
+            agentId: 'stable',
+            name: 'beta',
+          );
+          final before = client.managedAgent!;
+          final draft = before.deepCopy()..config.instruction = 'New prompt';
+          final held = Completer<void>(), reached = Completer<void>();
+          server.beforeGet = () async {
+            reached.complete();
+            await held.future;
+          };
+          final writing = client.saveAgent(
+            draft,
+            create: false,
+            previous: before,
+          );
+          await reached.future;
+          await client.selectWorkspace('beta');
+          held.complete();
+          expect(await writing, isFalse);
+          expect(client.managedAgent, isNull);
+          expect(client.agents.single.name, 'beta');
+        },
       );
     },
   );
