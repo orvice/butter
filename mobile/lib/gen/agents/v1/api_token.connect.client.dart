@@ -7,7 +7,7 @@ import "package:connectrpc/connect.dart" as connect;
 import "api_token.pb.dart" as agentsv1api_token;
 import "api_token.connect.spec.dart" as specs;
 
-extension type APITokenServiceClient(connect.Transport _transport) {
+extension type APITokenServiceClient (connect.Transport _transport) {
   Future<agentsv1api_token.ListAPITokensResponse> listAPITokens(
     agentsv1api_token.ListAPITokensRequest input, {
     connect.Headers? headers,

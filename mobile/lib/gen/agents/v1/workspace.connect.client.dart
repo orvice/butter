@@ -8,7 +8,7 @@ import "workspace.pb.dart" as agentsv1workspace;
 import "workspace.connect.spec.dart" as specs;
 
 /// WorkspaceService manages workspaces and memberships.
-extension type WorkspaceServiceClient(connect.Transport _transport) {
+extension type WorkspaceServiceClient (connect.Transport _transport) {
   /// ListWorkspaces returns all workspaces the caller can access. Global
   /// admins receive every workspace; other users receive only the ones they
   /// are members of.

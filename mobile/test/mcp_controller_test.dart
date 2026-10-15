@@ -664,6 +664,31 @@ void main() {
     });
   });
 
+  test(
+    'returning to the foreground checks a flow that was being waited on',
+    () async {
+      final h = await start(seed: (s) => s.seed('alpha', oauthServer('a1')));
+      await h.mcp.connectOAuth('a1');
+      expect(h.mcp.oauthOf('a1').phase, McpOAuthPhase.waiting);
+      h.client.suspend();
+      expect(h.mcp.oauthOf('a1').phase, McpOAuthPhase.waiting);
+      h.server.connect(
+        'alpha',
+        'a1',
+        at: DateTime.now().add(const Duration(seconds: 5)),
+      );
+      await h.client.revalidate();
+      for (
+        var i = 0;
+        i < 100 && h.mcp.oauthOf('a1').phase != McpOAuthPhase.connected;
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(h.mcp.oauthOf('a1').phase, McpOAuthPhase.connected);
+    },
+  );
+
   test('an expired session signs the person out and retries nothing', () async {
     final h = await start(seed: (s) => s.seed('alpha', server('a1')));
     h.server.refusals['ListMCPServers'] = (401, 'unauthenticated', 'expired');

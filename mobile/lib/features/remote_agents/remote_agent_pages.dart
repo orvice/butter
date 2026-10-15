@@ -66,7 +66,7 @@ class RemoteAgentListPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'A Remote Agent is an agent that runs elsewhere and speaks A2A or OpenCode HTTP. Butter calls it for you. Daemon agents are managed on the Daemon screen and are read-only here.',
+              'A Remote Agent is an agent that runs elsewhere and speaks A2A or OpenCode HTTP. Butter calls it for you. Daemon agents are read-only here; Daemon management is not in the App yet.',
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -256,7 +256,7 @@ class _RemoteAgentDetailPageState extends State<RemoteAgentDetailPage> {
                 Text('Daemon runtime: ${agent.daemonRuntimeId}'),
                 Text('ACP runtime: ${agent.acpRuntime}'),
                 const Text(
-                  'Daemon agents are managed on the Daemon screen, so they cannot be changed here.',
+                  'Daemon agents are read-only here; Daemon management is not in the App yet.',
                   key: Key('remote-daemon-note'),
                 ),
               ],
