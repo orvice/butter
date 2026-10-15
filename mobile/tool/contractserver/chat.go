@@ -291,10 +291,10 @@ func lastUserText(messages []openaifake.ChatCompletionMessage) string {
 }
 
 // registerChat wires the chat fixture's routes onto r.
-func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, opts []connect.HandlerOption) error {
+func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, opts []connect.HandlerOption, bx *boxFixture) (*runner.Service, []agentsv1.ModelProvider, error) {
 	modelURL, err := fakeModel(ctx)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	sessions := newChatSessions()
 	agents := []agentsv1.Agent{{
@@ -304,16 +304,13 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	if _, err := agentRepo.CreateAgent(ctx, chatWorkspace, &agentsv1.Agent{
 		Name: agents[0].Name, AgentId: agents[0].AgentId, Config: agents[0].Config,
 	}); err != nil {
-		return err
+		return nil, nil, err
 	}
-	providers := []agentsv1.ModelProvider{{
-		Name: "fake", Type: "openai", BaseUrl: modelURL,
-		Models: []*agentsv1.ModelConfig{{Name: chatModel}},
-	}}
-	svc, err := runner.NewService(ctx, agents, providers,
-		nil, nil, nil, sessions, nil, nil, adkrunner.PluginConfig{})
+	providers := chatProviders(modelURL)
+	svc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, agents, providers,
+		nil, nil, nil, sessions, nil, nil, nil, 0, nil, adkrunner.PluginConfig{}, nil, bx.builders)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	invocations := invocationmemory.New().WithOwner("contract-fixture")
 	svc.SetInvocationRecorder(invocations)
@@ -332,7 +329,7 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	if _, err := sessions.Create(legacyCtx, &adksession.CreateRequest{
 		AppName: "agui", UserID: chatUserID, SessionID: "agui-" + legacyThread,
 	}); err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	sessionSvc := application.NewSessionServiceServer()
@@ -347,5 +344,14 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", handler)))
 	}
-	return nil
+	return svc, providers, nil
+}
+
+// chatProviders is the one provider the fixture's runner serves, pointed at
+// the fake model.
+func chatProviders(modelURL string) []agentsv1.ModelProvider {
+	return []agentsv1.ModelProvider{{
+		Name: "fake", Type: "openai", BaseUrl: modelURL,
+		Models: []*agentsv1.ModelConfig{{Name: chatModel}},
+	}}
 }

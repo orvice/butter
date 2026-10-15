@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'client_context.dart';
 import 'app_preferences.dart';
 import '../core/management_page.dart';
+import '../features/butterboxes/box_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
@@ -538,6 +539,14 @@ class _Agents extends StatelessWidget {
                 : () => openModelProviders(context, client),
             icon: const Icon(Icons.memory),
             label: const Text('Model providers'),
+          ),
+          TextButton.icon(
+            key: const Key('open-boxes'),
+            onPressed: client.busy
+                ? null
+                : () => openButterBoxes(context, client),
+            icon: const Icon(Icons.dns_outlined),
+            label: const Text('ButterBoxes'),
           ),
           TextButton.icon(
             onPressed: client.busy ? null : client.refreshWorkspaces,

@@ -13,6 +13,8 @@ import '../gen/agents/v1/agent_service.connect.client.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
+import '../gen/agents/v1/butterbox.connect.client.dart';
+import '../gen/agents/v1/butterbox.pb.dart';
 import '../gen/agents/v1/repobinding.connect.client.dart';
 import '../gen/agents/v1/repobinding.pb.dart';
 import '../gen/agents/v1/skill.connect.client.dart';
@@ -38,6 +40,7 @@ final class ButterApi {
     _skills = SkillServiceClient(transport);
     _modelProviders = ModelProviderServiceClient(transport);
     _sessions = SessionServiceClient(transport);
+    _boxes = ButterBoxServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -49,9 +52,15 @@ final class ButterApi {
   late final SkillServiceClient _skills;
   late final ModelProviderServiceClient _modelProviders;
   late final SessionServiceClient _sessions;
+  late final ButterBoxServiceClient _boxes;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
+
+  /// The Cursor model catalog is fetched by the box through a transient
+  /// bridge process; the server allows it 75 seconds, so the client waits a
+  /// little longer rather than abandoning a call the server still honors.
+  static const cursorCatalogTimeout = Duration(seconds: 90);
   connect.Headers _headers(String token, [String? workspace]) =>
       connect.Headers()
         ..set('Authorization', ['Bearer $token'])
@@ -351,6 +360,144 @@ final class ButterApi {
     headers: _headers(token, workspace),
     signal: _deadline,
   );
+
+  // ---- ButterBox (ButterBoxService). Every call carries the selected
+  // Workspace. The access token is write-only: no reply carries it, only
+  // `credential_set`. ----
+
+  Future<List<ButterBox>> butterBoxes(String token, String workspace) async =>
+      (await _boxes.listButterBoxes(
+        ListButterBoxesRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      )).butterBoxes;
+
+  Future<ButterBox> butterBox(String token, String workspace, String id) async {
+    final reply = await _boxes.getButterBox(
+      GetButterBoxRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasButterBox()) {
+      throw connect.ConnectException(connect.Code.notFound, 'Box missing.');
+    }
+    return reply.butterBox;
+  }
+
+  /// One create. [accessToken] empty stores no token.
+  Future<ButterBox> createButterBox(
+    String token,
+    String workspace, {
+    required String name,
+    required String baseUrl,
+    required bool enabled,
+    String accessToken = '',
+  }) async {
+    final reply = await _boxes.createButterBox(
+      CreateButterBoxRequest(
+        name: name,
+        baseUrl: baseUrl,
+        enabled: enabled,
+        token: accessToken,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasButterBox()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Box reply missing.',
+      );
+    }
+    return reply.butterBox;
+  }
+
+  /// Updates name, URL and enabled only; the token has its own call.
+  Future<ButterBox> updateButterBox(
+    String token,
+    String workspace, {
+    required String id,
+    required String name,
+    required String baseUrl,
+    required bool enabled,
+  }) async {
+    final reply = await _boxes.updateButterBox(
+      UpdateButterBoxRequest(
+        id: id,
+        name: name,
+        baseUrl: baseUrl,
+        enabled: enabled,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasButterBox()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Box reply missing.',
+      );
+    }
+    return reply.butterBox;
+  }
+
+  Future<void> deleteButterBox(String token, String workspace, String id) =>
+      _boxes.deleteButterBox(
+        DeleteButterBoxRequest(id: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  /// Sets or rotates the box access token; an empty [accessToken] clears it.
+  Future<ButterBox> setButterBoxToken(
+    String token,
+    String workspace,
+    String id,
+    String accessToken,
+  ) async {
+    final reply = await _boxes.setButterBoxToken(
+      SetButterBoxTokenRequest(id: id, token: accessToken),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasButterBox()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Box reply missing.',
+      );
+    }
+    return reply.butterBox;
+  }
+
+  /// Probes the box through the server. Unreachable is a normal answer.
+  Future<GetButterBoxStatusResponse> butterBoxStatus(
+    String token,
+    String workspace,
+    String id,
+  ) => _boxes.getButterBoxStatus(
+    GetButterBoxStatusRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<List<ButterBoxModel>> butterBoxModels(
+    String token,
+    String workspace,
+    String id,
+  ) async => (await _boxes.listButterBoxModels(
+    ListButterBoxModelsRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).models;
+
+  Future<List<ButterBoxCursorModel>> butterBoxCursorModels(
+    String token,
+    String workspace,
+    String id,
+  ) async => (await _boxes.listButterBoxCursorModels(
+    ListButterBoxCursorModelsRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: connect.TimeoutSignal(cursorCatalogTimeout),
+  )).models;
 
   /// One page of the caller's AG-UI thread sessions in [workspace]. The server
   /// scopes the list to that Workspace; which sessions are bound threads is

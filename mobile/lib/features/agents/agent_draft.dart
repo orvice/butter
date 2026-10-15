@@ -10,7 +10,14 @@ const editableAgentTypes = [
   AgentType.AGENT_TYPE_SEQUENTIAL,
   AgentType.AGENT_TYPE_PARALLEL,
   AgentType.AGENT_TYPE_WORKFLOW,
+  AgentType.AGENT_TYPE_PI,
+  AgentType.AGENT_TYPE_CURSOR,
 ];
+
+/// PI and CURSOR agents are leaves whose behavior lives on a ButterBox.
+bool isBoxLeaf(Agent agent) =>
+    agent.type == AgentType.AGENT_TYPE_PI ||
+    agent.type == AgentType.AGENT_TYPE_CURSOR;
 
 bool isLLM(Agent agent) =>
     agent.type == AgentType.AGENT_TYPE_LLM ||
@@ -56,6 +63,8 @@ final class AgentDraft {
   void setType(AgentType type) {
     if (agent.type == type) return;
     final leavingWorkflow = agent.type == AgentType.AGENT_TYPE_WORKFLOW;
+    final leavingPi = agent.type == AgentType.AGENT_TYPE_PI;
+    final leavingCursor = agent.type == AgentType.AGENT_TYPE_CURSOR;
     agent.type = type;
     if (!isLLM(agent) && agent.hasConfig()) {
       config
@@ -79,6 +88,32 @@ final class AgentDraft {
     // The children of a Workflow were derived from its nodes; without the
     // graph they would be orphans the next type neither shows nor owns.
     if (leavingWorkflow) agent.childAgentIds.clear();
+    if (leavingPi && agent.hasConfig()) config.clearPi();
+    if (leavingCursor && agent.hasConfig()) config.clearCursor();
+    if (isBoxLeaf(agent)) {
+      // A leaf's behavior lives on the box, and the server rejects every
+      // Butter-side behavior field on write: drop what an earlier type left
+      // in this draft rather than send something it would refuse.
+      agent.childAgentIds.clear();
+      config
+        ..clearInstruction()
+        ..clearGlobalInstruction()
+        ..clearContextGuard()
+        ..clearMemory()
+        ..clearResultCards()
+        ..clearMaxIterations()
+        ..clearWorkflow();
+      config.mcpServers.clear();
+      config.mcpServerIds.clear();
+      config.skills.clear();
+      config.fileMounts.clear();
+      config.remoteAgentIds.clear();
+      if (type == AgentType.AGENT_TYPE_PI) {
+        config.ensurePi();
+      } else {
+        config.ensureCursor();
+      }
+    }
   }
 
   void setGuard(GuardMode mode) {

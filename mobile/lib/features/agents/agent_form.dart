@@ -6,6 +6,7 @@ import '../../app/client_context.dart';
 import '../../core/management_page.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import 'agent_draft.dart';
+import 'box_leaf_fields.dart';
 import 'structured_fields.dart';
 import 'workflow_draft.dart';
 import 'workflow_editor.dart';
@@ -249,6 +250,17 @@ class _AgentFormPageState extends State<AgentFormPage> {
                             showSummary: _showIssues,
                             onChanged: () => _change(() {}),
                           )
+                        else if (isBoxLeaf(_agent))
+                          if (client.boxes case final boxes?)
+                            BoxLeafFields(
+                              key: ValueKey(_agent.type),
+                              draft: _draft,
+                              boxes: boxes,
+                              enabled: !client.busy && !_saved,
+                              onChanged: () => _change(() {}),
+                            )
+                          else
+                            const Text('ButterBoxes are unavailable.')
                         else ...[
                           if (!isLLM(_agent))
                             const Padding(
@@ -294,19 +306,20 @@ class _AgentFormPageState extends State<AgentFormPage> {
                           _agent.enableAgui,
                           (v) => _agent.enableAgui = v,
                         ),
-                        ExistingSkillFields(
-                          selected: _agent.config.skills,
-                          choices: client.agentSkillChoices,
-                          enabled:
-                              !client.busy &&
-                              !_saved &&
-                              client.agentEditorReady,
-                          onChanged: (names) => _change(() {
-                            _draft.config.skills
-                              ..clear()
-                              ..addAll(names);
-                          }),
-                        ),
+                        if (!isBoxLeaf(_agent))
+                          ExistingSkillFields(
+                            selected: _agent.config.skills,
+                            choices: client.agentSkillChoices,
+                            enabled:
+                                !client.busy &&
+                                !_saved &&
+                                client.agentEditorReady,
+                            onChanged: (names) => _change(() {
+                              _draft.config.skills
+                                ..clear()
+                                ..addAll(names);
+                            }),
+                          ),
                         const Text(
                           'Other associations and configuration are retained unchanged. No Agent run or lifecycle action is performed by Save.',
                         ),

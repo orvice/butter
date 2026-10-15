@@ -15,6 +15,7 @@ import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/workspace.pb.dart';
 import '../core/agui_api.dart';
+import '../features/butterboxes/box_controller.dart';
 import '../features/chat/chat_controller.dart';
 
 enum ClientStage { server, login, workspaces, agents }
@@ -164,10 +165,37 @@ final class ClientContext extends ChangeNotifier {
     );
   }
 
+  ButterBoxController? _boxes;
+
+  /// ButterBoxes for the current server, user and Workspace; null until
+  /// signed in with a Workspace selected. Like [chat], one controller serves
+  /// one scope and is disposed with it. The server holds every Box credential
+  /// and does every Box call; the phone never contacts a Box.
+  ButterBoxController? get boxes {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _boxes ??= ButterBoxController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _boxes;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
   void _disposeChat() {
     final old = _chat;
     _chat = null;
     old?.dispose();
+    final oldBoxes = _boxes;
+    _boxes = null;
+    oldBoxes?.dispose();
   }
 
   bool get canManageWorkspace =>
@@ -636,6 +664,7 @@ final class ClientContext extends ChangeNotifier {
 
   void suspend() {
     _chat?.suspend();
+    _boxes?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
