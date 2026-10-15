@@ -9,7 +9,7 @@ import "agent_service.connect.spec.dart" as specs;
 import "dashboard.pb.dart" as agentsv1dashboard;
 
 /// AgentService manages Agent configurations.
-extension type AgentServiceClient (connect.Transport _transport) {
+extension type AgentServiceClient(connect.Transport _transport) {
   Future<agentsv1agent_service.ListAgentsResponse> listAgents(
     agentsv1agent_service.ListAgentsRequest input, {
     connect.Headers? headers,
@@ -116,7 +116,8 @@ extension type AgentServiceClient (connect.Transport _transport) {
 
   /// ListAgentInvocations returns recorded invocations, optionally filtered by
   /// agent name, with simple opaque-token pagination.
-  Future<agentsv1agent_service.ListAgentInvocationsResponse> listAgentInvocations(
+  Future<agentsv1agent_service.ListAgentInvocationsResponse>
+  listAgentInvocations(
     agentsv1agent_service.ListAgentInvocationsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -155,7 +156,8 @@ extension type AgentServiceClient (connect.Transport _transport) {
 
   /// GetAgentRuntimeStatus returns the latest invocation state for an agent,
   /// suitable for the Agents table Status / Last Run columns.
-  Future<agentsv1agent_service.GetAgentRuntimeStatusResponse> getAgentRuntimeStatus(
+  Future<agentsv1agent_service.GetAgentRuntimeStatusResponse>
+  getAgentRuntimeStatus(
     agentsv1agent_service.GetAgentRuntimeStatusRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -175,7 +177,8 @@ extension type AgentServiceClient (connect.Transport _transport) {
   /// ListAgentRuntimeStatuses returns runtime statuses for the given agent
   /// names in a single round trip. When `names` is empty, statuses for all
   /// configured agents are returned.
-  Future<agentsv1agent_service.ListAgentRuntimeStatusesResponse> listAgentRuntimeStatuses(
+  Future<agentsv1agent_service.ListAgentRuntimeStatusesResponse>
+  listAgentRuntimeStatuses(
     agentsv1agent_service.ListAgentRuntimeStatusesRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -194,7 +197,8 @@ extension type AgentServiceClient (connect.Transport _transport) {
 
   /// CancelAgentInvocation cancels an in-flight invocation by its ID. The
   /// invocation transitions to FAILED with a cancellation error.
-  Future<agentsv1agent_service.CancelAgentInvocationResponse> cancelAgentInvocation(
+  Future<agentsv1agent_service.CancelAgentInvocationResponse>
+  cancelAgentInvocation(
     agentsv1agent_service.CancelAgentInvocationRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -240,7 +244,7 @@ extension type AgentServiceClient (connect.Transport _transport) {
   /// every Agent carries an immutable agent_id assigned at creation, and the
   /// repository no longer resolves Agents by name. Always returns
   /// Unimplemented.
-@deprecated
+  @deprecated
   Future<agentsv1agent_service.AssignAgentIDResponse> assignAgentID(
     agentsv1agent_service.AssignAgentIDRequest input, {
     connect.Headers? headers,
@@ -260,8 +264,9 @@ extension type AgentServiceClient (connect.Transport _transport) {
 
   /// GetMigrationReadiness is retired (issue #241). Use VerifyAgentIDCutover
   /// for post-cutover diagnostics. Always returns Unimplemented.
-@deprecated
-  Future<agentsv1agent_service.GetMigrationReadinessResponse> getMigrationReadiness(
+  @deprecated
+  Future<agentsv1agent_service.GetMigrationReadinessResponse>
+  getMigrationReadiness(
     agentsv1agent_service.GetMigrationReadinessRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -281,7 +286,7 @@ extension type AgentServiceClient (connect.Transport _transport) {
   /// MigrateAgentsV2 is retired (issue #241): the V2 migration observation
   /// window is closed. Use VerifyAgentIDCutover for post-cutover diagnostics.
   /// Always returns Unimplemented.
-@deprecated
+  @deprecated
   Future<agentsv1agent_service.MigrateAgentsV2Response> migrateAgentsV2(
     agentsv1agent_service.MigrateAgentsV2Request input, {
     connect.Headers? headers,
@@ -306,7 +311,8 @@ extension type AgentServiceClient (connect.Transport _transport) {
   /// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
   /// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
   /// conflict violates the runner's naming constraints. Global admins only.
-  Future<agentsv1agent_service.VerifyAgentIDCutoverResponse> verifyAgentIDCutover(
+  Future<agentsv1agent_service.VerifyAgentIDCutoverResponse>
+  verifyAgentIDCutover(
     agentsv1agent_service.VerifyAgentIDCutoverRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -328,7 +334,8 @@ extension type AgentServiceClient (connect.Transport _transport) {
   /// under a single durable operation while keeping ownership separate. The
   /// patch is applied with optimistic concurrency (expected_agent_version); a
   /// mismatch aborts. Returns the operation record for status/retry.
-  Future<agentsv1agent_service.UpdateAgentConfigurationResponse> updateAgentConfiguration(
+  Future<agentsv1agent_service.UpdateAgentConfigurationResponse>
+  updateAgentConfiguration(
     agentsv1agent_service.UpdateAgentConfigurationRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -440,8 +447,9 @@ extension type AgentServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// MCPServerService manages MCP Server configurations.
-extension type MCPServerServiceClient (connect.Transport _transport) {
+extension type MCPServerServiceClient(connect.Transport _transport) {
   Future<agentsv1agent_service.ListMCPServersResponse> listMCPServers(
     agentsv1agent_service.ListMCPServersRequest input, {
     connect.Headers? headers,
@@ -585,7 +593,8 @@ extension type MCPServerServiceClient (connect.Transport _transport) {
   }
 
   /// CompleteMCPServerOAuth completes an OAuth2 authorization code callback.
-  Future<agentsv1agent_service.CompleteMCPServerOAuthResponse> completeMCPServerOAuth(
+  Future<agentsv1agent_service.CompleteMCPServerOAuthResponse>
+  completeMCPServerOAuth(
     agentsv1agent_service.CompleteMCPServerOAuthRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -603,7 +612,8 @@ extension type MCPServerServiceClient (connect.Transport _transport) {
   }
 
   /// GetMCPServerOAuthStatus returns non-secret OAuth connection state.
-  Future<agentsv1agent_service.GetMCPServerOAuthStatusResponse> getMCPServerOAuthStatus(
+  Future<agentsv1agent_service.GetMCPServerOAuthStatusResponse>
+  getMCPServerOAuthStatus(
     agentsv1agent_service.GetMCPServerOAuthStatusRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -621,7 +631,8 @@ extension type MCPServerServiceClient (connect.Transport _transport) {
   }
 
   /// DisconnectMCPServerOAuth removes local OAuth2 credentials for a server.
-  Future<agentsv1agent_service.DisconnectMCPServerOAuthResponse> disconnectMCPServerOAuth(
+  Future<agentsv1agent_service.DisconnectMCPServerOAuthResponse>
+  disconnectMCPServerOAuth(
     agentsv1agent_service.DisconnectMCPServerOAuthRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -638,12 +649,14 @@ extension type MCPServerServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// GlobalMCPServerService manages workspace-agnostic MCP server presets that
 /// admins curate and end users install into their workspace. Browse / install
 /// is open to authenticated callers; admin role is required for the
 /// create / update / delete mutations.
-extension type GlobalMCPServerServiceClient (connect.Transport _transport) {
-  Future<agentsv1agent_service.ListGlobalMCPServersResponse> listGlobalMCPServers(
+extension type GlobalMCPServerServiceClient(connect.Transport _transport) {
+  Future<agentsv1agent_service.ListGlobalMCPServersResponse>
+  listGlobalMCPServers(
     agentsv1agent_service.ListGlobalMCPServersRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -660,7 +673,8 @@ extension type GlobalMCPServerServiceClient (connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1agent_service.CreateGlobalMCPServerResponse> createGlobalMCPServer(
+  Future<agentsv1agent_service.CreateGlobalMCPServerResponse>
+  createGlobalMCPServer(
     agentsv1agent_service.CreateGlobalMCPServerRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -677,7 +691,8 @@ extension type GlobalMCPServerServiceClient (connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1agent_service.UpdateGlobalMCPServerResponse> updateGlobalMCPServer(
+  Future<agentsv1agent_service.UpdateGlobalMCPServerResponse>
+  updateGlobalMCPServer(
     agentsv1agent_service.UpdateGlobalMCPServerRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -694,7 +709,8 @@ extension type GlobalMCPServerServiceClient (connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1agent_service.DeleteGlobalMCPServerResponse> deleteGlobalMCPServer(
+  Future<agentsv1agent_service.DeleteGlobalMCPServerResponse>
+  deleteGlobalMCPServer(
     agentsv1agent_service.DeleteGlobalMCPServerRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -714,7 +730,8 @@ extension type GlobalMCPServerServiceClient (connect.Transport _transport) {
   /// InstallGlobalMCPServer clones a preset into the caller's workspace.
   /// Admins may pass a different target workspace via `workspace_id`; the
   /// server audit-logs cross-workspace installs.
-  Future<agentsv1agent_service.InstallGlobalMCPServerResponse> installGlobalMCPServer(
+  Future<agentsv1agent_service.InstallGlobalMCPServerResponse>
+  installGlobalMCPServer(
     agentsv1agent_service.InstallGlobalMCPServerRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -731,8 +748,9 @@ extension type GlobalMCPServerServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// ModelProviderService manages LLM provider configurations.
-extension type ModelProviderServiceClient (connect.Transport _transport) {
+extension type ModelProviderServiceClient(connect.Transport _transport) {
   Future<agentsv1agent_service.ListModelProvidersResponse> listModelProviders(
     agentsv1agent_service.ListModelProvidersRequest input, {
     connect.Headers? headers,
@@ -818,8 +836,9 @@ extension type ModelProviderServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// NotifyGroupService manages outbound notification groups.
-extension type NotifyGroupServiceClient (connect.Transport _transport) {
+extension type NotifyGroupServiceClient(connect.Transport _transport) {
   Future<agentsv1agent_service.ListNotifyGroupsResponse> listNotifyGroups(
     agentsv1agent_service.ListNotifyGroupsRequest input, {
     connect.Headers? headers,
@@ -905,8 +924,9 @@ extension type NotifyGroupServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// RemoteAgentService manages Remote Agent configurations.
-extension type RemoteAgentServiceClient (connect.Transport _transport) {
+extension type RemoteAgentServiceClient(connect.Transport _transport) {
   Future<agentsv1agent_service.ListRemoteAgentsResponse> listRemoteAgents(
     agentsv1agent_service.ListRemoteAgentsRequest input, {
     connect.Headers? headers,
@@ -1011,8 +1031,9 @@ extension type RemoteAgentServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// ChannelService manages AgentChannel configurations.
-extension type ChannelServiceClient (connect.Transport _transport) {
+extension type ChannelServiceClient(connect.Transport _transport) {
   Future<agentsv1agent_service.ListChannelsResponse> listChannels(
     agentsv1agent_service.ListChannelsRequest input, {
     connect.Headers? headers,
@@ -1172,7 +1193,7 @@ extension type ChannelServiceClient (connect.Transport _transport) {
     );
   }
 }
-extension type SessionServiceClient (connect.Transport _transport) {
+extension type SessionServiceClient(connect.Transport _transport) {
   /// CreateSession creates a new session for the given agent.
   Future<agentsv1agent_service.CreateSessionResponse> createSession(
     agentsv1agent_service.CreateSessionRequest input, {
@@ -1285,7 +1306,8 @@ extension type SessionServiceClient (connect.Transport _transport) {
   /// conversation turn and persists it only while no effective title exists.
   /// Manual, legacy, and concurrent titles always win. Returns the effective
   /// SessionInfo and whether this call actually generated a new title.
-  Future<agentsv1agent_service.GenerateSessionTitleResponse> generateSessionTitle(
+  Future<agentsv1agent_service.GenerateSessionTitleResponse>
+  generateSessionTitle(
     agentsv1agent_service.GenerateSessionTitleRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
