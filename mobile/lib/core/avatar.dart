@@ -1,12 +1,8 @@
 import 'dart:typed_data';
 
-/// Matches the upload service's image whitelist; never trusts a file suffix.
-String avatarContentType(Uint8List bytes) {
-  if (bytes.isEmpty || bytes.length > 10 * 1024 * 1024) {
-    throw const FormatException(
-      'Choose an image no larger than 10 MiB. The server may set a smaller limit.',
-    );
-  }
+/// The server's image whitelist, read from the bytes themselves, never from a
+/// file suffix. Null for anything else.
+String? sniffImageContentType(Uint8List bytes) {
   bool starts(List<int> signature, [int offset = 0]) =>
       bytes.length >= offset + signature.length &&
       Iterable<int>.generate(
@@ -20,5 +16,16 @@ String avatarContentType(Uint8List bytes) {
   if (starts([82, 73, 70, 70]) && starts([87, 69, 66, 80], 8)) {
     return 'image/webp';
   }
-  throw const FormatException('Choose a PNG, JPEG, GIF or WebP image.');
+  return null;
+}
+
+/// Matches the upload service's image whitelist; never trusts a file suffix.
+String avatarContentType(Uint8List bytes) {
+  if (bytes.isEmpty || bytes.length > 10 * 1024 * 1024) {
+    throw const FormatException(
+      'Choose an image no larger than 10 MiB. The server may set a smaller limit.',
+    );
+  }
+  return sniffImageContentType(bytes) ??
+      (throw const FormatException('Choose a PNG, JPEG, GIF or WebP image.'));
 }

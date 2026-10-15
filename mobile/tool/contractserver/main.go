@@ -209,12 +209,16 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta"} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, err
 		}
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: "member"}); err != nil {
 			return nil, err
+		}
+		if id == chatWorkspace {
+			// Its agent is the runnable one the chat fixture registers.
+			continue
 		}
 		if _, err := agentRepo.CreateAgent(ctx, id, &agentsv1.Agent{AgentId: "shared", Name: id + "-agent"}); err != nil {
 			return nil, err
@@ -336,6 +340,9 @@ func fixture(ctx context.Context) (http.Handler, error) {
 		agentsv1connect.ModelProviderServiceDeleteModelProviderProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", modelProviderHandler)))
+	}
+	if err := registerChat(ctx, r, agentRepo, opts); err != nil {
+		return nil, err
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
