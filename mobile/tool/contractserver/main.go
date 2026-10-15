@@ -209,15 +209,17 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, err
 		}
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: "member"}); err != nil {
 			return nil, err
 		}
-		if id == chatWorkspace {
-			// Its agent is the runnable one the chat fixture registers.
+		if id == chatWorkspace || id == boxWorkspace {
+			// Chat's agent is the runnable one the chat fixture registers;
+			// the box Workspace starts with none, its leaves are created
+			// by the contract tests.
 			continue
 		}
 		if _, err := agentRepo.CreateAgent(ctx, id, &agentsv1.Agent{AgentId: "shared", Name: id + "-agent"}); err != nil {
@@ -269,6 +271,8 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	agentSvc := application.NewAgentServiceServer(agentRepo)
 	agentSvc.SetWorkspaceRepo(wsRepo)
 	agentSvc.SetContentCoordinator(bindingSvc)
+	bx := newBoxFixture(agentRepo)
+	agentSvc.SetButterBoxRepo(bx.repo)
 	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
 	skillRepo := skillmemory.New()
 	if _, err := skillRepo.Create(ctx, "alpha", &agentsv1.Skill{Name: "existing-skill"}, "fixture content"); err != nil {
@@ -341,10 +345,31 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", modelProviderHandler)))
 	}
-	if err := registerChat(ctx, r, agentRepo, opts); err != nil {
+	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, opts, bx)
+	if err != nil {
 		return nil, err
 	}
+	agentSvc.SetRuntime(reloader{
+		runner: boxRunner, agents: agentRepo,
+		workspaces: []string{chatWorkspace, boxWorkspace},
+		providers:  runnerProviders,
+	})
+	_, boxHandler := agentsv1connect.NewButterBoxServiceHandler(bx.svc, opts...)
+	for _, procedure := range []string{
+		agentsv1connect.ButterBoxServiceListButterBoxesProcedure,
+		agentsv1connect.ButterBoxServiceGetButterBoxProcedure,
+		agentsv1connect.ButterBoxServiceCreateButterBoxProcedure,
+		agentsv1connect.ButterBoxServiceUpdateButterBoxProcedure,
+		agentsv1connect.ButterBoxServiceDeleteButterBoxProcedure,
+		agentsv1connect.ButterBoxServiceSetButterBoxTokenProcedure,
+		agentsv1connect.ButterBoxServiceGetButterBoxStatusProcedure,
+		agentsv1connect.ButterBoxServiceListButterBoxModelsProcedure,
+		agentsv1connect.ButterBoxServiceListButterBoxCursorModelsProcedure,
+	} {
+		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", boxHandler)))
+	}
 	mux := http.NewServeMux()
+	mux.Handle("/fake-box/", boxDouble())
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
 	mux.Handle("/", r)
 	return mux, nil

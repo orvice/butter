@@ -5,6 +5,7 @@ import '../../core/management_page.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import 'agent_draft.dart';
 import 'agent_form.dart';
+import 'leaf_draft.dart';
 import 'workflow_graph_view.dart';
 export 'agent_form.dart' show AgentFormPage;
 
@@ -117,6 +118,10 @@ class AgentDetailPage extends StatelessWidget {
             ],
             if (agent.type == AgentType.AGENT_TYPE_WORKFLOW)
               ..._workflowDetail(context, agent.config.workflow),
+            if (agent.type == AgentType.AGENT_TYPE_PI)
+              ..._piDetail(agent.config.pi),
+            if (agent.type == AgentType.AGENT_TYPE_CURSOR)
+              ..._cursorDetail(agent.config.cursor),
             for (final id in agent.childAgentIds)
               ListTile(
                 title: Text('Child: $id'),
@@ -164,4 +169,46 @@ List<Widget> _workflowDetail(BuildContext context, WorkflowConfig workflow) => [
       ),
     ),
   for (final edge in workflow.edges) Text(describeWorkflowEdge(edge)),
+];
+
+String _runLimitText(RunLimitMode mode, int seconds) => switch (mode) {
+  RunLimitMode.serverDefault => 'server default (1800 seconds)',
+  RunLimitMode.unlimited => 'unlimited',
+  RunLimitMode.seconds => '$seconds seconds',
+};
+
+String _orDefault(String value, String fallback) =>
+    value.isEmpty ? fallback : value;
+
+/// A Pi leaf's binding. Its instructions and tools live on the box.
+List<Widget> _piDetail(PiAgentConfig pi) => [
+  const SizedBox(height: 16),
+  SelectableText('ButterBox ID: ${pi.butterboxId}'),
+  SelectableText(
+    'Working directory: ${_orDefault(pi.workingDir, "box default")}',
+  ),
+  Text('Provider: ${_orDefault(pi.provider, "pi default")}'),
+  Text('Model: ${_orDefault(pi.model, "pi default")}'),
+  Text('Thinking level: ${_orDefault(pi.thinkingLevel, "default")}'),
+  Text('Maximum run time: ${_runLimitText(piRunLimit(pi), pi.maxRunSeconds)}'),
+  const Text(
+    'Instructions and tools are configured on the box (AGENTS.md and .pi).',
+  ),
+];
+
+/// A Cursor leaf's binding. Its rules and tools live on the box.
+List<Widget> _cursorDetail(CursorAgentConfig cursor) => [
+  const SizedBox(height: 16),
+  SelectableText('ButterBox ID: ${cursor.butterboxId}'),
+  SelectableText(
+    'Working directory: ${_orDefault(cursor.workingDir, "box default")}',
+  ),
+  Text('Model: ${_orDefault(cursor.model, "Cursor default")}'),
+  Text('Mode: ${_orDefault(cursor.mode, "default (agent)")}'),
+  Text(
+    'Maximum run time: ${_runLimitText(cursorRunLimit(cursor), cursor.maxRunSeconds)}',
+  ),
+  const Text(
+    'Rules and tools are configured on the box (.cursor/rules and mcp.json).',
+  ),
 ];

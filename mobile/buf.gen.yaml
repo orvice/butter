@@ -14,3 +14,4 @@ inputs:
       - ../proto/agents/v1/workspace.proto
       - ../proto/agents/v1/agent_service.proto
       - ../proto/agents/v1/skill.proto
+      - ../proto/agents/v1/butterbox.proto
