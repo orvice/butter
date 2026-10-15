@@ -9,6 +9,7 @@ const editableAgentTypes = [
   AgentType.AGENT_TYPE_LOOP,
   AgentType.AGENT_TYPE_SEQUENTIAL,
   AgentType.AGENT_TYPE_PARALLEL,
+  AgentType.AGENT_TYPE_WORKFLOW,
 ];
 
 bool isLLM(Agent agent) =>
@@ -54,6 +55,7 @@ final class AgentDraft {
 
   void setType(AgentType type) {
     if (agent.type == type) return;
+    final leavingWorkflow = agent.type == AgentType.AGENT_TYPE_WORKFLOW;
     agent.type = type;
     if (!isLLM(agent) && agent.hasConfig()) {
       config
@@ -71,6 +73,12 @@ final class AgentDraft {
     if (type != AgentType.AGENT_TYPE_LOOP && agent.hasConfig()) {
       config.clearMaxIterations();
     }
+    if (leavingWorkflow && agent.hasConfig()) {
+      config.clearWorkflow();
+    }
+    // The children of a Workflow were derived from its nodes; without the
+    // graph they would be orphans the next type neither shows nor owns.
+    if (leavingWorkflow) agent.childAgentIds.clear();
   }
 
   void setGuard(GuardMode mode) {
