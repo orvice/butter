@@ -8,6 +8,7 @@ import '../../core/config_resource_controller.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import '../../gen/agents/v1/agent_service.pb.dart';
 import '../../gen/agents/v1/dashboard.pb.dart';
+import 'mcp_draft.dart';
 
 enum McpStatusKind {
   probing,
@@ -64,6 +65,7 @@ class McpOAuthView {
     this.deadline,
     this.baseline,
     this.baselineConnected = false,
+    this.launching = false,
   });
 
   McpOAuthPhase phase;
@@ -77,6 +79,11 @@ class McpOAuthView {
   /// `connected_at` before the flow started, and whether a connection existed.
   DateTime? baseline;
   bool baselineConnected;
+
+  /// The authorization address was handed to the browser launcher and its
+  /// answer is not in yet. The flow is already recorded as waiting: the
+  /// launcher may be slow, and the app may go to the background meanwhile.
+  bool launching;
 
   bool get waiting => phase == McpOAuthPhase.waiting;
 }
@@ -134,6 +141,21 @@ class McpController extends ConfigResourceController<MCPServer> {
   Future<void> deleteOne(ButterApi api, String id) =>
       api.deleteMcpServer(token, workspaceId, id);
 
+  /// Saves an edit of a server whose credentials the form may not hold (an
+  /// installed preset's): the whole message, plus the credentials it keeps by
+  /// name. One call, never repeated on its own.
+  Future<bool> saveEdit(McpSave save) =>
+      runWrite(id: save.server.id, (epoch) async {
+        final saved = await api.updateMcpServer(
+          token,
+          workspaceId,
+          save.server,
+          keepHeaderKeys: save.keepHeaderKeys,
+          keepClientSecret: save.keepClientSecret,
+        );
+        if (live(epoch)) stored(saved);
+      }, ConfigOperation.update);
+
   // ---- Probes, tools: reads fenced against writes to the same server ----
 
   final Map<String, McpStatusView> statuses = {};
@@ -145,6 +167,9 @@ class McpController extends ConfigResourceController<MCPServer> {
   void objectChanging(String? id) {
     // Anything read about the server before a write to it may predate it.
     if (id == null) return;
+    // A start still on its way to the browser belongs to the server as it
+    // was; it must not open anything now.
+    _flowSeq[id] = (_flowSeq[id] ?? 0) + 1;
     _probeSeq[id] = (_probeSeq[id] ?? 0) + 1;
     _toolsSeq[id] = (_toolsSeq[id] ?? 0) + 1;
     statuses.remove(id);
@@ -153,6 +178,7 @@ class McpController extends ConfigResourceController<MCPServer> {
 
   @override
   void objectRemoved(String id) {
+    _flowSeq[id] = (_flowSeq[id] ?? 0) + 1;
     statuses.remove(id);
     tools.remove(id);
     _oauth.remove(id);
@@ -276,6 +302,11 @@ class McpController extends ConfigResourceController<MCPServer> {
 
   final Map<String, McpOAuthView> _oauth = {};
   final Map<String, int> _oauthSeq = {};
+
+  /// Per server: bumped by every start and by every write aimed at the server
+  /// (edit, disconnect, delete, install, also when one begins). A start
+  /// continuation that finds it moved has been overtaken.
+  final Map<String, int> _flowSeq = {};
   McpOAuthView oauthOf(String id) => _oauth.putIfAbsent(id, McpOAuthView.new);
 
   bool _isWebUrl(Uri url) =>
@@ -296,15 +327,24 @@ class McpController extends ConfigResourceController<MCPServer> {
     try {
       final status = await api.mcpOAuthStatus(token, workspaceId, id);
       if (!live(epoch) || _oauthSeq[id] != seq) return;
-      view
-        ..reading = false
-        ..status = status;
+      view.reading = false;
+      // A read that began before a write to this server ended may predate it
+      // (a disconnect, an edit): it must neither show nor settle anything.
+      if (!identical(_oauth[id], view) || !readIsFresh(started)) {
+        emit();
+        return;
+      }
+      view.status = status;
       // A read that began after a disconnect ended settles it.
       reconcile(started, id: id, scope: 'oauth');
       _settleWaiting(view, status);
     } catch (failure) {
       if (!live(epoch) || _oauthSeq[id] != seq) return;
       view.reading = false;
+      if (!identical(_oauth[id], view) || !readIsFresh(started)) {
+        emit();
+        return;
+      }
       if (expired(failure)) return;
       if (view.waiting) {
         view.message =
@@ -350,11 +390,19 @@ class McpController extends ConfigResourceController<MCPServer> {
   ///
   /// The current state is read first so a connection that already exists is
   /// not mistaken for the result of this flow; if that read fails nothing is
-  /// started.
+  /// started. Every step after an await checks that this start is still the
+  /// current one for this server: a disconnect, edit, delete or install that
+  /// began meanwhile, or a newer start, overtakes it, and an overtaken start
+  /// opens nothing and changes nothing. Once the server has prepared the
+  /// authorization the flow is recorded as waiting *before* the browser is
+  /// asked to open it, so a suspension while the launcher is pending still
+  /// finds the flow and reads its real state on return.
   Future<void> connectOAuth(String id) async {
     if (disposed) return;
     final view = oauthOf(id);
-    if (view.phase == McpOAuthPhase.starting || writing) return;
+    if (view.phase == McpOAuthPhase.starting || view.launching || writing) {
+      return;
+    }
     if (unconfirmed) {
       view
         ..phase = McpOAuthPhase.failed
@@ -364,18 +412,36 @@ class McpController extends ConfigResourceController<MCPServer> {
       return;
     }
     final epoch = this.epoch;
-    final seq = (_oauthSeq[id] ?? 0) + 1;
-    _oauthSeq[id] = seq;
+    final flow = (_flowSeq[id] ?? 0) + 1;
+    _flowSeq[id] = flow;
     view
       ..phase = McpOAuthPhase.starting
       ..message = null
       ..deadline = null;
     emit();
 
+    // True while this start is still the one that may act.
+    bool current() =>
+        !disposed && identical(_oauth[id], view) && _flowSeq[id] == flow;
+
+    // Ends an overtaken start without touching state it no longer owns.
+    void overtaken() {
+      if (disposed) return;
+      if (identical(_oauth[id], view) && view.phase == McpOAuthPhase.starting) {
+        view
+          ..phase = McpOAuthPhase.failed
+          ..message =
+              'The server changed while authorization was starting, so the browser was not opened. Start again if you still want to connect.';
+        emit();
+      }
+    }
+
+    final readTick = beginRead();
     MCPOAuthConnectionStatus before;
     try {
       before = await api.mcpOAuthStatus(token, workspaceId, id);
     } catch (failure) {
+      if (!current()) return overtaken();
       if (!live(epoch)) return _suspendedDuringStart(view);
       if (expired(failure)) return;
       view
@@ -385,12 +451,14 @@ class McpController extends ConfigResourceController<MCPServer> {
       emit();
       return;
     }
+    if (!current() || !readIsFresh(readTick)) return overtaken();
     if (!live(epoch)) return _suspendedDuringStart(view);
 
     StartMCPServerOAuthResponse started;
     try {
       started = await api.startMcpOAuth(token, workspaceId, id);
     } catch (failure) {
+      if (!current()) return overtaken();
       if (!live(epoch)) return _suspendedDuringStart(view);
       if (expired(failure)) return;
       view
@@ -403,9 +471,11 @@ class McpController extends ConfigResourceController<MCPServer> {
       emit();
       return;
     }
+    if (!current()) return overtaken();
     if (!live(epoch)) return _suspendedDuringStart(view);
 
     final url = Uri.tryParse(started.authorizationUrl);
+    final open = openBrowser;
     if (url == null || !_isWebUrl(url)) {
       view
         ..phase = McpOAuthPhase.failed
@@ -414,28 +484,21 @@ class McpController extends ConfigResourceController<MCPServer> {
       emit();
       return;
     }
-    final open = openBrowser;
-    var opened = false;
-    if (open != null) {
-      try {
-        opened = await open(url);
-      } catch (_) {
-        opened = false;
-      }
-    }
-    if (!live(epoch)) return _suspendedDuringStart(view);
-    if (!opened) {
+    if (open == null) {
       view
         ..phase = McpOAuthPhase.failed
         ..message =
-            'Could not open the browser to authorize. Nothing was connected; try again.';
+            'This app cannot open the browser to authorize. Nothing was connected.';
       emit();
       return;
     }
+
+    // Recorded before the launcher runs: from here a suspension keeps the
+    // flow, and the return reads its real state.
     view
       ..phase = McpOAuthPhase.waiting
-      ..message =
-          'Finish signing in in the browser, then return to Butter. The link works for ${mcpOAuthFlowTtl.inMinutes} minutes.'
+      ..launching = true
+      ..message = 'Opening the browser…'
       ..baseline = before.hasConnectedAt()
           ? before.connectedAt.toDateTime()
           : null
@@ -444,6 +507,39 @@ class McpController extends ConfigResourceController<MCPServer> {
           MCPOAuthConnectionState.MCPO_AUTH_CONNECTION_STATE_CONNECTED
       ..deadline = _now().add(mcpOAuthFlowTtl)
       ..status = before;
+    emit();
+
+    var opened = false;
+    try {
+      opened = await open(url);
+    } catch (_) {
+      opened = false;
+    }
+    if (disposed) return;
+    if (!identical(_oauth[id], view) || !view.launching) {
+      // Replaced meanwhile (disconnect, delete). A page that did open cannot
+      // be withdrawn, so say so on whatever is shown now.
+      final now = _oauth[id];
+      if (opened && now != null && !now.waiting) {
+        now.message =
+            'An authorization page was opened just before this change. Finishing it in the browser would connect again.';
+        emit();
+      }
+      return;
+    }
+    view.launching = false;
+    if (!opened) {
+      view
+        ..phase = McpOAuthPhase.failed
+        ..message =
+            'Could not open the browser to authorize. Nothing was connected; try again.';
+      emit();
+      return;
+    }
+    if (view.waiting) {
+      view.message =
+          'Finish signing in in the browser, then return to Butter. The link works for ${mcpOAuthFlowTtl.inMinutes} minutes.';
+    }
     emit();
   }
 

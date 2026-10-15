@@ -279,7 +279,6 @@ class _McpDetailPageState extends State<McpDetailPage> {
           }
           final status = mcp.statuses[server.id];
           final tools = mcp.tools[server.id];
-          final block = mcpEditBlock(server);
           final busy = mcp.writing;
           final isOAuth = mcpAuthKindOf(server) == McpAuthKind.oauth2;
           return ListView(
@@ -295,7 +294,7 @@ class _McpDetailPageState extends State<McpDetailPage> {
               Text(mcpAuthSummary(server), key: const Key('mcp-auth')),
               if (isInstalledPreset(server))
                 const Text(
-                  'Installed from a global preset. Its credentials, if any, are held by the platform and never shown.',
+                  'Installed from a global preset. Its credentials, if any, are never shown here; editing keeps them unless you replace or remove them. The preset itself is not changed.',
                 ),
               Text(
                 server.toolFilter.isEmpty
@@ -322,11 +321,6 @@ class _McpDetailPageState extends State<McpDetailPage> {
                 ),
               ],
               const SizedBox(height: 12),
-              if (block != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(block, key: const Key('mcp-edit-block')),
-                ),
               Wrap(
                 spacing: 12,
                 children: [
@@ -348,7 +342,7 @@ class _McpDetailPageState extends State<McpDetailPage> {
                   ),
                   FilledButton.icon(
                     key: const Key('edit-mcp'),
-                    onPressed: busy || block != null
+                    onPressed: busy
                         ? null
                         : () => openManagementPage(
                             context,
@@ -642,6 +636,10 @@ class _McpFormPageState extends State<McpFormPage> {
   bool _saved = false;
   String? _problem;
 
+  /// Bumped when typed secrets are submitted, so their fields are rebuilt
+  /// empty.
+  int _secretGeneration = 0;
+
   Future<void> _save(McpController mcp) async {
     final valid = _form.currentState!.validate();
     final problem = _draft.firstError();
@@ -651,10 +649,26 @@ class _McpFormPageState extends State<McpFormPage> {
     }
     setState(() => _problem = null);
     FocusScope.of(context).unfocus();
-    final message = _draft.build();
+    final save = _draft.buildSave();
+    final discards = _draft.discards();
+    if (discards.isNotEmpty) {
+      final confirmed = await confirmChange(
+        context,
+        'Discard stored credentials?',
+        'Saving "${_draft.name.trim()}" will:\n${discards.map((d) => '• $d').join('\n')}\nThis cannot be undone.',
+        action: 'Save and discard',
+      );
+      if (!confirmed || !mounted) return;
+    }
+    // What was typed is in the message now: forget it, so a refusal or an
+    // unknown outcome leaves nothing secret in the form.
+    setState(() {
+      _draft.clearTypedSecrets();
+      _secretGeneration++;
+    });
     final ok = _draft.isCreate
-        ? await mcp.create(message)
-        : await mcp.update(message);
+        ? await mcp.create(save.server)
+        : await mcp.saveEdit(save);
     if (!mounted || !ok) return;
     setState(() => _saved = true);
     if (Navigator.canPop(context)) Navigator.pop(context);
@@ -775,16 +789,7 @@ class _McpFormPageState extends State<McpFormPage> {
                           ? null
                           : (s) => _change(() => d.authKind = s.first),
                     ),
-                    if (!d.isCreate && d.authKind != McpAuthKind.staticHeaders)
-                      if (widget.base!.headers.isNotEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text(
-                            'Saving with this choice removes the stored headers.',
-                          ),
-                        ),
-                    if (d.authKind == McpAuthKind.staticHeaders)
-                      _headers(locked),
+                    _headers(locked),
                     if (d.authKind == McpAuthKind.oauth2) _oauth(locked),
                     if (d.sendsCredentialsInClear)
                       const Padding(
@@ -854,8 +859,11 @@ class _McpFormPageState extends State<McpFormPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        const Text(
-          'Headers are sent with every request. Their values are masked here; a stored value is never shown.',
+        Text('Headers', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          d.authKind == McpAuthKind.staticHeaders
+              ? 'Sent with every request. A stored value is never shown here.'
+              : 'Optional extra headers, sent with every request alongside the sign-in. A stored value is never shown here.',
         ),
         for (var i = 0; i < d.headers.length; i++)
           _headerRow(d.headers[i], i, locked),
@@ -891,7 +899,7 @@ class _McpFormPageState extends State<McpFormPage> {
     if (row.isStored) {
       final replacing = row.replacement != null;
       return Column(
-        key: ObjectKey(row),
+        key: ValueKey((row, _secretGeneration)),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ListTile(
@@ -938,7 +946,7 @@ class _McpFormPageState extends State<McpFormPage> {
       );
     }
     return Column(
-      key: ObjectKey(row),
+      key: ValueKey((row, _secretGeneration)),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextFormField(
@@ -1009,6 +1017,7 @@ class _McpFormPageState extends State<McpFormPage> {
             stored: d.hasStoredSecret,
             edit: d.secretEdit,
             value: d.newSecret,
+            generation: _secretGeneration,
             enabled: !locked,
             error: d.validateSecret(),
             onEdit: (e) => _change(() => d.secretEdit = e),

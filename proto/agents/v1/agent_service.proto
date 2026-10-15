@@ -740,7 +740,23 @@ message CreateMCPServerResponse {
 }
 
 message UpdateMCPServerRequest {
+  // The whole server, as before: an update stores exactly what it is sent.
   MCPServer mcp_server = 1;
+
+  // Keeps stored credentials the caller cannot read. Reads of a server
+  // installed from a global preset hide header values and the OAuth client
+  // secret, so a whole-object update built from such a read would overwrite
+  // them with the masks. Naming a header here keeps its stored value; the
+  // header must not also appear (with a value) in mcp_server.headers, and
+  // must exist on the stored server. A header left out of both is removed,
+  // as before. Empty keeps the previous behavior.
+  repeated string keep_header_keys = 2;
+
+  // Keeps the stored OAuth client secret. Requires oauth2 auth with the same
+  // client_id as the stored server, because a secret belongs to its client,
+  // and an empty client_secret in mcp_server. When either keep field is used
+  // the response hides credentials the way reads of an installed preset do.
+  bool keep_oauth_client_secret = 3;
 }
 
 message UpdateMCPServerResponse {

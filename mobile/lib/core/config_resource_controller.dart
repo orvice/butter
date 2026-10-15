@@ -109,6 +109,11 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
   int _lastWriteTick = 0;
   bool _fresh(int startTick) => startTick > _lastWriteTick;
 
+  /// Whether a read that began at [startTick] began after the last write
+  /// started or ended. An older read may carry the state from before it.
+  @protected
+  bool readIsFresh(int startTick) => _fresh(startTick);
+
   // ---- List and detail ----
 
   List<T> items = const [];

@@ -2827,7 +2827,11 @@ POST /api/agents.v1.MCPServerService/UpdateMCPServer
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `mcp_server` | MCPServer | MCP server to update |
+| `mcp_server` | MCPServer | MCP server to update (whole-object replacement) |
+| `keep_header_keys` | string[] | Optional. Names of stored headers to keep when `mcp_server.headers` does not carry them. Each must be stored, and none may also be given a value in `headers`; otherwise the call is `InvalidArgument`. |
+| `keep_oauth_client_secret` | bool | Optional. Keep the stored OAuth client secret when `mcp_server.auth.oauth2.client_secret` is empty. Requires OAuth 2.0, an empty `client_secret` in the message and the same `client_id` as the stored one, otherwise `InvalidArgument`. |
+
+A request without the two keep fields behaves exactly as before. An installed Workspace preset is returned with its headers redacted (`***`) and its client secret empty, so a client must not send that view back; it names what to keep instead. Keep is never inferred from a mask or an empty value. The preset marker (`metadata["butter.global_mcp_preset_id"]`) is taken from the stored record. When a keep field is used, the response is redacted like a read.
 
 **Response:**
 

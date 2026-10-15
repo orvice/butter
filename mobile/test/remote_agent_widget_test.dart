@@ -147,6 +147,140 @@ void main() {
     expect(stored.password, 'oc-very-secret');
   });
 
+  testWidgets('clearing the password asks first and names the agent; cancel '
+      'sends nothing', (tester) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seedRemote('alpha', opencode('o1')),
+    );
+    await openDetail(tester, h, 'o1');
+    await tapScreen(tester, find.byKey(const Key('edit-remote')));
+    // A username needs a password, so clearing one clears the other.
+    await enter(tester, const Key('remote-username'), '');
+    await tapScreen(
+      tester,
+      find.descendant(
+        of: find.byKey(const Key('secret-choice-Password')),
+        matching: find.text('Clear'),
+      ),
+    );
+    await tapReal(tester, find.byKey(const Key('save-remote')));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard stored credentials?'), findsOneWidget);
+    expect(find.textContaining('"Code o1"'), findsOneWidget);
+    expect(find.textContaining('Clear the stored password'), findsOneWidget);
+    await tapDialog(tester, find.text('Cancel'));
+    expect(h.server.count('UpdateRemoteAgent'), 0);
+    expect(h.server.remotes['alpha']!['o1']!.password, 'oc-very-secret');
+
+    await tapReal(tester, find.byKey(const Key('save-remote')));
+    await tester.pumpAndSettle();
+    await tapDialogReal(tester, find.text('Save and discard'));
+    await waitFor(tester, () => h.server.count('UpdateRemoteAgent') == 1);
+    expect(h.server.remotes['alpha']!['o1']!.password, isEmpty);
+  });
+
+  testWidgets('switching an OpenCode agent to A2A asks before discarding its '
+      'credentials', (tester) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seedRemote('alpha', opencode('o1')),
+    );
+    await openDetail(tester, h, 'o1');
+    await tapScreen(tester, find.byKey(const Key('edit-remote')));
+    await tapScreen(
+      tester,
+      find.descendant(
+        of: find.byKey(const Key('remote-kind')),
+        matching: find.text('A2A'),
+      ),
+    );
+    await tapReal(tester, find.byKey(const Key('save-remote')));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard stored credentials?'), findsOneWidget);
+    expect(find.textContaining('Switch to A2A'), findsOneWidget);
+    await tapDialog(tester, find.text('Cancel'));
+    expect(h.server.count('UpdateRemoteAgent'), 0);
+  });
+
+  testWidgets('a rename or a rotated password asks nothing', (tester) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seedRemote('alpha', opencode('o1')),
+    );
+    await openDetail(tester, h, 'o1');
+    await tapScreen(tester, find.byKey(const Key('edit-remote')));
+    await enter(tester, const Key('remote-name'), 'Renamed');
+    await tapScreen(
+      tester,
+      find.descendant(
+        of: find.byKey(const Key('secret-choice-Password')),
+        matching: find.text('Replace'),
+      ),
+    );
+    await enter(tester, const Key('secret-value-Password'), 'rotated');
+    await tapReal(tester, find.byKey(const Key('save-remote')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Discard stored credentials?'), findsNothing);
+    await waitFor(tester, () => h.server.count('UpdateRemoteAgent') == 1);
+    expect(h.server.remotes['alpha']!['o1']!.password, 'rotated');
+  });
+
+  for (final outcome in ['denied', 'lost reply']) {
+    testWidgets('a typed password is forgotten after a $outcome save and '
+        'never sent again by itself', (tester) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.seedRemote('alpha', opencode('o1')),
+      );
+      await openDetail(tester, h, 'o1');
+      await tapScreen(tester, find.byKey(const Key('edit-remote')));
+      await enter(tester, const Key('remote-name'), 'Kept name');
+      await tapScreen(
+        tester,
+        find.descendant(
+          of: find.byKey(const Key('secret-choice-Password')),
+          matching: find.text('Replace'),
+        ),
+      );
+      await enter(tester, const Key('secret-value-Password'), 'typed-secret');
+      if (outcome == 'denied') {
+        h.server.refusals['UpdateRemoteAgent'] = (
+          403,
+          'permission_denied',
+          'no',
+        );
+      } else {
+        h.server.loseReply = true;
+      }
+      await tapReal(tester, find.byKey(const Key('save-remote')));
+      await waitFor(tester, () => h.server.count('UpdateRemoteAgent') == 1);
+
+      String typed(Key key) => tester
+          .widget<TextField>(
+            find.descendant(
+              of: find.byKey(key),
+              matching: find.byType(TextField),
+            ),
+          )
+          .controller!
+          .text;
+      expect(typed(const Key('remote-name')), 'Kept name');
+      expect(typed(const Key('secret-value-Password')), isEmpty);
+      expect(find.textContaining('typed-secret'), findsNothing);
+
+      h.server.refusals.clear();
+      h.server.loseReply = false;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tapReal(tester, find.byKey(const Key('save-remote')));
+      await tester.pumpAndSettle();
+      expect(h.server.count('UpdateRemoteAgent'), 1);
+    });
+  }
+
   testWidgets('the probe is classified and hides the server text', (
     tester,
   ) async {

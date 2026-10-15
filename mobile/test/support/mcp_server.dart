@@ -90,7 +90,7 @@ class McpServerFake extends AgentServer {
       // answer is a stale one.
       switch (method) {
         case 'ListMCPServers':
-          final snapshot = [for (final s in bucket.values) s.deepCopy()];
+          final snapshot = [for (final s in bucket.values) _view(s)];
           await before?.call(method);
           if (refused != null) {
             return _fail(r, refused.$1, refused.$2, refused.$3);
@@ -98,7 +98,7 @@ class McpServerFake extends AgentServer {
           write(r, ListMCPServersResponse(mcpServers: snapshot));
         case 'GetMCPServer':
           final id = GetMCPServerRequest.fromBuffer(bytes).id;
-          final found = bucket[id]?.deepCopy();
+          final found = bucket[id] == null ? null : _view(bucket[id]!);
           await before?.call(method);
           if (refused != null) {
             return _fail(r, refused.$1, refused.$2, refused.$3);
@@ -116,12 +116,31 @@ class McpServerFake extends AgentServer {
           bucket[s.id] = stored;
           _answer(r, CreateMCPServerResponse(mcpServer: stored));
         case 'UpdateMCPServer':
-          final s = UpdateMCPServerRequest.fromBuffer(bytes).mcpServer;
-          if (!bucket.containsKey(s.id)) {
+          final req = UpdateMCPServerRequest.fromBuffer(bytes);
+          final s = req.mcpServer.deepCopy();
+          final prev = bucket[s.id];
+          if (prev == null) {
             return _fail(r, 404, 'not_found', 'mcp server not found');
           }
+          // Mirrors the server: kept credentials are named, never inferred.
+          final keeping =
+              req.keepHeaderKeys.isNotEmpty || req.keepOauthClientSecret;
+          if (keeping) {
+            for (final k in req.keepHeaderKeys) {
+              s.headers[k] = prev.headers[k] ?? '';
+            }
+            if (req.keepOauthClientSecret) {
+              s.ensureAuth().ensureOauth2().clientSecret =
+                  prev.auth.oauth2.clientSecret;
+            }
+            final marker = prev.metadata[presetKey];
+            if (marker != null) s.metadata[presetKey] = marker;
+          }
           bucket[s.id] = s.deepCopy();
-          _answer(r, UpdateMCPServerResponse(mcpServer: s));
+          _answer(
+            r,
+            UpdateMCPServerResponse(mcpServer: keeping ? _masked(s) : s),
+          );
         case 'DeleteMCPServer':
           final id = DeleteMCPServerRequest.fromBuffer(bytes).id;
           if (bucket.remove(id) == null) {
@@ -213,7 +232,10 @@ class McpServerFake extends AgentServer {
             ..workspaceId = ws!
             ..metadata['butter.global_mcp_preset_id'] = id;
           bucket[id] = installed;
-          _answer(r, InstallGlobalMCPServerResponse(mcpServer: installed));
+          _answer(
+            r,
+            InstallGlobalMCPServerResponse(mcpServer: _masked(installed)),
+          );
         case 'ListRemoteAgents':
           final snapshot = [for (final a in remote.values) a.deepCopy()];
           await before?.call(method);
@@ -300,6 +322,22 @@ class McpServerFake extends AgentServer {
   RemoteAgent seedRemote(String ws, RemoteAgent agent) {
     remotes[ws]![agent.id] = agent..workspaceId = ws;
     return agent;
+  }
+
+  static const presetKey = 'butter.global_mcp_preset_id';
+
+  /// What a read of the server shows: an installed preset hides its
+  /// credentials, as the server does.
+  MCPServer _view(MCPServer s) =>
+      (s.metadata[presetKey] ?? '').isEmpty ? s.deepCopy() : _masked(s);
+
+  MCPServer _masked(MCPServer s) {
+    final c = s.deepCopy();
+    for (final k in c.headers.keys.toList()) {
+      c.headers[k] = '***';
+    }
+    if (c.hasAuth() && c.auth.hasOauth2()) c.auth.oauth2.clearClientSecret();
+    return c;
   }
 
   void _answer(HttpRequest r, dynamic message) {

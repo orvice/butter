@@ -662,6 +662,342 @@ void main() {
       expect(c.oauthOf('a1').phase, McpOAuthPhase.failed);
       expect(h.server.count('StartMCPServerOAuth'), 0);
     });
+
+    // ---- Continuations: every await re-checks that this start is current ----
+
+    Future<void> until(bool Function() done) async {
+      for (var i = 0; i < 200 && !done(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(done(), isTrue, reason: 'condition never held');
+    }
+
+    Completer<void> hold(Harness h, String method) {
+      final gate = Completer<void>();
+      h.server.before = (m) => m == method ? gate.future : Future.value();
+      return gate;
+    }
+
+    group('a start that was overtaken opens nothing', () {
+      Future<void> overtakenBy(
+        String name,
+        Future<void> Function(Harness, McpController) overtake, {
+        String hold_ = 'StartMCPServerOAuth',
+      }) async {
+        final (h, c, platform) = await rig(
+          seed: (s) => s.connect('alpha', 'a1', at: t0),
+        );
+        final gate = hold(h, hold_);
+        final start = c.connectOAuth('a1');
+        await until(() => h.server.count(hold_) == 1);
+        h.server.before = null;
+        await overtake(h, c);
+        gate.complete();
+        await start;
+        expect(
+          platform.opened,
+          isEmpty,
+          reason: '$name must stop the browser from opening',
+        );
+        expect(c.hasWaitingFlow, isFalse, reason: name);
+      }
+
+      test('by a disconnect: the browser stays closed, the state stays '
+          'disconnected', () async {
+        final (h, c, platform) = await rig(
+          seed: (s) => s.connect('alpha', 'a1', at: t0),
+        );
+        final gate = hold(h, 'StartMCPServerOAuth');
+        final start = c.connectOAuth('a1');
+        await until(() => h.server.count('StartMCPServerOAuth') == 1);
+        h.server.before = null;
+        expect(await c.disconnectOAuth('a1'), isTrue);
+        gate.complete();
+        await start;
+        expect(platform.opened, isEmpty);
+        final view = c.oauthOf('a1');
+        expect(view.phase, McpOAuthPhase.idle);
+        expect(
+          view.status!.state,
+          MCPOAuthConnectionState.MCPO_AUTH_CONNECTION_STATE_DISCONNECTED,
+        );
+        expect(h.server.oauth['alpha'], isEmpty);
+      });
+
+      test('by an edit of the server', () async {
+        await overtakenBy('an edit', (h, c) async {
+          await c.loadItem('a1');
+          final draft = McpDraft.edit(c.item!)..name = 'Renamed';
+          expect(await c.update(draft.build()), isTrue);
+        });
+      });
+
+      test('by deleting the server', () async {
+        await overtakenBy('a delete', (h, c) async {
+          expect(await c.delete('a1'), isTrue);
+        });
+      });
+
+      test('by reinstalling the server from its preset', () async {
+        await overtakenBy('an install', (h, c) async {
+          h.server.presets.add(
+            server('a1')
+              ..metadata['x'] = 'y'
+              ..ensureAuth().type =
+                  MCPServerAuthType.MCP_SERVER_AUTH_TYPE_OAUTH2,
+          );
+          h.server.servers['alpha']!['a1']!.metadata[McpServerFake.presetKey] =
+              'a1';
+          expect(await c.install('a1'), isTrue);
+        });
+      });
+
+      test(
+        'by a disconnect while the first read is still on the wire',
+        () async {
+          final (h, c, platform) = await rig(
+            seed: (s) => s.connect('alpha', 'a1', at: t0),
+          );
+          final gate = hold(h, 'GetMCPServerOAuthStatus');
+          final start = c.connectOAuth('a1');
+          await until(() => h.server.count('GetMCPServerOAuthStatus') == 1);
+          h.server.before = null;
+          expect(await c.disconnectOAuth('a1'), isTrue);
+          gate.complete();
+          await start;
+          expect(h.server.count('StartMCPServerOAuth'), 0);
+          expect(platform.opened, isEmpty);
+          expect(c.hasWaitingFlow, isFalse);
+        },
+      );
+
+      test(
+        'and says why when nothing else replaced what it was showing',
+        () async {
+          // A write that fails leaves the same view; the start must not stay
+          // "starting" for ever.
+          final (h, c, platform) = await rig();
+          final gate = hold(h, 'StartMCPServerOAuth');
+          final start = c.connectOAuth('a1');
+          await until(() => h.server.count('StartMCPServerOAuth') == 1);
+          h.server.before = null;
+          h.server.refusals['DeleteMCPServer'] = (
+            403,
+            'permission_denied',
+            'no',
+          );
+          expect(await c.delete('a1'), isFalse);
+          gate.complete();
+          await start;
+          expect(platform.opened, isEmpty);
+          expect(c.oauthOf('a1').phase, McpOAuthPhase.failed);
+          expect(c.oauthOf('a1').message, contains('browser was not opened'));
+        },
+      );
+    });
+
+    group('the browser launcher', () {
+      test(
+        'the flow is recorded as waiting before the launcher answers',
+        () async {
+          final (h, c, platform) = await rig();
+          platform.openGate = Completer<bool>();
+          final start = c.connectOAuth('a1');
+          await until(() => platform.opened.isNotEmpty);
+          final view = c.oauthOf('a1');
+          expect(view.phase, McpOAuthPhase.waiting);
+          expect(view.launching, isTrue);
+          expect(c.hasWaitingFlow, isTrue);
+          platform.openGate!.complete(true);
+          await start;
+          expect(view.launching, isFalse);
+          expect(view.phase, McpOAuthPhase.waiting);
+          expect(view.message, contains('Finish signing in'));
+        },
+      );
+
+      test('suspending while the launcher is pending still finds the real '
+          'authorization on return', () async {
+        final (h, c, platform) = await rig();
+        platform.openGate = Completer<bool>();
+        final start = c.connectOAuth('a1');
+        await until(() => platform.opened.isNotEmpty);
+        c.suspend();
+        // The person finished authorizing while the app was away.
+        h.server.connect('alpha', 'a1', at: t0.add(const Duration(minutes: 1)));
+        expect(c.oauthOf('a1').waiting, isTrue);
+        await c.recover();
+        expect(c.oauthOf('a1').phase, McpOAuthPhase.connected);
+        // The launcher answers late; the answer changes nothing.
+        platform.openGate!.complete(true);
+        await start;
+        expect(c.oauthOf('a1').phase, McpOAuthPhase.connected);
+        expect(c.oauthOf('a1').launching, isFalse);
+        expect(h.server.count('StartMCPServerOAuth'), 1);
+      });
+
+      test('a launcher that refuses is a failure, even if answered after a '
+          'suspension', () async {
+        final (h, c, platform) = await rig();
+        platform.openGate = Completer<bool>();
+        final start = c.connectOAuth('a1');
+        await until(() => platform.opened.isNotEmpty);
+        c.suspend();
+        platform.openGate!.complete(false);
+        await start;
+        final view = c.oauthOf('a1');
+        expect(view.phase, McpOAuthPhase.failed);
+        expect(view.message, contains('Could not open the browser'));
+        expect(c.hasWaitingFlow, isFalse);
+      });
+
+      test('a launcher that throws is a failure, not a flow', () async {
+        final (h, c, platform) = await rig();
+        platform.openThrows = true;
+        await c.connectOAuth('a1');
+        expect(c.oauthOf('a1').phase, McpOAuthPhase.failed);
+        expect(c.oauthOf('a1').message, contains('Could not open the browser'));
+        expect(c.hasWaitingFlow, isFalse);
+      });
+
+      test('an app with no launcher says so and starts nothing it cannot '
+          'open', () async {
+        final h = await start(seed: (s) => s.seed('alpha', oauthServer('a1')));
+        final login = await ButterApi(
+          h.client.address!,
+        ).login('alice', 'password');
+        final c = McpController(
+          newApi: () => ButterApi(h.client.address!),
+          token: login.token,
+          workspaceId: 'alpha',
+          onUnauthenticated: () {},
+          allowHttp: true,
+        );
+        addTearDown(c.dispose);
+        await c.connectOAuth('a1');
+        expect(c.oauthOf('a1').phase, McpOAuthPhase.failed);
+        expect(c.hasWaitingFlow, isFalse);
+      });
+
+      test('a disconnect while the launcher is pending cannot withdraw the '
+          'link, and the state says so', () async {
+        final (h, c, platform) = await rig(
+          seed: (s) => s.connect('alpha', 'a1', at: t0),
+        );
+        platform.openGate = Completer<bool>();
+        final start = c.connectOAuth('a1');
+        await until(() => platform.opened.isNotEmpty);
+        expect(await c.disconnectOAuth('a1'), isTrue);
+        platform.openGate!.complete(true);
+        await start;
+        final view = c.oauthOf('a1');
+        expect(view.phase, McpOAuthPhase.idle);
+        expect(view.message, contains('opened just before this change'));
+        expect(c.hasWaitingFlow, isFalse);
+      });
+
+      test('a second start is refused while the launcher is pending', () async {
+        final (h, c, platform) = await rig();
+        platform.openGate = Completer<bool>();
+        final first = c.connectOAuth('a1');
+        await until(() => platform.opened.isNotEmpty);
+        await c.connectOAuth('a1');
+        expect(h.server.count('StartMCPServerOAuth'), 1);
+        platform.openGate!.complete(true);
+        await first;
+      });
+    });
+
+    group('stale authorization answers', () {
+      test('a state read begun before a disconnect is dropped, even when the '
+          'disconnect then fails', () async {
+        final (h, c, _) = await rig(
+          seed: (s) => s.connect('alpha', 'a1', at: t0),
+        );
+        await c.loadOAuth('a1');
+        final shown = c.oauthOf('a1').status!.connectedAt.toDateTime();
+        // The connection is renewed; a read taken now carries the newer one.
+        h.server.connect('alpha', 'a1', at: t0.add(const Duration(hours: 1)));
+        final gate = hold(h, 'GetMCPServerOAuthStatus');
+        final stale = c.loadOAuth('a1');
+        await until(() => h.server.count('GetMCPServerOAuthStatus') == 2);
+        h.server.before = null;
+        h.server.refusals['DisconnectMCPServerOAuth'] = (
+          403,
+          'permission_denied',
+          'no',
+        );
+        expect(await c.disconnectOAuth('a1'), isFalse);
+        gate.complete();
+        await stale;
+        expect(
+          c.oauthOf('a1').status!.connectedAt.toDateTime(),
+          shown,
+          reason: 'a read older than the write cannot be applied after it',
+        );
+        expect(c.oauthOf('a1').reading, isFalse);
+      });
+
+      test('a read begun before a disconnect cannot show the old connection '
+          'afterwards', () async {
+        final (h, c, _) = await rig(
+          seed: (s) => s.connect('alpha', 'a1', at: t0),
+        );
+        final gate = hold(h, 'GetMCPServerOAuthStatus');
+        final stale = c.loadOAuth('a1');
+        await until(() => h.server.count('GetMCPServerOAuthStatus') == 1);
+        h.server.before = null;
+        expect(await c.disconnectOAuth('a1'), isTrue);
+        gate.complete();
+        await stale;
+        expect(
+          c.oauthOf('a1').status!.state,
+          MCPOAuthConnectionState.MCPO_AUTH_CONNECTION_STATE_DISCONNECTED,
+        );
+      });
+
+      test('a failed read begun before a write says nothing', () async {
+        final (h, c, _) = await rig(
+          seed: (s) => s.connect('alpha', 'a1', at: t0),
+        );
+        final gate = hold(h, 'GetMCPServerOAuthStatus');
+        h.server.refusals['GetMCPServerOAuthStatus'] = (
+          503,
+          'unavailable',
+          'later',
+        );
+        final stale = c.loadOAuth('a1');
+        await until(() => h.server.count('GetMCPServerOAuthStatus') == 1);
+        h.server.before = null;
+        h.server.refusals.clear();
+        h.server.refusals['DisconnectMCPServerOAuth'] = (
+          403,
+          'permission_denied',
+          'no',
+        );
+        expect(await c.disconnectOAuth('a1'), isFalse);
+        gate.complete();
+        await stale;
+        expect(c.oauthOf('a1').message, isNull);
+      });
+
+      test(
+        'a state read begun after the flow started is what ends a wait',
+        () async {
+          final (h, c, platform) = await rig();
+          await c.connectOAuth('a1');
+          expect(c.oauthOf('a1').waiting, isTrue);
+          h.server.connect(
+            'alpha',
+            'a1',
+            at: t0.add(const Duration(minutes: 1)),
+          );
+          await c.loadOAuth('a1');
+          expect(c.oauthOf('a1').phase, McpOAuthPhase.connected);
+          expect(platform.opened, hasLength(1));
+        },
+      );
+    });
   });
 
   test(

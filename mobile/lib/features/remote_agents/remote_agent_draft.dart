@@ -126,6 +126,31 @@ class RemoteAgentDraft {
     return null;
   }
 
+  /// What saving would discard from what is stored, as sentences that name
+  /// their target. Empty for harmless edits.
+  List<String> discards() {
+    final b = base;
+    if (b == null) return const [];
+    final hadPassword = b.password.isNotEmpty;
+    final hadCredentials = hadPassword || b.username.isNotEmpty;
+    final wasOpenCode =
+        b.protocol == RemoteAgentProtocol.REMOTE_AGENT_PROTOCOL_OPENCODE_HTTP;
+    if (kind == RemoteKind.a2a) {
+      return [
+        if (wasOpenCode && hadCredentials)
+          'Switch to A2A: the OpenCode ${hadPassword ? 'username and password are' : 'username is'} discarded.',
+      ];
+    }
+    return [
+      if (wasOpenCode && passwordEdit == SecretEdit.clear && hadPassword)
+        'Clear the stored password.',
+    ];
+  }
+
+  /// Forgets the typed password once it has been submitted. A replacement stays
+  /// chosen but empty, so sending another one needs it typed again.
+  void clearTypedSecrets() => newPassword = '';
+
   /// The complete message to store. Call only after [firstError] is null.
   RemoteAgent build() {
     final a = base?.deepCopy() ?? RemoteAgent();

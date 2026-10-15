@@ -405,8 +405,10 @@ func TestGlobalMCPPresetsAreReadOnlyAndRedactedForMembers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Why the App never edits an installed preset: its redacted copy, sent
-	// back, would overwrite the stored credential with the mask.
+	// What an old client that round-trips the redacted copy still gets, since
+	// the whole-object update is unchanged: the mask overwrites the stored
+	// credential. The App never does this; it names what it keeps instead (see
+	// TestEditingAnInstalledPresetKeepsItsHiddenCredentials).
 	got, err := h.mcp.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "preset-secret"}))
 	if err != nil {
 		t.Fatal(err)
@@ -436,6 +438,143 @@ func TestGlobalMCPPresetsAreReadOnlyAndRedactedForMembers(t *testing.T) {
 	if resp.StatusCode == http.StatusOK {
 		t.Fatal("global preset writes must not be served")
 	}
+}
+
+// An installed Workspace preset is edited through the keep fields: the hidden
+// header and client secret survive, every explicit edit applies, and nothing
+// the caller could not read comes back. The proof that a credential survived is
+// that the real MCP server still accepts it, or the real token endpoint does.
+func TestEditingAnInstalledPresetKeepsItsHiddenCredentials(t *testing.T) {
+	h := newMCPHarness(t, mcpWorkspace)
+	ctx := context.Background()
+	install := func(id string) *agentsv1.MCPServer {
+		resp, err := h.global.InstallGlobalMCPServer(ctx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.Msg.GetMcpServer()
+	}
+	update := func(req *agentsv1.UpdateMCPServerRequest) (*agentsv1.MCPServer, error) {
+		resp, err := h.mcp.UpdateMCPServer(ctx, connect.NewRequest(req))
+		if err != nil {
+			return nil, err
+		}
+		return resp.Msg.GetMcpServer(), nil
+	}
+
+	t.Run("a hidden header survives a rename, a filter and a timeout", func(t *testing.T) {
+		edit := install("preset-secret")
+		edit.Name, edit.TimeoutSeconds, edit.ToolFilter = "Renamed", 30, []string{"echo"}
+		delete(edit.Headers, "Authorization")
+		answer, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit, KeepHeaderKeys: []string{"Authorization"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if answer.GetHeaders()["Authorization"] != "***" || strings.Contains(answer.String(), mcpStaticToken) {
+			t.Fatalf("the answer leaks the kept header: %v", answer)
+		}
+		if st := h.status(t, "preset-secret"); st.GetState() != agentsv1.MCPServerStatus_STATE_CONNECTED {
+			t.Fatalf("the real server no longer accepts the kept header: %v", st)
+		}
+		read, err := h.mcp.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "preset-secret"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := read.Msg.GetMcpServer()
+		if got.GetName() != "Renamed" || got.GetTimeoutSeconds() != 30 || len(got.GetToolFilter()) != 1 ||
+			got.GetHeaders()["Authorization"] != "***" || got.GetMetadata()["butter.global_mcp_preset_id"] != "preset-secret" {
+			t.Fatalf("read back = %v", got)
+		}
+	})
+
+	t.Run("an explicit replacement applies, and so does a removal", func(t *testing.T) {
+		edit := install("preset-secret")
+		edit.Headers = map[string]string{"Authorization": "Bearer wrong"}
+		if _, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit}); err != nil {
+			t.Fatal(err)
+		}
+		if st := h.status(t, "preset-secret"); st.GetState() == agentsv1.MCPServerStatus_STATE_CONNECTED {
+			t.Fatalf("a replaced header must be what is sent now: %v", st)
+		}
+		edit = install("preset-secret")
+		edit.Headers = nil
+		if _, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit}); err != nil {
+			t.Fatal(err)
+		}
+		read, _ := h.mcp.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "preset-secret"}))
+		if len(read.Msg.GetMcpServer().GetHeaders()) != 0 {
+			t.Fatalf("an omitted header must be removed: %v", read.Msg.GetMcpServer())
+		}
+	})
+
+	t.Run("a hidden client secret survives, and a replaced or cleared one is what is used", func(t *testing.T) {
+		complete := func() string {
+			start, err := h.mcp.StartMCPServerOAuth(ctx, connect.NewRequest(&agentsv1.StartMCPServerOAuthRequest{ServerId: "preset-oauth"}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return browse(t, start.Msg.GetAuthorizationUrl()).Query().Get("mcp_oauth")
+		}
+		edit := install("preset-oauth")
+		if edit.GetAuth().GetOauth2().GetClientSecret() != "" {
+			t.Fatalf("the install answer leaks the client secret: %v", edit)
+		}
+		edit.Name = "Renamed OAuth"
+		answer, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit, KeepOauthClientSecret: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if answer.GetAuth().GetOauth2().GetClientSecret() != "" || strings.Contains(answer.String(), mcpClientSecret) {
+			t.Fatalf("the answer leaks the client secret: %v", answer)
+		}
+		if got := complete(); got != "success" {
+			t.Fatalf("the kept secret must still authorize, callback = %s", got)
+		}
+
+		edit = install("preset-oauth")
+		edit.Auth.Oauth2.ClientSecret = "wrong-secret"
+		if _, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit}); err != nil {
+			t.Fatal(err)
+		}
+		if got := complete(); got != "error" {
+			t.Fatalf("a replaced secret is what the token endpoint sees, callback = %s", got)
+		}
+
+		edit = install("preset-oauth")
+		edit.Auth.Oauth2.ClientSecret = ""
+		if _, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit}); err != nil {
+			t.Fatal(err)
+		}
+		if got := complete(); got != "error" {
+			t.Fatalf("a cleared secret is not sent, callback = %s", got)
+		}
+	})
+
+	t.Run("a refused keep changes nothing", func(t *testing.T) {
+		edit := install("preset-oauth")
+		edit.Name = "Changed"
+		edit.Auth.Oauth2.ClientId = "another-client"
+		_, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit, KeepOauthClientSecret: true})
+		wantCode(t, err, connect.CodeInvalidArgument)
+		_, err = update(&agentsv1.UpdateMCPServerRequest{McpServer: install("preset-secret"), KeepHeaderKeys: []string{"X-Missing"}})
+		wantCode(t, err, connect.CodeInvalidArgument)
+		read, _ := h.mcp.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "preset-oauth"}))
+		if read.Msg.GetMcpServer().GetName() == "Changed" {
+			t.Fatal("a refused update was applied")
+		}
+	})
+
+	t.Run("the global preset itself is untouched by edits to its copy", func(t *testing.T) {
+		list, err := h.global.ListGlobalMCPServers(ctx, connect.NewRequest(&agentsv1.ListGlobalMCPServersRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range list.Msg.GetMcpServers() {
+			if p.GetId() == "preset-secret" && p.GetName() != "Secret preset" {
+				t.Fatalf("the preset was changed: %v", p)
+			}
+		}
+	})
 }
 
 func TestMCPPermissionAndWorkspaceIsolation(t *testing.T) {

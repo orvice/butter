@@ -210,19 +210,30 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *conne
 	if err != nil {
 		return nil, err
 	}
-	if err := validateMCPServerConfig(req.Msg.GetMcpServer()); err != nil {
-		return nil, err
+	if req.Msg.GetMcpServer() == nil {
+		return nil, connectx.RequiredArgument("mcp_server")
 	}
 	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetMCPServer(ctx, wsID, req.Msg.GetMcpServer().GetId())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("updating mcp server", "workspace_id", wsID, "id", req.Msg.GetMcpServer().GetId(), "name", req.Msg.GetMcpServer().GetName())
+	next := req.Msg.GetMcpServer()
+	keeping := len(req.Msg.GetKeepHeaderKeys()) > 0 || req.Msg.GetKeepOauthClientSecret()
+	if keeping {
+		next, err = keepStoredMCPCredentials(prev, req.Msg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := validateMCPServerConfig(next); err != nil {
+		return nil, err
+	}
+	logger.Info("updating mcp server", "workspace_id", wsID, "id", next.GetId(), "name", next.GetName(), "keeps_credentials", keeping)
 
 	m, err := mutateWithRuntime(
 		func() (*agentsv1.MCPServer, error) {
-			return s.repo.UpdateMCPServer(ctx, wsID, req.Msg.GetMcpServer())
+			return s.repo.UpdateMCPServer(ctx, wsID, next)
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -239,7 +250,64 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *conne
 		return nil, toConnectError(err)
 	}
 	logger.Info("mcp server updated", "workspace_id", wsID, "id", m.GetId(), "name", m.GetName())
+	if keeping {
+		// The caller asked to keep credentials it cannot read, so it must
+		// not be handed them back by the response either.
+		m = redactStoredMCPCredentials(m)
+	}
 	return connect.NewResponse(&agentsv1.UpdateMCPServerResponse{McpServer: m}), nil
+}
+
+// keepStoredMCPCredentials builds the server an update stores when it keeps
+// credentials the caller never saw (reads of an installed global preset hide
+// them). It is the request's whole server plus the named stored credentials;
+// nothing is inferred from mask values. The installed-preset marker is carried
+// over from the stored server, so a caller cannot strip it to read the kept
+// credentials back through an unredacted read.
+func keepStoredMCPCredentials(prev *agentsv1.MCPServer, req *agentsv1.UpdateMCPServerRequest) (*agentsv1.MCPServer, error) {
+	next := proto.Clone(req.GetMcpServer()).(*agentsv1.MCPServer)
+	for _, key := range req.GetKeepHeaderKeys() {
+		stored, ok := prev.GetHeaders()[key]
+		if !ok {
+			return nil, connectx.InvalidArgument("keep_header_keys", fmt.Sprintf("header %q is not stored on this server", key))
+		}
+		if _, dup := next.GetHeaders()[key]; dup {
+			return nil, connectx.InvalidArgument("keep_header_keys", fmt.Sprintf("header %q is both kept and given a value", key))
+		}
+		if next.Headers == nil {
+			next.Headers = map[string]string{}
+		}
+		next.Headers[key] = stored
+	}
+	if req.GetKeepOauthClientSecret() {
+		oauth := next.GetAuth().GetOauth2()
+		if mcpoauth.AuthType(next) != agentsv1.MCPServerAuthType_MCP_SERVER_AUTH_TYPE_OAUTH2 || oauth == nil {
+			return nil, connectx.InvalidArgument("keep_oauth_client_secret", "the server must use OAuth 2.0 to keep a client secret")
+		}
+		if oauth.GetClientSecret() != "" {
+			return nil, connectx.InvalidArgument("keep_oauth_client_secret", "the client secret is both kept and given a value")
+		}
+		if storedClient := prev.GetAuth().GetOauth2(); storedClient.GetClientSecret() == "" {
+			// Nothing stored: keeping it is a no-op, never an error.
+		} else if oauth.GetClientId() != storedClient.GetClientId() {
+			return nil, connectx.InvalidArgument("keep_oauth_client_secret", "a client secret belongs to its client_id; give the new secret when the client_id changes")
+		} else {
+			oauth.ClientSecret = storedClient.GetClientSecret()
+		}
+	}
+	if marker := prev.GetMetadata()[globalMCPPresetMetadataKey]; marker != "" {
+		if next.Metadata == nil {
+			next.Metadata = map[string]string{}
+		}
+		next.Metadata[globalMCPPresetMetadataKey] = marker
+	}
+	return next, nil
+}
+
+// redactStoredMCPCredentials hides header values and the OAuth client secret
+// the way reads of an installed preset do, whether or not the server is one.
+func redactStoredMCPCredentials(server *agentsv1.MCPServer) *agentsv1.MCPServer {
+	return mcpServerForResponseClone(server, true)
 }
 
 func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *connect.Request[agentsv1.DeleteMCPServerRequest]) (*connect.Response[agentsv1.DeleteMCPServerResponse], error) {

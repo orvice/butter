@@ -58,7 +58,19 @@ Future<void> waitFor(WidgetTester tester, bool Function() done) async {
     await tester.pump();
   }
   expect(done(), isTrue, reason: 'the request did not finish');
-  await tester.pumpAndSettle();
+  // A read that follows the write may still be on the wire, and its progress
+  // bar never settles until real time passes.
+  for (var i = 0; ; i++) {
+    try {
+      await tester.pumpAndSettle();
+      return;
+    } on FlutterError {
+      if (i >= 100) rethrow;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+    }
+  }
 }
 
 Future<void> tapReal(WidgetTester tester, Finder finder) async {

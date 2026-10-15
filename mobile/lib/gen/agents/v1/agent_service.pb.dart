@@ -5078,9 +5078,14 @@ class CreateMCPServerResponse extends $pb.GeneratedMessage {
 class UpdateMCPServerRequest extends $pb.GeneratedMessage {
   factory UpdateMCPServerRequest({
     $0.MCPServer? mcpServer,
+    $core.Iterable<$core.String>? keepHeaderKeys,
+    $core.bool? keepOauthClientSecret,
   }) {
     final result = UpdateMCPServerRequest._();
     if (mcpServer != null) result.mcpServer = mcpServer;
+    if (keepHeaderKeys != null) result.keepHeaderKeys.addAll(keepHeaderKeys);
+    if (keepOauthClientSecret != null)
+      result.keepOauthClientSecret = keepOauthClientSecret;
     return result;
   }
 
@@ -5099,6 +5104,8 @@ class UpdateMCPServerRequest extends $pb.GeneratedMessage {
       createEmptyInstance: UpdateMCPServerRequest.$_createMessage)
     ..aOM<$0.MCPServer>(1, _omitFieldNames ? '' : 'mcpServer',
         subBuilder: $0.MCPServer.$_createMessage)
+    ..pPS(2, _omitFieldNames ? '' : 'keepHeaderKeys')
+    ..aOB(3, _omitFieldNames ? '' : 'keepOauthClientSecret')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5125,6 +5132,7 @@ class UpdateMCPServerRequest extends $pb.GeneratedMessage {
           UpdateMCPServerRequest.$_createMessage);
   static UpdateMCPServerRequest? _defaultInstance;
 
+  /// The whole server, as before: an update stores exactly what it is sent.
   @$pb.TagNumber(1)
   $0.MCPServer get mcpServer => $_getN(0);
   @$pb.TagNumber(1)
@@ -5135,6 +5143,29 @@ class UpdateMCPServerRequest extends $pb.GeneratedMessage {
   void clearMcpServer() => $_clearField(1);
   @$pb.TagNumber(1)
   $0.MCPServer ensureMcpServer() => $_ensure(0);
+
+  /// Keeps stored credentials the caller cannot read. Reads of a server
+  /// installed from a global preset hide header values and the OAuth client
+  /// secret, so a whole-object update built from such a read would overwrite
+  /// them with the masks. Naming a header here keeps its stored value; the
+  /// header must not also appear (with a value) in mcp_server.headers, and
+  /// must exist on the stored server. A header left out of both is removed,
+  /// as before. Empty keeps the previous behavior.
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.String> get keepHeaderKeys => $_getList(1);
+
+  /// Keeps the stored OAuth client secret. Requires oauth2 auth with the same
+  /// client_id as the stored server, because a secret belongs to its client,
+  /// and an empty client_secret in mcp_server. When either keep field is used
+  /// the response hides credentials the way reads of an installed preset do.
+  @$pb.TagNumber(3)
+  $core.bool get keepOauthClientSecret => $_getBF(2);
+  @$pb.TagNumber(3)
+  set keepOauthClientSecret($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasKeepOauthClientSecret() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearKeepOauthClientSecret() => $_clearField(3);
 }
 
 class UpdateMCPServerResponse extends $pb.GeneratedMessage {

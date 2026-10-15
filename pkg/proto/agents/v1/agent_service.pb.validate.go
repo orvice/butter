@@ -7749,6 +7749,8 @@ func (m *UpdateMCPServerRequest) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for KeepOauthClientSecret
+
 	if len(errors) > 0 {
 		return UpdateMCPServerRequestMultiError(errors)
 	}

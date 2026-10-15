@@ -86,6 +86,7 @@ class SecretField extends StatelessWidget {
     required this.onValue,
     this.enabled = true,
     this.error,
+    this.generation = 0,
   });
   final String label;
   final bool stored;
@@ -95,6 +96,9 @@ class SecretField extends StatelessWidget {
   final ValueChanged<String> onValue;
   final bool enabled;
   final String? error;
+
+  /// Changing it rebuilds the typed field empty (after its value was sent).
+  final int generation;
 
   @override
   Widget build(BuildContext context) {
@@ -128,16 +132,19 @@ class SecretField extends StatelessWidget {
           onSelectionChanged: enabled ? (s) => onEdit(s.first) : null,
         ),
         if (edit == SecretEdit.replace)
-          TextFormField(
-            key: Key('secret-value-$label'),
-            initialValue: value,
-            enabled: enabled,
-            obscureText: true,
-            autocorrect: false,
-            enableSuggestions: false,
-            autofillHints: const [],
-            decoration: InputDecoration(labelText: 'New $label'),
-            onChanged: onValue,
+          KeyedSubtree(
+            key: ValueKey(generation),
+            child: TextFormField(
+              key: Key('secret-value-$label'),
+              initialValue: value,
+              enabled: enabled,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [],
+              decoration: InputDecoration(labelText: 'New $label'),
+              onChanged: onValue,
+            ),
           ),
         if (edit == SecretEdit.clear)
           const Text('The stored value will be removed when you save.'),

@@ -1512,14 +1512,23 @@ const UpdateMCPServerRequest$json = {
       '6': '.agents.v1.MCPServer',
       '10': 'mcpServer'
     },
+    {'1': 'keep_header_keys', '3': 2, '4': 3, '5': 9, '10': 'keepHeaderKeys'},
+    {
+      '1': 'keep_oauth_client_secret',
+      '3': 3,
+      '4': 1,
+      '5': 8,
+      '10': 'keepOauthClientSecret'
+    },
   ],
 };
 
 /// Descriptor for `UpdateMCPServerRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List updateMCPServerRequestDescriptor =
-    $convert.base64Decode(
-        'ChZVcGRhdGVNQ1BTZXJ2ZXJSZXF1ZXN0EjMKCm1jcF9zZXJ2ZXIYASABKAsyFC5hZ2VudHMudj'
-        'EuTUNQU2VydmVyUgltY3BTZXJ2ZXI=');
+final $typed_data.Uint8List updateMCPServerRequestDescriptor = $convert.base64Decode(
+    'ChZVcGRhdGVNQ1BTZXJ2ZXJSZXF1ZXN0EjMKCm1jcF9zZXJ2ZXIYASABKAsyFC5hZ2VudHMudj'
+    'EuTUNQU2VydmVyUgltY3BTZXJ2ZXISKAoQa2VlcF9oZWFkZXJfa2V5cxgCIAMoCVIOa2VlcEhl'
+    'YWRlcktleXMSNwoYa2VlcF9vYXV0aF9jbGllbnRfc2VjcmV0GAMgASgIUhVrZWVwT2F1dGhDbG'
+    'llbnRTZWNyZXQ=');
 
 @$core.Deprecated('Use updateMCPServerResponseDescriptor instead')
 const UpdateMCPServerResponse$json = {

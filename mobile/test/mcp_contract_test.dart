@@ -347,44 +347,180 @@ void main() {
           await c.delete('plain-$tag');
         });
 
-        test('global presets are listed redacted and installed; an installed '
-            'preset works and cannot be edited in the App', () async {
-          final c = mcpController();
-          await c.loadPresets();
-          final ids = c.presets.map((p) => p.id).toSet();
-          expect(
-            ids,
-            containsAll(['preset-open', 'preset-secret', 'preset-oauth']),
-          );
-          for (final p in c.presets) {
-            expect(p.headers.values.every((v) => v == '***'), isTrue);
-            expect(p.writeToBuffer().toString(), isNot(contains(staticToken)));
-            expect(p.auth.oauth2.clientSecret, isEmpty);
-          }
+        test(
+          'global presets are listed redacted and installed; an installed '
+          'preset works and is edited without losing what it hides',
+          () async {
+            final c = mcpController();
+            await c.loadPresets();
+            final ids = c.presets.map((p) => p.id).toSet();
+            expect(
+              ids,
+              containsAll(['preset-open', 'preset-secret', 'preset-oauth']),
+            );
+            for (final p in c.presets) {
+              expect(p.headers.values.every((v) => v == '***'), isTrue);
+              expect(
+                p.writeToBuffer().toString(),
+                isNot(contains(staticToken)),
+              );
+              expect(p.auth.oauth2.clientSecret, isEmpty);
+            }
 
-          expect(
-            await c.install('preset-secret'),
-            isTrue,
-            reason: c.writeError,
-          );
-          final installed = c.byId('preset-secret')!;
-          expect(isInstalledPreset(installed), isTrue);
-          expect(installed.headers.values.every((v) => v == '***'), isTrue);
-          expect(mcpEditBlock(installed), isNotNull);
-          // The server still sends the real header.
-          await c.probe('preset-secret');
-          expect(c.statuses['preset-secret']!.kind, McpStatusKind.connected);
+            expect(
+              await c.install('preset-secret'),
+              isTrue,
+              reason: c.writeError,
+            );
+            final installed = c.byId('preset-secret')!;
+            expect(isInstalledPreset(installed), isTrue);
+            expect(installed.headers.values.every((v) => v == '***'), isTrue);
+            expect(mcpHidesCredentials(installed), isTrue);
+            // The server still sends the real header.
+            await c.probe('preset-secret');
+            expect(c.statuses['preset-secret']!.kind, McpStatusKind.connected);
 
-          // Reinstalling is the one way to change it.
-          expect(await c.install('preset-secret'), isTrue);
+            // Edit the Workspace copy through the form: the hidden header is
+            // kept by name, never as the mask.
+            final draft = McpDraft.edit(installed)
+              ..name = 'Renamed $tag'
+              ..timeout = '30'
+              ..toolFilter = 'echo';
+            final save = draft.buildSave();
+            expect(save.keepHeaderKeys, ['Authorization']);
+            expect(save.server.headers, isEmpty);
+            expect(await c.saveEdit(save), isTrue, reason: c.writeError);
+            final edited = c.byId('preset-secret')!;
+            expect(edited.name, 'Renamed $tag');
+            expect(edited.timeoutSeconds, 30);
+            expect(edited.toolFilter, ['echo']);
+            expect(edited.headers['Authorization'], '***');
+            expect(
+              edited.writeToBuffer().toString(),
+              isNot(contains(staticToken)),
+            );
+            await c.probe('preset-secret');
+            expect(
+              c.statuses['preset-secret']!.kind,
+              McpStatusKind.connected,
+              reason: 'the kept credential must still be the one sent',
+            );
 
-          // No write to presets is offered by the client at all.
-          expect(await c.install('preset-open'), isTrue);
-          expect(mcpEditBlock(c.byId('preset-open')!), isNull);
+            // An explicit removal applies; the hidden value is gone.
+            final again = McpDraft.edit(c.byId('preset-secret')!);
+            again.headers.single.removed = true;
+            expect(again.discards().single, contains('"Authorization"'));
+            expect(await c.saveEdit(again.buildSave()), isTrue);
+            await c.loadItem('preset-secret');
+            expect(c.item!.headers, isEmpty);
+            await c.probe('preset-secret');
+            expect(
+              c.statuses['preset-secret']!.kind,
+              isNot(McpStatusKind.connected),
+            );
 
-          await c.delete('preset-secret');
-          await c.delete('preset-open');
-        });
+            // Reinstalling restores it from the preset, which was never
+            // changed by any of this.
+            expect(await c.install('preset-secret'), isTrue);
+            await c.probe('preset-secret');
+            expect(c.statuses['preset-secret']!.kind, McpStatusKind.connected);
+            await c.loadPresets();
+            expect(
+              c.presets.firstWhere((p) => p.id == 'preset-secret').name,
+              'Secret preset',
+            );
+
+            expect(await c.install('preset-open'), isTrue);
+            expect(mcpHidesCredentials(c.byId('preset-open')!), isFalse);
+
+            await c.delete('preset-secret');
+            await c.delete('preset-open');
+          },
+        );
+
+        test(
+          'an installed OAuth preset keeps its hidden client secret through an '
+          'edit, and a replaced one is what the token endpoint sees',
+          () async {
+            final platform = BrowsingPlatform();
+            final c = mcpController(platform: platform);
+            expect(await c.install('preset-oauth'), isTrue);
+            final draft = McpDraft.edit(c.byId('preset-oauth')!)
+              ..name = 'Renamed OAuth $tag';
+            final save = draft.buildSave();
+            expect(save.keepClientSecret, isTrue);
+            expect(save.server.auth.oauth2.clientSecret, isEmpty);
+            expect(await c.saveEdit(save), isTrue, reason: c.writeError);
+            expect(c.byId('preset-oauth')!.auth.oauth2.clientSecret, isEmpty);
+
+            await c.connectOAuth('preset-oauth');
+            await c.loadOAuth('preset-oauth');
+            expect(
+              c.oauthOf('preset-oauth').phase,
+              McpOAuthPhase.connected,
+              reason: 'the kept secret must still complete the flow',
+            );
+            expect(await c.disconnectOAuth('preset-oauth'), isTrue);
+
+            // Replaced with a wrong secret: nothing connects.
+            final replace = McpDraft.edit(c.byId('preset-oauth')!)
+              ..secretEdit = SecretEdit.replace
+              ..newSecret = 'wrong-secret';
+            expect(await c.saveEdit(replace.buildSave()), isTrue);
+            await c.connectOAuth('preset-oauth');
+            await c.loadOAuth('preset-oauth');
+            expect(
+              c.oauthOf('preset-oauth').phase,
+              isNot(McpOAuthPhase.connected),
+            );
+
+            // Cleared: it asks first, and nothing connects.
+            final clear = McpDraft.edit(c.byId('preset-oauth')!)
+              ..secretEdit = SecretEdit.clear;
+            expect(clear.discards().single, contains('client secret'));
+            expect(await c.saveEdit(clear.buildSave()), isTrue);
+            await c.connectOAuth('preset-oauth');
+            await c.loadOAuth('preset-oauth');
+            expect(
+              c.oauthOf('preset-oauth').phase,
+              isNot(McpOAuthPhase.connected),
+            );
+            await c.delete('preset-oauth');
+          },
+        );
+
+        test(
+          'headers under NONE and OAuth are kept by a name-only edit and the '
+          'server still sends them',
+          () async {
+            final c = mcpController();
+            final plain = httpServer('hdr-$tag', 'bearer')
+              ..headers['Authorization'] = 'Bearer $staticToken';
+            plain.ensureAuth().type =
+                MCPServerAuthType.MCP_SERVER_AUTH_TYPE_NONE;
+            expect(await c.create(plain), isTrue, reason: c.writeError);
+            await c.probe('hdr-$tag');
+            expect(
+              c.statuses['hdr-$tag']!.kind,
+              McpStatusKind.connected,
+              reason: 'headers are sent under NONE',
+            );
+
+            final draft = McpDraft.edit(c.byId('hdr-$tag')!)
+              ..name = 'Renamed $tag';
+            expect(draft.build().headers, plain.headers);
+            expect(await c.update(draft.build()), isTrue);
+            await c.probe('hdr-$tag');
+            expect(c.statuses['hdr-$tag']!.kind, McpStatusKind.connected);
+
+            // Switching sign-in keeps headers until a person removes them.
+            final toOAuth = McpDraft.edit(c.byId('hdr-$tag')!)
+              ..authKind = McpAuthKind.oauth2;
+            expect(toOAuth.discards(), isEmpty);
+            expect(toOAuth.build().headers, plain.headers);
+            await c.delete('hdr-$tag');
+          },
+        );
 
         test('installing a preset that does not exist is NotFound, and one '
             'over a server that is not that preset is refused', () async {

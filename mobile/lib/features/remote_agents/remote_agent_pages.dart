@@ -343,6 +343,10 @@ class _RemoteAgentFormPageState extends State<RemoteAgentFormPage> {
   bool _saved = false;
   String? _problem;
 
+  /// Bumped when the typed password is submitted, so its field is rebuilt
+  /// empty.
+  int _secretGeneration = 0;
+
   Future<void> _save(RemoteAgentController remote) async {
     final valid = _form.currentState!.validate();
     final problem = _draft.firstError();
@@ -353,6 +357,22 @@ class _RemoteAgentFormPageState extends State<RemoteAgentFormPage> {
     setState(() => _problem = null);
     FocusScope.of(context).unfocus();
     final message = _draft.build();
+    final discards = _draft.discards();
+    if (discards.isNotEmpty) {
+      final confirmed = await confirmChange(
+        context,
+        'Discard stored credentials?',
+        'Saving "${_draft.name.trim()}" will:\n${discards.map((d) => '• $d').join('\n')}\nThis cannot be undone.',
+        action: 'Save and discard',
+      );
+      if (!confirmed || !mounted) return;
+    }
+    // The typed password is in the message now: forget it, so a refusal or an
+    // unknown outcome leaves nothing secret in the form.
+    setState(() {
+      _draft.clearTypedSecrets();
+      _secretGeneration++;
+    });
     final ok = _draft.isCreate
         ? await remote.create(message)
         : await remote.update(message);
@@ -506,6 +526,7 @@ class _RemoteAgentFormPageState extends State<RemoteAgentFormPage> {
                         stored: d.hasStoredPassword,
                         edit: d.passwordEdit,
                         value: d.newPassword,
+                        generation: _secretGeneration,
                         enabled: !locked,
                         error: d.validatePassword(),
                         onEdit: (e) => _change(() => d.passwordEdit = e),

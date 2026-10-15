@@ -2,6 +2,7 @@ import 'package:butter_mobile/features/mcp/mcp_controller.dart';
 import 'package:butter_mobile/features/mcp/mcp_draft.dart';
 import 'package:butter_mobile/features/mcp/mcp_pages.dart';
 import 'package:butter_mobile/gen/agents/v1/agent.pb.dart';
+import 'package:butter_mobile/gen/agents/v1/agent_service.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/dashboard.pb.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,7 +79,13 @@ void main() {
     await enter(tester, const Key('mcp-id'), 'docs');
     await enter(tester, const Key('mcp-name'), 'Docs');
     await enter(tester, const Key('mcp-url'), 'https://mcp.example.com/mcp');
-    await tapScreen(tester, find.text('Headers'));
+    await tapScreen(
+      tester,
+      find.descendant(
+        of: find.byKey(const Key('mcp-auth-kind')),
+        matching: find.text('Headers'),
+      ),
+    );
     await tapScreen(tester, find.byKey(const Key('add-header')));
     await enter(tester, const Key('header-key-0'), 'Authorization');
     await enter(tester, const Key('header-value-0'), 'Bearer typed-secret');
@@ -118,7 +125,13 @@ void main() {
       expect(h.server.writes, 0);
 
       await enter(tester, const Key('mcp-url'), 'https://mcp.example.com/mcp');
-      await tapScreen(tester, find.text('Headers'));
+      await tapScreen(
+        tester,
+        find.descendant(
+          of: find.byKey(const Key('mcp-auth-kind')),
+          matching: find.text('Headers'),
+        ),
+      );
       await tapScreen(tester, find.byKey(const Key('save-mcp')));
       expect(find.textContaining('at least one header'), findsOneWidget);
       expect(h.server.writes, 0);
@@ -295,19 +308,296 @@ void main() {
       );
     });
 
-    testWidgets('an installed preset holding credentials cannot be edited', (
+    MCPServer installedPreset() => headerServer('p1')
+      ..headers['Authorization'] = 'Bearer preset-secret'
+      ..metadata[mcpPresetMetadataKey] = 'p1';
+
+    testWidgets('an installed preset holding credentials is edited with them '
+        'kept, never with the masks sent back', (tester) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.seed('alpha', installedPreset()),
+      );
+      await openDetail(tester, h, 'p1');
+      expect(find.byKey(const Key('mcp-edit-block')), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('edit-mcp')))
+            .onPressed,
+        isNotNull,
+      );
+      // What is on screen is the hidden view: nothing secret, nothing masked.
+      expect(find.textContaining('preset-secret'), findsNothing);
+
+      await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+      expect(find.text('Value kept (hidden)'), findsOneWidget);
+      await enter(tester, const Key('mcp-name'), 'Renamed');
+      await enter(tester, const Key('mcp-timeout'), '45');
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        find.text('Discard stored credentials?'),
+        findsNothing,
+        reason: 'a harmless edit asks nothing',
+      );
+      await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+
+      final call = h.server.mcpCalls.singleWhere(
+        (c) => c.method == 'UpdateMCPServer',
+      );
+      final request = UpdateMCPServerRequest.fromBuffer(call.body);
+      expect(request.keepHeaderKeys, ['Authorization']);
+      expect(request.mcpServer.headers, isEmpty);
+      expect(call.body, isNot(containsAllInOrder('***'.codeUnits)));
+      final stored = h.server.servers['alpha']!['p1']!;
+      expect(stored.name, 'Renamed');
+      expect(stored.timeoutSeconds, 45);
+      expect(stored.headers['Authorization'], 'Bearer preset-secret');
+      expect(stored.metadata[mcpPresetMetadataKey], 'p1');
+    });
+
+    testWidgets('replacing a hidden header sends the value; removing one '
+        'asks first and names it', (tester) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.seed('alpha', installedPreset()),
+      );
+      await openDetail(tester, h, 'p1');
+      await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+      await tapScreen(tester, find.byKey(const Key('header-replace-0')));
+      await enter(tester, const Key('header-value-0'), 'Bearer rotated');
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Discard stored credentials?'), findsNothing);
+      await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+      expect(
+        h.server.servers['alpha']!['p1']!.headers['Authorization'],
+        'Bearer rotated',
+      );
+    });
+  });
+
+  group('credential-destructive saves ask first and name the target', () {
+    testWidgets('removing a header: cancel sends nothing, confirm removes it', (
       tester,
     ) async {
-      final installed = headerServer('p1')
-        ..headers['Authorization'] = '***'
-        ..metadata[mcpPresetMetadataKey] = 'p1';
-      final h = await signedIn(tester, seed: (s) => s.seed('alpha', installed));
-      await openDetail(tester, h, 'p1');
-      expect(find.byKey(const Key('mcp-edit-block')), findsOneWidget);
-      final edit = tester.widget<FilledButton>(
-        find.byKey(const Key('edit-mcp')),
+      // Beside OAuth, since static headers need at least one header.
+      final h = await signedIn(
+        tester,
+        seed: (s) =>
+            s.seed('alpha', oauthServer('a1')..headers['X-Team'] = 'alpha'),
       );
-      expect(edit.onPressed, isNull);
+      await openDetail(tester, h, 'a1');
+      await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+      await tapScreen(tester, find.byKey(const Key('header-remove-0')));
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard stored credentials?'), findsOneWidget);
+      expect(find.textContaining('"X-Team"'), findsOneWidget);
+      expect(find.textContaining('"Server a1"'), findsOneWidget);
+      await tapDialog(tester, find.text('Cancel'));
+      expect(h.server.count('UpdateMCPServer'), 0);
+      expect(h.server.servers['alpha']!['a1']!.headers, {'X-Team': 'alpha'});
+
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pumpAndSettle();
+      await tapDialogReal(tester, find.text('Save and discard'));
+      await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+      expect(h.server.servers['alpha']!['a1']!.headers, isEmpty);
+    });
+
+    testWidgets('clearing the client secret, or dropping OAuth, asks first', (
+      tester,
+    ) async {
+      final secured = oauthServer('a1');
+      secured.auth.oauth2
+        ..clientId = 'cid'
+        ..clientSecret = 'csecret';
+      final h = await signedIn(tester, seed: (s) => s.seed('alpha', secured));
+      await openDetail(tester, h, 'a1');
+      await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+      await tapScreen(
+        tester,
+        find.descendant(
+          of: find.byKey(const Key('secret-choice-Client secret')),
+          matching: find.text('Clear'),
+        ),
+      );
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard stored credentials?'), findsOneWidget);
+      expect(find.textContaining('client secret'), findsWidgets);
+      await tapDialog(tester, find.text('Cancel'));
+      expect(h.server.count('UpdateMCPServer'), 0);
+
+      // Switching to another sign-in discards the registered client.
+      await tapScreen(
+        tester,
+        find.descendant(
+          of: find.byKey(const Key('mcp-auth-kind')),
+          matching: find.text('None'),
+        ),
+      );
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard stored credentials?'), findsOneWidget);
+      expect(find.textContaining('Stop using OAuth 2.0'), findsOneWidget);
+      await tapDialog(tester, find.text('Cancel'));
+      expect(h.server.count('UpdateMCPServer'), 0);
+    });
+
+    testWidgets('an ordinary edit, a rotated secret and a new header ask '
+        'nothing', (tester) async {
+      final secured = oauthServer('a1');
+      secured.auth.oauth2
+        ..clientId = 'cid'
+        ..clientSecret = 'csecret';
+      final h = await signedIn(tester, seed: (s) => s.seed('alpha', secured));
+      await openDetail(tester, h, 'a1');
+      await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+      await enter(tester, const Key('mcp-name'), 'Renamed');
+      await tapScreen(
+        tester,
+        find.descendant(
+          of: find.byKey(const Key('secret-choice-Client secret')),
+          matching: find.text('Replace'),
+        ),
+      );
+      await enter(tester, const Key('secret-value-Client secret'), 'rotated');
+      await tapScreen(tester, find.byKey(const Key('add-header')));
+      await enter(tester, const Key('header-key-0'), 'X-Extra');
+      await enter(tester, const Key('header-value-0'), 'extra-value');
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Discard stored credentials?'), findsNothing);
+      await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+      final stored = h.server.servers['alpha']!['a1']!;
+      expect(stored.auth.oauth2.clientSecret, 'rotated');
+      expect(stored.headers, {'X-Extra': 'extra-value'});
+      expect(
+        stored.auth.type,
+        MCPServerAuthType.MCP_SERVER_AUTH_TYPE_OAUTH2,
+        reason: 'headers are supplementary to OAuth',
+      );
+    });
+  });
+
+  group('typed secrets do not outlive their submission', () {
+    String typed(WidgetTester tester, Key key) => tester
+        .widget<TextField>(
+          find.descendant(
+            of: find.byKey(key),
+            matching: find.byType(TextField),
+          ),
+        )
+        .controller!
+        .text;
+
+    for (final outcome in ['denied', 'lost reply']) {
+      testWidgets('a header value and a client secret, $outcome', (
+        tester,
+      ) async {
+        final secured = oauthServer('a1')..headers['X-Old'] = 'old-value';
+        secured.auth.oauth2
+          ..clientId = 'cid'
+          ..clientSecret = 'csecret';
+        final h = await signedIn(tester, seed: (s) => s.seed('alpha', secured));
+        await openDetail(tester, h, 'a1');
+        await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+        await tapScreen(tester, find.byKey(const Key('header-replace-0')));
+        await enter(tester, const Key('header-value-0'), 'typed-header');
+        await tapScreen(
+          tester,
+          find.descendant(
+            of: find.byKey(const Key('secret-choice-Client secret')),
+            matching: find.text('Replace'),
+          ),
+        );
+        await enter(
+          tester,
+          const Key('secret-value-Client secret'),
+          'typed-secret',
+        );
+        await enter(tester, const Key('mcp-name'), 'Kept name');
+        if (outcome == 'denied') {
+          h.server.refusals['UpdateMCPServer'] = (
+            403,
+            'permission_denied',
+            'no',
+          );
+        } else {
+          h.server.loseReply = true;
+        }
+        await tapReal(tester, find.byKey(const Key('save-mcp')));
+        await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+
+        // Safe fields stay; every secret field is empty again.
+        expect(typed(tester, const Key('mcp-name')), 'Kept name');
+        expect(typed(tester, const Key('header-value-0')), isEmpty);
+        expect(typed(tester, const Key('secret-value-Client secret')), isEmpty);
+        expect(find.textContaining('typed-header'), findsNothing);
+        expect(find.textContaining('typed-secret'), findsNothing);
+
+        // Nothing is sent again by itself, and sending again needs the values
+        // typed again.
+        h.server.refusals.clear();
+        h.server.loseReply = false;
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        expect(h.server.count('UpdateMCPServer'), 1);
+        await tapReal(tester, find.byKey(const Key('save-mcp')));
+        await tester.pumpAndSettle();
+        expect(
+          h.server.count('UpdateMCPServer'),
+          1,
+          reason: outcome == 'denied'
+              ? 'an empty replacement is refused locally'
+              : 'saving is off until the outcome is reconciled',
+        );
+      });
+    }
+
+    testWidgets('a header added to a new server is forgotten the same way', (
+      tester,
+    ) async {
+      final h = await signedIn(tester);
+      await openList(tester, h);
+      h.server.refusals['CreateMCPServer'] = (403, 'permission_denied', 'no');
+      await tapScreen(tester, find.byKey(const Key('add-mcp')));
+      await enter(tester, const Key('mcp-id'), 'docs');
+      await enter(tester, const Key('mcp-name'), 'Docs');
+      await enter(tester, const Key('mcp-url'), 'https://mcp.example.com/mcp');
+      await tapScreen(tester, find.byKey(const Key('add-header')));
+      await enter(tester, const Key('header-key-0'), 'X-Key');
+      await enter(tester, const Key('header-value-0'), 'typed-header');
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await waitFor(tester, () => h.server.count('CreateMCPServer') == 1);
+      expect(typed(tester, const Key('header-key-0')), 'X-Key');
+      expect(typed(tester, const Key('header-value-0')), isEmpty);
+    });
+  });
+
+  group('headers beside any sign-in', () {
+    testWidgets('an OAuth server shows its headers and keeps them on a '
+        'name-only edit', (tester) async {
+      final s0 = oauthServer('a1')..headers['X-Team'] = 'alpha';
+      final h = await signedIn(tester, seed: (s) => s.seed('alpha', s0));
+      await openDetail(tester, h, 'a1');
+      await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+      expect(find.text('Value kept (hidden)'), findsOneWidget);
+      await enter(tester, const Key('mcp-name'), 'Renamed');
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Discard stored credentials?'), findsNothing);
+      await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+      final stored = h.server.servers['alpha']!['a1']!;
+      expect(stored.headers, {'X-Team': 'alpha'});
+      expect(stored.auth.type, MCPServerAuthType.MCP_SERVER_AUTH_TYPE_OAUTH2);
     });
   });
 
