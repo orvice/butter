@@ -330,6 +330,172 @@ void main() {
     },
   );
 
+  group('an obsolete read that fails leaves newer state alone', () {
+    for (final failure in [
+      (503, 'unavailable', 'upstream gone'),
+      (401, 'unauthenticated', 'session expired'),
+    ]) {
+      final kind = failure.$2;
+      for (final write in <String, Future<bool> Function(ButterBoxController)>{
+        'metadata': (b) => b.update(
+          id: 'a1',
+          name: 'One renamed',
+          baseUrl: 'https://box.test',
+          enabled: true,
+        ),
+        'token replace': (b) => b.replaceToken('a1', 'tok-new'),
+        'token clear': (b) => b.clearToken('a1'),
+      }.entries) {
+        test('GetBox $kind after a ${write.key} write', () async {
+          final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+          final boxes = h.client.boxes!;
+          await boxes.loadBoxes();
+          await boxes.loadBox('a1');
+
+          final gate = Completer<void>();
+          h.server.getBoxRefusal = failure;
+          h.server.beforeGetBox = () => gate.future;
+          final old = boxes.loadBox('a1');
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          h.server.getBoxRefusal = null;
+          h.server.beforeGetBox = null;
+
+          expect(await write.value(boxes), isTrue);
+          final stored = boxes.box!;
+          final storedName = stored.name;
+          final storedCredential = stored.credentialSet;
+
+          gate.complete();
+          await old;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+
+          // The confirmed current box stays visible and ready.
+          expect(boxes.box, isNotNull);
+          expect(boxes.box!.name, storedName);
+          expect(boxes.box!.credentialSet, storedCredential);
+          expect(boxes.boxState, BoxLoad.ready);
+          expect(boxes.boxError, isNull);
+          expect(boxes.byId('a1')!.name, storedName);
+          expect(boxes.unconfirmed, isFalse);
+          // The obsolete 401 neither signs out nor clears anything.
+          expect(h.client.boxes, same(boxes));
+          expect(h.client.error, isNull);
+          expect(boxes.disposed, isFalse);
+        });
+      }
+    }
+
+    test('GetBox failure when no box was loaded before the write', () async {
+      final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+      final boxes = h.client.boxes!;
+      await boxes.loadBoxes();
+      final gate = Completer<void>();
+      h.server.getBoxRefusal = (500, 'internal', 'boom');
+      h.server.beforeGetBox = () => gate.future;
+      final old = boxes.loadBox('a1');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      h.server.getBoxRefusal = null;
+      h.server.beforeGetBox = null;
+      expect(
+        await boxes.update(
+          id: 'a1',
+          name: 'Renamed',
+          baseUrl: 'https://box.test',
+          enabled: true,
+        ),
+        isTrue,
+      );
+      gate.complete();
+      await old;
+      expect(boxes.box?.name, 'Renamed');
+      expect(boxes.boxState, BoxLoad.ready);
+      expect(boxes.boxError, isNull);
+    });
+
+    test('a current GetBox failure still clears the box and reports', () async {
+      final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+      final boxes = h.client.boxes!;
+      await boxes.loadBox('a1');
+      h.server.getBoxRefusal = (503, 'unavailable', 'down');
+      await boxes.loadBox('a1');
+      expect(boxes.box, isNull);
+      expect(boxes.boxState, BoxLoad.failed);
+      expect(boxes.boxError, isNotNull);
+    });
+
+    for (final failure in [
+      (503, 'unavailable', 'upstream gone'),
+      (401, 'unauthenticated', 'session expired'),
+    ]) {
+      test('ListButterBoxes ${failure.$2} after a create', () async {
+        final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+        final boxes = h.client.boxes!;
+        await boxes.loadBoxes();
+
+        final gate = Completer<void>();
+        h.server.listRefusal = failure;
+        h.server.beforeList = () => gate.future;
+        final old = boxes.loadBoxes();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        h.server.listRefusal = null;
+        h.server.beforeList = null;
+
+        expect(
+          await boxes.create(
+            name: 'Two',
+            baseUrl: 'https://box.test',
+            enabled: true,
+          ),
+          isTrue,
+        );
+        gate.complete();
+        await old;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(boxes.boxes.map((b) => b.name).toSet(), {'One', 'Two'});
+        expect(boxes.listState, BoxLoad.ready);
+        expect(boxes.listError, isNull);
+        expect(h.client.boxes, same(boxes));
+        expect(h.client.error, isNull);
+      });
+    }
+
+    test('a current list failure still reports and a current 401 still '
+        'signs out', () async {
+      final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+      final boxes = h.client.boxes!;
+      h.server.listRefusal = (503, 'unavailable', 'down');
+      await boxes.loadBoxes();
+      expect(boxes.listState, BoxLoad.failed);
+      expect(boxes.listError, isNotNull);
+
+      h.server.listRefusal = (401, 'unauthenticated', 'expired');
+      await boxes.loadBoxes();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(h.client.error, contains('Session expired'));
+      expect(h.client.boxes, isNull);
+    });
+
+    test('a superseded read failing never overwrites the newer read', () async {
+      final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+      final boxes = h.client.boxes!;
+      final gate = Completer<void>();
+      h.server.listRefusal = (503, 'unavailable', 'down');
+      h.server.beforeList = () => gate.future;
+      final old = boxes.loadBoxes();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      h.server.listRefusal = null;
+      h.server.beforeList = null;
+      await boxes.loadBoxes();
+      expect(boxes.listState, BoxLoad.ready);
+      gate.complete();
+      await old;
+      expect(boxes.listState, BoxLoad.ready);
+      expect(boxes.listError, isNull);
+      expect(boxes.boxes.map((b) => b.name), ['One']);
+    });
+  });
+
   test('server refusals map to actionable messages', () async {
     final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
     final boxes = h.client.boxes!;

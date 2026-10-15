@@ -37,6 +37,11 @@ class BoxServer extends AgentServer {
   /// A write answered with this (status, code, message) instead of applied.
   (int, String, String)? boxRefusal;
 
+  /// A read answered with this failure, decided when the request arrives (so
+  /// a delayed read fails late, as when a Box call times out).
+  (int, String, String)? listRefusal;
+  (int, String, String)? getBoxRefusal;
+
   /// A write that is applied but whose answer is lost (503).
   bool loseBoxReply = false;
 
@@ -80,13 +85,21 @@ class BoxServer extends AgentServer {
           // The snapshot is taken when the request arrives, so a delayed
           // answer is a stale one, as when a read overlaps a write.
           final snapshot = [for (final b in bucket.values) b.deepCopy()];
+          final refusal = listRefusal;
           await beforeList?.call();
-          write(r, ListButterBoxesResponse(butterBoxes: snapshot));
+          if (refusal != null) {
+            _fail(r, refusal.$1, refusal.$2, refusal.$3);
+          } else {
+            write(r, ListButterBoxesResponse(butterBoxes: snapshot));
+          }
         case 'GetButterBox':
           final id = GetButterBoxRequest.fromBuffer(bytes).id;
           final found = find(id)?.deepCopy();
+          final refusal = getBoxRefusal;
           await beforeGetBox?.call();
-          if (found == null) {
+          if (refusal != null) {
+            _fail(r, refusal.$1, refusal.$2, refusal.$3);
+          } else if (found == null) {
             _fail(r, 404, 'not_found', 'butter box not found');
           } else {
             write(r, GetButterBoxResponse(butterBox: found));

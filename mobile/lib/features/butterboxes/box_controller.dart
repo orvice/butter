@@ -124,7 +124,17 @@ class ButterBoxController extends ChangeNotifier {
       // Only a read that began after a write ended settles that write.
       _reconcile(started);
     } catch (failure) {
-      if (!_live(epoch) || seq != _listSeq || _expired(failure)) return;
+      if (!_live(epoch) || seq != _listSeq) return;
+      if (!_fresh(started)) {
+        // An obsolete read that failed says nothing about the present: a
+        // write has stored newer state since. Its failure is dropped, and so
+        // is an authentication failure it carries (the write that followed
+        // was accepted, and any later request that is not would sign out).
+        listState = before;
+        _emit();
+        return;
+      }
+      if (_expired(failure)) return;
       listState = BoxLoad.failed;
       listError = boxFailureMessage(failure, BoxOperation.load);
     }
@@ -144,8 +154,7 @@ class ButterBoxController extends ChangeNotifier {
       final result = await _api.butterBox(token, workspaceId, id);
       if (!_live(epoch) || seq != _boxSeq) return;
       if (!_fresh(started)) {
-        boxState = box == null ? BoxLoad.idle : before;
-        _emit();
+        _keepStored(id, before);
         return;
       }
       box = result;
@@ -154,11 +163,25 @@ class ButterBoxController extends ChangeNotifier {
       _reconcile(started, id: id);
       _replaceInList(result);
     } catch (failure) {
-      if (!_live(epoch) || seq != _boxSeq || _expired(failure)) return;
+      if (!_live(epoch) || seq != _boxSeq) return;
+      if (!_fresh(started)) {
+        // See loadBoxes: an obsolete failure must not undo what a write
+        // stored since the read began.
+        _keepStored(id, before);
+        return;
+      }
+      if (_expired(failure)) return;
       box = null;
       boxState = BoxLoad.failed;
       boxError = boxFailureMessage(failure, BoxOperation.load);
     }
+    _emit();
+  }
+
+  /// An obsolete read ends: leave what the write stored, shown as loaded.
+  void _keepStored(String id, BoxLoad before) {
+    boxState = box?.id == id ? BoxLoad.ready : before;
+    boxError = null;
     _emit();
   }
 
