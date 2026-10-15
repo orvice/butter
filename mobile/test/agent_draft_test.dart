@@ -8,7 +8,9 @@ void main() {
     final future = Agent()..mergeFromBuffer([0xa0, 0x01, 99]);
     expect(canEditAgent(future), isFalse);
     expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_WORKFLOW)), isTrue);
-    expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_PI)), isFalse);
+    // Pi and Cursor leaves are editable since #453.
+    expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_PI)), isTrue);
+    expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_CURSOR)), isTrue);
     expect(
       canEditAgent(
         Agent(
@@ -25,6 +27,51 @@ void main() {
           ..mergeFromBuffer([26, 8, 10, 6, 108, 101, 103, 97, 99, 121]),
       ),
       isFalse,
+    );
+  });
+
+  test('a leaf holding children or Butter-side behavior is read-only', () {
+    Agent leaf(AgentType type, [void Function(Agent)? change]) {
+      final agent = Agent(
+        type: type,
+        config: type == AgentType.AGENT_TYPE_PI
+            ? AgentConfig(pi: PiAgentConfig(butterboxId: 'b'))
+            : AgentConfig(cursor: CursorAgentConfig(butterboxId: 'b')),
+      );
+      change?.call(agent);
+      return agent;
+    }
+
+    for (final type in [AgentType.AGENT_TYPE_PI, AgentType.AGENT_TYPE_CURSOR]) {
+      expect(canEditAgent(leaf(type)), isTrue, reason: type.name);
+      final forbidden = <String, void Function(Agent)>{
+        'children': (a) => a.childAgentIds.add('child'),
+        'instruction': (a) => a.config.instruction = 'x',
+        'global instruction': (a) => a.config.globalInstruction = 'x',
+        'skills': (a) => a.config.skills.add('s'),
+        'mcp ids': (a) => a.config.mcpServerIds.add('m'),
+        'remote agents': (a) => a.config.remoteAgentIds.add('r'),
+        'context guard': (a) => a.config.contextGuard = ContextGuardConfig(),
+        'memory': (a) => a.config.memory = MemoryConfig(),
+        'cards': (a) => a.config.resultCards = ResultCardConfig(),
+      };
+      for (final entry in forbidden.entries) {
+        expect(
+          canEditAgent(leaf(type, entry.value)),
+          isFalse,
+          reason: '${type.name} with ${entry.key}',
+        );
+      }
+    }
+    // The same fields stay valid, and editable, on an LLM Agent.
+    expect(
+      canEditAgent(
+        Agent(
+          type: AgentType.AGENT_TYPE_LLM,
+          config: AgentConfig(instruction: 'x', skills: ['s']),
+        ),
+      ),
+      isTrue,
     );
   });
 

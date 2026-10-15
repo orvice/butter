@@ -30,6 +30,7 @@ class BoxServer extends AgentServer {
       boxCalls.where((c) => writeMethods.contains(c.method)).length;
 
   Future<void> Function()? beforeList;
+  Future<void> Function()? beforeGetBox;
   Future<void> Function()? beforeStatus;
   Future<void> Function()? beforeCatalog;
 
@@ -76,11 +77,15 @@ class BoxServer extends AgentServer {
       ButterBox? find(String id) => bucket[id];
       switch (method) {
         case 'ListButterBoxes':
+          // The snapshot is taken when the request arrives, so a delayed
+          // answer is a stale one, as when a read overlaps a write.
+          final snapshot = [for (final b in bucket.values) b.deepCopy()];
           await beforeList?.call();
-          write(r, ListButterBoxesResponse(butterBoxes: bucket.values));
+          write(r, ListButterBoxesResponse(butterBoxes: snapshot));
         case 'GetButterBox':
           final id = GetButterBoxRequest.fromBuffer(bytes).id;
-          final found = find(id);
+          final found = find(id)?.deepCopy();
+          await beforeGetBox?.call();
           if (found == null) {
             _fail(r, 404, 'not_found', 'butter box not found');
           } else {

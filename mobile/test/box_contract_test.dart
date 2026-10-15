@@ -1,4 +1,5 @@
 import 'package:butter_mobile/app/client_context.dart';
+import 'package:butter_mobile/core/box_errors.dart';
 import 'package:butter_mobile/core/butter_api.dart';
 import 'package:butter_mobile/core/server_address.dart';
 import 'package:butter_mobile/features/butterboxes/box_controller.dart';
@@ -145,6 +146,12 @@ void main() {
             final status = await api.butterBoxStatus(token, workspace, dead.id);
             expect(status.reachable, isFalse);
             expect(status.error, isNotEmpty);
+            // The display is a classification of the real probe error, which
+            // is a transport error here: it never echoes the raw text.
+            expect(
+              boxUnreachableReason(status.error),
+              contains('could not connect'),
+            );
 
             final ok = await api.createButterBox(
               token,

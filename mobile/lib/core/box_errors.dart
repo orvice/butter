@@ -120,3 +120,48 @@ bool boxWriteOutcomeUnknown(Object failure) =>
           Code.unknown,
           Code.internal,
         ].contains(failure.code));
+
+/// What to show for an unreachable Box from the status text the server
+/// reports. That text is the raw error of the probe: a transport error, the
+/// Box's own answer or a credential failure on the server, and it can carry
+/// whatever the Box (or an intermediary) put in it, URLs and credentials
+/// included. It is therefore only classified, never displayed.
+String boxUnreachableReason(String serverText) {
+  final text = serverText.toLowerCase();
+  bool any(List<String> words) => words.any(text.contains);
+  if (text.trim().isEmpty) return 'The Box did not answer.';
+  if (any(['no longer exists'])) {
+    return 'The Box is no longer registered. Refresh the list.';
+  }
+  if (any(['decrypt', 'credential', 'encryption'])) {
+    return 'The stored token cannot be used. Replace the token.';
+  }
+  if (any([
+    'unauthenticated',
+    'permission_denied',
+    'unauthorized',
+    'forbidden',
+  ])) {
+    return 'The Box rejected the token. Replace the token.';
+  }
+  if (any(['resource_exhausted', 'capacity'])) {
+    return 'The Box is at its session capacity. Try again later.';
+  }
+  if (any(['deadline', 'timeout', 'timed out'])) {
+    return 'The Box did not answer in time.';
+  }
+  if (any([
+    'unavailable',
+    'refused',
+    'no such host',
+    'dial',
+    'connect',
+    'eof',
+    'certificate',
+    'tls',
+    'unreachable',
+  ])) {
+    return 'The server could not connect to the Box. Check its URL and that it is running.';
+  }
+  return 'The Box did not answer.';
+}

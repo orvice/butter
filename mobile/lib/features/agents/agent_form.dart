@@ -122,7 +122,7 @@ class _AgentFormPageState extends State<AgentFormPage> {
           child: !supported
               ? const Center(
                   child: Text(
-                    'This Agent cannot be safely edited here (unsupported type, blocked lifecycle or legacy embedded children). Use the Web dashboard.',
+                    'This Agent cannot be safely edited here (unsupported type, blocked lifecycle, legacy embedded children, or a Pi/Cursor leaf that holds fields a leaf cannot have). Use the Web dashboard.',
                   ),
                 )
               : Form(

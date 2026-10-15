@@ -33,9 +33,6 @@ class BoxCatalog<T> {
 const _unconfirmed =
     'Change not confirmed; it may already have been applied. Refresh before retrying.';
 
-String _bounded(String text) =>
-    text.length > 300 ? '${text.substring(0, 300)}…' : text;
-
 /// ButterBoxes of one server, signed-in user and Workspace.
 ///
 /// Its lifetime is that scope: the owner disposes it when the server, account
@@ -69,6 +66,16 @@ class ButterBoxController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  // Ordering of reads against writes. Every read takes a tick when it starts;
+  // every write takes one when it starts and another when it ends. A read that
+  // began before a write finished may carry the state from before that write,
+  // so its result is dropped, and it can never reconcile that write either.
+  int _clock = 0;
+  int _lastWriteTick = 0;
+
+  /// Whether a read started at [startTick] may still be applied.
+  bool _fresh(int startTick) => startTick > _lastWriteTick;
+
   // ---- List and detail ----
 
   List<ButterBox> boxes = const [];
@@ -97,17 +104,25 @@ class ButterBoxController extends ChangeNotifier {
 
   Future<void> loadBoxes() async {
     if (_disposed) return;
-    final epoch = _epoch, seq = ++_listSeq;
+    final epoch = _epoch, seq = ++_listSeq, started = ++_clock;
+    final before = listState == BoxLoad.loading ? BoxLoad.idle : listState;
     listState = BoxLoad.loading;
     listError = null;
     _emit();
     try {
       final list = await _api.butterBoxes(token, workspaceId);
       if (!_live(epoch) || seq != _listSeq) return;
+      if (!_fresh(started)) {
+        // A write finished while this read was out: its answer may predate
+        // it. Keep what the write stored; a new read will reconcile.
+        listState = before;
+        _emit();
+        return;
+      }
       boxes = List.unmodifiable(list);
       listState = BoxLoad.ready;
-      // A successful authoritative read is the reconciliation step.
-      unconfirmed = false;
+      // Only a read that began after a write ended settles that write.
+      _reconcile(started);
     } catch (failure) {
       if (!_live(epoch) || seq != _listSeq || _expired(failure)) return;
       listState = BoxLoad.failed;
@@ -119,17 +134,24 @@ class ButterBoxController extends ChangeNotifier {
   /// Reads one box fresh; an edit starts from this copy, not a list row.
   Future<void> loadBox(String id) async {
     if (_disposed) return;
-    final epoch = _epoch, seq = ++_boxSeq;
+    final epoch = _epoch, seq = ++_boxSeq, started = ++_clock;
     if (box?.id != id) box = null;
+    final before = boxState == BoxLoad.loading ? BoxLoad.idle : boxState;
     boxState = BoxLoad.loading;
     boxError = null;
     _emit();
     try {
       final result = await _api.butterBox(token, workspaceId, id);
       if (!_live(epoch) || seq != _boxSeq) return;
+      if (!_fresh(started)) {
+        boxState = box == null ? BoxLoad.idle : before;
+        _emit();
+        return;
+      }
       box = result;
       boxState = BoxLoad.ready;
-      unconfirmed = false;
+      // One box's read settles only writes aimed at that box.
+      _reconcile(started, id: id);
       _replaceInList(result);
     } catch (failure) {
       if (!_live(epoch) || seq != _boxSeq || _expired(failure)) return;
@@ -168,7 +190,10 @@ class ButterBoxController extends ChangeNotifier {
               BoxProbeState.reachable,
               activeSessions: reply.activeSessions,
             )
-          : BoxProbe(BoxProbeState.unreachable, detail: _bounded(reply.error));
+          : BoxProbe(
+              BoxProbeState.unreachable,
+              detail: boxUnreachableReason(reply.error),
+            );
     } catch (failure) {
       if (!_live(epoch) || _probeSeq[id] != seq || _expired(failure)) return;
       probes[id] = BoxProbe(
@@ -232,19 +257,37 @@ class ButterBoxController extends ChangeNotifier {
   bool writing = false;
   String? writeError;
 
-  /// A write whose outcome is unknown. Another write is refused until a read
-  /// reconciles it.
-  bool unconfirmed = false;
+  /// Writes whose outcome is unknown, each with the tick at which it ended
+  /// and the box it aimed at (null: a create, whose box has no known ID yet).
+  /// Another write is refused until reads reconcile them all.
+  final List<({int tick, String? id})> _unknown = [];
+  bool get unconfirmed => _unknown.isNotEmpty;
   String? get writeNotice => unconfirmed ? _unconfirmed : null;
+
+  /// The write in flight, so suspending can mark exactly it unknown.
+  String? _inFlightId;
+  bool _inFlightCreate = false;
+
+  /// A read that began at [startTick] and covers [id] (every box when null)
+  /// settles the unknown writes that ended before it began.
+  void _reconcile(int startTick, {String? id}) {
+    _unknown.removeWhere(
+      (w) => w.tick < startTick && (id == null || w.id == id),
+    );
+  }
 
   Future<bool> _write(
     Future<void> Function(int epoch) action,
-    BoxOperation operation,
-  ) async {
+    BoxOperation operation, {
+    String? id,
+  }) async {
     if (_disposed || writing || unconfirmed) return false;
     final epoch = _epoch;
     writing = true;
     writeError = null;
+    _inFlightId = id;
+    _inFlightCreate = id == null;
+    _lastWriteTick = ++_clock;
     _emit();
     var ok = false;
     try {
@@ -253,10 +296,15 @@ class ButterBoxController extends ChangeNotifier {
     } catch (failure) {
       if (!_live(epoch) || _expired(failure)) return false;
       writeError = boxFailureMessage(failure, operation);
-      if (boxWriteOutcomeUnknown(failure)) unconfirmed = true;
+      if (boxWriteOutcomeUnknown(failure)) {
+        _unknown.add((tick: ++_clock, id: id));
+      }
     } finally {
       if (_live(epoch)) {
         writing = false;
+        _inFlightId = null;
+        _inFlightCreate = false;
+        _lastWriteTick = ++_clock;
         _emit();
       }
     }
@@ -295,7 +343,7 @@ class ButterBoxController extends ChangeNotifier {
     required String name,
     required String baseUrl,
     required bool enabled,
-  }) => _write((epoch) async {
+  }) => _write(id: id, (epoch) async {
     final saved = await _api.updateButterBox(
       token,
       workspaceId,
@@ -315,7 +363,7 @@ class ButterBoxController extends ChangeNotifier {
       _emit();
       return Future.value(false);
     }
-    return _write((epoch) async {
+    return _write(id: id, (epoch) async {
       final saved = await _api.setButterBoxToken(
         token,
         workspaceId,
@@ -329,7 +377,7 @@ class ButterBoxController extends ChangeNotifier {
     }, BoxOperation.token);
   }
 
-  Future<bool> clearToken(String id) => _write((epoch) async {
+  Future<bool> clearToken(String id) => _write(id: id, (epoch) async {
     final saved = await _api.setButterBoxToken(token, workspaceId, id, '');
     if (_live(epoch)) {
       _stored(saved);
@@ -337,7 +385,7 @@ class ButterBoxController extends ChangeNotifier {
     }
   }, BoxOperation.token);
 
-  Future<bool> delete(String id) => _write((epoch) async {
+  Future<bool> delete(String id) => _write(id: id, (epoch) async {
     await _api.deleteButterBox(token, workspaceId, id);
     if (!_live(epoch)) return;
     boxes = List.unmodifiable(boxes.where((b) => b.id != id));
@@ -354,7 +402,10 @@ class ButterBoxController extends ChangeNotifier {
     _epoch++;
     _apiOrNull?.close();
     _apiOrNull = null;
-    if (writing) unconfirmed = true;
+    if (writing) {
+      _unknown.add((tick: ++_clock, id: _inFlightCreate ? null : _inFlightId));
+      _lastWriteTick = _clock;
+    }
     writing = false;
     if (listState == BoxLoad.loading) listState = BoxLoad.idle;
     if (boxState == BoxLoad.loading) boxState = BoxLoad.idle;

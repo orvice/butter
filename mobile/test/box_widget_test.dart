@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:butter_mobile/app/butter_app.dart';
 import 'package:butter_mobile/app/client_context.dart';
 import 'package:butter_mobile/features/agents/agent_pages.dart';
 import 'package:butter_mobile/features/agents/leaf_draft.dart';
@@ -115,6 +116,42 @@ Future<void> openDetail(
 }
 
 void main() {
+  testWidgets('ButterBoxes opens from the Workspace screen and is scoped to '
+      'it', (tester) async {
+    final old = HttpOverrides.current;
+    HttpOverrides.global = null;
+    final server = BoxServer();
+    server.seed('alpha', 'a1', 'Alpha laptop');
+    server.seed('beta', 'b1', 'Beta laptop');
+    final client = ClientContext(storage: MemoryStorage(), allowHttp: true);
+    addTearDown(() async {
+      client.dispose();
+      await server.close();
+      HttpOverrides.global = old;
+    });
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(ButterApp(context: client));
+    await tester.runAsync(server.start);
+    await tester.runAsync(() => client.setServer(server.url));
+    await tester.runAsync(() => client.login('alice', 'password'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Alpha'));
+      for (var i = 0; i < 200 && client.busy; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pumpAndSettle();
+
+    await tapReal(tester, find.byKey(const Key('open-boxes')));
+    await waitFor(tester, () => client.boxes!.listState.name == 'ready');
+    expect(find.text('Alpha laptop'), findsOneWidget);
+    expect(find.text('Beta laptop'), findsNothing);
+    expect(server.boxCalls.map((c) => c.workspace).toSet(), {'alpha'});
+  });
+
   group('ButterBox pages', () {
     testWidgets('registering a box sends its token once and never shows it', (
       tester,
@@ -194,14 +231,20 @@ void main() {
 
       h.server.status = GetButterBoxStatusResponse(
         reachable: false,
-        error: 'connection refused',
+        error: 'unavailable: connection refused token=sk-SECRET',
       );
       await tapReal(tester, find.byKey(const Key('probe-box')));
       await waitFor(
         tester,
         () => h.client.boxes!.probes['a1']?.state.name == 'unreachable',
       );
-      expect(find.text('Unreachable: connection refused'), findsOneWidget);
+      expect(
+        find.text(
+          'Unreachable: The server could not connect to the Box. Check its URL and that it is running.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('sk-SECRET'), findsNothing);
       expect(h.server.boxWrites, 0);
     });
 

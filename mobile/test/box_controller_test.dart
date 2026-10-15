@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:butter_mobile/app/client_context.dart';
+import 'package:butter_mobile/core/box_errors.dart';
 import 'package:butter_mobile/features/butterboxes/box_controller.dart';
 import 'package:butter_mobile/gen/agents/v1/butterbox.pb.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -159,6 +160,176 @@ void main() {
     expect(boxes.boxes.map((b) => b.name), ['One']);
   });
 
+  test('a read begun before a lost write neither clears it nor replaces '
+      'what the write left', () async {
+    final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+    final boxes = h.client.boxes!;
+    await boxes.loadBoxes();
+
+    // The list is read (snapshot: only "One") and delayed...
+    final gate = Completer<void>();
+    h.server.beforeList = () => gate.future;
+    final stale = boxes.loadBoxes();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    h.server.beforeList = null;
+
+    // ...a create is applied but its reply is lost...
+    h.server.loseBoxReply = true;
+    expect(
+      await boxes.create(
+        name: 'Two',
+        baseUrl: 'https://box.test',
+        enabled: true,
+        accessToken: 'tok',
+      ),
+      isFalse,
+    );
+    h.server.loseBoxReply = false;
+    expect(boxes.unconfirmed, isTrue);
+
+    // ...and the old snapshot arrives. It predates the write: it says nothing
+    // about it, so the write stays unconfirmed and writes stay refused.
+    gate.complete();
+    await stale;
+    expect(boxes.unconfirmed, isTrue);
+    expect(boxes.writeNotice, contains('not confirmed'));
+    expect(boxes.listState, BoxLoad.ready);
+    expect(
+      await boxes.create(
+        name: 'Three',
+        baseUrl: 'https://box.test',
+        enabled: true,
+      ),
+      isFalse,
+    );
+    expect(h.server.boxWrites, 1);
+
+    // Only a read that began afterwards reconciles, and shows the write.
+    await boxes.loadBoxes();
+    expect(boxes.unconfirmed, isFalse);
+    expect(boxes.boxes.map((b) => b.name).toSet(), {'One', 'Two'});
+  });
+
+  test(
+    'an earlier snapshot never replaces what a confirmed write stored',
+    () async {
+      final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+      final boxes = h.client.boxes!;
+      await boxes.loadBoxes();
+      final gate = Completer<void>();
+      h.server.beforeList = () => gate.future;
+      final stale = boxes.loadBoxes();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      h.server.beforeList = null;
+      expect(
+        await boxes.create(
+          name: 'Two',
+          baseUrl: 'https://box.test',
+          enabled: true,
+        ),
+        isTrue,
+      );
+      gate.complete();
+      await stale;
+      expect(boxes.boxes.map((b) => b.name).toSet(), {'One', 'Two'});
+      expect(boxes.listState, BoxLoad.ready);
+    },
+  );
+
+  test('a read of one box settles only writes aimed at that box', () async {
+    final h = await start(
+      seed: (s) {
+        s.seed('alpha', 'a1', 'One');
+        s.seed('alpha', 'a2', 'Two');
+      },
+    );
+    final boxes = h.client.boxes!;
+    await boxes.loadBoxes();
+
+    h.server.loseBoxReply = true;
+    expect(
+      await boxes.update(
+        id: 'a1',
+        name: 'One renamed',
+        baseUrl: 'https://box.test',
+        enabled: true,
+      ),
+      isFalse,
+    );
+    h.server.loseBoxReply = false;
+    expect(boxes.unconfirmed, isTrue);
+
+    // Another box's read says nothing about a1's write.
+    await boxes.loadBox('a2');
+    expect(boxes.unconfirmed, isTrue);
+
+    // A read of a1 that began after the write ended settles it, even when
+    // its answer is slow.
+    final gate = Completer<void>();
+    h.server.beforeGetBox = () => gate.future;
+    final early = boxes.loadBox('a1');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    h.server.beforeGetBox = null;
+    gate.complete();
+    await early;
+    expect(boxes.unconfirmed, isFalse);
+    expect(boxes.box?.name, 'One renamed');
+  });
+
+  test('a read of a box that began before its lost write does not settle '
+      'it', () async {
+    final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+    final boxes = h.client.boxes!;
+    await boxes.loadBoxes();
+
+    final gate = Completer<void>();
+    h.server.beforeGetBox = () => gate.future;
+    final stale = boxes.loadBox('a1');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    h.server.beforeGetBox = null;
+
+    h.server.loseBoxReply = true;
+    expect(
+      await boxes.update(
+        id: 'a1',
+        name: 'One renamed',
+        baseUrl: 'https://box.test',
+        enabled: true,
+      ),
+      isFalse,
+    );
+    h.server.loseBoxReply = false;
+    gate.complete();
+    await stale;
+
+    expect(boxes.unconfirmed, isTrue);
+    expect(boxes.box?.name, isNot('One renamed'));
+    expect(boxes.byId('a1')?.name, 'One');
+    await boxes.loadBox('a1');
+    expect(boxes.unconfirmed, isFalse);
+    expect(boxes.box?.name, 'One renamed');
+  });
+
+  test(
+    'a lost create is settled by the list, not by a read of one box',
+    () async {
+      final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
+      final boxes = h.client.boxes!;
+      await boxes.loadBoxes();
+      h.server.loseBoxReply = true;
+      await boxes.create(
+        name: 'Two',
+        baseUrl: 'https://box.test',
+        enabled: true,
+      );
+      h.server.loseBoxReply = false;
+      await boxes.loadBox('a1');
+      expect(boxes.unconfirmed, isTrue);
+      await boxes.loadBoxes();
+      expect(boxes.unconfirmed, isFalse);
+    },
+  );
+
   test('server refusals map to actionable messages', () async {
     final h = await start(seed: (s) => s.seed('alpha', 'a1', 'One'));
     final boxes = h.client.boxes!;
@@ -192,11 +363,38 @@ void main() {
     final boxes = h.client.boxes!;
     h.server.status = GetButterBoxStatusResponse(
       reachable: false,
-      error: 'dial tcp: connection refused',
+      error: 'unavailable: dial tcp: connection refused',
     );
     await boxes.probe('a1');
     expect(boxes.probes['a1']!.state, BoxProbeState.unreachable);
-    expect(boxes.probes['a1']!.detail, contains('connection refused'));
+    expect(boxes.probes['a1']!.detail, contains('could not connect'));
+
+    // The server's text is raw: a credential-bearing payload is classified,
+    // never shown.
+    const secret = 'sk-live-SECRET-0123';
+    for (final raw in [
+      'unauthenticated: bad token $secret at http://user:$secret@box/',
+      'something odd: Authorization: Bearer $secret',
+      'decrypt butterbox "x" token: $secret',
+      'x' * 5000 + secret,
+    ]) {
+      h.server.status = GetButterBoxStatusResponse(
+        reachable: false,
+        error: raw,
+      );
+      await boxes.probe('a1');
+      final detail = boxes.probes['a1']!.detail;
+      expect(detail, isNot(contains(secret)), reason: raw);
+      expect(detail, isNot(contains('Bearer')), reason: raw);
+      expect(detail.length, lessThan(120), reason: raw);
+    }
+    expect(boxUnreachableReason('unauthenticated: x'), contains('token'));
+    expect(boxUnreachableReason(''), 'The Box did not answer.');
+    h.server.status = GetButterBoxStatusResponse(
+      reachable: false,
+      error: 'unavailable: dial tcp: connection refused',
+    );
+    await boxes.probe('a1');
 
     h.server.status = GetButterBoxStatusResponse(
       reachable: true,
