@@ -7,6 +7,8 @@ import '../../core/management_page.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import 'agent_draft.dart';
 import 'structured_fields.dart';
+import 'workflow_draft.dart';
+import 'workflow_editor.dart';
 
 class AgentFormPage extends StatefulWidget {
   const AgentFormPage({super.key, required this.client, this.base});
@@ -20,8 +22,10 @@ class _AgentFormPageState extends State<AgentFormPage> {
   final _form = GlobalKey<FormState>();
   late final _draft = AgentDraft(base: widget.base);
   Agent get _agent => _draft.agent;
+  late final _workflow = WorkflowDraft(_draft);
   bool _dirty = false;
   bool _saved = false;
+  bool _showIssues = false;
   late final _model = TextEditingController(text: _agent.config.model);
   @override
   void dispose() {
@@ -35,7 +39,20 @@ class _AgentFormPageState extends State<AgentFormPage> {
   });
 
   Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
+    final fieldsOk = _form.currentState!.validate();
+    final graphOk =
+        _agent.type != AgentType.AGENT_TYPE_WORKFLOW ||
+        workflowIssues(
+          _workflow,
+          choices: widget.client.agentChoices,
+          choicesReady: widget.client.agentEditorReady,
+          selfId: _agent.agentId,
+        ).isEmpty;
+    if (!fieldsOk || !graphOk) {
+      // Nothing is sent: list every problem where the user can fix it.
+      setState(() => _showIssues = true);
+      return;
+    }
     FocusScope.of(context).unfocus();
     final saved = await widget.client.saveAgent(
       _draft.build(),
@@ -222,22 +239,34 @@ class _AgentFormPageState extends State<AgentFormPage> {
                             validator: (v) =>
                                 validateWholeNumber(v, 4294967295),
                           ),
-                        if (!isLLM(_agent))
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              'Children remain independent resources. Sequential and Loop execute in the listed order; Parallel runs children concurrently. ContextGuard belongs on each child LLM.',
+                        if (_agent.type == AgentType.AGENT_TYPE_WORKFLOW)
+                          WorkflowEditor(
+                            workflow: _workflow,
+                            selfId: _agent.agentId,
+                            choices: client.agentChoices,
+                            choicesReady: client.agentEditorReady,
+                            enabled: !client.busy && !_saved,
+                            showSummary: _showIssues,
+                            onChanged: () => _change(() {}),
+                          )
+                        else ...[
+                          if (!isLLM(_agent))
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Text(
+                                'Children remain independent resources. Sequential and Loop execute in the listed order; Parallel runs children concurrently. ContextGuard belongs on each child LLM.',
+                              ),
                             ),
+                          ChildAgentFields(
+                            agent: _agent,
+                            choices: client.agentChoices,
+                            enabled:
+                                !client.busy &&
+                                !_saved &&
+                                client.agentEditorReady,
+                            onChanged: () => _change(() {}),
                           ),
-                        ChildAgentFields(
-                          agent: _agent,
-                          choices: client.agentChoices,
-                          enabled:
-                              !client.busy &&
-                              !_saved &&
-                              client.agentEditorReady,
-                          onChanged: () => _change(() {}),
-                        ),
+                        ],
                         StringMapFields(
                           title: 'Labels',
                           values: _agent.labels,

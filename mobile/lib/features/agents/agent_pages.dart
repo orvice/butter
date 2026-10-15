@@ -5,6 +5,7 @@ import '../../core/management_page.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import 'agent_draft.dart';
 import 'agent_form.dart';
+import 'workflow_graph_view.dart';
 export 'agent_form.dart' show AgentFormPage;
 
 Future<void> openAgentDetail(
@@ -114,6 +115,8 @@ class AgentDetailPage extends StatelessWidget {
               SelectableText(agent.config.globalInstruction),
               Text('Output key: ${agent.config.outputKey}'),
             ],
+            if (agent.type == AgentType.AGENT_TYPE_WORKFLOW)
+              ..._workflowDetail(context, agent.config.workflow),
             for (final id in agent.childAgentIds)
               ListTile(
                 title: Text('Child: $id'),
@@ -135,3 +138,30 @@ class AgentDetailPage extends StatelessWidget {
     ),
   );
 }
+
+/// The stored graph, drawn from the same model the editor changes, followed
+/// by the same facts as text.
+List<Widget> _workflowDetail(BuildContext context, WorkflowConfig workflow) => [
+  const SizedBox(height: 16),
+  Text('Workflow graph', style: Theme.of(context).textTheme.titleMedium),
+  WorkflowGraphView(config: workflow),
+  for (final node in workflow.nodes)
+    ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(workflowKindIcon(node)),
+      title: SelectableText(node.name.isEmpty ? '(unnamed)' : node.name),
+      subtitle: Text(
+        [
+          workflowKindLabel(node),
+          if (node.agentId.isNotEmpty) 'Agent ${node.agentId}',
+          if (node.parallelWorker) 'parallel worker',
+          if (node.hasForm() && node.form.fields.isNotEmpty)
+            'form with ${node.form.fields.length} field${node.form.fields.length == 1 ? '' : 's'}',
+          if (node.timeoutSeconds > 0) 'timeout ${node.timeoutSeconds}s',
+          if (node.hasRetry() && node.retry.maxAttempts > 1)
+            'up to ${node.retry.maxAttempts} attempts',
+        ].join(' · '),
+      ),
+    ),
+  for (final edge in workflow.edges) Text(describeWorkflowEdge(edge)),
+];

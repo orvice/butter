@@ -34,6 +34,43 @@ String? describeAgentFailure(Object failure) {
     if (message.contains('config.context_guard.strategy')) {
       return 'Server validation: unsupported ContextGuard strategy. The stored value is retained; use a compatible server/app before editing this strategy.';
     }
+    const workflowErrors = {
+      'at least one node': 'Add at least one node to the workflow.',
+      'reserved for the entry sentinel': 'A node uses the reserved name START.',
+      'duplicate node name': 'Two nodes share a name.',
+      'requires an agent_id reference': 'An Agent node has no Agent selected.',
+      'requires a question': 'A Human input node has no question.',
+      'references unknown node':
+          'An edge refers to a node that does not exist.',
+      'mutually exclusive':
+          'An edge has both a route label and the default flag.',
+      'match the same input': 'Two routes from one node match the same text.',
+      'must not target JOIN': 'A routed or default edge cannot target a Join.',
+      'entry edge': 'Connect START to the first node.',
+      'requires a default outgoing edge':
+          'A Router needs a default outgoing edge.',
+      'parallel_worker is only supported':
+          'Parallel worker applies only to Agent nodes.',
+      'supported on only HUMAN_INPUT':
+          'A form is supported only on Human input nodes.',
+      'already claimed by agent':
+          'An Agent referenced here already has another parent.',
+    };
+    for (final entry in workflowErrors.entries) {
+      if (message.contains(entry.key)) {
+        return 'Server validation: ${entry.value}';
+      }
+    }
+    if (message.contains('form field') ||
+        message.contains('a form ') ||
+        message.contains('single-choice') ||
+        message.contains('form title')) {
+      return 'Server validation: a Human input form was rejected. Check each field\'s name, label, type and options.';
+    }
+    if (message.contains('workflow node') &&
+        message.contains('not found in workspace')) {
+      return 'Server validation: a workflow node references an Agent that is not available in this Workspace.';
+    }
     return 'The server rejected the Agent configuration. Check the ID, type and child references (existing IDs, no cycles, only one parent).';
   }
   return null;

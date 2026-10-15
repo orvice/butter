@@ -7,7 +7,7 @@ void main() {
   test('future types and lifecycle-blocked Agents cannot be edited', () {
     final future = Agent()..mergeFromBuffer([0xa0, 0x01, 99]);
     expect(canEditAgent(future), isFalse);
-    expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_WORKFLOW)), isFalse);
+    expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_WORKFLOW)), isTrue);
     expect(canEditAgent(Agent(type: AgentType.AGENT_TYPE_PI)), isFalse);
     expect(
       canEditAgent(
