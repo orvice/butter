@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -15,7 +13,6 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
-	"go.orx.me/apps/butter/internal/mcpoauth"
 	workspacemcp "go.orx.me/apps/butter/internal/mcpserver"
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
@@ -850,26 +847,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		aguiHandler.Register(r)
 		uploadHandler.Register(r)
 		httpHandler.RegisterWorkspaceMCP(r, workspaceMCPSvc.Handler(), handlers.workspaceRepoFromHolder)
-		r.GET(mcpoauth.CallbackPath, func(c *gin.Context) {
-			status := "error"
-			serverID := ""
-			target := oauthCallbackFallback(cfg)
-			if oauthErr := strings.TrimSpace(c.Query("error")); oauthErr != "" {
-				c.Redirect(http.StatusFound, appendOAuthCallbackParams(target, status, serverID))
-				return
-			}
-			returnURL, oauthStatus, err := mcpSvcServer.CompleteMCPServerOAuthCallback(c.Request.Context(), c.Query("state"), c.Query("code"))
-			if returnURL != "" {
-				target = returnURL
-			}
-			if err == nil {
-				status = "success"
-				if oauthStatus != nil {
-					serverID = oauthStatus.GetServerId()
-				}
-			}
-			c.Redirect(http.StatusFound, appendOAuthCallbackParams(target, status, serverID))
-		})
+		httpHandler.NewMCPOAuthCallbackHandler(mcpSvcServer, func() string { return cfg.MCPOAuth.DashboardBaseURL }).Register(r)
 
 		// Connect handlers mount at /agents.v1.XxxService/ by default; we
 		// strip the /api prefix before forwarding so the public URLs
@@ -930,26 +908,4 @@ func enableFullDuplex(handler http.Handler) http.Handler {
 		_ = http.NewResponseController(w).EnableFullDuplex()
 		handler.ServeHTTP(w, r)
 	})
-}
-
-func oauthCallbackFallback(cfg *config.AppConfig) string {
-	base := strings.TrimSpace(cfg.MCPOAuth.DashboardBaseURL)
-	if base == "" {
-		return "/mcp-servers"
-	}
-	return strings.TrimRight(base, "/") + "/mcp-servers"
-}
-
-func appendOAuthCallbackParams(raw, status, serverID string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return raw
-	}
-	q := u.Query()
-	q.Set("mcp_oauth", status)
-	if serverID != "" {
-		q.Set("server_id", serverID)
-	}
-	u.RawQuery = q.Encode()
-	return u.String()
 }

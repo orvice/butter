@@ -168,9 +168,10 @@ func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Contex
 	return connect.NewResponse(&agentsv1.InstallGlobalMCPServerResponse{McpServer: mcpServerForResponseClone(created.Msg.GetMcpServer(), true)}), nil
 }
 
-// mcpServerForResponseClone clones the server and optionally clears the
-// OAuth2 client_secret. Mirrors the helper that the REST handler used; kept
-// package-local here so callers don't reach into internal/app.
+// mcpServerForResponseClone clones the server and, when redacting, clears the
+// OAuth2 client_secret and masks every header value (static headers carry
+// credentials such as "Authorization: Bearer …"), as the installed-preset
+// reads do. Header keys stay so a reader can see what the preset configures.
 func mcpServerForResponseClone(server *agentsv1.MCPServer, redact bool) *agentsv1.MCPServer {
 	if server == nil {
 		return nil
@@ -179,6 +180,9 @@ func mcpServerForResponseClone(server *agentsv1.MCPServer, redact bool) *agentsv
 	if redact {
 		if oauth := clone.GetAuth().GetOauth2(); oauth != nil {
 			oauth.ClientSecret = ""
+		}
+		for k := range clone.Headers {
+			clone.Headers[k] = redactedHeaderValue
 		}
 	}
 	return clone
