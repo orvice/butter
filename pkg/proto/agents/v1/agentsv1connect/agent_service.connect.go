@@ -123,6 +123,9 @@ const (
 	// MCPServerServiceUpdateMCPServerProcedure is the fully-qualified name of the MCPServerService's
 	// UpdateMCPServer RPC.
 	MCPServerServiceUpdateMCPServerProcedure = "/agents.v1.MCPServerService/UpdateMCPServer"
+	// MCPServerServiceUpdateMCPServerKeepingCredentialsProcedure is the fully-qualified name of the
+	// MCPServerService's UpdateMCPServerKeepingCredentials RPC.
+	MCPServerServiceUpdateMCPServerKeepingCredentialsProcedure = "/agents.v1.MCPServerService/UpdateMCPServerKeepingCredentials"
 	// MCPServerServiceDeleteMCPServerProcedure is the fully-qualified name of the MCPServerService's
 	// DeleteMCPServer RPC.
 	MCPServerServiceDeleteMCPServerProcedure = "/agents.v1.MCPServerService/DeleteMCPServer"
@@ -1006,6 +1009,9 @@ type MCPServerServiceClient interface {
 	GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.GetMCPServerResponse], error)
 	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error)
 	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error)
+	// UpdateMCPServerKeepingCredentials updates a server while keeping stored
+	// credentials the caller cannot read. Servers without it answer Unimplemented.
+	UpdateMCPServerKeepingCredentials(context.Context, *connect.Request[v1.UpdateMCPServerKeepingCredentialsRequest]) (*connect.Response[v1.UpdateMCPServerKeepingCredentialsResponse], error)
 	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error)
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
@@ -1059,6 +1065,12 @@ func NewMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(mCPServerServiceMethods.ByName("UpdateMCPServer")),
 			connect.WithClientOptions(opts...),
 		),
+		updateMCPServerKeepingCredentials: connect.NewClient[v1.UpdateMCPServerKeepingCredentialsRequest, v1.UpdateMCPServerKeepingCredentialsResponse](
+			httpClient,
+			baseURL+MCPServerServiceUpdateMCPServerKeepingCredentialsProcedure,
+			connect.WithSchema(mCPServerServiceMethods.ByName("UpdateMCPServerKeepingCredentials")),
+			connect.WithClientOptions(opts...),
+		),
 		deleteMCPServer: connect.NewClient[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse](
 			httpClient,
 			baseURL+MCPServerServiceDeleteMCPServerProcedure,
@@ -1106,17 +1118,18 @@ func NewMCPServerServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // mCPServerServiceClient implements MCPServerServiceClient.
 type mCPServerServiceClient struct {
-	listMCPServers           *connect.Client[v1.ListMCPServersRequest, v1.ListMCPServersResponse]
-	getMCPServer             *connect.Client[v1.GetMCPServerRequest, v1.GetMCPServerResponse]
-	createMCPServer          *connect.Client[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse]
-	updateMCPServer          *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
-	deleteMCPServer          *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
-	getMCPServerStatus       *connect.Client[v1.GetMCPServerStatusRequest, v1.GetMCPServerStatusResponse]
-	listMCPTools             *connect.Client[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse]
-	startMCPServerOAuth      *connect.Client[v1.StartMCPServerOAuthRequest, v1.StartMCPServerOAuthResponse]
-	completeMCPServerOAuth   *connect.Client[v1.CompleteMCPServerOAuthRequest, v1.CompleteMCPServerOAuthResponse]
-	getMCPServerOAuthStatus  *connect.Client[v1.GetMCPServerOAuthStatusRequest, v1.GetMCPServerOAuthStatusResponse]
-	disconnectMCPServerOAuth *connect.Client[v1.DisconnectMCPServerOAuthRequest, v1.DisconnectMCPServerOAuthResponse]
+	listMCPServers                    *connect.Client[v1.ListMCPServersRequest, v1.ListMCPServersResponse]
+	getMCPServer                      *connect.Client[v1.GetMCPServerRequest, v1.GetMCPServerResponse]
+	createMCPServer                   *connect.Client[v1.CreateMCPServerRequest, v1.CreateMCPServerResponse]
+	updateMCPServer                   *connect.Client[v1.UpdateMCPServerRequest, v1.UpdateMCPServerResponse]
+	updateMCPServerKeepingCredentials *connect.Client[v1.UpdateMCPServerKeepingCredentialsRequest, v1.UpdateMCPServerKeepingCredentialsResponse]
+	deleteMCPServer                   *connect.Client[v1.DeleteMCPServerRequest, v1.DeleteMCPServerResponse]
+	getMCPServerStatus                *connect.Client[v1.GetMCPServerStatusRequest, v1.GetMCPServerStatusResponse]
+	listMCPTools                      *connect.Client[v1.ListMCPToolsRequest, v1.ListMCPToolsResponse]
+	startMCPServerOAuth               *connect.Client[v1.StartMCPServerOAuthRequest, v1.StartMCPServerOAuthResponse]
+	completeMCPServerOAuth            *connect.Client[v1.CompleteMCPServerOAuthRequest, v1.CompleteMCPServerOAuthResponse]
+	getMCPServerOAuthStatus           *connect.Client[v1.GetMCPServerOAuthStatusRequest, v1.GetMCPServerOAuthStatusResponse]
+	disconnectMCPServerOAuth          *connect.Client[v1.DisconnectMCPServerOAuthRequest, v1.DisconnectMCPServerOAuthResponse]
 }
 
 // ListMCPServers calls agents.v1.MCPServerService.ListMCPServers.
@@ -1137,6 +1150,12 @@ func (c *mCPServerServiceClient) CreateMCPServer(ctx context.Context, req *conne
 // UpdateMCPServer calls agents.v1.MCPServerService.UpdateMCPServer.
 func (c *mCPServerServiceClient) UpdateMCPServer(ctx context.Context, req *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error) {
 	return c.updateMCPServer.CallUnary(ctx, req)
+}
+
+// UpdateMCPServerKeepingCredentials calls
+// agents.v1.MCPServerService.UpdateMCPServerKeepingCredentials.
+func (c *mCPServerServiceClient) UpdateMCPServerKeepingCredentials(ctx context.Context, req *connect.Request[v1.UpdateMCPServerKeepingCredentialsRequest]) (*connect.Response[v1.UpdateMCPServerKeepingCredentialsResponse], error) {
+	return c.updateMCPServerKeepingCredentials.CallUnary(ctx, req)
 }
 
 // DeleteMCPServer calls agents.v1.MCPServerService.DeleteMCPServer.
@@ -1180,6 +1199,9 @@ type MCPServerServiceHandler interface {
 	GetMCPServer(context.Context, *connect.Request[v1.GetMCPServerRequest]) (*connect.Response[v1.GetMCPServerResponse], error)
 	CreateMCPServer(context.Context, *connect.Request[v1.CreateMCPServerRequest]) (*connect.Response[v1.CreateMCPServerResponse], error)
 	UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error)
+	// UpdateMCPServerKeepingCredentials updates a server while keeping stored
+	// credentials the caller cannot read. Servers without it answer Unimplemented.
+	UpdateMCPServerKeepingCredentials(context.Context, *connect.Request[v1.UpdateMCPServerKeepingCredentialsRequest]) (*connect.Response[v1.UpdateMCPServerKeepingCredentialsResponse], error)
 	DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error)
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
@@ -1227,6 +1249,12 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 		MCPServerServiceUpdateMCPServerProcedure,
 		svc.UpdateMCPServer,
 		connect.WithSchema(mCPServerServiceMethods.ByName("UpdateMCPServer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	mCPServerServiceUpdateMCPServerKeepingCredentialsHandler := connect.NewUnaryHandler(
+		MCPServerServiceUpdateMCPServerKeepingCredentialsProcedure,
+		svc.UpdateMCPServerKeepingCredentials,
+		connect.WithSchema(mCPServerServiceMethods.ByName("UpdateMCPServerKeepingCredentials")),
 		connect.WithHandlerOptions(opts...),
 	)
 	mCPServerServiceDeleteMCPServerHandler := connect.NewUnaryHandler(
@@ -1281,6 +1309,8 @@ func NewMCPServerServiceHandler(svc MCPServerServiceHandler, opts ...connect.Han
 			mCPServerServiceCreateMCPServerHandler.ServeHTTP(w, r)
 		case MCPServerServiceUpdateMCPServerProcedure:
 			mCPServerServiceUpdateMCPServerHandler.ServeHTTP(w, r)
+		case MCPServerServiceUpdateMCPServerKeepingCredentialsProcedure:
+			mCPServerServiceUpdateMCPServerKeepingCredentialsHandler.ServeHTTP(w, r)
 		case MCPServerServiceDeleteMCPServerProcedure:
 			mCPServerServiceDeleteMCPServerHandler.ServeHTTP(w, r)
 		case MCPServerServiceGetMCPServerStatusProcedure:
@@ -1318,6 +1348,10 @@ func (UnimplementedMCPServerServiceHandler) CreateMCPServer(context.Context, *co
 
 func (UnimplementedMCPServerServiceHandler) UpdateMCPServer(context.Context, *connect.Request[v1.UpdateMCPServerRequest]) (*connect.Response[v1.UpdateMCPServerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.UpdateMCPServer is not implemented"))
+}
+
+func (UnimplementedMCPServerServiceHandler) UpdateMCPServerKeepingCredentials(context.Context, *connect.Request[v1.UpdateMCPServerKeepingCredentialsRequest]) (*connect.Response[v1.UpdateMCPServerKeepingCredentialsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.MCPServerService.UpdateMCPServerKeepingCredentials is not implemented"))
 }
 
 func (UnimplementedMCPServerServiceHandler) DeleteMCPServer(context.Context, *connect.Request[v1.DeleteMCPServerRequest]) (*connect.Response[v1.DeleteMCPServerResponse], error) {

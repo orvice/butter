@@ -55,7 +55,7 @@ func TestUpdateMCPServer_KeepsHiddenCredentialsOfAnInstalledPreset(t *testing.T)
 	edited.Headers["X-Team"] = "beta" // an explicit replacement of a visible-by-key header
 	edited.Auth.Oauth2.ClientSecret = ""
 
-	resp, err := svc.UpdateMCPServer(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerRequest{
+	resp, err := svc.UpdateMCPServerKeepingCredentials(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{
 		McpServer:             edited,
 		KeepHeaderKeys:        []string{"Authorization"},
 		KeepOauthClientSecret: true,
@@ -96,7 +96,7 @@ func TestUpdateMCPServer_KeepCannotBeUsedToStripTheMarkerAndReadSecretsBack(t *t
 	edited := hidden
 	edited.Metadata = nil // a hostile or careless client drops the marker
 	delete(edited.Headers, "Authorization")
-	if _, err := svc.UpdateMCPServer(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerRequest{
+	if _, err := svc.UpdateMCPServerKeepingCredentials(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{
 		McpServer: edited, KeepHeaderKeys: []string{"Authorization"},
 	})); err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestUpdateMCPServer_KeepCannotBeUsedToStripTheMarkerAndReadSecretsBack(t *t
 	}
 }
 
-func TestUpdateMCPServer_ExplicitReplaceAndClearStillWorkAlongsideKeep(t *testing.T) {
+func TestUpdateMCPServer_ExplicitReplaceAndClearApplyWithTheOrdinaryRequest(t *testing.T) {
 	svc, ctx, hidden := installedPreset(t)
 	edited := hidden
 	delete(edited.Headers, "Authorization") // removed: neither kept nor given
@@ -147,32 +147,32 @@ func TestUpdateMCPServer_OldWholeObjectRequestBehavesAsBefore(t *testing.T) {
 }
 
 func TestUpdateMCPServer_KeepRefusals(t *testing.T) {
-	cases := map[string]func(*agentsv1.MCPServer) *agentsv1.UpdateMCPServerRequest{
-		"a header that is not stored": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerRequest {
-			return &agentsv1.UpdateMCPServerRequest{McpServer: s, KeepHeaderKeys: []string{"X-Missing"}}
+	cases := map[string]func(*agentsv1.MCPServer) *agentsv1.UpdateMCPServerKeepingCredentialsRequest{
+		"a header that is not stored": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerKeepingCredentialsRequest {
+			return &agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: s, KeepHeaderKeys: []string{"X-Missing"}}
 		},
-		"a header both kept and given": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerRequest {
-			return &agentsv1.UpdateMCPServerRequest{McpServer: s, KeepHeaderKeys: []string{"Authorization"}}
+		"a header both kept and given": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerKeepingCredentialsRequest {
+			return &agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: s, KeepHeaderKeys: []string{"Authorization"}}
 		},
-		"a secret kept for a changed client": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerRequest {
+		"a secret kept for a changed client": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerKeepingCredentialsRequest {
 			s.Auth.Oauth2.ClientId = "other"
 			s.Auth.Oauth2.ClientSecret = ""
-			return &agentsv1.UpdateMCPServerRequest{McpServer: s, KeepOauthClientSecret: true}
+			return &agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: s, KeepOauthClientSecret: true}
 		},
-		"a secret both kept and given": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerRequest {
+		"a secret both kept and given": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerKeepingCredentialsRequest {
 			s.Auth.Oauth2.ClientSecret = "x"
-			return &agentsv1.UpdateMCPServerRequest{McpServer: s, KeepOauthClientSecret: true}
+			return &agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: s, KeepOauthClientSecret: true}
 		},
-		"a secret kept without OAuth": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerRequest {
+		"a secret kept without OAuth": func(s *agentsv1.MCPServer) *agentsv1.UpdateMCPServerKeepingCredentialsRequest {
 			s.Auth = &agentsv1.MCPServerAuth{Type: agentsv1.MCPServerAuthType_MCP_SERVER_AUTH_TYPE_NONE}
-			return &agentsv1.UpdateMCPServerRequest{McpServer: s, KeepOauthClientSecret: true}
+			return &agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: s, KeepOauthClientSecret: true}
 		},
 	}
 	for name, build := range cases {
 		t.Run(name, func(t *testing.T) {
 			svc, ctx, hidden := installedPreset(t)
 			before := storedServer(t, svc, hidden.GetId())
-			_, err := svc.UpdateMCPServer(ctx, connect.NewRequest(build(hidden)))
+			_, err := svc.UpdateMCPServerKeepingCredentials(ctx, connect.NewRequest(build(hidden)))
 			if connect.CodeOf(err) != connect.CodeInvalidArgument {
 				t.Fatalf("code = %v (%v)", connect.CodeOf(err), err)
 			}
@@ -187,10 +187,49 @@ func TestUpdateMCPServer_KeepRefusals(t *testing.T) {
 func TestUpdateMCPServer_KeepNeverReadsAnotherWorkspace(t *testing.T) {
 	svc, _, hidden := installedPreset(t)
 	other := workspace.WithID(context.Background(), "ws-other")
-	_, err := svc.UpdateMCPServer(other, connect.NewRequest(&agentsv1.UpdateMCPServerRequest{
+	_, err := svc.UpdateMCPServerKeepingCredentials(other, connect.NewRequest(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{
 		McpServer: hidden, KeepHeaderKeys: []string{"Authorization"},
 	}))
 	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("code = %v (%v)", connect.CodeOf(err), err)
+	}
+}
+
+// The ordinary request is byte-for-byte what it was: an older server and the
+// Web console never see a keep field, so keeping credentials cannot silently
+// degrade into a whole-object write on a server that ignores unknown fields.
+func TestUpdateMCPServerRequestCarriesNoKeepFields(t *testing.T) {
+	fields := (&agentsv1.UpdateMCPServerRequest{}).ProtoReflect().Descriptor().Fields()
+	if fields.Len() != 1 || fields.ByName("mcp_server") == nil {
+		t.Fatalf("UpdateMCPServerRequest must stay {mcp_server}; fields = %d", fields.Len())
+	}
+}
+
+func TestUpdateMCPServerKeepingCredentials_WithoutKeepsStoresTheWholeObject(t *testing.T) {
+	svc, ctx, hidden := installedPreset(t)
+	edited := hidden
+	delete(edited.Headers, "Authorization")
+	edited.Auth.Oauth2.ClientSecret = ""
+	resp, err := svc.UpdateMCPServerKeepingCredentials(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: edited}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := storedServer(t, svc, hidden.GetId())
+	if _, ok := stored.GetHeaders()["Authorization"]; ok {
+		t.Fatalf("an unkept header must be removed: %v", stored.GetHeaders())
+	}
+	if stored.GetAuth().GetOauth2().GetClientSecret() != "" {
+		t.Fatalf("an unkept secret must be cleared")
+	}
+	if got := resp.Msg.GetMcpServer().GetHeaders()["X-Team"]; got != redactedHeaderValue {
+		t.Fatalf("the answer must stay redacted: %q", got)
+	}
+}
+
+func TestUpdateMCPServerKeepingCredentials_RequiresAServer(t *testing.T) {
+	svc, ctx, _ := installedPreset(t)
+	_, err := svc.UpdateMCPServerKeepingCredentials(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("code = %v (%v)", connect.CodeOf(err), err)
 	}
 }

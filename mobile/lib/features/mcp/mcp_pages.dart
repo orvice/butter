@@ -685,6 +685,9 @@ class _McpFormPageState extends State<McpFormPage> {
       builder: (context, _) {
         final locked = mcp.writing || _saved;
         final d = _draft;
+        // The server answered the keep method as unknown: an edit that needs
+        // it cannot be sent safely, and nothing is sent.
+        final blockedByServer = mcp.keepSupported == false && d.needsKeep;
         return DraftGuard(
           dirty: d.dirty && !_saved,
           busy: mcp.writing,
@@ -832,9 +835,20 @@ class _McpFormPageState extends State<McpFormPage> {
                       ErrorLine(_problem!),
                     ],
                     const SizedBox(height: 16),
+                    if (blockedByServer)
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          mcpKeepUnsupported,
+                          key: const Key('mcp-keep-unsupported'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
                     FilledButton(
                       key: const Key('save-mcp'),
-                      onPressed: locked || mcp.unconfirmed
+                      onPressed: locked || mcp.unconfirmed || blockedByServer
                           ? null
                           : () => _save(mcp),
                       child: Text(_saved ? 'Saved' : 'Save MCP server'),

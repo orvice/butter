@@ -28,6 +28,7 @@ class McpServerFake extends AgentServer {
   static const writeMethods = {
     'CreateMCPServer',
     'UpdateMCPServer',
+    'UpdateMCPServerKeepingCredentials',
     'DeleteMCPServer',
     'DisconnectMCPServerOAuth',
     'StartMCPServerOAuth',
@@ -44,6 +45,11 @@ class McpServerFake extends AgentServer {
 
   /// Refuses a method (status, code, message), decided when it arrives.
   final refusals = <String, (int, String, String)>{};
+
+  /// False simulates a Butter that predates UpdateMCPServerKeepingCredentials:
+  /// the router answers the unknown path with a bare 404, and an old
+  /// UpdateMCPServer is exactly the whole-object write it always was.
+  bool supportsKeeping = true;
 
   /// A write that is applied but whose answer is lost (503).
   bool loseReply = false;
@@ -116,30 +122,45 @@ class McpServerFake extends AgentServer {
           bucket[s.id] = stored;
           _answer(r, CreateMCPServerResponse(mcpServer: stored));
         case 'UpdateMCPServer':
-          final req = UpdateMCPServerRequest.fromBuffer(bytes);
+          // Whole-object, as it always was: what is sent is what is stored.
+          final s = UpdateMCPServerRequest.fromBuffer(
+            bytes,
+          ).mcpServer.deepCopy();
+          if (bucket[s.id] == null) {
+            return _fail(r, 404, 'not_found', 'mcp server not found');
+          }
+          bucket[s.id] = s.deepCopy();
+          _answer(r, UpdateMCPServerResponse(mcpServer: s));
+        case 'UpdateMCPServerKeepingCredentials':
+          if (!supportsKeeping) {
+            // What an unknown path gets from an older router.
+            r.response.statusCode = 404;
+            r.response.headers.contentType = ContentType.text;
+            r.response.write('404 page not found');
+            return true;
+          }
+          final req = UpdateMCPServerKeepingCredentialsRequest.fromBuffer(
+            bytes,
+          );
           final s = req.mcpServer.deepCopy();
           final prev = bucket[s.id];
           if (prev == null) {
             return _fail(r, 404, 'not_found', 'mcp server not found');
           }
           // Mirrors the server: kept credentials are named, never inferred.
-          final keeping =
-              req.keepHeaderKeys.isNotEmpty || req.keepOauthClientSecret;
-          if (keeping) {
-            for (final k in req.keepHeaderKeys) {
-              s.headers[k] = prev.headers[k] ?? '';
-            }
-            if (req.keepOauthClientSecret) {
-              s.ensureAuth().ensureOauth2().clientSecret =
-                  prev.auth.oauth2.clientSecret;
-            }
-            final marker = prev.metadata[presetKey];
-            if (marker != null) s.metadata[presetKey] = marker;
+          for (final k in req.keepHeaderKeys) {
+            s.headers[k] = prev.headers[k] ?? '';
           }
+          if (req.keepOauthClientSecret) {
+            s.ensureAuth().ensureOauth2().clientSecret =
+                prev.auth.oauth2.clientSecret;
+          }
+          final marker = prev.metadata[presetKey];
+          if (marker != null) s.metadata[presetKey] = marker;
           bucket[s.id] = s.deepCopy();
           _answer(
             r,
-            UpdateMCPServerResponse(mcpServer: keeping ? _masked(s) : s),
+            UpdateMCPServerKeepingCredentialsResponse(mcpServer: _masked(s)),
           );
         case 'DeleteMCPServer':
           final id = DeleteMCPServerRequest.fromBuffer(bytes).id;

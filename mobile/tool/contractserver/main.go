@@ -378,6 +378,7 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	mcpFx.register(r, mux, opts)
 	mux.Handle("/fake-box/", boxDouble())
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
+	mux.Handle(legacyPrefix+"/", legacyMCPServer(r))
 	mux.Handle("/", r)
 	return mcpFx.wrap(mux), nil
 }

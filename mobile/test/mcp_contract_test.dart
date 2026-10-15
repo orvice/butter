@@ -90,9 +90,11 @@ void main() {
           String ws = workspace,
           NativeOAuthPlatform? platform,
           DateTime Function()? now,
+          String? at,
         }) {
           final c = McpController(
-            newApi: () => ButterApi(ServerAddress.parse(base, allowHttp: true)),
+            newApi: () =>
+                ButterApi(ServerAddress.parse(at ?? base, allowHttp: true)),
             token: token,
             workspaceId: ws,
             onUnauthenticated: () {},
@@ -521,6 +523,58 @@ void main() {
             await c.delete('hdr-$tag');
           },
         );
+
+        // The same production services as an older Butter serves them: the
+        // router has no UpdateMCPServerKeepingCredentials and answers it as an
+        // unknown path. Only the root prefix runs this, once.
+        if (prefix.isEmpty) {
+          test('an older server refuses the keep edit before any change and '
+              'still takes ordinary create, update and delete', () async {
+            final legacy = mcpController(at: '$server/legacy');
+            final current = mcpController();
+            expect(await current.install('preset-secret'), isTrue);
+            await legacy.load();
+            final hidden = legacy.items.singleWhere(
+              (s) => s.id == 'preset-secret',
+            );
+            final save = (McpDraft.edit(
+              hidden,
+            )..name = 'Never applied').buildSave();
+            expect(save.keepsCredentials, isTrue);
+
+            expect(await legacy.saveEdit(save), isFalse);
+            expect(legacy.writeError, mcpKeepUnsupported);
+            expect(legacy.keepSupported, isFalse);
+            expect(legacy.unconfirmed, isFalse);
+
+            // The credential is still the one the real MCP server accepts,
+            // and the name is as it was.
+            await current.probe('preset-secret');
+            expect(
+              current.statuses['preset-secret']!.kind,
+              McpStatusKind.connected,
+              reason: 'no destructive write may have reached the server',
+            );
+            await current.loadItem('preset-secret');
+            expect(current.item!.name, isNot('Never applied'));
+            expect(current.item!.headers['Authorization'], '***');
+
+            // Ordinary operations are all served there.
+            final plain = httpServer('legacy-$tag', 'open');
+            expect(
+              await legacy.create(plain),
+              isTrue,
+              reason: legacy.writeError,
+            );
+            expect(
+              await legacy.update(plain.deepCopy()..name = 'Renamed $tag'),
+              isTrue,
+              reason: legacy.writeError,
+            );
+            expect(await legacy.delete('legacy-$tag'), isTrue);
+            expect(await current.delete('preset-secret'), isTrue);
+          });
+        }
 
         test('installing a preset that does not exist is NotFound, and one '
             'over a server that is not that preset is refused', () async {

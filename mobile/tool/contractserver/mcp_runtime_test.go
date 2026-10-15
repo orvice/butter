@@ -440,7 +440,7 @@ func TestGlobalMCPPresetsAreReadOnlyAndRedactedForMembers(t *testing.T) {
 	}
 }
 
-// An installed Workspace preset is edited through the keep fields: the hidden
+// An installed Workspace preset is edited through UpdateMCPServerKeepingCredentials: the hidden
 // header and client secret survive, every explicit edit applies, and nothing
 // the caller could not read comes back. The proof that a credential survived is
 // that the real MCP server still accepts it, or the real token endpoint does.
@@ -461,12 +461,19 @@ func TestEditingAnInstalledPresetKeepsItsHiddenCredentials(t *testing.T) {
 		}
 		return resp.Msg.GetMcpServer(), nil
 	}
+	keep := func(req *agentsv1.UpdateMCPServerKeepingCredentialsRequest) (*agentsv1.MCPServer, error) {
+		resp, err := h.mcp.UpdateMCPServerKeepingCredentials(ctx, connect.NewRequest(req))
+		if err != nil {
+			return nil, err
+		}
+		return resp.Msg.GetMcpServer(), nil
+	}
 
 	t.Run("a hidden header survives a rename, a filter and a timeout", func(t *testing.T) {
 		edit := install("preset-secret")
 		edit.Name, edit.TimeoutSeconds, edit.ToolFilter = "Renamed", 30, []string{"echo"}
 		delete(edit.Headers, "Authorization")
-		answer, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit, KeepHeaderKeys: []string{"Authorization"}})
+		answer, err := keep(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: edit, KeepHeaderKeys: []string{"Authorization"}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -520,7 +527,7 @@ func TestEditingAnInstalledPresetKeepsItsHiddenCredentials(t *testing.T) {
 			t.Fatalf("the install answer leaks the client secret: %v", edit)
 		}
 		edit.Name = "Renamed OAuth"
-		answer, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit, KeepOauthClientSecret: true})
+		answer, err := keep(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: edit, KeepOauthClientSecret: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -554,9 +561,9 @@ func TestEditingAnInstalledPresetKeepsItsHiddenCredentials(t *testing.T) {
 		edit := install("preset-oauth")
 		edit.Name = "Changed"
 		edit.Auth.Oauth2.ClientId = "another-client"
-		_, err := update(&agentsv1.UpdateMCPServerRequest{McpServer: edit, KeepOauthClientSecret: true})
+		_, err := keep(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: edit, KeepOauthClientSecret: true})
 		wantCode(t, err, connect.CodeInvalidArgument)
-		_, err = update(&agentsv1.UpdateMCPServerRequest{McpServer: install("preset-secret"), KeepHeaderKeys: []string{"X-Missing"}})
+		_, err = keep(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{McpServer: install("preset-secret"), KeepHeaderKeys: []string{"X-Missing"}})
 		wantCode(t, err, connect.CodeInvalidArgument)
 		read, _ := h.mcp.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "preset-oauth"}))
 		if read.Msg.GetMcpServer().GetName() == "Changed" {
@@ -575,6 +582,62 @@ func TestEditingAnInstalledPresetKeepsItsHiddenCredentials(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A server without UpdateMCPServerKeepingCredentials answers it as an unknown
+// path. That answer is Unimplemented, it changes nothing, and the ordinary
+// create / update / delete procedures keep working there, so a client can tell
+// the two apart before it stores anything.
+func TestAServerWithoutTheKeepMethodAnswersUnimplementedAndChangesNothing(t *testing.T) {
+	h := newMCPHarness(t, mcpWorkspace)
+	ctx := context.Background()
+	interceptor := connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			req.Header().Set("Authorization", "Bearer "+h.token)
+			req.Header().Set("X-Workspace-ID", mcpWorkspace)
+			return next(ctx, req)
+		}
+	})
+	legacy := agentsv1connect.NewMCPServerServiceClient(http.DefaultClient, h.url+legacyPrefix+"/api", connect.WithInterceptors(interceptor))
+
+	installed, err := h.global.InstallGlobalMCPServer(ctx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{Id: "preset-secret"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit := installed.Msg.GetMcpServer()
+	edit.Name = "Never applied"
+	delete(edit.Headers, "Authorization")
+	_, err = legacy.UpdateMCPServerKeepingCredentials(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerKeepingCredentialsRequest{
+		McpServer: edit, KeepHeaderKeys: []string{"Authorization"},
+	}))
+	wantCode(t, err, connect.CodeUnimplemented)
+	if st := h.status(t, "preset-secret"); st.GetState() != agentsv1.MCPServerStatus_STATE_CONNECTED {
+		t.Fatalf("the stored credential must be untouched: %v", st)
+	}
+	read, err := h.mcp.GetMCPServer(ctx, connect.NewRequest(&agentsv1.GetMCPServerRequest{Id: "preset-secret"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Msg.GetMcpServer().GetName() == "Never applied" {
+		t.Fatal("an unimplemented method changed the server")
+	}
+
+	// The ordinary procedures are all there.
+	plain := h.at(httpServer("legacy-plain", "Legacy plain", "/fake-mcp/open"))
+	if _, err := legacy.CreateMCPServer(ctx, connect.NewRequest(&agentsv1.CreateMCPServerRequest{McpServer: plain})); err != nil {
+		t.Fatal(err)
+	}
+	plain.Name = "Renamed"
+	if _, err := legacy.UpdateMCPServer(ctx, connect.NewRequest(&agentsv1.UpdateMCPServerRequest{McpServer: plain})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacy.DeleteMCPServer(ctx, connect.NewRequest(&agentsv1.DeleteMCPServerRequest{Id: "legacy-plain"})); err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.mcp.DeleteMCPServer(ctx, connect.NewRequest(&agentsv1.DeleteMCPServerRequest{Id: "preset-secret"}))
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestMCPPermissionAndWorkspaceIsolation(t *testing.T) {

@@ -350,6 +350,25 @@ void main() {
       expect(d.discards(), isEmpty);
     });
 
+    test('needsKeep always agrees with the keep fields of the save', () {
+      void agrees(McpDraft d) =>
+          expect(d.needsKeep, d.buildSave().keepsCredentials);
+      agrees(McpDraft.edit(hidden()));
+      agrees(McpDraft.edit(hidden(oauth: false)));
+      agrees(McpDraft.edit(hidden())..authKind = McpAuthKind.none);
+      agrees(McpDraft.edit(hidden())..dynamicRegistration = true);
+      final replaced = McpDraft.edit(hidden())
+        ..secretEdit = SecretEdit.replace
+        ..newSecret = 'x';
+      for (final h in replaced.headers) {
+        h.removed = true;
+      }
+      agrees(replaced);
+      expect(replaced.needsKeep, isFalse);
+      agrees(McpDraft.edit(_stored()..headers['A'] = 'b'));
+      expect(McpDraft.create().needsKeep, isFalse);
+    });
+
     test('a replaced header is sent as a value, a removed one is omitted', () {
       final d = McpDraft.edit(hidden());
       final byKey = {for (final h in d.headers) h.key: h};

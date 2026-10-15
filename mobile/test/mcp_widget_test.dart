@@ -341,12 +341,22 @@ void main() {
         findsNothing,
         reason: 'a harmless edit asks nothing',
       );
-      await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+      await waitFor(
+        tester,
+        () => h.server.count('UpdateMCPServerKeepingCredentials') == 1,
+      );
+      expect(
+        h.server.count('UpdateMCPServer'),
+        0,
+        reason: 'keeping credentials never goes through the ordinary request',
+      );
 
       final call = h.server.mcpCalls.singleWhere(
-        (c) => c.method == 'UpdateMCPServer',
+        (c) => c.method == 'UpdateMCPServerKeepingCredentials',
       );
-      final request = UpdateMCPServerRequest.fromBuffer(call.body);
+      final request = UpdateMCPServerKeepingCredentialsRequest.fromBuffer(
+        call.body,
+      );
       expect(request.keepHeaderKeys, ['Authorization']);
       expect(request.mcpServer.headers, isEmpty);
       expect(call.body, isNot(containsAllInOrder('***'.codeUnits)));
@@ -376,6 +386,68 @@ void main() {
         h.server.servers['alpha']!['p1']!.headers['Authorization'],
         'Bearer rotated',
       );
+    });
+  });
+
+  group('an older server that cannot keep hidden credentials', () {
+    // Headers beside no sign-in, so removing them leaves a valid server.
+    MCPServer installed() => server('p1')
+      ..headers['Authorization'] = 'Bearer preset-secret'
+      ..metadata[mcpPresetMetadataKey] = 'p1';
+
+    testWidgets('blocks the save with an upgrade explanation and changes '
+        'nothing; removing the hidden credential explicitly still works', (
+      tester,
+    ) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) {
+          s.seed('alpha', installed());
+          s.supportsKeeping = false;
+        },
+      );
+      await openDetail(tester, h, 'p1');
+      await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+      await enter(tester, const Key('mcp-name'), 'Renamed');
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await waitFor(
+        tester,
+        () => h.server.count('UpdateMCPServerKeepingCredentials') == 1,
+      );
+      expect(find.textContaining('upgrade Butter'), findsWidgets);
+      expect(find.byKey(const Key('mcp-keep-unsupported')), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('save-mcp')))
+            .onPressed,
+        isNull,
+        reason: 'the unsafe save is not offered again',
+      );
+      expect(h.server.count('UpdateMCPServer'), 0);
+      expect(
+        h.server.servers['alpha']!['p1']!.headers['Authorization'],
+        'Bearer preset-secret',
+      );
+      expect(h.server.servers['alpha']!['p1']!.name, 'Server p1');
+
+      // Removing the hidden header makes the save independent of the missing
+      // method: it asks first, then uses the ordinary request.
+      await tapScreen(tester, find.byKey(const Key('header-remove-0')));
+      await tapScreen(
+        tester,
+        find.descendant(
+          of: find.byKey(const Key('mcp-auth-kind')),
+          matching: find.text('None'),
+        ),
+      );
+      expect(find.byKey(const Key('mcp-keep-unsupported')), findsNothing);
+      await tapReal(tester, find.byKey(const Key('save-mcp')));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard stored credentials?'), findsOneWidget);
+      await tapDialogReal(tester, find.text('Save and discard'));
+      await waitFor(tester, () => h.server.count('UpdateMCPServer') == 1);
+      expect(h.server.servers['alpha']!['p1']!.headers, isEmpty);
+      expect(h.server.count('UpdateMCPServerKeepingCredentials'), 1);
     });
   });
 
@@ -649,6 +721,35 @@ void main() {
         () => h.server.count('DisconnectMCPServerOAuth') == 1,
       );
       expect(find.text('Not connected'), findsOneWidget);
+    });
+
+    testWidgets('a waiting page shows the connection without Check being '
+        'tapped', (tester) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.seed('alpha', oauthServer('a1')),
+        mcpPollInterval: const Duration(milliseconds: 50),
+      );
+      await openDetail(tester, h, 'a1');
+      await tapReal(tester, find.byKey(const Key('oauth-connect')));
+      await waitFor(
+        tester,
+        () => h.client.mcp!.oauthOf('a1').phase == McpOAuthPhase.waiting,
+      );
+      final writes = h.server.writes;
+      h.server.connect(
+        'alpha',
+        'a1',
+        at: DateTime.now().add(const Duration(seconds: 5)),
+      );
+      await waitFor(
+        tester,
+        () => h.client.mcp!.oauthOf('a1').phase == McpOAuthPhase.connected,
+      );
+      await tester.pump();
+      expect(find.textContaining('Connected since'), findsOneWidget);
+      expect(h.server.writes, writes, reason: 'watching only reads');
+      expect(h.server.count('StartMCPServerOAuth'), 1);
     });
 
     testWidgets('stop waiting says the link stays valid and makes no call', (

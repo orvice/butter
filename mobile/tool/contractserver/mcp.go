@@ -149,6 +149,7 @@ func (f *mcpFixture) register(r *gin.Engine, mux *http.ServeMux, opts []connect.
 		agentsv1connect.MCPServerServiceGetMCPServerProcedure,
 		agentsv1connect.MCPServerServiceCreateMCPServerProcedure,
 		agentsv1connect.MCPServerServiceUpdateMCPServerProcedure,
+		agentsv1connect.MCPServerServiceUpdateMCPServerKeepingCredentialsProcedure,
 		agentsv1connect.MCPServerServiceDeleteMCPServerProcedure,
 		agentsv1connect.MCPServerServiceGetMCPServerStatusProcedure,
 		agentsv1connect.MCPServerServiceListMCPToolsProcedure,
@@ -182,6 +183,27 @@ func (f *mcpFixture) register(r *gin.Engine, mux *http.ServeMux, opts []connect.
 	mux.Handle("/fake-as/", f.as.handler())
 	mux.Handle("/fake-a2a/", a2aDouble())
 	mux.Handle("/fake-opencode/", opencodeDouble())
+}
+
+// legacyPrefix mounts the same production services as an older Butter would
+// serve them: UpdateMCPServerKeepingCredentials does not exist there, so the
+// router answers it with a plain 404, as it does for any unknown path (the
+// Connect client reads that as Unimplemented). Every other procedure is the
+// production handler. It simulates the missing method only; it is not a build
+// of an old release.
+const legacyPrefix = "/legacy"
+
+func legacyMCPServer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, legacyPrefix)
+		if strings.HasSuffix(path, "/UpdateMCPServerKeepingCredentials") {
+			http.NotFound(w, r)
+			return
+		}
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = path
+		next.ServeHTTP(w, r2)
+	})
 }
 
 // wrap records the address clients use and seeds the presets before the first

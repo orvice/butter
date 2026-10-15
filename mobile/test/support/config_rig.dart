@@ -18,6 +18,7 @@ typedef ConfigRig = ({
 Future<ConfigRig> signedIn(
   WidgetTester tester, {
   void Function(McpServerFake)? seed,
+  Duration? mcpPollInterval,
 }) async {
   final old = HttpOverrides.current;
   HttpOverrides.global = null;
@@ -40,6 +41,7 @@ Future<ConfigRig> signedIn(
       storage: MemoryStorage(),
       allowHttp: true,
       oauth: platform,
+      mcpPollInterval: mcpPollInterval ?? const Duration(seconds: 5),
     );
     await client.setServer(server.url);
     await client.login('alice', 'password');

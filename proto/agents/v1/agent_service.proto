@@ -111,6 +111,9 @@ service MCPServerService {
   rpc GetMCPServer(GetMCPServerRequest) returns (GetMCPServerResponse);
   rpc CreateMCPServer(CreateMCPServerRequest) returns (CreateMCPServerResponse);
   rpc UpdateMCPServer(UpdateMCPServerRequest) returns (UpdateMCPServerResponse);
+  // UpdateMCPServerKeepingCredentials updates a server while keeping stored
+  // credentials the caller cannot read. Servers without it answer Unimplemented.
+  rpc UpdateMCPServerKeepingCredentials(UpdateMCPServerKeepingCredentialsRequest) returns (UpdateMCPServerKeepingCredentialsResponse);
   rpc DeleteMCPServer(DeleteMCPServerRequest) returns (DeleteMCPServerResponse);
   // GetMCPServerStatus returns the current runtime status of a configured
   // MCP server. Implemented in dashboard.proto.
@@ -740,26 +743,46 @@ message CreateMCPServerResponse {
 }
 
 message UpdateMCPServerRequest {
-  // The whole server, as before: an update stores exactly what it is sent.
   MCPServer mcp_server = 1;
-
-  // Keeps stored credentials the caller cannot read. Reads of a server
-  // installed from a global preset hide header values and the OAuth client
-  // secret, so a whole-object update built from such a read would overwrite
-  // them with the masks. Naming a header here keeps its stored value; the
-  // header must not also appear (with a value) in mcp_server.headers, and
-  // must exist on the stored server. A header left out of both is removed,
-  // as before. Empty keeps the previous behavior.
-  repeated string keep_header_keys = 2;
-
-  // Keeps the stored OAuth client secret. Requires oauth2 auth with the same
-  // client_id as the stored server, because a secret belongs to its client,
-  // and an empty client_secret in mcp_server. When either keep field is used
-  // the response hides credentials the way reads of an installed preset do.
-  bool keep_oauth_client_secret = 3;
 }
 
 message UpdateMCPServerResponse {
+  MCPServer mcp_server = 1;
+}
+
+// UpdateMCPServerKeepingCredentialsRequest is UpdateMCPServerRequest plus the
+// credentials the caller wants kept without being able to read them.
+//
+// Reads of a server installed from a global preset hide header values and the
+// OAuth client secret, so a whole-object UpdateMCPServer built from such a read
+// overwrites them with the masks. This is a separate method, not extra fields
+// on UpdateMCPServerRequest, on purpose: a server that predates it answers an
+// unknown method with Unimplemented, which a client can tell apart before
+// anything is stored, whereas an older UpdateMCPServer silently ignores unknown
+// fields and would delete every credential the client left out. A client that
+// needs to keep credentials must call this method and must not fall back to
+// UpdateMCPServer when it is Unimplemented.
+message UpdateMCPServerKeepingCredentialsRequest {
+  // The whole server, as in UpdateMCPServer: the update stores exactly this,
+  // plus the credentials named below.
+  MCPServer mcp_server = 1;
+
+  // Names of stored headers whose values are kept. Each must exist on the
+  // stored server and must not also appear (with a value) in
+  // mcp_server.headers. A header named in neither is removed, as in
+  // UpdateMCPServer. Nothing is inferred from mask values.
+  repeated string keep_header_keys = 2;
+
+  // Keeps the stored OAuth client secret. Requires oauth2 auth, the same
+  // client_id as the stored server (a secret belongs to its client) and an empty
+  // client_secret in mcp_server.
+  bool keep_oauth_client_secret = 3;
+}
+
+// The stored server, with header values and the OAuth client secret hidden the
+// way reads of an installed preset hide them. The installed-preset marker is
+// always carried over from the stored server.
+message UpdateMCPServerKeepingCredentialsResponse {
   MCPServer mcp_server = 1;
 }
 

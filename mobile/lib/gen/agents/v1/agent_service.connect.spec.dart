@@ -252,6 +252,15 @@ abstract final class MCPServerService {
     agentsv1agent_service.UpdateMCPServerResponse.new,
   );
 
+  /// UpdateMCPServerKeepingCredentials updates a server while keeping stored
+  /// credentials the caller cannot read. Servers without it answer Unimplemented.
+  static const updateMCPServerKeepingCredentials = connect.Spec(
+    '/$name/UpdateMCPServerKeepingCredentials',
+    connect.StreamType.unary,
+    agentsv1agent_service.UpdateMCPServerKeepingCredentialsRequest.new,
+    agentsv1agent_service.UpdateMCPServerKeepingCredentialsResponse.new,
+  );
+
   static const deleteMCPServer = connect.Spec(
     '/$name/DeleteMCPServer',
     connect.StreamType.unary,

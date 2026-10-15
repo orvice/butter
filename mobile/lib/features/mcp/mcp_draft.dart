@@ -92,6 +92,10 @@ class McpSave {
   final MCPServer server;
   final List<String> keepHeaderKeys;
   final bool keepClientSecret;
+
+  /// Whether the save depends on the server keeping stored credentials the App
+  /// cannot read, which needs a server that supports it.
+  bool get keepsCredentials => keepHeaderKeys.isNotEmpty || keepClientSecret;
 }
 
 /// The editable form of an MCP server. It is built from the stored message and
@@ -362,6 +366,17 @@ class McpDraft {
   /// For a server whose credentials are hidden, use [buildSave]: kept headers
   /// and a kept client secret are named there, not in this message.
   MCPServer build() => buildSave().server;
+
+  /// Whether saving this draft would rely on the server keeping credentials
+  /// the form cannot read. Always agrees with [buildSave]'s keep fields.
+  bool get needsKeep =>
+      !isCreate &&
+      (headers.any((h) => !h.removed && h.hidden && h.kept) ||
+          (authKind == McpAuthKind.oauth2 &&
+              !dynamicRegistration &&
+              secretEdit == SecretEdit.keep &&
+              hidesCredentials &&
+              originalClientId.isNotEmpty));
 
   McpSave buildSave() {
     final s = base?.deepCopy() ?? MCPServer();

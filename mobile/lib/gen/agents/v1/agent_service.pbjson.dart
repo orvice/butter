@@ -1512,23 +1512,14 @@ const UpdateMCPServerRequest$json = {
       '6': '.agents.v1.MCPServer',
       '10': 'mcpServer'
     },
-    {'1': 'keep_header_keys', '3': 2, '4': 3, '5': 9, '10': 'keepHeaderKeys'},
-    {
-      '1': 'keep_oauth_client_secret',
-      '3': 3,
-      '4': 1,
-      '5': 8,
-      '10': 'keepOauthClientSecret'
-    },
   ],
 };
 
 /// Descriptor for `UpdateMCPServerRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List updateMCPServerRequestDescriptor = $convert.base64Decode(
-    'ChZVcGRhdGVNQ1BTZXJ2ZXJSZXF1ZXN0EjMKCm1jcF9zZXJ2ZXIYASABKAsyFC5hZ2VudHMudj'
-    'EuTUNQU2VydmVyUgltY3BTZXJ2ZXISKAoQa2VlcF9oZWFkZXJfa2V5cxgCIAMoCVIOa2VlcEhl'
-    'YWRlcktleXMSNwoYa2VlcF9vYXV0aF9jbGllbnRfc2VjcmV0GAMgASgIUhVrZWVwT2F1dGhDbG'
-    'llbnRTZWNyZXQ=');
+final $typed_data.Uint8List updateMCPServerRequestDescriptor =
+    $convert.base64Decode(
+        'ChZVcGRhdGVNQ1BTZXJ2ZXJSZXF1ZXN0EjMKCm1jcF9zZXJ2ZXIYASABKAsyFC5hZ2VudHMudj'
+        'EuTUNQU2VydmVyUgltY3BTZXJ2ZXI=');
 
 @$core.Deprecated('Use updateMCPServerResponseDescriptor instead')
 const UpdateMCPServerResponse$json = {
@@ -1550,6 +1541,60 @@ final $typed_data.Uint8List updateMCPServerResponseDescriptor =
     $convert.base64Decode(
         'ChdVcGRhdGVNQ1BTZXJ2ZXJSZXNwb25zZRIzCgptY3Bfc2VydmVyGAEgASgLMhQuYWdlbnRzLn'
         'YxLk1DUFNlcnZlclIJbWNwU2VydmVy');
+
+@$core.Deprecated(
+    'Use updateMCPServerKeepingCredentialsRequestDescriptor instead')
+const UpdateMCPServerKeepingCredentialsRequest$json = {
+  '1': 'UpdateMCPServerKeepingCredentialsRequest',
+  '2': [
+    {
+      '1': 'mcp_server',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.agents.v1.MCPServer',
+      '10': 'mcpServer'
+    },
+    {'1': 'keep_header_keys', '3': 2, '4': 3, '5': 9, '10': 'keepHeaderKeys'},
+    {
+      '1': 'keep_oauth_client_secret',
+      '3': 3,
+      '4': 1,
+      '5': 8,
+      '10': 'keepOauthClientSecret'
+    },
+  ],
+};
+
+/// Descriptor for `UpdateMCPServerKeepingCredentialsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List updateMCPServerKeepingCredentialsRequestDescriptor =
+    $convert.base64Decode(
+        'CihVcGRhdGVNQ1BTZXJ2ZXJLZWVwaW5nQ3JlZGVudGlhbHNSZXF1ZXN0EjMKCm1jcF9zZXJ2ZX'
+        'IYASABKAsyFC5hZ2VudHMudjEuTUNQU2VydmVyUgltY3BTZXJ2ZXISKAoQa2VlcF9oZWFkZXJf'
+        'a2V5cxgCIAMoCVIOa2VlcEhlYWRlcktleXMSNwoYa2VlcF9vYXV0aF9jbGllbnRfc2VjcmV0GA'
+        'MgASgIUhVrZWVwT2F1dGhDbGllbnRTZWNyZXQ=');
+
+@$core.Deprecated(
+    'Use updateMCPServerKeepingCredentialsResponseDescriptor instead')
+const UpdateMCPServerKeepingCredentialsResponse$json = {
+  '1': 'UpdateMCPServerKeepingCredentialsResponse',
+  '2': [
+    {
+      '1': 'mcp_server',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.agents.v1.MCPServer',
+      '10': 'mcpServer'
+    },
+  ],
+};
+
+/// Descriptor for `UpdateMCPServerKeepingCredentialsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List
+    updateMCPServerKeepingCredentialsResponseDescriptor = $convert.base64Decode(
+        'CilVcGRhdGVNQ1BTZXJ2ZXJLZWVwaW5nQ3JlZGVudGlhbHNSZXNwb25zZRIzCgptY3Bfc2Vydm'
+        'VyGAEgASgLMhQuYWdlbnRzLnYxLk1DUFNlcnZlclIJbWNwU2VydmVy');
 
 @$core.Deprecated('Use deleteMCPServerRequestDescriptor instead')
 const DeleteMCPServerRequest$json = {
@@ -3465,6 +3510,11 @@ const $core.Map<$core.String, $core.dynamic> MCPServerServiceBase$json = {
       '3': '.agents.v1.UpdateMCPServerResponse'
     },
     {
+      '1': 'UpdateMCPServerKeepingCredentials',
+      '2': '.agents.v1.UpdateMCPServerKeepingCredentialsRequest',
+      '3': '.agents.v1.UpdateMCPServerKeepingCredentialsResponse'
+    },
+    {
       '1': 'DeleteMCPServer',
       '2': '.agents.v1.DeleteMCPServerRequest',
       '3': '.agents.v1.DeleteMCPServerResponse'
@@ -3518,6 +3568,10 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.agents.v1.CreateMCPServerResponse': CreateMCPServerResponse$json,
   '.agents.v1.UpdateMCPServerRequest': UpdateMCPServerRequest$json,
   '.agents.v1.UpdateMCPServerResponse': UpdateMCPServerResponse$json,
+  '.agents.v1.UpdateMCPServerKeepingCredentialsRequest':
+      UpdateMCPServerKeepingCredentialsRequest$json,
+  '.agents.v1.UpdateMCPServerKeepingCredentialsResponse':
+      UpdateMCPServerKeepingCredentialsResponse$json,
   '.agents.v1.DeleteMCPServerRequest': DeleteMCPServerRequest$json,
   '.agents.v1.DeleteMCPServerResponse': DeleteMCPServerResponse$json,
   '.agents.v1.GetMCPServerStatusRequest': $8.GetMCPServerStatusRequest$json,
@@ -3554,20 +3608,23 @@ final $typed_data.Uint8List mCPServerServiceDescriptor = $convert.base64Decode(
     'dldE1DUFNlcnZlclJlc3BvbnNlElgKD0NyZWF0ZU1DUFNlcnZlchIhLmFnZW50cy52MS5DcmVh'
     'dGVNQ1BTZXJ2ZXJSZXF1ZXN0GiIuYWdlbnRzLnYxLkNyZWF0ZU1DUFNlcnZlclJlc3BvbnNlEl'
     'gKD1VwZGF0ZU1DUFNlcnZlchIhLmFnZW50cy52MS5VcGRhdGVNQ1BTZXJ2ZXJSZXF1ZXN0GiIu'
-    'YWdlbnRzLnYxLlVwZGF0ZU1DUFNlcnZlclJlc3BvbnNlElgKD0RlbGV0ZU1DUFNlcnZlchIhLm'
-    'FnZW50cy52MS5EZWxldGVNQ1BTZXJ2ZXJSZXF1ZXN0GiIuYWdlbnRzLnYxLkRlbGV0ZU1DUFNl'
-    'cnZlclJlc3BvbnNlEmEKEkdldE1DUFNlcnZlclN0YXR1cxIkLmFnZW50cy52MS5HZXRNQ1BTZX'
-    'J2ZXJTdGF0dXNSZXF1ZXN0GiUuYWdlbnRzLnYxLkdldE1DUFNlcnZlclN0YXR1c1Jlc3BvbnNl'
-    'Ek8KDExpc3RNQ1BUb29scxIeLmFnZW50cy52MS5MaXN0TUNQVG9vbHNSZXF1ZXN0Gh8uYWdlbn'
-    'RzLnYxLkxpc3RNQ1BUb29sc1Jlc3BvbnNlEmQKE1N0YXJ0TUNQU2VydmVyT0F1dGgSJS5hZ2Vu'
-    'dHMudjEuU3RhcnRNQ1BTZXJ2ZXJPQXV0aFJlcXVlc3QaJi5hZ2VudHMudjEuU3RhcnRNQ1BTZX'
-    'J2ZXJPQXV0aFJlc3BvbnNlEm0KFkNvbXBsZXRlTUNQU2VydmVyT0F1dGgSKC5hZ2VudHMudjEu'
-    'Q29tcGxldGVNQ1BTZXJ2ZXJPQXV0aFJlcXVlc3QaKS5hZ2VudHMudjEuQ29tcGxldGVNQ1BTZX'
-    'J2ZXJPQXV0aFJlc3BvbnNlEnAKF0dldE1DUFNlcnZlck9BdXRoU3RhdHVzEikuYWdlbnRzLnYx'
-    'LkdldE1DUFNlcnZlck9BdXRoU3RhdHVzUmVxdWVzdBoqLmFnZW50cy52MS5HZXRNQ1BTZXJ2ZX'
-    'JPQXV0aFN0YXR1c1Jlc3BvbnNlEnMKGERpc2Nvbm5lY3RNQ1BTZXJ2ZXJPQXV0aBIqLmFnZW50'
-    'cy52MS5EaXNjb25uZWN0TUNQU2VydmVyT0F1dGhSZXF1ZXN0GisuYWdlbnRzLnYxLkRpc2Nvbm'
-    '5lY3RNQ1BTZXJ2ZXJPQXV0aFJlc3BvbnNl');
+    'YWdlbnRzLnYxLlVwZGF0ZU1DUFNlcnZlclJlc3BvbnNlEo4BCiFVcGRhdGVNQ1BTZXJ2ZXJLZW'
+    'VwaW5nQ3JlZGVudGlhbHMSMy5hZ2VudHMudjEuVXBkYXRlTUNQU2VydmVyS2VlcGluZ0NyZWRl'
+    'bnRpYWxzUmVxdWVzdBo0LmFnZW50cy52MS5VcGRhdGVNQ1BTZXJ2ZXJLZWVwaW5nQ3JlZGVudG'
+    'lhbHNSZXNwb25zZRJYCg9EZWxldGVNQ1BTZXJ2ZXISIS5hZ2VudHMudjEuRGVsZXRlTUNQU2Vy'
+    'dmVyUmVxdWVzdBoiLmFnZW50cy52MS5EZWxldGVNQ1BTZXJ2ZXJSZXNwb25zZRJhChJHZXRNQ1'
+    'BTZXJ2ZXJTdGF0dXMSJC5hZ2VudHMudjEuR2V0TUNQU2VydmVyU3RhdHVzUmVxdWVzdBolLmFn'
+    'ZW50cy52MS5HZXRNQ1BTZXJ2ZXJTdGF0dXNSZXNwb25zZRJPCgxMaXN0TUNQVG9vbHMSHi5hZ2'
+    'VudHMudjEuTGlzdE1DUFRvb2xzUmVxdWVzdBofLmFnZW50cy52MS5MaXN0TUNQVG9vbHNSZXNw'
+    'b25zZRJkChNTdGFydE1DUFNlcnZlck9BdXRoEiUuYWdlbnRzLnYxLlN0YXJ0TUNQU2VydmVyT0'
+    'F1dGhSZXF1ZXN0GiYuYWdlbnRzLnYxLlN0YXJ0TUNQU2VydmVyT0F1dGhSZXNwb25zZRJtChZD'
+    'b21wbGV0ZU1DUFNlcnZlck9BdXRoEiguYWdlbnRzLnYxLkNvbXBsZXRlTUNQU2VydmVyT0F1dG'
+    'hSZXF1ZXN0GikuYWdlbnRzLnYxLkNvbXBsZXRlTUNQU2VydmVyT0F1dGhSZXNwb25zZRJwChdH'
+    'ZXRNQ1BTZXJ2ZXJPQXV0aFN0YXR1cxIpLmFnZW50cy52MS5HZXRNQ1BTZXJ2ZXJPQXV0aFN0YX'
+    'R1c1JlcXVlc3QaKi5hZ2VudHMudjEuR2V0TUNQU2VydmVyT0F1dGhTdGF0dXNSZXNwb25zZRJz'
+    'ChhEaXNjb25uZWN0TUNQU2VydmVyT0F1dGgSKi5hZ2VudHMudjEuRGlzY29ubmVjdE1DUFNlcn'
+    'Zlck9BdXRoUmVxdWVzdBorLmFnZW50cy52MS5EaXNjb25uZWN0TUNQU2VydmVyT0F1dGhSZXNw'
+    'b25zZQ==');
 
 const $core.Map<$core.String, $core.dynamic> GlobalMCPServerServiceBase$json = {
   '1': 'GlobalMCPServerService',

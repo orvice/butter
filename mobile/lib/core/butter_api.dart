@@ -562,18 +562,35 @@ final class ButterApi {
     return _mcpReply(reply.hasMcpServer(), () => reply.mcpServer);
   }
 
-  /// One whole-object update: what is sent is what is stored, plus the stored
-  /// credentials named in [keepHeaderKeys] / [keepClientSecret], which reads of
-  /// an installed preset hide. The answer then hides them too.
+  /// One whole-object update: what is sent is what is stored.
   Future<MCPServer> updateMcpServer(
+    String token,
+    String workspace,
+    MCPServer server,
+  ) async {
+    final reply = await _mcp.updateMCPServer(
+      UpdateMCPServerRequest(mcpServer: server),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _mcpReply(reply.hasMcpServer(), () => reply.mcpServer);
+  }
+
+  /// A whole-object update that also keeps the stored credentials named in
+  /// [keepHeaderKeys] / [keepClientSecret], which reads of an installed preset
+  /// hide. It is a method of its own, not fields of [updateMcpServer]: a server
+  /// that predates it answers Unimplemented before storing anything, whereas
+  /// an older update would ignore the keep fields and delete the credentials
+  /// left out of the message. The answer hides credentials too.
+  Future<MCPServer> updateMcpServerKeeping(
     String token,
     String workspace,
     MCPServer server, {
     List<String> keepHeaderKeys = const [],
     bool keepClientSecret = false,
   }) async {
-    final reply = await _mcp.updateMCPServer(
-      UpdateMCPServerRequest(
+    final reply = await _mcp.updateMCPServerKeepingCredentials(
+      UpdateMCPServerKeepingCredentialsRequest(
         mcpServer: server,
         keepHeaderKeys: keepHeaderKeys,
         keepOauthClientSecret: keepClientSecret ? true : null,

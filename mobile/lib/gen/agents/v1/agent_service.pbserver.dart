@@ -194,6 +194,9 @@ abstract class MCPServerServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $10.CreateMCPServerRequest request);
   $async.Future<$10.UpdateMCPServerResponse> updateMCPServer(
       $pb.ServerContext ctx, $10.UpdateMCPServerRequest request);
+  $async.Future<$10.UpdateMCPServerKeepingCredentialsResponse>
+      updateMCPServerKeepingCredentials($pb.ServerContext ctx,
+          $10.UpdateMCPServerKeepingCredentialsRequest request);
   $async.Future<$10.DeleteMCPServerResponse> deleteMCPServer(
       $pb.ServerContext ctx, $10.DeleteMCPServerRequest request);
   $async.Future<$8.GetMCPServerStatusResponse> getMCPServerStatus(
@@ -219,6 +222,8 @@ abstract class MCPServerServiceBase extends $pb.GeneratedService {
         return $10.CreateMCPServerRequest();
       case 'UpdateMCPServer':
         return $10.UpdateMCPServerRequest();
+      case 'UpdateMCPServerKeepingCredentials':
+        return $10.UpdateMCPServerKeepingCredentialsRequest();
       case 'DeleteMCPServer':
         return $10.DeleteMCPServerRequest();
       case 'GetMCPServerStatus':
@@ -249,6 +254,9 @@ abstract class MCPServerServiceBase extends $pb.GeneratedService {
         return createMCPServer(ctx, request as $10.CreateMCPServerRequest);
       case 'UpdateMCPServer':
         return updateMCPServer(ctx, request as $10.UpdateMCPServerRequest);
+      case 'UpdateMCPServerKeepingCredentials':
+        return updateMCPServerKeepingCredentials(
+            ctx, request as $10.UpdateMCPServerKeepingCredentialsRequest);
       case 'DeleteMCPServer':
         return deleteMCPServer(ctx, request as $10.DeleteMCPServerRequest);
       case 'GetMCPServerStatus':

@@ -18,6 +18,17 @@ enum ConfigOperation {
   install,
 }
 
+/// A change the server cannot make safely, found before anything was sent or
+/// answered by the server as an unknown method, so nothing was stored. It is a
+/// definite answer, never an unknown outcome.
+class ConfigUnsupported implements Exception {
+  const ConfigUnsupported(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 String _subject(ConfigKind kind) => switch (kind) {
   ConfigKind.mcp => 'MCP server',
   ConfigKind.preset => 'preset',
@@ -105,6 +116,7 @@ String configFailureMessage(
   final specific = describeConfigFailure(failure, kind, operation);
   if (specific != null) return specific;
   if (failure is FormatException) return failure.message;
+  if (failure is ConfigUnsupported) return failure.message;
   if (failure is ConnectException) {
     return switch (failure.code) {
       Code.permissionDenied => 'You do not have permission for this operation.',
@@ -123,6 +135,7 @@ String configFailureMessage(
 /// reconciled by a read and never repeated on its own.
 bool configWriteOutcomeUnknown(Object failure) =>
     failure is! FormatException &&
+    failure is! ConfigUnsupported &&
     (failure is! ConnectException ||
         const [
           Code.unavailable,

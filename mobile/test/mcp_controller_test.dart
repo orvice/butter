@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:butter_mobile/app/client_context.dart';
 import 'package:butter_mobile/core/config_resource_controller.dart';
+import 'package:butter_mobile/core/url_validation.dart';
 import 'package:butter_mobile/core/butter_api.dart';
 import 'package:butter_mobile/features/mcp/mcp_controller.dart';
 import 'package:butter_mobile/features/mcp/mcp_draft.dart';
@@ -1024,6 +1025,147 @@ void main() {
       expect(h.mcp.oauthOf('a1').phase, McpOAuthPhase.connected);
     },
   );
+
+  group('a server that predates UpdateMCPServerKeepingCredentials', () {
+    // An installed preset: real credentials stored, masked on every read.
+    MCPServer installed() {
+      final s = server('p1')
+        ..headers['Authorization'] = 'Bearer stored-secret'
+        ..headers['X-Team'] = 'alpha'
+        ..metadata[McpServerFake.presetKey] = 'p1';
+      s.ensureAuth()
+        ..type = MCPServerAuthType.MCP_SERVER_AUTH_TYPE_OAUTH2
+        ..ensureOauth2().clientId = 'cid';
+      s.auth.oauth2.clientSecret = 'stored-client-secret';
+      return s;
+    }
+
+    Future<(Harness, MCPServer)> old() async {
+      final h = await start(seed: (s) => s.seed('alpha', installed()));
+      h.server.supportsKeeping = false;
+      await h.mcp.load();
+      return (h, h.mcp.items.single);
+    }
+
+    test('refuses an edit that needs it before storing anything', () async {
+      final (h, hidden) = await old();
+      final before = h.server.servers['alpha']!['p1']!.deepCopy();
+      final save = (McpDraft.edit(hidden)..name = 'Renamed').buildSave();
+      expect(save.keepsCredentials, isTrue);
+
+      expect(await h.mcp.saveEdit(save), isFalse);
+
+      expect(h.mcp.writeError, mcpKeepUnsupported);
+      expect(h.mcp.writeError, contains('upgrade'));
+      expect(h.mcp.keepSupported, isFalse);
+      expect(h.mcp.unconfirmed, isFalse, reason: 'nothing may have happened');
+      // The old UpdateMCPServer is the whole-object write that would have
+      // deleted every credential left out of the message: it never ran.
+      expect(h.server.count('UpdateMCPServer'), 0);
+      expect(h.server.count('UpdateMCPServerKeepingCredentials'), 1);
+      expect(
+        h.server.servers['alpha']!['p1']!,
+        before,
+        reason: 'not one stored byte may change',
+      );
+    });
+
+    test('remembers it, and a second attempt sends nothing at all', () async {
+      final (h, hidden) = await old();
+      final save = (McpDraft.edit(hidden)..name = 'Renamed').buildSave();
+      await h.mcp.saveEdit(save);
+      h.server.mcpCalls.clear();
+      expect(await h.mcp.saveEdit(save), isFalse);
+      expect(h.mcp.writeError, mcpKeepUnsupported);
+      expect(h.server.mcpCalls, isEmpty);
+    });
+
+    test('an edit that needs no kept credential is the ordinary request, which '
+        'every server understands', () async {
+      final (h, hidden) = await old();
+      final d = McpDraft.edit(hidden)..name = 'Renamed';
+      for (final row in d.headers) {
+        row.removed = true;
+      }
+      d.secretEdit = SecretEdit.replace;
+      d.newSecret = 'fresh';
+      final save = d.buildSave();
+      expect(save.keepsCredentials, isFalse);
+
+      expect(await h.mcp.saveEdit(save), isTrue, reason: h.mcp.writeError);
+
+      expect(h.server.count('UpdateMCPServerKeepingCredentials'), 0);
+      expect(h.server.count('UpdateMCPServer'), 1);
+      final stored = h.server.servers['alpha']!['p1']!;
+      expect(stored.name, 'Renamed');
+      expect(stored.headers, isEmpty);
+      expect(stored.auth.oauth2.clientSecret, 'fresh');
+    });
+
+    test('ordinary create, update and delete are untouched by it', () async {
+      final (h, _) = await old();
+      expect(await h.mcp.create(server('plain')), isTrue);
+      expect(await h.mcp.update(server('plain', name: 'Renamed')), isTrue);
+      expect(await h.mcp.delete('plain'), isTrue);
+      expect(h.server.count('UpdateMCPServerKeepingCredentials'), 0);
+      expect(h.server.count('CreateMCPServer'), 1);
+      expect(h.server.count('UpdateMCPServer'), 1);
+      expect(h.server.count('DeleteMCPServer'), 1);
+      expect(h.mcp.keepSupported, isNull);
+    });
+
+    test('an ordinary server needing no keep never asks about it', () async {
+      final h = await start(seed: (s) => s.seed('alpha', server('a1')));
+      h.server.supportsKeeping = false;
+      await h.mcp.load();
+      final save = (McpDraft.edit(h.mcp.items.single)..name = 'N').buildSave();
+      expect(await h.mcp.saveEdit(save), isTrue);
+      expect(h.server.count('UpdateMCPServerKeepingCredentials'), 0);
+    });
+
+    test(
+      'is asked again after the app returns, in case it was upgraded',
+      () async {
+        final (h, hidden) = await old();
+        final save = (McpDraft.edit(hidden)..name = 'Renamed').buildSave();
+        await h.mcp.saveEdit(save);
+        expect(h.mcp.keepSupported, isFalse);
+
+        h.server.supportsKeeping = true;
+        h.mcp.suspend();
+        await h.mcp.recover();
+        expect(h.mcp.keepSupported, isNull);
+        await h.mcp.load();
+        final again = (McpDraft.edit(
+          h.mcp.items.single,
+        )..name = 'Renamed').buildSave();
+        expect(await h.mcp.saveEdit(again), isTrue, reason: h.mcp.writeError);
+        expect(h.mcp.keepSupported, isTrue);
+        final stored = h.server.servers['alpha']!['p1']!;
+        expect(stored.headers['Authorization'], 'Bearer stored-secret');
+        expect(stored.auth.oauth2.clientSecret, 'stored-client-secret');
+      },
+    );
+
+    test(
+      'a refusal from a server that does have it is not read as old',
+      () async {
+        final h = await start(seed: (s) => s.seed('alpha', installed()));
+        await h.mcp.load();
+        h.server.refusals['UpdateMCPServerKeepingCredentials'] = (
+          403,
+          'permission_denied',
+          'no',
+        );
+        final save = (McpDraft.edit(
+          h.mcp.items.single,
+        )..name = 'N').buildSave();
+        expect(await h.mcp.saveEdit(save), isFalse);
+        expect(h.mcp.keepSupported, isNull);
+        expect(h.mcp.writeError, contains('do not have access'));
+      },
+    );
+  });
 
   test('an expired session signs the person out and retries nothing', () async {
     final h = await start(seed: (s) => s.seed('alpha', server('a1')));

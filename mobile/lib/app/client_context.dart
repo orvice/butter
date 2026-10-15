@@ -68,6 +68,7 @@ final class ClientContext extends ChangeNotifier {
     String Function()? newVerifier,
     DateTime Function()? now,
     this.oauthTimeout = const Duration(minutes: 10),
+    this.mcpPollInterval = mcpOAuthPollInterval,
     this.chatPageSize = 50,
     this.chatIdleTimeout = const Duration(seconds: 60),
     String Function()? newChatId,
@@ -78,6 +79,10 @@ final class ClientContext extends ChangeNotifier {
        _now = now ?? DateTime.now;
   final ClientStorage _storage;
   final bool allowHttp;
+
+  /// How often a waiting MCP OAuth flow is looked at while the app is in the
+  /// foreground; tests shorten it.
+  final Duration mcpPollInterval;
   final NativeOAuthPlatform? _oauth;
   final String Function() _newVerifier;
   final DateTime Function() _now;
@@ -208,6 +213,7 @@ final class ClientContext extends ChangeNotifier {
       workspaceId: id,
       openBrowser: _oauth?.openBrowser,
       allowHttp: allowHttp,
+      pollInterval: mcpPollInterval,
       onUnauthenticated: () {
         final self = _mcp;
         if (self != null && !self.disposed && _token == token) {
