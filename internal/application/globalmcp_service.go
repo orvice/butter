@@ -139,7 +139,10 @@ func (s *GlobalMCPServerServiceServer) InstallGlobalMCPServer(ctx context.Contex
 
 	preset, err := s.repo.GetGlobalMCPServer(ctx, presetID)
 	if err != nil {
-		return nil, connectx.InternalWith(err)
+		// A preset removed after the caller listed it is NotFound, not an
+		// internal failure: the caller must be able to tell "nothing was
+		// installed" from "the server broke".
+		return nil, toConnectError(err)
 	}
 	server := proto.Clone(preset).(*agentsv1.MCPServer)
 	server.WorkspaceId = ""

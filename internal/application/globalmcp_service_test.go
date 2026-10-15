@@ -166,3 +166,15 @@ func TestGlobalMCPServerServiceServer_HidesHeaderValuesFromNonAdmins(t *testing.
 		t.Fatalf("admin must still see what they wrote, got %q", h)
 	}
 }
+
+// Installing a preset that no longer exists must say so (NotFound), so a
+// client can tell "nothing was installed" from a server failure. (mobile #454)
+func TestGlobalMCPServerServiceServer_InstallMissingPresetIsNotFound(t *testing.T) {
+	store := memory.New()
+	svc := NewGlobalMCPServerServiceServer(store, NewMCPServerServiceServer(store))
+	ctx := workspace.WithID(context.Background(), wsTest)
+	_, err := svc.InstallGlobalMCPServer(ctx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{Id: "gone"}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
+		t.Fatalf("expected NotFound, got %v", err)
+	}
+}

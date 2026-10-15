@@ -209,22 +209,27 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, err
 		}
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: "member"}); err != nil {
 			return nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace {
+		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace {
 			// Chat's agent is the runnable one the chat fixture registers;
-			// the box Workspace starts with none, its leaves are created
-			// by the contract tests.
+			// the box and MCP Workspaces start with none, their resources
+			// are created by the contract tests.
 			continue
 		}
 		if _, err := agentRepo.CreateAgent(ctx, id, &agentsv1.Agent{AgentId: "shared", Name: id + "-agent"}); err != nil {
 			return nil, err
 		}
+	}
+	// A Workspace the account is not a member of: every request naming it is
+	// refused by the real membership check.
+	if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: mcpDeniedWorkspace, Name: mcpDeniedWorkspace, Slug: mcpDeniedWorkspace}); err != nil {
+		return nil, err
 	}
 	// A real Telegram Destination routes to two model aliases in alpha, so the
 	// real reference guard has something to refuse.
@@ -368,11 +373,13 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", boxHandler)))
 	}
+	mcpFx := newMCPFixture(agentRepo)
 	mux := http.NewServeMux()
+	mcpFx.register(r, mux, opts)
 	mux.Handle("/fake-box/", boxDouble())
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
 	mux.Handle("/", r)
-	return mux, nil
+	return mcpFx.wrap(mux), nil
 }
 
 func run() error {
