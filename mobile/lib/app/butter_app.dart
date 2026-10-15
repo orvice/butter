@@ -6,6 +6,8 @@ import 'client_context.dart';
 import 'app_preferences.dart';
 import '../core/management_page.dart';
 import '../features/butterboxes/box_pages.dart';
+import '../features/mcp/mcp_pages.dart';
+import '../features/remote_agents/remote_agent_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
@@ -547,6 +549,22 @@ class _Agents extends StatelessWidget {
                 : () => openButterBoxes(context, client),
             icon: const Icon(Icons.dns_outlined),
             label: const Text('ButterBoxes'),
+          ),
+          TextButton.icon(
+            key: const Key('open-mcp'),
+            onPressed: client.busy
+                ? null
+                : () => openMcpServers(context, client),
+            icon: const Icon(Icons.extension_outlined),
+            label: const Text('MCP servers'),
+          ),
+          TextButton.icon(
+            key: const Key('open-remote-agents'),
+            onPressed: client.busy
+                ? null
+                : () => openRemoteAgents(context, client),
+            icon: const Icon(Icons.hub_outlined),
+            label: const Text('Remote Agents'),
           ),
           TextButton.icon(
             onPressed: client.busy ? null : client.refreshWorkspaces,

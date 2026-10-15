@@ -1,0 +1,397 @@
+import 'package:butter_mobile/features/mcp/mcp_controller.dart';
+import 'package:butter_mobile/features/mcp/mcp_draft.dart';
+import 'package:butter_mobile/features/mcp/mcp_pages.dart';
+import 'package:butter_mobile/gen/agents/v1/agent.pb.dart';
+import 'package:butter_mobile/gen/agents/v1/dashboard.pb.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'support/config_rig.dart';
+
+MCPServer server(String id, {String name = ''}) => MCPServer(
+  id: id,
+  name: name.isEmpty ? 'Server $id' : name,
+  url: 'https://mcp.example.com/mcp',
+  transport: MCPServerTransport.MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
+);
+
+MCPServer headerServer(String id) {
+  final s = server(id)..headers['Authorization'] = 'Bearer very-secret-token';
+  s.ensureAuth().type = MCPServerAuthType.MCP_SERVER_AUTH_TYPE_STATIC_HEADERS;
+  return s;
+}
+
+MCPServer oauthServer(String id) {
+  final s = server(id);
+  s.ensureAuth()
+    ..type = MCPServerAuthType.MCP_SERVER_AUTH_TYPE_OAUTH2
+    ..ensureOauth2();
+  return s;
+}
+
+Future<void> openList(WidgetTester tester, ConfigRig h) async {
+  await openPage(tester, McpListPage(client: h.client));
+  await tester.runAsync(() => h.client.mcp!.load());
+  await tester.pumpAndSettle();
+}
+
+Future<void> openDetail(WidgetTester tester, ConfigRig h, String id) async {
+  await tester.runAsync(
+    () => tester.pumpWidget(
+      MaterialApp(
+        home: McpDetailPage(client: h.client, id: id),
+      ),
+    ),
+  );
+  await waitFor(tester, () => h.client.mcp!.item?.id == id);
+}
+
+void main() {
+  testWidgets('the list is the active Workspace only and shows no secret', (
+    tester,
+  ) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) {
+        s.seed('alpha', headerServer('a1'));
+        s.seed('beta', server('b1', name: 'Beta server'));
+      },
+    );
+    await openList(tester, h);
+    expect(find.text('Server a1'), findsOneWidget);
+    expect(find.text('Beta server'), findsNothing);
+    expect(
+      find.textContaining('Static headers: Authorization'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('very-secret-token'), findsNothing);
+    expect(h.server.mcpCalls.map((c) => c.workspace).toSet(), {'alpha'});
+  });
+
+  testWidgets('adding a static-header server stores it and never shows the '
+      'value', (tester) async {
+    final h = await signedIn(tester);
+    await openList(tester, h);
+    expect(find.text('No MCP servers yet'), findsOneWidget);
+
+    await tapScreen(tester, find.byKey(const Key('add-mcp')));
+    await enter(tester, const Key('mcp-id'), 'docs');
+    await enter(tester, const Key('mcp-name'), 'Docs');
+    await enter(tester, const Key('mcp-url'), 'https://mcp.example.com/mcp');
+    await tapScreen(tester, find.text('Headers'));
+    await tapScreen(tester, find.byKey(const Key('add-header')));
+    await enter(tester, const Key('header-key-0'), 'Authorization');
+    await enter(tester, const Key('header-value-0'), 'Bearer typed-secret');
+    // The value is masked in its field.
+    final field = tester.widget<TextField>(
+      find.descendant(
+        of: find.byKey(const Key('header-value-0')),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(field.obscureText, isTrue);
+    await tapReal(tester, find.byKey(const Key('save-mcp')));
+    await waitFor(tester, () => h.server.writes == 1);
+    await tester.pumpAndSettle();
+
+    final stored = h.server.servers['alpha']!['docs']!;
+    expect(stored.headers, {'Authorization': 'Bearer typed-secret'});
+    expect(
+      stored.auth.type,
+      MCPServerAuthType.MCP_SERVER_AUTH_TYPE_STATIC_HEADERS,
+    );
+    expect(find.byKey(const Key('mcp-docs')), findsOneWidget);
+    expect(find.textContaining('typed-secret'), findsNothing);
+  });
+
+  testWidgets(
+    'an invalid URL or missing header is refused before any request',
+    (tester) async {
+      final h = await signedIn(tester);
+      await openList(tester, h);
+      await tapScreen(tester, find.byKey(const Key('add-mcp')));
+      await enter(tester, const Key('mcp-id'), 'docs');
+      await enter(tester, const Key('mcp-name'), 'Docs');
+      await enter(tester, const Key('mcp-url'), 'ftp://nope');
+      await tapScreen(tester, find.byKey(const Key('save-mcp')));
+      expect(find.textContaining('http or https'), findsWidgets);
+      expect(h.server.writes, 0);
+
+      await enter(tester, const Key('mcp-url'), 'https://mcp.example.com/mcp');
+      await tapScreen(tester, find.text('Headers'));
+      await tapScreen(tester, find.byKey(const Key('save-mcp')));
+      expect(find.textContaining('at least one header'), findsOneWidget);
+      expect(h.server.writes, 0);
+    },
+  );
+
+  testWidgets('a duplicate ID is explained and nothing is repeated', (
+    tester,
+  ) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seed('alpha', server('a1')),
+    );
+    await openList(tester, h);
+    await tapScreen(tester, find.byKey(const Key('add-mcp')));
+    await enter(tester, const Key('mcp-id'), 'a1');
+    await enter(tester, const Key('mcp-name'), 'Again');
+    await enter(tester, const Key('mcp-url'), 'https://mcp.example.com/mcp');
+    await tapReal(tester, find.byKey(const Key('save-mcp')));
+    await waitFor(tester, () => h.server.writes == 1);
+    expect(find.byKey(const Key('config-write-error')), findsOneWidget);
+    expect(find.textContaining('already exists'), findsOneWidget);
+  });
+
+  testWidgets('editing keeps a stored header hidden and untouched', (
+    tester,
+  ) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seed('alpha', headerServer('a1')),
+    );
+    await openDetail(tester, h, 'a1');
+    await tapScreen(tester, find.byKey(const Key('edit-mcp')));
+    expect(find.text('Value kept (hidden)'), findsOneWidget);
+    expect(find.textContaining('very-secret-token'), findsNothing);
+    await enter(tester, const Key('mcp-name'), 'Renamed');
+    await tapReal(tester, find.byKey(const Key('save-mcp')));
+    await waitFor(tester, () => h.server.writes == 1);
+
+    final stored = h.server.servers['alpha']!['a1']!;
+    expect(stored.name, 'Renamed');
+    expect(stored.headers['Authorization'], 'Bearer very-secret-token');
+  });
+
+  testWidgets('the connection test classifies the failure and hides the '
+      'server text', (tester) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seed('alpha', server('a1')),
+    );
+    await openDetail(tester, h, 'a1');
+    expect(find.text('Connection not tested'), findsOneWidget);
+
+    h.server.statusState = MCPServerStatus_State.STATE_DISCONNECTED;
+    h.server.statusDetail =
+        'dial tcp 10.1.2.3:443: connection refused; Authorization: Bearer leak-9';
+    await tapReal(tester, find.byKey(const Key('probe-mcp')));
+    await waitFor(
+      tester,
+      () => h.client.mcp!.statuses['a1']?.kind == McpStatusKind.disconnected,
+    );
+    expect(
+      find.textContaining('could not connect to the MCP server'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('leak-9'), findsNothing);
+    expect(find.textContaining('10.1.2.3'), findsNothing);
+    expect(h.server.writes, 0);
+  });
+
+  testWidgets('tools show which ones the filter allows', (tester) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seed('alpha', server('a1')),
+    );
+    h.server.toolList = [
+      MCPTool(
+        name: 'echo',
+        serverId: 'a1',
+        allowed: true,
+        description: 'Echoes',
+      ),
+      MCPTool(name: 'danger', serverId: 'a1', allowed: false),
+    ];
+    await openDetail(tester, h, 'a1');
+    await tapReal(tester, find.byKey(const Key('list-tools')));
+    await waitFor(
+      tester,
+      () => h.client.mcp!.tools['a1']?.state.name == 'ready',
+    );
+    expect(find.textContaining('1 of 2 allowed'), findsOneWidget);
+    expect(find.byKey(const Key('tool-echo')), findsOneWidget);
+    expect(find.text('Blocked by the tool filter'), findsOneWidget);
+  });
+
+  testWidgets('delete asks first and a cancelled dialog sends nothing', (
+    tester,
+  ) async {
+    final h = await signedIn(
+      tester,
+      seed: (s) => s.seed('alpha', server('a1')),
+    );
+    await openDetail(tester, h, 'a1');
+    await tapReal(tester, find.byKey(const Key('delete-mcp')));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete MCP server?'), findsOneWidget);
+    await tapDialog(tester, find.text('Cancel'));
+    expect(h.server.count('DeleteMCPServer'), 0);
+
+    await tapReal(tester, find.byKey(const Key('delete-mcp')));
+    await tester.pumpAndSettle();
+    await tapDialog(tester, find.text('Delete'));
+    await waitFor(tester, () => h.server.count('DeleteMCPServer') == 1);
+    expect(h.server.servers['alpha'], isEmpty);
+  });
+
+  testWidgets('a lost reply leaves a notice and disables saving', (
+    tester,
+  ) async {
+    final h = await signedIn(tester);
+    await openList(tester, h);
+    h.server.loseReply = true;
+    await tapScreen(tester, find.byKey(const Key('add-mcp')));
+    await enter(tester, const Key('mcp-id'), 'docs');
+    await enter(tester, const Key('mcp-name'), 'Docs');
+    await enter(tester, const Key('mcp-url'), 'https://mcp.example.com/mcp');
+    await tapReal(tester, find.byKey(const Key('save-mcp')));
+    await waitFor(tester, () => h.server.writes == 1);
+    expect(find.byKey(const Key('config-write-notice')), findsOneWidget);
+    final save = tester.widget<FilledButton>(find.byKey(const Key('save-mcp')));
+    expect(save.onPressed, isNull);
+    expect(h.server.count('CreateMCPServer'), 1);
+  });
+
+  group('global presets', () {
+    MCPServer preset(String id) {
+      final p = headerServer(id)
+        ..headers['Authorization'] = 'Bearer preset-secret';
+      return p;
+    }
+
+    testWidgets('are read-only, show no credential and install after '
+        'confirmation', (tester) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.presets.add(preset('p1')),
+      );
+      await tester.runAsync(() => h.client.mcp!.loadPresets());
+      await tester.runAsync(() => h.client.mcp!.load());
+      await openPage(tester, McpPresetsPage(client: h.client));
+      expect(find.text('Server p1'), findsOneWidget);
+      expect(find.textContaining('Credentials hidden'), findsOneWidget);
+      expect(find.textContaining('preset-secret'), findsNothing);
+      // Presets are never written from the App.
+      expect(find.byIcon(Icons.edit), findsNothing);
+
+      await tapReal(tester, find.byKey(const Key('install-p1')));
+      await tester.pumpAndSettle();
+      expect(find.text('Install preset?'), findsOneWidget);
+      await tapDialog(tester, find.text('Cancel'));
+      expect(h.server.count('InstallGlobalMCPServer'), 0);
+
+      await tapReal(tester, find.byKey(const Key('install-p1')));
+      await tester.pumpAndSettle();
+      await tapDialog(tester, find.text('Install'));
+      await waitFor(
+        tester,
+        () => h.server.count('InstallGlobalMCPServer') == 1,
+      );
+      expect(find.text('Reinstall'), findsOneWidget);
+      expect(
+        find.textContaining('Installed in this Workspace'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an installed preset holding credentials cannot be edited', (
+      tester,
+    ) async {
+      final installed = headerServer('p1')
+        ..headers['Authorization'] = '***'
+        ..metadata[mcpPresetMetadataKey] = 'p1';
+      final h = await signedIn(tester, seed: (s) => s.seed('alpha', installed));
+      await openDetail(tester, h, 'p1');
+      expect(find.byKey(const Key('mcp-edit-block')), findsOneWidget);
+      final edit = tester.widget<FilledButton>(
+        find.byKey(const Key('edit-mcp')),
+      );
+      expect(edit.onPressed, isNull);
+    });
+  });
+
+  group('OAuth', () {
+    testWidgets('connect opens the system browser, then the state read shows '
+        'the connection; disconnect asks first', (tester) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.seed('alpha', oauthServer('a1')),
+      );
+      await openDetail(tester, h, 'a1');
+      expect(find.text('Authorization not read yet'), findsOneWidget);
+
+      await tapReal(tester, find.byKey(const Key('oauth-connect')));
+      await waitFor(
+        tester,
+        () => h.client.mcp!.oauthOf('a1').phase == McpOAuthPhase.waiting,
+      );
+      expect(h.platform.opened, hasLength(1));
+      expect(find.textContaining('Finish signing in'), findsOneWidget);
+      expect(find.byKey(const Key('oauth-cancel')), findsOneWidget);
+
+      await tapReal(tester, find.byKey(const Key('oauth-check')));
+      await waitFor(tester, () => !h.client.mcp!.oauthOf('a1').reading);
+      expect(find.textContaining('Not connected yet'), findsOneWidget);
+
+      h.server.connect(
+        'alpha',
+        'a1',
+        at: DateTime.now().add(const Duration(seconds: 5)),
+      );
+      await tapReal(tester, find.byKey(const Key('oauth-check')));
+      await waitFor(
+        tester,
+        () => h.client.mcp!.oauthOf('a1').phase == McpOAuthPhase.connected,
+      );
+      expect(find.textContaining('Connected since'), findsOneWidget);
+
+      await tapReal(tester, find.byKey(const Key('oauth-disconnect')));
+      await tester.pumpAndSettle();
+      expect(find.text('Disconnect "Server a1"?'), findsOneWidget);
+      await tapDialog(tester, find.text('Cancel'));
+      expect(h.server.count('DisconnectMCPServerOAuth'), 0);
+      await tapReal(tester, find.byKey(const Key('oauth-disconnect')));
+      await tester.pumpAndSettle();
+      await tapDialog(tester, find.text('Disconnect'));
+      await waitFor(
+        tester,
+        () => h.server.count('DisconnectMCPServerOAuth') == 1,
+      );
+      expect(find.text('Not connected'), findsOneWidget);
+    });
+
+    testWidgets('stop waiting says the link stays valid and makes no call', (
+      tester,
+    ) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.seed('alpha', oauthServer('a1')),
+      );
+      await openDetail(tester, h, 'a1');
+      await tapReal(tester, find.byKey(const Key('oauth-connect')));
+      await waitFor(
+        tester,
+        () => h.client.mcp!.oauthOf('a1').phase == McpOAuthPhase.waiting,
+      );
+      await tapScreen(tester, find.byKey(const Key('oauth-cancel')));
+      expect(find.textContaining('stays valid'), findsOneWidget);
+      expect(h.server.count('DisconnectMCPServerOAuth'), 0);
+    });
+
+    testWidgets('a browser that will not open is reported', (tester) async {
+      final h = await signedIn(
+        tester,
+        seed: (s) => s.seed('alpha', oauthServer('a1')),
+      );
+      h.platform.openResult = false;
+      await openDetail(tester, h, 'a1');
+      await tapReal(tester, find.byKey(const Key('oauth-connect')));
+      await waitFor(
+        tester,
+        () => h.client.mcp!.oauthOf('a1').phase == McpOAuthPhase.failed,
+      );
+      expect(find.textContaining('Could not open the browser'), findsOneWidget);
+    });
+  });
+}
