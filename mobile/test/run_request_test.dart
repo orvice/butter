@@ -91,9 +91,11 @@ void main() {
       final sent = body(build(images: [image()]));
       expect(sent.containsKey('resume'), isFalse);
       expect(sent['tools'], isEmpty);
-      expect((sent['forwardedProps'] as Map).keys, [
-        'butterRun',
-      ], reason: 'butterA2UI must not be negotiated before it is supported');
+      expect(
+        (sent['forwardedProps'] as Map).keys,
+        ['butterRun'],
+        reason: 'butterA2UI must not be negotiated before it is supported',
+      );
     });
   });
 

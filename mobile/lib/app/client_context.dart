@@ -662,39 +662,43 @@ final class ClientContext extends ChangeNotifier {
     // Provider wording applies only while the provider reads run; identity,
     // Workspace management and Agent failures keep the generic handling.
     var readingProviders = false;
-    await _run(generation, () async {
-      await _identity(generation);
-      if (!_current(generation)) return;
-      final managedId = managedWorkspace?.id;
-      if (managedId != null) {
-        _clearManagement();
-        await _loadWorkspace(generation, managedId);
+    await _run(
+      generation,
+      () async {
+        await _identity(generation);
         if (!_current(generation)) return;
-      }
-      if (workspace != null) {
-        agents = const [];
-        _nextPage = '';
-        await _loadAgents(generation, '');
-        if (!_current(generation)) return;
-        if (_agentEditorShown) {
-          await _loadAgentEditor(generation);
+        final managedId = managedWorkspace?.id;
+        if (managedId != null) {
+          _clearManagement();
+          await _loadWorkspace(generation, managedId);
           if (!_current(generation)) return;
         }
-        final openAgent = _agentId;
-        if (openAgent != null) {
-          await _loadAgent(generation, openAgent);
+        if (workspace != null) {
+          agents = const [];
+          _nextPage = '';
+          await _loadAgents(generation, '');
           if (!_current(generation)) return;
-        }
-        if (_providersShown) {
-          readingProviders = true;
-          await _loadModelProviders(generation);
-          final open = _providerName;
-          if (open != null && _current(generation)) {
-            await _loadModelProvider(generation, open);
+          if (_agentEditorShown) {
+            await _loadAgentEditor(generation);
+            if (!_current(generation)) return;
+          }
+          final openAgent = _agentId;
+          if (openAgent != null) {
+            await _loadAgent(generation, openAgent);
+            if (!_current(generation)) return;
+          }
+          if (_providersShown) {
+            readingProviders = true;
+            await _loadModelProviders(generation);
+            final open = _providerName;
+            if (open != null && _current(generation)) {
+              await _loadModelProvider(generation, open);
+            }
           }
         }
-      }
-    }, describe: (failure) => readingProviders ? _describeLoad(failure) : null);
+      },
+      describe: (failure) => readingProviders ? _describeLoad(failure) : null,
+    );
     // Read-only too: only what a lost connection left uncertain is read again.
     unawaited(_chat?.recover());
   }
