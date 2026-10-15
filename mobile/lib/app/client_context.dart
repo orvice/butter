@@ -768,17 +768,41 @@ final class ClientContext extends ChangeNotifier {
       // a Git-owned prompt through UpdateAgent, where it would be ignored.
       final binding = await api.repositoryBinding(token, ws);
       if (!_current(generation)) return;
-      final saved = await api.saveAgent(
+      final gitOwned = binding?.activeCommitSha.isNotEmpty ?? false;
+      var saved = await api.saveAgent(
         token,
         ws,
         draft,
         create: create,
-        contentGitOwned: binding?.activeCommitSha.isNotEmpty ?? false,
+        contentGitOwned: gitOwned,
         baseCommitSha: binding?.activeCommitSha ?? '',
         previous: previous,
       );
 
       if (!_current(generation)) return;
+      if (gitOwned && !create) {
+        // A composite save answers with the stored DB record, whose
+        // description and instructions are not the Git content it just
+        // saved. Only an authoritative read carries the Active Revision.
+        // This is a read: the write is never repeated.
+        try {
+          saved = await api.agent(token, ws, saved.agentId);
+        } catch (failure) {
+          if (!_current(generation)) return;
+          if (failure is ConnectException &&
+              failure.code == Code.unauthenticated) {
+            rethrow;
+          }
+          // The save went through; show nothing rather than the DB record.
+          managedAgent = null;
+          agentStatus = null;
+          _agentId = saved.agentId;
+          throw const FormatException(
+            'The change was saved, but the Agent could not be reloaded. Reload it before editing again.',
+          );
+        }
+        if (!_current(generation)) return;
+      }
       managedAgent = saved;
       _agentId = saved.agentId;
       agents = List.unmodifiable([
