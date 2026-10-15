@@ -113,6 +113,26 @@ Model choices include every configured provider's alias (model ID when no alias 
 
 Drafts live only in memory, warn before leaving, and unmount when the server/account/Workspace changes. All fields stay mounted in a scrolling form so off-screen errors cannot bypass validation. Background closes requests; foreground only reads. Ambiguous writes remain explicitly unconfirmed, are never replayed, and the draft refuses another Save until the user leaves and explicitly reloads the Agent. The detail reload reconciles the notice; foreground reads alone do not dismiss it. A phone-sized 2× system-text test covers the large form, not physical-device accessibility acceptance.
 
+## Chat and threads (#460)
+
+Agents → **Chat** opens the thread list; a thread is one AG-UI conversation (`agui-{threadId}`) with the existing UI binding, so the dashboard sees the same threads.
+
+| Capability | Protocol | Tests |
+| --- | --- | --- |
+| New thread, send | `POST /api/agui/:agent_id` over plain `dart:io` SSE, always `forwardedProps.butterRun = {detach: true}`; only this turn's trailing user message (text + inline images) is sent, never history | `sse_test`, `run_request_test`, `run_fold_test`, `chat_run_context_test` |
+| History / restore | `GET …/threads/:thread_id/messages` (bounded read), images restored as attachments | `history_test`, `chat_widget_test` |
+| Thread list, search, pagination, rename | `SessionService.ListSessions` (`appName=agui`, Workspace-scoped; unbound sessions are never listed) and `UpdateSessionTitle` | `threads_test`, `chat_threads_context_test`, `chat_widget_test` |
+| Images | jpeg/png/gif/webp, ≤10 MiB each, ≤10 per message, request ≤32 MiB, checked before reading and before sending | `run_request_test`, `chat_widget_test` |
+| Markdown, code copy, tables, tool status/results, Agent name and avatar | rendered locally; remote images are never fetched | `chat_widget_test` |
+
+Delivery rules: the SSE parser accepts arbitrary UTF-8 chunking, LF/CRLF/CR, multi-line `data:`, comments (heartbeats) and a bounded event size. A POST is **never** retried. A request that was refused (400 `thread_unbound`, 403, 404, 409, 413, 503) or never connected returns the turn to the composer; one whose outcome is unknown shows an `unconfirmed` notice and is not resent. A dropped stream shows "connection lost — the run may still be going" with a manual **Refresh** (one history read); it is never shown as a Stop. Leaving the page, suspending the app, or changing identity/Workspace only detaches (closes that run's socket).
+
+`test/chat_contract_test.dart` (via `tool/contract.sh`) drives `ClientContext` against the production AG-UI handler, runner, `SessionServiceServer` and detached-run machinery in `tool/contractserver/chat.go`; only the model (a loopback OpenAI-compatible echo) and persistence are replaced. It covers a detached two-send conversation and history in a fresh session, Markdown, an image round trip, server-normalized rename, Workspace isolation, and the `thread_unbound` / `run_exists` refusals, at root and `/butter`. `contract.sh` runs `flutter test` without `--no-pub`; on a Flutter SDK other than the pinned one it re-resolves `pubspec.lock`, so restore it with `git checkout` before committing.
+
+Scope notes: tool-role results only answer client-declared frontend tools, and this App declares none, so a run request carries exactly one user message. An Agent shows its name and an initial, not its configured avatar image, so chat fetches no remote image.
+
+Not provided yet (labelled in the UI): reconnecting to a live run after leaving or a dropped stream, **Stop**, and A2UI forms/cards (an Interrupt shows a "waiting for input" notice only). Workflow Human Input cannot be answered in the App.
+
 ## Tests and device acceptance
 
 Unit/controller/widget tests use public application interfaces with fake **external** HTTP/OS-storage boundaries. They cover first setup, persistence, real request headers, permission/empty/error/pagination UI, admin without global navigation, expiry, relogin/server/Workspace races, slow credential writes, vault failure and generated-field retention. The separate Go contract fixture is a real-service HTTP integration test.
@@ -140,6 +160,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Connect streaming, AG-UI/SSE and Detached Run/A2UI are not validated by these tickets. Box/lifecycle and the remaining association editors are separate tickets. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
+- Connect streaming and A2UI are not implemented. AG-UI chat (#460) covers detached runs, history, images and threads, but not live re-attach, Stop or A2UI (see Chat and threads). Box/lifecycle and the remaining association editors are separate tickets. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
 - No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.

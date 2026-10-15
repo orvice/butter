@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:connectrpc/connect.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../core/butter_api.dart';
 import '../core/agent_errors.dart';
@@ -13,6 +14,8 @@ import '../gen/agents/v1/agent.pb.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/workspace.pb.dart';
+import '../core/agui_api.dart';
+import '../features/chat/chat_controller.dart';
 
 enum ClientStage { server, login, workspaces, agents }
 
@@ -62,7 +65,11 @@ final class ClientContext extends ChangeNotifier {
     String Function()? newVerifier,
     DateTime Function()? now,
     this.oauthTimeout = const Duration(minutes: 10),
-  }) : _storage = storage,
+    this.chatPageSize = 50,
+    this.chatIdleTimeout = const Duration(seconds: 60),
+    String Function()? newChatId,
+  }) : _newChatId = newChatId ?? (() => const Uuid().v4()),
+       _storage = storage,
        _oauth = oauth,
        _newVerifier = newVerifier ?? generatePkceVerifier,
        _now = now ?? DateTime.now;
@@ -74,6 +81,13 @@ final class ClientContext extends ChangeNotifier {
 
   /// How long the browser leg may take; matches the server's state lifetime.
   final Duration oauthTimeout;
+
+  /// Threads read per request by the chat list.
+  final int chatPageSize;
+
+  /// How long a live reply may be silent before the connection counts as lost.
+  final Duration chatIdleTimeout;
+  final String Function() _newChatId;
   ServerAddress? address;
   User? user;
   Workspace? workspace;
@@ -118,6 +132,44 @@ final class ClientContext extends ChangeNotifier {
   ModelProvider? modelProvider;
   bool _providersShown = false;
   String? _providerName;
+  ChatController? _chat;
+
+  /// Chat for the current server, user and Workspace; null until signed in
+  /// with a Workspace selected. One controller serves one such scope: it is
+  /// disposed, with its streams and everything it holds, whenever the scope
+  /// changes.
+  ChatController? get chat {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    final me = user?.id;
+    if (_disposed || api == null || token == null || id == null || me == null) {
+      return null;
+    }
+    return _chat ??= ChatController(
+      api: ButterApi(api),
+      agui: AguiApi(api, idleTimeout: chatIdleTimeout),
+      newId: _newChatId,
+      token: token,
+      workspaceId: id,
+      userId: me,
+      pageSize: chatPageSize,
+      onUnauthenticated: () {
+        final self = _chat;
+        // Only the scope that is still current may sign the person out.
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  void _disposeChat() {
+    final old = _chat;
+    _chat = null;
+    old?.dispose();
+  }
+
   bool get canManageWorkspace =>
       managedWorkspace != null &&
       (user?.role == 'admin' ||
@@ -196,6 +248,7 @@ final class ClientContext extends ChangeNotifier {
 
   void _clearIdentity() {
     scope++;
+    _disposeChat();
     writeNotice = null;
     _writingGeneration = null;
     _clearManagement();
@@ -216,6 +269,24 @@ final class ClientContext extends ChangeNotifier {
     return result;
   }
 
+  /// The server refused the session: sign the person out, clear the stored
+  /// credential and say why.
+  Future<void> _expire() async {
+    final expiredGeneration = _begin(clearIdentity: true);
+    String notice = 'Session expired. Sign in again.';
+    try {
+      await _persist(_storage.clearSession);
+    } catch (_) {
+      notice =
+          'Session expired. Secure storage could not be cleared; try signing out again.';
+    }
+    if (_current(expiredGeneration)) {
+      busy = false;
+      error = notice;
+      _emit();
+    }
+  }
+
   Future<void> _run(
     int generation,
     Future<void> Function() action, {
@@ -229,19 +300,7 @@ final class ClientContext extends ChangeNotifier {
       if (failure is ConnectException &&
           failure.code == Code.unauthenticated &&
           _token != null) {
-        final expiredGeneration = _begin(clearIdentity: true);
-        String notice = 'Session expired. Sign in again.';
-        try {
-          await _persist(_storage.clearSession);
-        } catch (_) {
-          notice =
-              'Session expired. Secure storage could not be cleared; try signing out again.';
-        }
-        if (_current(expiredGeneration)) {
-          busy = false;
-          error = notice;
-          _emit();
-        }
+        await _expire();
         return;
       }
       if (clearOnFailure) {
@@ -562,6 +621,7 @@ final class ClientContext extends ChangeNotifier {
       final matching = workspaces.where((w) => w.id == workspace!.id);
       if (matching.isEmpty) {
         scope++;
+        _disposeChat();
         workspace = null;
         agents = const [];
         _nextPage = '';
@@ -575,6 +635,7 @@ final class ClientContext extends ChangeNotifier {
   }
 
   void suspend() {
+    _chat?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -638,11 +699,14 @@ final class ClientContext extends ChangeNotifier {
       },
       describe: (failure) => readingProviders ? _describeLoad(failure) : null,
     );
+    // Read-only too: only what a lost connection left uncertain is read again.
+    unawaited(_chat?.recover());
   }
 
   Future<void> refreshWorkspaces() async {
     if (_token == null) return;
     scope++;
+    _disposeChat();
     _clearManagement();
     _clearModelProviders();
     final generation = _begin();
@@ -657,6 +721,7 @@ final class ClientContext extends ChangeNotifier {
   Future<void> selectWorkspace(String id) async {
     if (_token == null || !workspaces.any((w) => w.id == id)) return;
     scope++;
+    _disposeChat();
     _clearManagement();
     _clearModelProviders();
     final generation = _begin();
@@ -1089,6 +1154,7 @@ final class ClientContext extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _disposeChat();
     _oauthTimer?.cancel();
     _links?.cancel();
     _generation++;

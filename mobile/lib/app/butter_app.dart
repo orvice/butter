@@ -7,6 +7,7 @@ import 'app_preferences.dart';
 import '../core/management_page.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
+import '../features/chat/chat_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/workspaces/workspace_pages.dart';
@@ -508,6 +509,18 @@ class _Agents extends StatelessWidget {
       Wrap(
         spacing: 12,
         children: [
+          FilledButton.tonalIcon(
+            key: const Key('open-chat'),
+            onPressed: client.busy
+                ? null
+                : () => openManagementPage(
+                    context,
+                    client,
+                    ThreadListPage(client: client),
+                  ),
+            icon: const Icon(Icons.chat_bubble_outline),
+            label: const Text('Chat'),
+          ),
           TextButton.icon(
             onPressed: client.busy
                 ? null

@@ -37,6 +37,7 @@ final class ButterApi {
     _repoBindings = WorkspaceRepoBindingServiceClient(transport);
     _skills = SkillServiceClient(transport);
     _modelProviders = ModelProviderServiceClient(transport);
+    _sessions = SessionServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -47,6 +48,7 @@ final class ButterApi {
   late final WorkspaceRepoBindingServiceClient _repoBindings;
   late final SkillServiceClient _skills;
   late final ModelProviderServiceClient _modelProviders;
+  late final SessionServiceClient _sessions;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -349,6 +351,55 @@ final class ButterApi {
     headers: _headers(token, workspace),
     signal: _deadline,
   );
+
+  /// One page of the caller's AG-UI thread sessions in [workspace]. The server
+  /// scopes the list to that Workspace; which sessions are bound threads is
+  /// decided by the caller from the session state.
+  Future<ListSessionsResponse> threadSessions(
+    String token,
+    String workspace, {
+    required String userId,
+    required int pageSize,
+    String pageToken = '',
+  }) => _sessions.listSessions(
+    ListSessionsRequest(
+      appName: 'agui',
+      userId: userId,
+      workspaceScoped: true,
+      pageSize: pageSize,
+      pageToken: pageToken,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// Sets a session's title. Never repeated on its own.
+  Future<SessionInfo> renameSession(
+    String token,
+    String workspace, {
+    required String appName,
+    required String userId,
+    required String sessionId,
+    required String title,
+  }) async {
+    final reply = await _sessions.updateSessionTitle(
+      UpdateSessionTitleRequest(
+        appName: appName,
+        userId: userId,
+        sessionId: sessionId,
+        title: title,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasSession()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Session reply missing.',
+      );
+    }
+    return reply.session;
+  }
 
   Future<LogoutResponse> logout(String token) => _auth.logout(
     LogoutRequest(),

@@ -94,7 +94,12 @@ class TestServer {
         error(r, 401, 'unauthenticated');
         return;
       } else if (authorizedReply != null && await authorizedReply!(r, bytes)) {
-        await r.response.close();
+        try {
+          await r.response.close();
+        } catch (_) {
+          // A handler that took over the socket (streamed or dropped the
+          // connection itself) has nothing left to close here.
+        }
         return;
       } else if (path.endsWith('/Me')) {
         final name = token.substring(7);
