@@ -502,7 +502,7 @@ void main() {
         WorkflowNode(name: 'known', kind: agentKind, agentId: 'a')
           ..mergeFromBuffer([0xd0, 0x07, 4]), // future node field 122
         WorkflowNode(name: 'future'), // kind 99, below
-        // ignore: deprecated_member_use
+        // ignore: deprecated_member_use_from_same_package
         WorkflowNode(name: 'legacy', kind: agentKind, agent: 'by-name'),
       ],
       edges: [
