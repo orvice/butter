@@ -71,6 +71,10 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
 
   @protected
   void onSuspend() {}
+
+  /// The app is back in the foreground: re-read what [onSuspend] dropped.
+  @protected
+  Future<void> onRecover() async {}
   @protected
   void onDispose() {}
 
@@ -116,6 +120,8 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
   ConfigLoad itemState = ConfigLoad.idle;
   String? itemError;
   int _itemSeq = 0;
+  String? _openId;
+  bool _reloadList = false;
 
   T? byId(String id) {
     for (final i in items) {
@@ -164,6 +170,7 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
   Future<void> loadItem(String id) async {
     if (_disposed) return;
     final epoch = _epoch, seq = ++_itemSeq, started = ++_clock;
+    _openId = id;
     if (item != null && idOf(item as T) != id) item = null;
     final before = itemState == ConfigLoad.loading
         ? ConfigLoad.idle
@@ -333,10 +340,32 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
     }
     writing = false;
     _inFlightId = null;
-    if (listState == ConfigLoad.loading) listState = ConfigLoad.idle;
-    if (itemState == ConfigLoad.loading) itemState = ConfigLoad.idle;
+    // Stored credentials (header values, client secrets, passwords) must not
+    // wait in memory while the app is in the background; [recover] reads
+    // again what was open.
+    _reloadList =
+        _reloadList ||
+        listState == ConfigLoad.ready ||
+        listState == ConfigLoad.loading;
+    items = const [];
+    item = null;
+    listState = ConfigLoad.idle;
+    itemState = ConfigLoad.idle;
     onSuspend();
     emit();
+  }
+
+  /// Read-only recovery after the app returns to the foreground. It never
+  /// repeats a write: an unconfirmed one stays so until these reads settle it.
+  Future<void> recover() async {
+    if (_disposed) return;
+    final reload = _reloadList, open = _openId;
+    _reloadList = false;
+    await Future.wait([
+      if (reload || unconfirmed) load(),
+      if (open != null && (reload || unconfirmed)) loadItem(open),
+      onRecover(),
+    ]);
   }
 
   @override

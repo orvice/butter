@@ -1,0 +1,524 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../../core/butter_api.dart';
+import '../../core/config_errors.dart';
+import '../../core/config_resource_controller.dart';
+import '../../gen/agents/v1/agent.pb.dart';
+import '../../gen/agents/v1/agent_service.pb.dart';
+import '../../gen/agents/v1/dashboard.pb.dart';
+
+enum McpStatusKind {
+  probing,
+  connected,
+  disconnected,
+  configured,
+  error,
+  failed,
+}
+
+/// The outcome of one explicit connection test.
+class McpStatusView {
+  const McpStatusView(this.kind, {this.reason = '', this.toolCount = 0});
+  final McpStatusKind kind;
+
+  /// A safe sentence: classified from the probe, never the server's own text.
+  final String reason;
+  final int toolCount;
+}
+
+/// The tools one server offered, or why they could not be listed.
+class McpToolsView {
+  const McpToolsView(this.state, {this.tools = const [], this.error});
+  final ConfigLoad state;
+  final List<MCPTool> tools;
+  final String? error;
+}
+
+enum McpOAuthPhase {
+  idle,
+  starting,
+  waiting,
+  connected,
+  failed,
+  cancelled,
+  timedOut,
+}
+
+/// How long the server keeps an authorization open; the App stops waiting then.
+const mcpOAuthFlowTtl = Duration(minutes: 10);
+
+/// One server's authorization, as the App last read it, and the flow it is
+/// waiting on.
+///
+/// Butter completes the flow itself: the provider sends the browser back to
+/// the server's callback, which exchanges the code and stores the connection.
+/// The App therefore never sees a code or token; "connected" means the server
+/// reports a connection newer than the one that existed when the flow started.
+class McpOAuthView {
+  McpOAuthView({
+    this.phase = McpOAuthPhase.idle,
+    this.message,
+    this.status,
+    this.deadline,
+    this.baseline,
+    this.baselineConnected = false,
+  });
+
+  McpOAuthPhase phase;
+  String? message;
+
+  /// The last state read from the server (null: not read yet).
+  MCPOAuthConnectionStatus? status;
+  bool reading = false;
+  DateTime? deadline;
+
+  /// `connected_at` before the flow started, and whether a connection existed.
+  DateTime? baseline;
+  bool baselineConnected;
+
+  bool get waiting => phase == McpOAuthPhase.waiting;
+}
+
+const _oauthAfterSuspend =
+    'The app was closed while this was starting, so it is unknown whether the authorization page was prepared. Start again.';
+
+/// MCP servers and the global presets of one server, signed-in user and
+/// Workspace.
+///
+/// Presets are only read and installed. Installing a preset is one write
+/// (create or overwrite of the Workspace server with the preset's ID), fenced
+/// like any other. Probing a server and listing its tools are reads that make
+/// the server connect out: they are explicit, bounded, and never retried.
+class McpController extends ConfigResourceController<MCPServer> {
+  McpController({
+    required super.newApi,
+    required super.token,
+    required super.workspaceId,
+    required super.onUnauthenticated,
+    this.openBrowser,
+    this.allowHttp = false,
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now,
+       super(kind: ConfigKind.mcp);
+
+  /// Opens a URL in the system browser; false when it could not.
+  final Future<bool> Function(Uri url)? openBrowser;
+
+  /// Whether a plain-http authorization page may be opened (development
+  /// servers only).
+  final bool allowHttp;
+  final DateTime Function() _now;
+
+  @override
+  String idOf(MCPServer item) => item.id;
+
+  @override
+  Future<List<MCPServer>> readAll(ButterApi api) =>
+      api.mcpServers(token, workspaceId);
+
+  @override
+  Future<MCPServer> readOne(ButterApi api, String id) =>
+      api.mcpServer(token, workspaceId, id);
+
+  @override
+  Future<MCPServer> createOne(ButterApi api, MCPServer draft) =>
+      api.createMcpServer(token, workspaceId, draft);
+
+  @override
+  Future<MCPServer> updateOne(ButterApi api, MCPServer draft) =>
+      api.updateMcpServer(token, workspaceId, draft);
+
+  @override
+  Future<void> deleteOne(ButterApi api, String id) =>
+      api.deleteMcpServer(token, workspaceId, id);
+
+  // ---- Probes, tools: reads fenced against writes to the same server ----
+
+  final Map<String, McpStatusView> statuses = {};
+  final Map<String, McpToolsView> tools = {};
+  final Map<String, int> _probeSeq = {};
+  final Map<String, int> _toolsSeq = {};
+
+  @override
+  void objectChanging(String? id) {
+    // Anything read about the server before a write to it may predate it.
+    if (id == null) return;
+    _probeSeq[id] = (_probeSeq[id] ?? 0) + 1;
+    _toolsSeq[id] = (_toolsSeq[id] ?? 0) + 1;
+    statuses.remove(id);
+    tools.remove(id);
+  }
+
+  @override
+  void objectRemoved(String id) {
+    statuses.remove(id);
+    tools.remove(id);
+    _oauth.remove(id);
+  }
+
+  /// Makes the server connect to [id] now. A server that cannot be reached is
+  /// an answer, not a failure of the call.
+  Future<void> probe(String id) async {
+    if (disposed) return;
+    final epoch = this.epoch, seq = (_probeSeq[id] ?? 0) + 1;
+    _probeSeq[id] = seq;
+    statuses[id] = const McpStatusView(McpStatusKind.probing);
+    emit();
+    try {
+      final reply = await api.mcpServerStatus(token, workspaceId, id);
+      if (!live(epoch) || _probeSeq[id] != seq) return;
+      statuses[id] = switch (reply.state) {
+        MCPServerStatus_State.STATE_CONNECTED => McpStatusView(
+          McpStatusKind.connected,
+          reason: 'Connected.',
+          toolCount: reply.toolCount,
+        ),
+        MCPServerStatus_State.STATE_DISCONNECTED => McpStatusView(
+          McpStatusKind.disconnected,
+          reason: mcpProbeReason(reply.detail),
+        ),
+        MCPServerStatus_State.STATE_CONFIGURED => const McpStatusView(
+          McpStatusKind.configured,
+          reason: 'Configured; the server did not connect to it.',
+        ),
+        _ => McpStatusView(
+          McpStatusKind.error,
+          reason: mcpProbeReason(reply.detail),
+        ),
+      };
+    } catch (failure) {
+      if (!live(epoch) || _probeSeq[id] != seq || expired(failure)) return;
+      statuses[id] = McpStatusView(
+        McpStatusKind.failed,
+        reason: configFailureMessage(failure, kind, ConfigOperation.status),
+      );
+    }
+    emit();
+  }
+
+  /// Lists the tools [id] offers, with which of them its filter allows.
+  Future<void> loadTools(String id) async {
+    if (disposed) return;
+    final epoch = this.epoch, seq = (_toolsSeq[id] ?? 0) + 1;
+    _toolsSeq[id] = seq;
+    tools[id] = const McpToolsView(ConfigLoad.loading);
+    emit();
+    try {
+      final reply = await api.mcpTools(token, workspaceId, id);
+      if (!live(epoch) || _toolsSeq[id] != seq) return;
+      final failure = reply.errors[id];
+      tools[id] = failure != null
+          ? McpToolsView(ConfigLoad.failed, error: mcpProbeReason(failure))
+          : McpToolsView(
+              ConfigLoad.ready,
+              tools: List.unmodifiable(
+                reply.tools.where(
+                  (t) => t.serverId == id || t.serverId.isEmpty,
+                ),
+              ),
+            );
+    } catch (failure) {
+      if (!live(epoch) || _toolsSeq[id] != seq || expired(failure)) return;
+      tools[id] = McpToolsView(
+        ConfigLoad.failed,
+        error: configFailureMessage(failure, kind, ConfigOperation.tools),
+      );
+    }
+    emit();
+  }
+
+  // ---- Global presets: read and install only ----
+
+  List<MCPServer> presets = const [];
+  ConfigLoad presetState = ConfigLoad.idle;
+  String? presetError;
+  int _presetSeq = 0;
+
+  Future<void> loadPresets() async {
+    if (disposed) return;
+    final epoch = this.epoch, seq = ++_presetSeq;
+    presetState = ConfigLoad.loading;
+    presetError = null;
+    emit();
+    try {
+      final list = await api.globalMcpPresets(token, workspaceId);
+      if (!live(epoch) || seq != _presetSeq) return;
+      presets = List.unmodifiable(list);
+      presetState = ConfigLoad.ready;
+    } catch (failure) {
+      if (!live(epoch) || seq != _presetSeq || expired(failure)) return;
+      presetState = ConfigLoad.failed;
+      presetError = configFailureMessage(
+        failure,
+        ConfigKind.preset,
+        ConfigOperation.load,
+      );
+    }
+    emit();
+  }
+
+  /// Installs the preset into this Workspace: creates the server with the
+  /// preset's ID, or overwrites the one an earlier install made. One call; an
+  /// unknown outcome is settled by a read, never by installing again.
+  Future<bool> install(String presetId) =>
+      runWrite(id: presetId, (epoch) async {
+        final saved = await api.installGlobalMcpPreset(
+          token,
+          workspaceId,
+          presetId,
+        );
+        if (live(epoch)) stored(saved);
+      }, ConfigOperation.install);
+
+  // ---- OAuth ----
+
+  final Map<String, McpOAuthView> _oauth = {};
+  final Map<String, int> _oauthSeq = {};
+  McpOAuthView oauthOf(String id) => _oauth.putIfAbsent(id, McpOAuthView.new);
+
+  bool _isWebUrl(Uri url) =>
+      url.hasAuthority &&
+      url.host.isNotEmpty &&
+      (url.scheme == 'https' || (allowHttp && url.scheme == 'http'));
+
+  /// Reads where the server's authorization of [id] stands. While a flow is
+  /// being waited on, this is also how its end is noticed.
+  Future<void> loadOAuth(String id) async {
+    if (disposed) return;
+    final view = oauthOf(id);
+    final epoch = this.epoch, seq = (_oauthSeq[id] ?? 0) + 1;
+    _oauthSeq[id] = seq;
+    final started = beginRead();
+    view.reading = true;
+    emit();
+    try {
+      final status = await api.mcpOAuthStatus(token, workspaceId, id);
+      if (!live(epoch) || _oauthSeq[id] != seq) return;
+      view
+        ..reading = false
+        ..status = status;
+      // A read that began after a disconnect ended settles it.
+      reconcile(started, id: id, scope: 'oauth');
+      _settleWaiting(view, status);
+    } catch (failure) {
+      if (!live(epoch) || _oauthSeq[id] != seq) return;
+      view.reading = false;
+      if (expired(failure)) return;
+      if (view.waiting) {
+        view.message =
+            'Could not read the authorization state yet. ${configFailureMessage(failure, kind, ConfigOperation.oauthStatus)}';
+      } else {
+        view.message = configFailureMessage(
+          failure,
+          kind,
+          ConfigOperation.oauthStatus,
+        );
+      }
+    }
+    emit();
+  }
+
+  /// Whether [status] shows the connection the waiting flow was started for.
+  void _settleWaiting(McpOAuthView view, MCPOAuthConnectionStatus status) {
+    if (!view.waiting) return;
+    final connectedNow =
+        status.state ==
+        MCPOAuthConnectionState.MCPO_AUTH_CONNECTION_STATE_CONNECTED;
+    final at = status.hasConnectedAt() ? status.connectedAt.toDateTime() : null;
+    final newer =
+        at != null && (view.baseline == null || at.isAfter(view.baseline!));
+    if (connectedNow && (newer || !view.baselineConnected)) {
+      view
+        ..phase = McpOAuthPhase.connected
+        ..message = 'Connected.';
+      return;
+    }
+    if (_now().isAfter(view.deadline!)) {
+      view
+        ..phase = McpOAuthPhase.timedOut
+        ..message =
+            'No connection was made within ${mcpOAuthFlowTtl.inMinutes} minutes, so the authorization expired. If you declined it or the provider refused, nothing was connected. Start again.';
+      return;
+    }
+    view.message =
+        'Not connected yet. Finish signing in in the browser, then come back and check again.';
+  }
+
+  /// Starts authorizing [id] in the system browser.
+  ///
+  /// The current state is read first so a connection that already exists is
+  /// not mistaken for the result of this flow; if that read fails nothing is
+  /// started.
+  Future<void> connectOAuth(String id) async {
+    if (disposed) return;
+    final view = oauthOf(id);
+    if (view.phase == McpOAuthPhase.starting || writing) return;
+    if (unconfirmed) {
+      view
+        ..phase = McpOAuthPhase.failed
+        ..message =
+            'An earlier change is not confirmed. Refresh the server first.';
+      emit();
+      return;
+    }
+    final epoch = this.epoch;
+    final seq = (_oauthSeq[id] ?? 0) + 1;
+    _oauthSeq[id] = seq;
+    view
+      ..phase = McpOAuthPhase.starting
+      ..message = null
+      ..deadline = null;
+    emit();
+
+    MCPOAuthConnectionStatus before;
+    try {
+      before = await api.mcpOAuthStatus(token, workspaceId, id);
+    } catch (failure) {
+      if (!live(epoch)) return _suspendedDuringStart(view);
+      if (expired(failure)) return;
+      view
+        ..phase = McpOAuthPhase.failed
+        ..message =
+            'Could not read the current authorization, so nothing was started. ${configFailureMessage(failure, kind, ConfigOperation.oauthStatus)}';
+      emit();
+      return;
+    }
+    if (!live(epoch)) return _suspendedDuringStart(view);
+
+    StartMCPServerOAuthResponse started;
+    try {
+      started = await api.startMcpOAuth(token, workspaceId, id);
+    } catch (failure) {
+      if (!live(epoch)) return _suspendedDuringStart(view);
+      if (expired(failure)) return;
+      view
+        ..phase = McpOAuthPhase.failed
+        ..message = configFailureMessage(
+          failure,
+          kind,
+          ConfigOperation.oauthStart,
+        );
+      emit();
+      return;
+    }
+    if (!live(epoch)) return _suspendedDuringStart(view);
+
+    final url = Uri.tryParse(started.authorizationUrl);
+    if (url == null || !_isWebUrl(url)) {
+      view
+        ..phase = McpOAuthPhase.failed
+        ..message =
+            'The server returned an authorization address the app will not open. Nothing was connected.';
+      emit();
+      return;
+    }
+    final open = openBrowser;
+    var opened = false;
+    if (open != null) {
+      try {
+        opened = await open(url);
+      } catch (_) {
+        opened = false;
+      }
+    }
+    if (!live(epoch)) return _suspendedDuringStart(view);
+    if (!opened) {
+      view
+        ..phase = McpOAuthPhase.failed
+        ..message =
+            'Could not open the browser to authorize. Nothing was connected; try again.';
+      emit();
+      return;
+    }
+    view
+      ..phase = McpOAuthPhase.waiting
+      ..message =
+          'Finish signing in in the browser, then return to Butter. The link works for ${mcpOAuthFlowTtl.inMinutes} minutes.'
+      ..baseline = before.hasConnectedAt()
+          ? before.connectedAt.toDateTime()
+          : null
+      ..baselineConnected =
+          before.state ==
+          MCPOAuthConnectionState.MCPO_AUTH_CONNECTION_STATE_CONNECTED
+      ..deadline = _now().add(mcpOAuthFlowTtl)
+      ..status = before;
+    emit();
+  }
+
+  void _suspendedDuringStart(McpOAuthView view) {
+    if (disposed) return;
+    if (view.phase == McpOAuthPhase.starting) {
+      view
+        ..phase = McpOAuthPhase.failed
+        ..message = _oauthAfterSuspend;
+    }
+  }
+
+  /// Stops waiting. The server has no way to withdraw an authorization that was
+  /// opened, so the link stays valid until it expires; a connection finished in
+  /// the browser afterwards still shows when the state is read.
+  void cancelOAuth(String id) {
+    final view = oauthOf(id);
+    if (!view.waiting) return;
+    view
+      ..phase = McpOAuthPhase.cancelled
+      ..message =
+          'Stopped waiting. The authorization link stays valid for up to ${mcpOAuthFlowTtl.inMinutes} minutes; finishing it in the browser would still connect, so check the state to see.';
+    emit();
+  }
+
+  /// Deletes the stored connection. One call; an unknown outcome is settled by
+  /// reading the state, never by calling again.
+  Future<bool> disconnectOAuth(String id) => runWrite(id: id, scope: 'oauth', (
+    epoch,
+  ) async {
+    await api.disconnectMcpOAuth(token, workspaceId, id);
+    if (!live(epoch)) return;
+    _oauthSeq[id] = (_oauthSeq[id] ?? 0) + 1;
+    _oauth[id] = McpOAuthView(
+      phase: McpOAuthPhase.idle,
+      message: 'Disconnected.',
+      status: MCPOAuthConnectionStatus(
+        serverId: id,
+        state: MCPOAuthConnectionState.MCPO_AUTH_CONNECTION_STATE_DISCONNECTED,
+      ),
+    );
+    statuses.remove(id);
+    tools.remove(id);
+  }, ConfigOperation.oauthDisconnect);
+
+  // ---- Lifecycle ----
+
+  @override
+  void onSuspend() {
+    statuses.removeWhere((_, s) => s.kind == McpStatusKind.probing);
+    tools.removeWhere((_, t) => t.state == ConfigLoad.loading);
+    if (presetState == ConfigLoad.loading) presetState = ConfigLoad.idle;
+    // A flow being waited on survives: the app goes to the background while
+    // the browser is in front, which is the point. A start that was in
+    // flight is of unknown outcome.
+    for (final view in _oauth.values) {
+      view.reading = false;
+      if (view.phase == McpOAuthPhase.starting) {
+        view
+          ..phase = McpOAuthPhase.failed
+          ..message = _oauthAfterSuspend;
+      }
+    }
+  }
+
+  /// Back in the foreground: read again what was open, and look for the end of
+  /// any authorization being waited on.
+  @override
+  Future<void> onRecover() async {
+    await Future.wait([
+      for (final e in _oauth.entries)
+        if (e.value.waiting) loadOAuth(e.key),
+    ]);
+  }
+
+  @visibleForTesting
+  bool get hasWaitingFlow => _oauth.values.any((v) => v.waiting);
+}

@@ -9,6 +9,8 @@ import '../core/agent_errors.dart';
 import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
+import '../features/mcp/mcp_controller.dart';
+import '../features/remote_agents/remote_agent_controller.dart';
 import '../core/server_address.dart';
 import '../gen/agents/v1/agent.pb.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
@@ -189,10 +191,63 @@ final class ClientContext extends ChangeNotifier {
     );
   }
 
+  McpController? _mcp;
+
+  /// MCP servers and global presets for the current server, user and
+  /// Workspace. Authorization opens in the system browser through the same
+  /// platform as native sign-in, but is a separate flow: the server completes
+  /// it and the App only reads the resulting state.
+  McpController? get mcp {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _mcp ??= McpController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      openBrowser: _oauth?.openBrowser,
+      allowHttp: allowHttp,
+      onUnauthenticated: () {
+        final self = _mcp;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  RemoteAgentController? _remoteAgents;
+
+  /// Remote Agents for the current server, user and Workspace.
+  RemoteAgentController? get remoteAgents {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _remoteAgents ??= RemoteAgentController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _remoteAgents;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
   void _disposeChat() {
     final old = _chat;
     _chat = null;
     old?.dispose();
+    final oldMcp = _mcp;
+    _mcp = null;
+    oldMcp?.dispose();
+    final oldRemote = _remoteAgents;
+    _remoteAgents = null;
+    oldRemote?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -665,6 +720,8 @@ final class ClientContext extends ChangeNotifier {
   void suspend() {
     _chat?.suspend();
     _boxes?.suspend();
+    _mcp?.suspend();
+    _remoteAgents?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -730,6 +787,10 @@ final class ClientContext extends ChangeNotifier {
     );
     // Read-only too: only what a lost connection left uncertain is read again.
     unawaited(_chat?.recover());
+    // MCP and Remote Agent screens re-read what the suspension dropped and look
+    // for the end of an authorization that was open in the browser.
+    unawaited(_mcp?.recover());
+    unawaited(_remoteAgents?.recover());
   }
 
   Future<void> refreshWorkspaces() async {
