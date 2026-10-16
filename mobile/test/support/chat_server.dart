@@ -161,6 +161,8 @@ class RunResponse {
 }
 
 typedef RunScript = Future<void> Function(RunPost post, RunResponse response);
+typedef AttachScript =
+    Future<void> Function(String agent, String thread, RunResponse response);
 
 Map<String, Object?> runStarted(String thread, String run) => {
   'type': 'RUN_STARTED',
@@ -206,6 +208,11 @@ class ChatServer {
   final posts = <RunPost>[];
   final historyReads = <String>[];
   final stops = <String>[];
+  final attaches = <String>[];
+  AttachScript? attachScript;
+
+  /// When set, Stop answers 202 with this body; otherwise 204.
+  Map<String, Object?>? stopAccepted;
   final listCalls = <ListSessionsRequest>[];
   final listWorkspaces = <String?>[];
   final renames = <UpdateSessionTitleRequest>[];
@@ -279,7 +286,36 @@ class ChatServer {
         }
         if (segments[5] == 'stop' && r.method == 'POST') {
           stops.add('$agent/$thread');
-          r.response.statusCode = 204;
+          if (stopAccepted != null) {
+            r.response.statusCode = 202;
+            r.response.write(jsonEncode(stopAccepted));
+          } else {
+            r.response.statusCode = 204;
+          }
+          return true;
+        }
+        if (segments[5] == 'run' && r.method == 'GET') {
+          attaches.add('$agent/$thread');
+          if (attachScript == null) {
+            r.response.statusCode = 204;
+            return true;
+          }
+          final socket = await r.response.detachSocket(writeHeaders: false);
+          final response = RunResponse(
+            socket,
+            RunPost(
+              agentId: agent,
+              token: r.headers.value('authorization'),
+              workspace: r.headers.value('x-workspace-id'),
+              contentType: null,
+              body: {'threadId': thread, 'runId': 'attach'},
+            ),
+          );
+          try {
+            await attachScript!(agent, thread, response);
+          } finally {
+            await response.close();
+          }
           return true;
         }
       }

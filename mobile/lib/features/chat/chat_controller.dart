@@ -10,8 +10,11 @@ import '../../core/chat_errors.dart';
 import '../../core/sse.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import '../../gen/agents/v1/agent_service.pb.dart';
+import 'backoff.dart';
 import 'chat_model.dart';
 import 'history.dart';
+import 'last_run_input.dart';
+import 'run_effects.dart';
 import 'run_fold.dart';
 import 'run_request.dart';
 import 'threads.dart';
@@ -307,6 +310,14 @@ class ChatController extends ChangeNotifier {
   int _conv = 0;
   // Whether the server has (or may have) this thread: false for a draft.
   bool _started = false;
+  bool _polling = false;
+  bool _skipAttach = false;
+  ChatMessage? _sentTurn;
+  RestorableTurn? _restorable;
+  Map<String, dynamic>? sharedState;
+  String? stopError;
+  bool _stopping = false;
+  final _effects = _ChatRunEffects();
 
   ChatPhase phase = ChatPhase.idle;
   ChatNotice? notice;
@@ -315,6 +326,8 @@ class ChatController extends ChangeNotifier {
   bool opening = false;
   ChatMessage? liveReply;
   List<InterruptInfo> interrupts = const [];
+
+  bool get isPolling => _polling;
 
   String? get threadId => _threadId;
   String? get agentId => _agentId;
@@ -339,7 +352,17 @@ class ChatController extends ChangeNotifier {
       agent != null &&
       phase == ChatPhase.idle &&
       !opening &&
+      !_polling &&
       notice?.kind != NoticeKind.running;
+
+  bool get canStop =>
+      _threadId != null &&
+      agent != null &&
+      (phase == ChatPhase.streaming || _polling) &&
+      !_stopping;
+
+  /// Input that may be put back in the composer after a failed or stopped run.
+  RestorableTurn? get restorableInput => _restorable;
 
   void _closeConversation() {
     _conv++;
@@ -360,6 +383,14 @@ class ChatController extends ChangeNotifier {
     opening = false;
     liveReply = null;
     interrupts = const [];
+    _polling = false;
+    _skipAttach = false;
+    _sentTurn = null;
+    _restorable = null;
+    sharedState = null;
+    stopError = null;
+    _stopping = false;
+    _effects.bind(null);
   }
 
   /// Opens a draft thread on [agent]. Nothing is sent, and no thread exists on
@@ -410,28 +441,50 @@ class ChatController extends ChangeNotifier {
         threadId: id,
       );
       if (conv != _conv || _disposed) return;
-      final history = parseThreadHistory(body);
-      _messages
-        ..clear()
-        ..addAll(history.messages);
-      interrupts = history.interrupts;
+      _applyHistory(conv, parseThreadHistory(body));
       openError = null;
-      notice = _noticeFor(history);
     } catch (failure) {
       if (conv != _conv || _disposed) return;
       if (_expired(failure)) return;
+      if (_polling && transientAguiRead(failure)) return;
       openError = describeChatFailure(failure);
     }
     opening = false;
     _emit();
   }
 
+  void _applyHistory(int conv, ThreadHistory history) {
+    _messages
+      ..clear()
+      ..addAll(history.messages);
+    interrupts = history.interrupts;
+    _restorable = _restorableFor(history);
+    final running = history.running;
+    if (running != null && conv == _conv && phase == ChatPhase.idle) {
+      notice = null;
+      unawaited(_followExpectedRun(conv, running.runId));
+      return;
+    }
+    notice = _noticeFor(history);
+    liveReply = null;
+  }
+
+  RestorableTurn? _restorableFor(ThreadHistory history) {
+    final last = history.lastRun;
+    if (last != null) {
+      return restorableFromLastRun(last, history.messages);
+    }
+    if (_sentTurn != null && notice?.kind == NoticeKind.unconfirmed) {
+      return restorableFromUserTurn(_sentTurn!);
+    }
+    return null;
+  }
+
   ChatNotice? _noticeFor(ThreadHistory history) {
     if (history.running != null) {
       return const ChatNotice(
         NoticeKind.running,
-        'A reply is still being written on the server. Following it live is '
-        'not available in this app yet; refresh to see how it stands.',
+        'A reply is still being written on the server.',
       );
     }
     final last = history.lastRun;
@@ -470,6 +523,11 @@ class ChatController extends ChangeNotifier {
 
   /// Foreground recovery: reads again only when what is shown is uncertain.
   Future<void> recover() async {
+    if (_threadId == null || !_started) return;
+    if (phase == ChatPhase.streaming || _polling) {
+      await _readHistory(_conv);
+      return;
+    }
     const uncertain = {
       NoticeKind.connectionLost,
       NoticeKind.unconfirmed,
@@ -477,6 +535,12 @@ class ChatController extends ChangeNotifier {
       NoticeKind.running,
     };
     if (notice != null && uncertain.contains(notice!.kind)) await refresh();
+  }
+
+  /// Puts [restorableInput] back in the composer when the caller applies it.
+  void clearRestorable() {
+    _restorable = null;
+    _emit();
   }
 
   /// The app is going to the background: nothing keeps running here, so open
@@ -528,6 +592,7 @@ class ChatController extends ChangeNotifier {
       ],
     );
     _messages.add(turn);
+    _sentTurn = turn;
     phase = ChatPhase.sending;
     _emit();
 
@@ -551,6 +616,7 @@ class ChatController extends ChangeNotifier {
           'refresh to check.',
         );
         _emit();
+        unawaited(_reconcileAmbiguous(conv));
         return true;
       }
       // Refused or never sent: the run did not start, so the turn goes back
@@ -571,15 +637,107 @@ class ChatController extends ChangeNotifier {
     _started = true;
     phase = ChatPhase.streaming;
     _runStream = opened;
-    _follow(conv, opened, RunFold());
+    _effects.bind((state) {
+      sharedState = state;
+      _emit();
+    });
+    unawaited(
+      _streamRun(conv, opened, runId, RunFold(_effects), fromPost: true).then((
+        ended,
+      ) async {
+        if (!ended &&
+            conv == _conv &&
+            !_disposed &&
+            notice?.kind == NoticeKind.fallback) {
+          await _pollRunEnded(conv, partial: liveReply);
+        }
+      }),
+    );
     _emit();
     return true;
   }
 
-  void _follow(int conv, AguiRun run, RunFold fold) {
+  Future<void> _reconcileAmbiguous(int conv) async {
+    await _readHistory(conv);
+    if (conv != _conv || _disposed) return;
+    if (phase != ChatPhase.idle) return;
+    if (notice?.kind == NoticeKind.unconfirmed) {
+      _restorable = _sentTurn == null
+          ? null
+          : restorableFromUserTurn(_sentTurn!);
+      _emit();
+    }
+  }
+
+  Future<void> _followExpectedRun(int conv, String runId) async {
+    if (_skipAttach) {
+      await _pollRunEnded(conv);
+      return;
+    }
+    phase = ChatPhase.streaming;
+    liveReply = null;
+    _effects.bind((state) {
+      sharedState = state;
+      _emit();
+    });
+    _emit();
+    AguiRun? run;
+    try {
+      run = await _agui.attach(
+        token: token,
+        workspace: workspaceId,
+        agentId: _agentId!,
+        threadId: _threadId!,
+      );
+    } catch (failure) {
+      if (conv != _conv || _disposed) return;
+      if (_expired(failure)) return;
+      if (transientAguiRead(failure)) {
+        await _pollRunEnded(conv);
+        return;
+      }
+      openError = describeChatFailure(failure);
+      phase = ChatPhase.idle;
+      _emit();
+      return;
+    }
+    if (conv != _conv || _disposed) {
+      run?.abort();
+      return;
+    }
+    if (run == null) {
+      await _pollRunEnded(conv);
+      return;
+    }
+    _runStream = run;
+    final ended = await _streamRun(
+      conv,
+      run,
+      runId,
+      RunFold(_effects),
+      fromPost: false,
+    );
+    if (conv != _conv || _disposed) return;
+    if (!ended) await _pollRunEnded(conv);
+  }
+
+  /// Streams one run's events. Returns true when the run ended in-stream.
+  Future<bool> _streamRun(
+    int conv,
+    AguiRun run,
+    String expectedRunId,
+    RunFold fold, {
+    required bool fromPost,
+  }) async {
+    final completer = Completer<bool>();
     late final StreamSubscription<SseEvent> sub;
     var finished = false;
-    void finish(ChatNotice? ending, {required bool commit}) {
+
+    void finish(
+      ChatNotice? ending, {
+      required bool commit,
+      required bool ended,
+    }) {
       if (finished || conv != _conv || _disposed) return;
       finished = true;
       unawaited(sub.cancel());
@@ -588,11 +746,23 @@ class ChatController extends ChangeNotifier {
       if (identical(_runStream, run)) _runStream = null;
       if (commit) {
         final reply = fold.reply;
-        if (reply.parts.isNotEmpty) _messages.add(reply);
+        if (reply.parts.isNotEmpty) {
+          if (fromPost) {
+            _messages.add(reply);
+          } else {
+            liveReply = null;
+            _messages.add(reply);
+          }
+        }
       }
       liveReply = null;
       phase = ChatPhase.idle;
-      notice = ending;
+      if (ending != null) {
+        notice = ending;
+        _restorable = _restorableForOutcome(ending, fold);
+      }
+      _sentTurn = null;
+      if (!completer.isCompleted) completer.complete(ended);
       _emit();
     }
 
@@ -602,6 +772,14 @@ class ChatController extends ChangeNotifier {
         try {
           fold.addData(event.data);
         } on FormatException {
+          if (!fromPost) {
+            finish(
+              null,
+              commit: liveReply != null && liveReply!.parts.isNotEmpty,
+              ended: false,
+            );
+            return;
+          }
           finish(
             const ChatNotice(
               NoticeKind.connectionLost,
@@ -609,7 +787,12 @@ class ChatController extends ChangeNotifier {
               'reply was dropped. The run may still be going; refresh to check.',
             ),
             commit: true,
+            ended: false,
           );
+          return;
+        }
+        if (fold.runId != null && fold.runId != expectedRunId) {
+          finish(null, commit: false, ended: false);
           return;
         }
         final outcome = fold.outcome;
@@ -618,14 +801,116 @@ class ChatController extends ChangeNotifier {
           _emit();
           return;
         }
+        if (outcome.end == RunEnd.fallback &&
+            outcome.fallbackReason == 'truncated') {
+          _skipAttach = true;
+        }
         interrupts = outcome.interrupts;
-        finish(_noticeForOutcome(outcome), commit: true);
+        final ending = _noticeForOutcome(outcome);
+        finish(ending, commit: true, ended: outcome.end != RunEnd.fallback);
       },
-      onError: (Object _) => finish(_lost, commit: true),
-      onDone: () => finish(fold.outcome == null ? _lost : null, commit: true),
+      onError: (Object _) =>
+          finish(fromPost ? _lost : null, commit: fromPost, ended: false),
+      onDone: () {
+        if (fold.outcome == null) {
+          finish(fromPost ? _lost : null, commit: fromPost, ended: false);
+        }
+      },
       cancelOnError: true,
     );
     _sub = sub;
+    return completer.future;
+  }
+
+  RestorableTurn? _restorableForOutcome(ChatNotice? ending, RunFold fold) {
+    if (ending == null) return null;
+    if (ending.kind != NoticeKind.failed && ending.kind != NoticeKind.stopped) {
+      return null;
+    }
+    return _sentTurn == null ? null : restorableFromUserTurn(_sentTurn!);
+  }
+
+  Future<void> _pollRunEnded(int conv, {ChatMessage? partial}) async {
+    if (conv != _conv || _disposed) return;
+    _polling = true;
+    liveReply = partial;
+    phase = ChatPhase.idle;
+    notice = const ChatNotice(
+      NoticeKind.fallback,
+      'Waiting for the server to finish this reply…',
+    );
+    _emit();
+    final backoff = Backoff();
+    while (conv == _conv && !_disposed) {
+      await backoff.wait(live: () => conv == _conv && !_disposed);
+      if (conv != _conv || _disposed) break;
+      try {
+        final body = await _agui.history(
+          token: token,
+          workspace: workspaceId,
+          agentId: _agentId!,
+          threadId: _threadId!,
+        );
+        if (conv != _conv || _disposed) break;
+        final history = parseThreadHistory(body);
+        if (history.running != null) continue;
+        _polling = false;
+        liveReply = null;
+        _applyHistory(conv, history);
+        break;
+      } catch (failure) {
+        if (conv != _conv || _disposed) break;
+        if (_expired(failure)) break;
+        if (!transientAguiRead(failure)) {
+          openError = describeChatFailure(failure);
+          _polling = false;
+          break;
+        }
+      }
+    }
+    _polling = false;
+    _emit();
+  }
+
+  /// Stop asks the server to end the detached run. 202 accepts; 204 means
+  /// nothing was running. Never shows "stopped" until the thread read says so.
+  Future<void> stopRun() async {
+    final id = _threadId, agent = _agentId;
+    if (_disposed || id == null || agent == null || !canStop) return;
+    stopError = null;
+    _stopping = true;
+    _emit();
+    final conv = _conv;
+    try {
+      final stopped = await _agui.stop(
+        token: token,
+        workspace: workspaceId,
+        agentId: agent,
+        threadId: id,
+      );
+      if (conv != _conv || _disposed) return;
+      _abortStreamOnly();
+      if (stopped != null) {
+        await _pollRunEnded(conv, partial: liveReply);
+      } else {
+        await _readHistory(conv);
+      }
+    } catch (failure) {
+      if (conv != _conv || _disposed) return;
+      if (_expired(failure)) return;
+      stopError = describeChatFailure(failure);
+    } finally {
+      if (conv == _conv) _stopping = false;
+      _emit();
+    }
+  }
+
+  void _abortStreamOnly() {
+    final sub = _sub;
+    _sub = null;
+    if (sub != null) unawaited(sub.cancel());
+    _runStream?.abort();
+    _runStream = null;
   }
 
   static const _lost = ChatNotice(
@@ -667,4 +952,18 @@ class ChatController extends ChangeNotifier {
     _api.close();
     super.dispose();
   }
+}
+
+final class _ChatRunEffects extends RunEffects {
+  void Function(Map<String, dynamic>? state)? _onState;
+
+  void bind(void Function(Map<String, dynamic>? state)? onState) {
+    _onState = onState;
+  }
+
+  @override
+  void a2ui(Object? value) {}
+
+  @override
+  void state(Map<String, dynamic>? next) => _onState?.call(next);
 }
