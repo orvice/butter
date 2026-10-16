@@ -301,6 +301,23 @@ Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disabl
 
 Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
 
+## Telegram (#465)
+
+Agents → **Telegram** manages Channels (Bot transport), Destinations (exact chat/topic addresses), inbound processing records and delivery recovery. Members read; workspace owner/admin write. Bot tokens are write-only (create and rotate). Test messages and resend require explicit confirmation. The App does not register webhooks or run the inbound worker — it configures resources and reads derived status. Platform webhook base URL is read-only via `TelegramAdminService` for global admins; other users see channel status blockers and an administrator hint.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / create / edit Channel | `TelegramChannelService` | Hub → Channels | `telegram_contract_test`, `telegram_draft_test`, `telegram_widget_test` |
+| Rotate token / enable inbound-outbound | `RotateTelegramChannelCredential`, `SetTelegramChannelEnabled` | Channel detail | `telegram_contract_test` |
+| Receive mode, preflight status | `UpdateTelegramChannel`, `GetTelegramChannelStatus` | Channel detail | `telegram_contract_test` |
+| List / CRUD Destination | `TelegramDestinationService` | Channel → Destinations | `telegram_contract_test`, `telegram_draft_test` |
+| Test send (side effect) | `SendTelegramTestMessage` | Destination detail → confirm | `telegram_contract_test` |
+| Processing list / detail | `TelegramProcessingService` | Hub → Processing records | `telegram_contract_test` |
+| Resend unsent segments only | `ResendTelegramReply` | Record detail → confirm | `telegram_contract_test`, `telegram_controller_test` |
+| Platform webhook base (read-only) | `TelegramAdminService.GetTelegramSettings` | Channel list hint | `telegram_contract_test` |
+
+Contract fixture: `tool/contractserver/telegram.go` (`telegram` workspace, fake Bot API, seeded channel/destination/resend record). Chat and topic IDs stay decimal strings; addresses are immutable after create.
+
 ## File spaces and Agent associations (#456)
 
 Workspace → **File spaces** manages `AgentFileService`: spaces, the text files in them, their versions and search. The Agent editor (LLM, Loop, Sequential, Parallel and Workflow Agents; Pi and Cursor leaves are unchanged) selects the existing MCP servers, Remote Agents, file spaces (mounts) and Skills an Agent references. Skill creation, `SKILL.md` editing and Skill Resource management stay in Web: the Skill list is read for selection only. File content travels as the UTF-8 text of `WriteAgentFile` / `GetAgentFile`, never through the avatar upload.

@@ -17,6 +17,7 @@ import '../features/agents/agent_lifecycle_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
 import '../features/cron/cron_pages.dart';
+import '../features/telegram/telegram_pages.dart';
 import '../features/sessions/session_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
@@ -600,6 +601,12 @@ class _Agents extends StatelessWidget {
             onPressed: client.busy ? null : () => openCronJobs(context, client),
             icon: const Icon(Icons.schedule),
             label: const Text('Cron jobs'),
+          ),
+          TextButton.icon(
+            key: const Key('open-telegram'),
+            onPressed: client.busy ? null : () => openTelegram(context, client),
+            icon: const Icon(Icons.send_outlined),
+            label: const Text('Telegram'),
           ),
           TextButton.icon(
             key: const Key('open-remote-agents'),

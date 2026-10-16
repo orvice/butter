@@ -70,6 +70,9 @@ final class ButterApi {
     _cron = CronJobServiceClient(transport);
     _notifyGroups = NotifyGroupServiceClient(transport);
     _telegramDestinations = TelegramDestinationServiceClient(transport);
+    _telegramChannels = TelegramChannelServiceClient(transport);
+    _telegramProcessing = TelegramProcessingServiceClient(transport);
+    _telegramAdmin = TelegramAdminServiceClient(transport);
     _memoryConfig = WorkspaceMemoryConfigServiceClient(transport);
     _memories = WorkspaceMemoryServiceClient(transport);
   }
@@ -94,6 +97,9 @@ final class ButterApi {
   late final CronJobServiceClient _cron;
   late final NotifyGroupServiceClient _notifyGroups;
   late final TelegramDestinationServiceClient _telegramDestinations;
+  late final TelegramChannelServiceClient _telegramChannels;
+  late final TelegramProcessingServiceClient _telegramProcessing;
+  late final TelegramAdminServiceClient _telegramAdmin;
   late final WorkspaceMemoryConfigServiceClient _memoryConfig;
   late final WorkspaceMemoryServiceClient _memories;
 
@@ -1982,12 +1988,302 @@ final class ButterApi {
 
   Future<List<TelegramDestination>> listTelegramDestinations(
     String token,
-    String workspace,
-  ) async => (await _telegramDestinations.listTelegramDestinations(
-    ListTelegramDestinationsRequest(),
+    String workspace, {
+    String channelId = '',
+  }) async => (await _telegramDestinations.listTelegramDestinations(
+    ListTelegramDestinationsRequest(channelId: channelId),
     headers: _headers(token, workspace),
     signal: _deadline,
   )).destinations;
+
+  Future<TelegramDestination> getTelegramDestination(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _telegramDestinations.getTelegramDestination(
+      GetTelegramDestinationRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasDestination()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Destination not found.',
+      );
+    }
+    return reply.destination;
+  }
+
+  Future<TelegramDestination> createTelegramDestination(
+    String token,
+    String workspace,
+    TelegramDestination destination,
+  ) async {
+    final reply = await _telegramDestinations.createTelegramDestination(
+      CreateTelegramDestinationRequest(destination: destination),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasDestination()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Create returned no destination.',
+      );
+    }
+    return reply.destination;
+  }
+
+  Future<TelegramDestination> updateTelegramDestination(
+    String token,
+    String workspace,
+    TelegramDestination destination,
+  ) async {
+    final reply = await _telegramDestinations.updateTelegramDestination(
+      UpdateTelegramDestinationRequest(destination: destination),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasDestination()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Update returned no destination.',
+      );
+    }
+    return reply.destination;
+  }
+
+  Future<void> deleteTelegramDestination(
+    String token,
+    String workspace,
+    String id,
+  ) => _telegramDestinations.deleteTelegramDestination(
+    DeleteTelegramDestinationRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<SendTelegramTestMessageResponse> sendTelegramTestMessage(
+    String token,
+    String workspace,
+    String destinationId, {
+    String text = '',
+  }) => _telegramDestinations.sendTelegramTestMessage(
+    SendTelegramTestMessageRequest(destinationId: destinationId, text: text),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<List<TelegramChannel>> listTelegramChannels(
+    String token,
+    String workspace,
+  ) async => (await _telegramChannels.listTelegramChannels(
+    ListTelegramChannelsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).channels;
+
+  Future<TelegramChannel> getTelegramChannel(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _telegramChannels.getTelegramChannel(
+      GetTelegramChannelRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Channel not found.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<TelegramChannel> createTelegramChannel(
+    String token,
+    String workspace, {
+    required TelegramChannel channel,
+    required String botToken,
+  }) async {
+    final reply = await _telegramChannels.createTelegramChannel(
+      CreateTelegramChannelRequest(channel: channel, botToken: botToken),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Create returned no channel.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<TelegramChannel> updateTelegramChannel(
+    String token,
+    String workspace,
+    TelegramChannel channel,
+  ) async {
+    final reply = await _telegramChannels.updateTelegramChannel(
+      UpdateTelegramChannelRequest(channel: channel),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Update returned no channel.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<TelegramChannel> rotateTelegramChannelCredential(
+    String token,
+    String workspace,
+    String channelId,
+    String botToken,
+  ) async {
+    final reply = await _telegramChannels.rotateTelegramChannelCredential(
+      RotateTelegramChannelCredentialRequest(
+        channelId: channelId,
+        botToken: botToken,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Rotation returned no channel.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<({TelegramChannel channel, List<String> warnings})>
+  setTelegramChannelEnabled(
+    String token,
+    String workspace, {
+    required String channelId,
+    required Int64 revision,
+    required bool inboundEnabled,
+    required bool outboundEnabled,
+  }) async {
+    final reply = await _telegramChannels.setTelegramChannelEnabled(
+      SetTelegramChannelEnabledRequest(
+        channelId: channelId,
+        revision: revision,
+        inboundEnabled: inboundEnabled,
+        outboundEnabled: outboundEnabled,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Enablement returned no channel.',
+      );
+    }
+    return (channel: reply.channel, warnings: reply.warnings);
+  }
+
+  Future<void> deleteTelegramChannel(
+    String token,
+    String workspace,
+    String id,
+  ) => _telegramChannels.deleteTelegramChannel(
+    DeleteTelegramChannelRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<TelegramChannelStatus> getTelegramChannelStatus(
+    String token,
+    String workspace,
+    String channelId,
+  ) async {
+    final reply = await _telegramChannels.getTelegramChannelStatus(
+      GetTelegramChannelStatusRequest(channelId: channelId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasStatus()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Status unavailable.',
+      );
+    }
+    return reply.status;
+  }
+
+  Future<List<TelegramProcessingRecord>> listTelegramProcessingRecords(
+    String token,
+    String workspace, {
+    String channelId = '',
+    String destinationId = '',
+    TelegramProcessingStatus status =
+        TelegramProcessingStatus.TELEGRAM_PROCESSING_STATUS_UNSPECIFIED,
+    int pageSize = 50,
+  }) async => (await _telegramProcessing.listTelegramProcessingRecords(
+    ListTelegramProcessingRecordsRequest(
+      channelId: channelId,
+      destinationId: destinationId,
+      status: status,
+      pageSize: pageSize,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).records;
+
+  Future<TelegramProcessingRecord> getTelegramProcessingRecord(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _telegramProcessing.getTelegramProcessingRecord(
+      GetTelegramProcessingRecordRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRecord()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Processing record not found.',
+      );
+    }
+    return reply.record;
+  }
+
+  Future<ResendTelegramReplyResponse> resendTelegramReply(
+    String token,
+    String workspace,
+    String id,
+  ) => _telegramProcessing.resendTelegramReply(
+    ResendTelegramReplyRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// Platform Telegram settings (global admin only). Members use channel
+  /// status blockers instead; a permission error is expected for them.
+  Future<TelegramSettings?> getTelegramSettings(String token) async {
+    try {
+      final reply = await _telegramAdmin.getTelegramSettings(
+        GetTelegramSettingsRequest(),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+      return reply.hasSettings() ? reply.settings : null;
+    } on connect.ConnectException catch (e) {
+      if (e.code == connect.Code.permissionDenied) return null;
+      rethrow;
+    }
+  }
 
   void close() => _client.close(force: true);
 }

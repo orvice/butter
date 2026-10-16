@@ -16,6 +16,7 @@ import '../features/files/file_controller.dart';
 import '../features/memory/memory_controller.dart';
 import '../features/repo_binding/repo_binding_controller.dart';
 import '../features/cron/cron_controller.dart';
+import '../features/telegram/telegram_controller.dart';
 import '../features/sessions/session_controller.dart';
 import '../features/mcp/mcp_controller.dart';
 import '../features/remote_agents/remote_agent_controller.dart';
@@ -287,6 +288,28 @@ final class ClientContext extends ChangeNotifier {
   FileSpaceController? _fileSpaces;
   SessionController? _sessions;
   CronController? _cron;
+  TelegramController? _telegram;
+
+  /// Telegram Channels, Destinations and processing records (#465).
+  TelegramController? get telegram {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _telegram ??= TelegramController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _telegram;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      agents: () => agents,
+      modelAliases: () => agentModelChoices,
+    );
+  }
 
   /// Cron jobs, executions, run-now and WAITING_INPUT reply.
   CronController? get cron {
@@ -462,6 +485,9 @@ final class ClientContext extends ChangeNotifier {
     final oldCron = _cron;
     _cron = null;
     oldCron?.dispose();
+    final oldTelegram = _telegram;
+    _telegram = null;
+    oldTelegram?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -953,6 +979,7 @@ final class ClientContext extends ChangeNotifier {
     _memory?.suspend();
     _sessions?.suspend();
     _cron?.suspend();
+    _telegram?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -1031,6 +1058,7 @@ final class ClientContext extends ChangeNotifier {
     unawaited(_memory?.recover());
     unawaited(_sessions?.recover());
     unawaited(_cron?.recover());
+    unawaited(_telegram?.recover());
   }
 
   Future<void> refreshWorkspaces() async {
