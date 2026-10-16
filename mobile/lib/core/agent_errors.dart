@@ -22,6 +22,15 @@ String? describeAgentFailure(Object failure) {
     }
     return null;
   }
+  if (failure.code == Code.failedPrecondition) {
+    final message = failure.message;
+    if (message.contains('Telegram') || message.contains('Destination')) {
+      return 'This Agent is routed from Telegram and cannot be deleted until those Destinations are updated.';
+    }
+    if (message.contains('Linear')) {
+      return 'This Agent is routed from Linear and cannot be deleted until that App is updated.';
+    }
+  }
   if (failure.code == Code.invalidArgument) {
     final message = failure.message;
     const guardErrors = {

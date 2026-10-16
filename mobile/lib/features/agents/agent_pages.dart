@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../app/client_context.dart';
 import '../../core/management_page.dart';
 import '../../gen/agents/v1/agent.pb.dart';
+import 'agent_content_pages.dart';
 import 'agent_draft.dart';
 import 'agent_form.dart';
+import 'agent_lifecycle_pages.dart';
 import 'leaf_draft.dart';
 import 'workflow_graph_view.dart';
 export 'agent_form.dart' show AgentFormPage;
@@ -106,6 +108,89 @@ class AgentDetailPage extends StatelessWidget {
               const Text(
                 'Editing this Agent type is not supported here. Use the Web dashboard; no configuration will be overwritten.',
               ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: client.busy
+                  ? null
+                  : () => openAgentOperations(context, client),
+              icon: const Icon(Icons.history_toggle_off),
+              label: const Text('Lifecycle operations'),
+            ),
+            if (client.agentContentGitOwned &&
+                client.canManageWorkspaceResources)
+              TextButton.icon(
+                onPressed: client.busy
+                    ? null
+                    : () => openAgentContentEditor(context, client, id),
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('Edit Git content'),
+              ),
+            if (agent.lifecycleStatus !=
+                AgentLifecycleStatus.AGENT_LIFECYCLE_STATUS_DELETED)
+              TextButton.icon(
+                onPressed: client.busy || client.agentLifecycle == null
+                    ? null
+                    : () async {
+                        final lifecycle = client.agentLifecycle!;
+                        final label = agent.displayName.isEmpty
+                            ? agent.name
+                            : agent.displayName;
+                        final ok = await confirmDeleteAgent(
+                          context,
+                          lifecycle,
+                          id,
+                          label,
+                        );
+                        if (ok && context.mounted) {
+                          Navigator.pop(context);
+                        }
+                      },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Tombstone Agent'),
+              )
+            else ...[
+              if (client.canManageWorkspaceResources)
+                TextButton.icon(
+                  onPressed: client.busy || client.agentLifecycle == null
+                      ? null
+                      : () async {
+                          final lifecycle = client.agentLifecycle!;
+                          final label = agent.displayName.isEmpty
+                              ? agent.name
+                              : agent.displayName;
+                          final ok = await confirmRestoreAgent(
+                            context,
+                            lifecycle,
+                            id,
+                            label,
+                          );
+                          if (ok && context.mounted) {
+                            await client.loadAgent(id);
+                          }
+                        },
+                  icon: const Icon(Icons.restore),
+                  label: const Text('Restore Agent'),
+                ),
+              if (client.canManageWorkspaceResources)
+                TextButton.icon(
+                  onPressed: client.busy || client.agentLifecycle == null
+                      ? null
+                      : () async {
+                          final lifecycle = client.agentLifecycle!;
+                          final label = agent.displayName.isEmpty
+                              ? agent.name
+                              : agent.displayName;
+                          await confirmPurgeContent(
+                            context,
+                            lifecycle,
+                            id,
+                            label,
+                          );
+                        },
+                  icon: const Icon(Icons.delete_forever),
+                  label: const Text('Purge Git content'),
+                ),
+            ],
             const SizedBox(height: 16),
             SelectableText(agent.description),
             if (isLLM(agent)) ...[

@@ -9,6 +9,7 @@ import '../core/agent_errors.dart';
 import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
+import '../features/agents/agent_lifecycle_controller.dart';
 import '../features/agents/associations.dart';
 import '../features/daemons/daemon_controller.dart';
 import '../features/files/file_controller.dart';
@@ -304,6 +305,29 @@ final class ClientContext extends ChangeNotifier {
   }
 
   RepoBindingController? _repoBinding;
+  AgentLifecycleController? _agentLifecycle;
+
+  /// Agent lifecycle operations and Git content commits (#459).
+  AgentLifecycleController? get agentLifecycle {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _agentLifecycle ??= AgentLifecycleController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      canManage: () => canManageWorkspaceResources,
+      onUnauthenticated: () {
+        final self = _agentLifecycle;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      onAgentsChanged: () => unawaited(refreshAgents()),
+      onBindingChanged: () => unawaited(refreshAgentBindingFlags()),
+    );
+  }
 
   /// Git repository binding and cache browser (#458). [RepoBindingController]
   /// exposes [RepoBindingController.agentContentGitOwned] for Agent Content (#459).
@@ -380,6 +404,9 @@ final class ClientContext extends ChangeNotifier {
     final oldRepo = _repoBinding;
     _repoBinding = null;
     oldRepo?.dispose();
+    final oldLifecycle = _agentLifecycle;
+    _agentLifecycle = null;
+    oldLifecycle?.dispose();
     final oldSessions = _sessions;
     _sessions = null;
     oldSessions?.dispose();
@@ -870,6 +897,7 @@ final class ClientContext extends ChangeNotifier {
     _daemons?.suspend();
     _fileSpaces?.suspend();
     _repoBinding?.suspend();
+    _agentLifecycle?.suspend();
     _sessions?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;

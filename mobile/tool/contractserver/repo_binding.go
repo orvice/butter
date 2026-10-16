@@ -99,6 +99,9 @@ func (fx *repoBindingFixture) register(r *gin.Engine, opts []connect.HandlerOpti
 		agentsv1connect.WorkspaceRepoBindingServicePublishWorkspaceRepositoryProcedure,
 		agentsv1connect.WorkspaceRepoBindingServiceConfigureWebhookSecretProcedure,
 		agentsv1connect.WorkspaceRepoBindingServiceAcceptRepositoryBaselineProcedure,
+		agentsv1connect.WorkspaceRepoBindingServiceCommitAgentContentProcedure,
+		agentsv1connect.WorkspaceRepoBindingServiceRollbackAgentContentProcedure,
+		agentsv1connect.WorkspaceRepoBindingServicePurgeAgentContentProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", handler)))
 	}
