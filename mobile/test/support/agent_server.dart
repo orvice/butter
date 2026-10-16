@@ -34,7 +34,7 @@ class AgentServer extends TestServer {
   (int, String, String)? getRefusal;
 
   /// Refuses `ListAgents` while set.
-  (int, String, String)? listRefusal;
+  (int, String, String)? agentsListRefusal;
 
   Agent _overlaid(String ws, Agent stored) {
     final files = gitContent[ws]?[stored.agentId];
@@ -95,7 +95,7 @@ class AgentServer extends TestServer {
       }
       switch (method) {
         case 'ListAgents':
-          if (listRefusal case final failure?) {
+          if (agentsListRefusal case final failure?) {
             _fail(r, failure.$1, failure.$2, failure.$3);
             return true;
           }

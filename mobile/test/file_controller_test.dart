@@ -592,7 +592,7 @@ void main() {
 
     test('a scan that cannot read the Agents says so', () async {
       final h = await start();
-      h.server.listRefusal = (503, 'unavailable', 'down');
+      h.server.agentsListRefusal = (503, 'unavailable', 'down');
       final refs = await h.client.fileSpaces!.agentsMounting('docs');
       expect(refs!.complete, isFalse);
     });
