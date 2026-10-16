@@ -59,6 +59,7 @@ contract_tests=(
   test/files_contract_test.dart
   test/repo_binding_contract_test.dart
   test/chat_reconnect_contract_test.dart
+  test/a2ui_contract_test.dart
   test/session_contract_test.dart
   test/agent_lifecycle_contract_test.dart
 )

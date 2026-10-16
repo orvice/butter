@@ -10,6 +10,9 @@ import '../../core/chat_errors.dart';
 import '../../core/sse.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import '../../gen/agents/v1/agent_service.pb.dart';
+import '../a2ui/form_logic.dart';
+import '../a2ui/protocol.dart';
+import '../a2ui/surface_store.dart';
 import 'backoff.dart';
 import 'chat_model.dart';
 import 'history.dart';
@@ -318,6 +321,7 @@ class ChatController extends ChangeNotifier {
   String? stopError;
   bool _stopping = false;
   final _effects = _ChatRunEffects();
+  final A2uiSurfaceStore surfaces = A2uiSurfaceStore();
 
   ChatPhase phase = ChatPhase.idle;
   ChatNotice? notice;
@@ -390,7 +394,10 @@ class ChatController extends ChangeNotifier {
     sharedState = null;
     stopError = null;
     _stopping = false;
-    _effects.bind(null);
+    _effects.bind();
+    surfaces
+      ..setSubmitter(null)
+      ..clear();
   }
 
   /// Opens a draft thread on [agent]. Nothing is sent, and no thread exists on
@@ -434,14 +441,30 @@ class ChatController extends ChangeNotifier {
     final id = _threadId, agent = _agentId;
     if (id == null || agent == null) return;
     try {
-      final body = await _agui.history(
+      final historyBody = await _agui.history(
         token: token,
         workspace: workspaceId,
         agentId: agent,
         threadId: id,
       );
       if (conv != _conv || _disposed) return;
-      _applyHistory(conv, parseThreadHistory(body));
+      final history = parseThreadHistory(historyBody);
+      UiSnapshot? snapshot;
+      try {
+        final uiBody = await _agui.uiSnapshot(
+          token: token,
+          workspace: workspaceId,
+          agentId: agent,
+          threadId: id,
+        );
+        if (conv == _conv && !_disposed) {
+          snapshot = parseUiSnapshot(uiBody);
+        }
+      } catch (_) {
+        // History alone still loads; surfaces may catch up on refresh.
+      }
+      if (conv != _conv || _disposed) return;
+      _applyHistory(conv, history, snapshot: snapshot);
       openError = null;
     } catch (failure) {
       if (conv != _conv || _disposed) return;
@@ -453,11 +476,12 @@ class ChatController extends ChangeNotifier {
     _emit();
   }
 
-  void _applyHistory(int conv, ThreadHistory history) {
+  void _applyHistory(int conv, ThreadHistory history, {UiSnapshot? snapshot}) {
     _messages
       ..clear()
       ..addAll(history.messages);
     interrupts = history.interrupts;
+    _restoreSurfaces(history, snapshot);
     _restorable = _restorableFor(history);
     final running = history.running;
     if (running != null && conv == _conv && phase == ChatPhase.idle) {
@@ -468,6 +492,138 @@ class ChatController extends ChangeNotifier {
     notice = _noticeFor(history);
     liveReply = null;
   }
+
+  void _restoreSurfaces(ThreadHistory history, UiSnapshot? snapshot) {
+    surfaces.setSubmitter(_canSubmitForms ? _submitForm : null);
+    if (snapshot == null) return;
+    final placed = history.surfaces
+        .where((p) => p.messageId != null && p.messageId!.isNotEmpty)
+        .map((p) => p.surfaceId);
+    surfaces.restore(snapshot, placed);
+  }
+
+  bool get _canSubmitForms =>
+      _threadId != null &&
+      agent != null &&
+      phase == ChatPhase.idle &&
+      !opening &&
+      !_polling &&
+      notice?.kind != NoticeKind.running;
+
+  Future<void> _submitForm(
+    SurfaceEntry entry,
+    Map<String, String> values,
+  ) async {
+    final form = entry.form;
+    final thread = _threadId, agentId = _agentId;
+    if (form == null || thread == null || agentId == null) {
+      throw FormSubmitError('Submitting is not available right now.');
+    }
+    final runId = _newId();
+    final body = buildFormSubmitRequest(
+      threadId: thread,
+      runId: runId,
+      resume: RunResume(
+        interruptId: form.interruptId,
+        payload: submissionPayload(entry.id, form, values),
+      ),
+    );
+    final conv = ++_conv;
+    sendError = null;
+    notice = null;
+    phase = ChatPhase.sending;
+    _emit();
+    final AguiRun opened;
+    try {
+      opened = await _agui.run(
+        token: token,
+        workspace: workspaceId,
+        agentId: agentId,
+        body: body,
+      );
+    } catch (failure) {
+      if (conv != _conv || _disposed) {
+        throw FormSubmitError('The submission failed.');
+      }
+      phase = ChatPhase.idle;
+      if (failure is AguiHttpError) {
+        throw _formErrorFromHttp(failure);
+      }
+      if (failure is AguiNotSent) {
+        throw FormSubmitError('Could not reach the server. Nothing was sent.');
+      }
+      throw FormSubmitError(describeChatFailure(failure));
+    }
+    if (conv != _conv || _disposed) {
+      opened.abort();
+      return;
+    }
+    _started = true;
+    phase = ChatPhase.streaming;
+    _runStream = opened;
+    _bindRunEffects();
+    final ended = await _streamRun(
+      conv,
+      opened,
+      runId,
+      RunFold(_effects),
+      fromPost: true,
+    );
+    if (conv != _conv || _disposed) return;
+    if (!ended) await _pollRunEnded(conv, partial: liveReply);
+  }
+
+  void _bindRunEffects() {
+    surfaces.setSubmitter(_canSubmitForms ? _submitForm : null);
+    _effects.bind(
+      onState: (state) {
+        sharedState = state;
+        _emit();
+      },
+      onA2ui: (value) {
+        final event = parseA2uiEventValue(value);
+        if (event != null) surfaces.apply(event);
+        _emit();
+      },
+    );
+  }
+
+  FormSubmitError _formErrorFromHttp(AguiHttpError failure) {
+    final code = failure.code;
+    final message =
+        failure.message ??
+        switch (code) {
+          'form_answered' => 'This form was already submitted.',
+          'form_stale' =>
+            'This form changed on the server. Refresh and try again.',
+          'form_invalid' => 'Fix the highlighted fields and submit again.',
+          'form_unknown' => 'This form is no longer available.',
+          _ => describeChatFailure(failure),
+        };
+    return FormSubmitError(
+      message,
+      code: code,
+      fieldErrors: failure.fieldErrors,
+    );
+  }
+
+  /// Submits one Human Input form. Errors stay on the form; drafts are kept.
+  Future<void> submitSurfaceForm(String surfaceId) async {
+    await surfaces.submitForm(surfaceId, surfaces.draftFor(surfaceId));
+  }
+
+  Iterable<SurfaceEntry> surfacesForMessage(String? messageId) {
+    if (messageId == null) return const [];
+    return surfaces.entries.where(
+      (e) =>
+          !e.deleted &&
+          e.messageId == messageId &&
+          (surfaces.isPlaced(e.id) || e.origin == SurfaceOrigin.stream),
+    );
+  }
+
+  Iterable<SurfaceEntry> get orphanSurfaces =>
+      surfaces.entries.where((e) => !e.deleted && !surfaces.isPlaced(e.id));
 
   RestorableTurn? _restorableFor(ThreadHistory history) {
     final last = history.lastRun;
@@ -506,8 +662,7 @@ class ChatController extends ChangeNotifier {
 
   static const _waitingNotice = ChatNotice(
     NoticeKind.waitingInput,
-    'The agent is waiting for an answer. Forms and choices are not available '
-    'in this app yet.',
+    'The agent is waiting for your answer.',
   );
 
   static String _bound(String text) => boundText(text, 500);
@@ -637,10 +792,7 @@ class ChatController extends ChangeNotifier {
     _started = true;
     phase = ChatPhase.streaming;
     _runStream = opened;
-    _effects.bind((state) {
-      sharedState = state;
-      _emit();
-    });
+    _bindRunEffects();
     unawaited(
       _streamRun(conv, opened, runId, RunFold(_effects), fromPost: true).then((
         ended,
@@ -676,10 +828,7 @@ class ChatController extends ChangeNotifier {
     }
     phase = ChatPhase.streaming;
     liveReply = null;
-    _effects.bind((state) {
-      sharedState = state;
-      _emit();
-    });
+    _bindRunEffects();
     _emit();
     AguiRun? run;
     try {
@@ -854,9 +1003,19 @@ class ChatController extends ChangeNotifier {
         if (conv != _conv || _disposed) break;
         final history = parseThreadHistory(body);
         if (history.running != null) continue;
+        UiSnapshot? snapshot;
+        try {
+          final uiBody = await _agui.uiSnapshot(
+            token: token,
+            workspace: workspaceId,
+            agentId: _agentId!,
+            threadId: _threadId!,
+          );
+          snapshot = parseUiSnapshot(uiBody);
+        } catch (_) {}
         _polling = false;
         liveReply = null;
-        _applyHistory(conv, history);
+        _applyHistory(conv, history, snapshot: snapshot);
         break;
       } catch (failure) {
         if (conv != _conv || _disposed) break;
@@ -956,13 +1115,18 @@ class ChatController extends ChangeNotifier {
 
 final class _ChatRunEffects extends RunEffects {
   void Function(Map<String, dynamic>? state)? _onState;
+  void Function(Object? value)? _onA2ui;
 
-  void bind(void Function(Map<String, dynamic>? state)? onState) {
+  void bind({
+    void Function(Map<String, dynamic>? state)? onState,
+    void Function(Object? value)? onA2ui,
+  }) {
     _onState = onState;
+    _onA2ui = onA2ui;
   }
 
   @override
-  void a2ui(Object? value) {}
+  void a2ui(Object? value) => _onA2ui?.call(value);
 
   @override
   void state(Map<String, dynamic>? next) => _onState?.call(next);

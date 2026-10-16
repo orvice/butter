@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../core/state_patch.dart';
+import '../a2ui/protocol.dart';
 import 'chat_model.dart';
 import 'run_effects.dart';
 
@@ -147,7 +148,7 @@ class RunFold {
             RunEnd.fallback,
             fallbackReason: reason is String ? reason : null,
           );
-        } else if (name == _a2uiEvent) {
+        } else if (name == _a2uiEvent && isA2uiEventValue(event['value'])) {
           _effects.a2ui(event['value']);
         }
       case 'RUN_FINISHED':

@@ -9,11 +9,18 @@ import 'sse.dart';
 /// A refused AG-UI request: the server answered with an HTTP status before any
 /// stream opened, so the run did not start.
 final class AguiHttpError implements Exception {
-  const AguiHttpError(this.status, [this.code]);
+  const AguiHttpError(
+    this.status, {
+    this.code,
+    this.message,
+    this.fieldErrors = const {},
+  });
   final int status;
 
   /// The `code` of the server's JSON error body, when it sent one.
   final String? code;
+  final String? message;
+  final Map<String, String> fieldErrors;
   @override
   String toString() => 'AguiHttpError($status${code == null ? '' : ', $code'})';
 }
@@ -83,6 +90,7 @@ final class AguiApi {
   static const _headerTimeout = Duration(seconds: 30);
   static const _errorBodyLimit = 64 * 1024;
   static const _historyLimit = 64 * 1024 * 1024;
+  static const _uiSnapshotLimit = 8 * 1024 * 1024;
 
   Uri _run(String agentId) =>
       address.endpoint('api/agui/${Uri.encodeComponent(agentId)}');
@@ -168,19 +176,35 @@ final class AguiApi {
 
   Future<AguiHttpError> _refusal(HttpClientResponse response) async {
     String? code;
+    String? message;
+    var fieldErrors = const <String, String>{};
     try {
       final bytes = await _readBounded(
         response,
         _errorBodyLimit,
       ).timeout(const Duration(seconds: 10));
       final decoded = jsonDecode(utf8.decode(bytes));
-      if (decoded is Map && decoded['code'] is String) {
-        code = decoded['code'] as String;
+      if (decoded is Map) {
+        if (decoded['code'] is String) code = decoded['code'] as String;
+        if (decoded['error'] is String) message = decoded['error'] as String;
+        final fe = decoded['fieldErrors'];
+        if (fe is Map) {
+          fieldErrors = {
+            for (final e in fe.entries)
+              if (e.key is String && e.value is String)
+                e.key as String: e.value as String,
+          };
+        }
       }
     } catch (_) {
       // The status alone decides what the person is told.
     }
-    return AguiHttpError(response.statusCode, code);
+    return AguiHttpError(
+      response.statusCode,
+      code: code,
+      message: message,
+      fieldErrors: fieldErrors,
+    );
   }
 
   /// Reads at most [limit] bytes; throws when the body is larger.
@@ -292,6 +316,31 @@ final class AguiApi {
       runId: runId,
       invocationId: invocationId,
     );
+  }
+
+  /// A thread's UI snapshot as JSON text (`GET …/ui`).
+  Future<String> uiSnapshot({
+    required String token,
+    required String workspace,
+    required String agentId,
+    required String threadId,
+  }) async {
+    if (_closed) throw const AguiNotSent();
+    final request = await _client
+        .getUrl(_threadResource(agentId, threadId, 'ui'))
+        .timeout(const Duration(seconds: 20));
+    request.followRedirects = false;
+    request.headers
+      ..set('Authorization', 'Bearer $token')
+      ..set('X-Workspace-ID', workspace)
+      ..set('Accept', 'application/json');
+    final response = await request.close().timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) throw await _refusal(response);
+    final bytes = await _readBounded(
+      response,
+      _uiSnapshotLimit,
+    ).timeout(const Duration(seconds: 30));
+    return utf8.decode(bytes);
   }
 
   /// A thread's history as the server's JSON text.

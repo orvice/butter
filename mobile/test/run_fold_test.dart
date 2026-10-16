@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:butter_mobile/features/chat/chat_model.dart';
+import 'package:butter_mobile/features/chat/run_effects.dart';
 import 'package:butter_mobile/features/chat/run_fold.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -191,12 +192,51 @@ void main() {
     expect((f.reply.parts.single as TextPart).text, 'partial');
   });
 
-  test('A2UI custom events are ignored until a renderer is wired', () {
+  test('malformed A2UI custom events do not break the run fold', () {
+    final effects = _RecordingEffects();
+    final f = RunFold(effects);
+    f.addData(jsonEncode(started()));
+    f.addData(
+      jsonEncode({
+        'type': 'CUSTOM',
+        'name': 'butter.a2ui',
+        'value': {'x': 1},
+      }),
+    );
+    f.addData(jsonEncode(textStart('m1')));
+    f.addData(jsonEncode(text('m1', 'ok')));
+    expect(effects.a2uiEvents, isEmpty);
+    expect(f.reply.parts, hasLength(1));
+    expect(f.outcome, isNull);
+  });
+
+  test('A2UI custom events reach RunEffects', () {
+    final effects = _RecordingEffects();
+    final f = RunFold(effects);
+    f.addData(jsonEncode(started()));
+    f.addData(
+      jsonEncode({
+        'type': 'CUSTOM',
+        'name': 'butter.a2ui',
+        'value': {
+          'surfaceId': 'c1',
+          'revision': 1,
+          'seq': 0,
+          'envelope': {'version': 'v0.9.1', 'createSurface': {}},
+        },
+      }),
+    );
+    f.addData(jsonEncode(textStart('m1')));
+    f.addData(jsonEncode(text('m1', 'ok')));
+    expect(effects.a2uiEvents, hasLength(1));
+  });
+
+  test('other custom events are ignored', () {
     final f = fold([
       started(),
       {
         'type': 'CUSTOM',
-        'name': 'butter.a2ui',
+        'name': 'other.event',
         'value': {'x': 1},
       },
       {'type': 'SOMETHING_NEW', 'extra': true},
@@ -281,4 +321,12 @@ void main() {
       throwsFormatException,
     );
   });
+}
+
+final class _RecordingEffects extends RunEffects {
+  final a2uiEvents = <Object?>[];
+  @override
+  void a2ui(Object? value) => a2uiEvents.add(value);
+  @override
+  void state(Map<String, dynamic>? next) {}
 }

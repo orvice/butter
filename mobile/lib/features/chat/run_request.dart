@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../core/avatar.dart';
+import '../a2ui/protocol.dart';
 
 /// The limits `POST /api/agui/:agent_id` applies to one user turn
 /// (docs/api.md § Message content). The server answers 400/413 for a turn
@@ -67,11 +68,17 @@ final class ImageTray {
   void clear() => _images.clear();
 }
 
+/// One addressed Interrupt answer (resolved only; never cancelled).
+final class RunResume {
+  const RunResume({required this.interruptId, required this.payload});
+  final String interruptId;
+  final Map<String, dynamic> payload;
+}
+
 /// The JSON body of one run: only this turn, never the thread's history (the
 /// server reads just the trailing message, and earlier images would outgrow
-/// the request cap). Every run asks to detach, so leaving the page never ends
-/// it, and none negotiates A2UI, sends tool declarations or a `resume`, which
-/// the App does not support yet.
+/// the request cap). Every run asks to detach. When [negotiateA2ui] is true,
+/// the client declares butter-basic-v1 support.
 Uint8List buildRunRequest({
   required String threadId,
   required String runId,
@@ -79,9 +86,13 @@ Uint8List buildRunRequest({
   required String text,
   List<ChatImage> images = const [],
   int maxBodyBytes = maxRequestBodyBytes,
+  bool negotiateA2ui = true,
+  RunResume? resume,
+  List<Map<String, dynamic>> messages = const [],
 }) {
   final hasText = text.trim().isNotEmpty;
-  if (!hasText && images.isEmpty) {
+  final hasResume = resume != null;
+  if (!hasText && images.isEmpty && !hasResume && messages.isEmpty) {
     throw const ChatInputError('Write a message or add an image.');
   }
   if (images.length > maxImagesPerMessage) {
@@ -97,39 +108,75 @@ Uint8List buildRunRequest({
       'The message and its images can be at most 20 MiB together.',
     );
   }
-  final Object content = images.isEmpty
-      ? text
+  final runMessages = messages.isNotEmpty
+      ? messages
       : [
-          if (hasText) {'type': 'text', 'text': text},
-          for (final image in images)
+          if (hasText || images.isNotEmpty)
             {
-              'type': 'image',
-              'source': {
-                'type': 'data',
-                'value': base64Encode(image.bytes),
-                'mimeType': image.mimeType,
-              },
+              'id': messageId,
+              'role': 'user',
+              'content': _userContent(text, images),
             },
         ];
-  final body = Uint8List.fromList(
-    utf8.encode(
-      jsonEncode({
-        'threadId': threadId,
-        'runId': runId,
-        'messages': [
-          {'id': messageId, 'role': 'user', 'content': content},
-        ],
-        'tools': const [],
-        'context': const [],
-        'state': null,
-        'forwardedProps': {
-          'butterRun': {'detach': true},
-        },
-      }),
-    ),
-  );
-  if (body.length > maxBodyBytes) {
+  final forwardedProps = <String, dynamic>{
+    'butterRun': {'detach': true},
+  };
+  if (negotiateA2ui && isValidA2uiCapability(a2uiCapability)) {
+    forwardedProps['butterA2UI'] = a2uiCapability;
+  }
+  final body = <String, dynamic>{
+    'threadId': threadId,
+    'runId': runId,
+    'messages': runMessages,
+    'tools': const [],
+    'context': const [],
+    'state': null,
+    'forwardedProps': forwardedProps,
+  };
+  if (resume != null) {
+    body['resume'] = [
+      {
+        'interruptId': resume.interruptId,
+        'status': 'resolved',
+        'payload': resume.payload,
+      },
+    ];
+  }
+  final encoded = Uint8List.fromList(utf8.encode(jsonEncode(body)));
+  if (encoded.length > maxBodyBytes) {
     throw const ChatInputError('This message is too large to send.');
   }
-  return body;
+  return encoded;
 }
+
+Object _userContent(String text, List<ChatImage> images) {
+  if (images.isEmpty) return text;
+  return [
+    if (text.trim().isNotEmpty) {'type': 'text', 'text': text},
+    for (final image in images)
+      {
+        'type': 'image',
+        'source': {
+          'type': 'data',
+          'value': base64Encode(image.bytes),
+          'mimeType': image.mimeType,
+        },
+      },
+  ];
+}
+
+/// Form-only run: no user message, one resolved resume entry.
+Uint8List buildFormSubmitRequest({
+  required String threadId,
+  required String runId,
+  required RunResume resume,
+  int maxBodyBytes = maxRequestBodyBytes,
+}) => buildRunRequest(
+  threadId: threadId,
+  runId: runId,
+  messageId: runId,
+  text: '',
+  negotiateA2ui: true,
+  resume: resume,
+  messages: const [],
+);

@@ -51,6 +51,10 @@ void main() {
         'state': null,
         'forwardedProps': {
           'butterRun': {'detach': true},
+          'butterA2UI': {
+            'version': 'v0.9.1',
+            'catalogs': ['butter-basic-v1'],
+          },
         },
       });
     });
@@ -87,15 +91,13 @@ void main() {
       expect(content.map((p) => p['type']), ['image']);
     });
 
-    test('there is never a resume, an A2UI negotiation or a client tool', () {
+    test('there is never a resume or a client tool; A2UI is negotiated', () {
       final sent = body(build(images: [image()]));
       expect(sent.containsKey('resume'), isFalse);
       expect(sent['tools'], isEmpty);
-      expect(
-        (sent['forwardedProps'] as Map).keys,
-        ['butterRun'],
-        reason: 'butterA2UI must not be negotiated before it is supported',
-      );
+      final props = sent['forwardedProps'] as Map;
+      expect(props['butterRun'], {'detach': true});
+      expect(props['butterA2UI'], isNotNull);
     });
   });
 

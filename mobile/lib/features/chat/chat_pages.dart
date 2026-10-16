@@ -9,7 +9,7 @@ import 'chat_controller.dart';
 import 'chat_model.dart';
 import 'image_chooser.dart';
 import 'last_run_input.dart';
-import 'message_view.dart';
+import 'a2ui_in_chat.dart';
 import 'run_request.dart';
 import 'threads.dart';
 
@@ -422,6 +422,7 @@ class _ChatPageState extends State<ChatPage> {
         final name = agent == null ? 'Agent' : agentLabel(agent);
         final live = chat.liveReply;
         final items = <ChatMessage>[?live, ...chat.messages.reversed];
+        final surfaceLocked = chat.phase != ChatPhase.idle || chat.isPolling;
         return PopScope(
           onPopInvokedWithResult: (didPop, _) {
             if (didPop && chat.threadId == _thread) chat.leave();
@@ -446,16 +447,26 @@ class _ChatPageState extends State<ChatPage> {
                             child: ListView.builder(
                               reverse: true,
                               padding: const EdgeInsets.all(12),
-                              itemCount: items.length,
-                              itemBuilder: (context, index) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                child: MessageView(
-                                  message: items[index],
-                                  agentName: name,
-                                ),
-                              ),
+                              itemCount: items.length + 1,
+                              itemBuilder: (context, index) {
+                                if (index == items.length) {
+                                  return OrphanSurfacesBlock(
+                                    chat: chat,
+                                    locked: surfaceLocked,
+                                  );
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: ChatMessageBlock(
+                                    chat: chat,
+                                    message: items[index],
+                                    agentName: name,
+                                    locked: surfaceLocked,
+                                  ),
+                                );
+                              },
                             ),
                           ),
                   ),

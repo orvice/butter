@@ -69,6 +69,10 @@ void main() {
         expect(post.threadId, threadId);
         expect(post.body['forwardedProps'], {
           'butterRun': {'detach': true},
+          'butterA2UI': {
+            'version': 'v0.9.1',
+            'catalogs': ['butter-basic-v1'],
+          },
         });
         expect(post.content, 'hi');
         expect(texts(chat), ['user: hi', 'assistant: ok']);

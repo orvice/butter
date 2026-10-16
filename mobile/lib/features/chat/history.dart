@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../core/avatar.dart';
+import '../a2ui/protocol.dart';
 import 'chat_model.dart';
 import 'run_request.dart';
 
@@ -32,12 +33,15 @@ final class ThreadHistory {
     required Iterable<InterruptInfo> interrupts,
     this.running,
     this.lastRun,
+    Iterable<SurfacePlacement> surfaces = const [],
   }) : messages = List.unmodifiable(messages),
-       interrupts = List.unmodifiable(interrupts);
+       interrupts = List.unmodifiable(interrupts),
+       surfaces = List.unmodifiable(surfaces);
   final List<ChatMessage> messages;
   final List<InterruptInfo> interrupts;
   final RunningRun? running;
   final LastRun? lastRun;
+  final List<SurfacePlacement> surfaces;
 }
 
 String? _string(Object? value) => value is String ? value : null;
@@ -200,11 +204,18 @@ ThreadHistory parseThreadHistory(String body) {
           ),
   ];
 
+  final surfaces = <SurfacePlacement>[
+    if (decoded['surfaces'] is List)
+      for (final item in decoded['surfaces'] as List)
+        ?parseSurfacePlacement(item),
+  ].whereType<SurfacePlacement>();
+
   final running = decoded['running'];
   final last = decoded['lastRun'];
   return ThreadHistory(
     messages: messages,
     interrupts: interrupts,
+    surfaces: surfaces,
     running: running is Map && _string(running['runId']) != null
         ? RunningRun(
             runId: running['runId'] as String,
