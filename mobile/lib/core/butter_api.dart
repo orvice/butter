@@ -40,6 +40,8 @@ import '../gen/agents/v1/workspace.connect.client.dart';
 import '../gen/agents/v1/workspace.pb.dart';
 import '../gen/agents/v1/workspace_memory.connect.client.dart';
 import '../gen/agents/v1/workspace_memory.pb.dart';
+import '../gen/agents/v1/linear.connect.client.dart';
+import '../gen/agents/v1/linear.pb.dart';
 import 'server_address.dart';
 import 'avatar.dart';
 
@@ -72,6 +74,9 @@ final class ButterApi {
     _telegramDestinations = TelegramDestinationServiceClient(transport);
     _memoryConfig = WorkspaceMemoryConfigServiceClient(transport);
     _memories = WorkspaceMemoryServiceClient(transport);
+    _linearApp = LinearAppServiceClient(transport);
+    _linearAdmin = LinearAdminServiceClient(transport);
+    _linearProcessing = LinearProcessingServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -96,6 +101,9 @@ final class ButterApi {
   late final TelegramDestinationServiceClient _telegramDestinations;
   late final WorkspaceMemoryConfigServiceClient _memoryConfig;
   late final WorkspaceMemoryServiceClient _memories;
+  late final LinearAppServiceClient _linearApp;
+  late final LinearAdminServiceClient _linearAdmin;
+  late final LinearProcessingServiceClient _linearProcessing;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -1988,6 +1996,211 @@ final class ButterApi {
     headers: _headers(token, workspace),
     signal: _deadline,
   )).destinations;
+
+  Future<List<LinearApp>> listLinearApps(
+    String token,
+    String workspace,
+  ) async => (await _linearApp.listLinearApps(
+    ListLinearAppsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).apps;
+
+  Future<LinearApp> getLinearApp(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _linearApp.getLinearApp(
+      GetLinearAppRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(connect.Code.notFound, 'missing app');
+    }
+    return reply.app;
+  }
+
+  Future<LinearApp> createLinearApp(
+    String token,
+    String workspace,
+    LinearApp app, {
+    String? clientSecret,
+    String? webhookSecret,
+  }) async {
+    final req = CreateLinearAppRequest(app: app);
+    if (clientSecret != null) req.clientSecret = clientSecret;
+    if (webhookSecret != null) req.webhookSecret = webhookSecret;
+    final reply = await _linearApp.createLinearApp(
+      req,
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'create returned no app',
+      );
+    }
+    return reply.app;
+  }
+
+  Future<LinearApp> updateLinearApp(
+    String token,
+    String workspace,
+    LinearApp app,
+  ) async {
+    final reply = await _linearApp.updateLinearApp(
+      UpdateLinearAppRequest(app: app),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'update returned no app',
+      );
+    }
+    return reply.app;
+  }
+
+  /// Absent [clientSecret] / [webhookSecret] keeps the stored value; empty
+  /// clears it.
+  Future<LinearApp> putLinearAppCredentials(
+    String token,
+    String workspace,
+    String appId, {
+    String? clientSecret,
+    String? webhookSecret,
+  }) async {
+    final req = PutLinearAppCredentialsRequest(appId: appId);
+    if (clientSecret != null) req.clientSecret = clientSecret;
+    if (webhookSecret != null) req.webhookSecret = webhookSecret;
+    final reply = await _linearApp.putLinearAppCredentials(
+      req,
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'credential update returned no app',
+      );
+    }
+    return reply.app;
+  }
+
+  Future<void> deleteLinearApp(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    await _linearApp.deleteLinearApp(
+      DeleteLinearAppRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<String> beginLinearInstall(
+    String token,
+    String workspace,
+    String appId, {
+    required String returnUrl,
+  }) async {
+    final reply = await _linearApp.beginLinearInstall(
+      BeginLinearInstallRequest(appId: appId, returnUrl: returnUrl),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.authorizeUrl;
+  }
+
+  Future<List<LinearInstallation>> listLinearInstallations(
+    String token,
+    String workspace,
+    String appId,
+  ) async => (await _linearApp.listLinearInstallations(
+    ListLinearInstallationsRequest(appId: appId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).installations;
+
+  Future<void> deleteLinearInstallation(
+    String token,
+    String workspace,
+    String appId,
+    String installationId,
+  ) async {
+    await _linearApp.deleteLinearInstallation(
+      DeleteLinearInstallationRequest(appId: appId, id: installationId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  /// Global-admin only; members receive permission denied.
+  Future<LinearSettings?> getLinearSettings(String token) async {
+    try {
+      final reply = await _linearAdmin.getLinearSettings(
+        GetLinearSettingsRequest(),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+      return reply.hasSettings() ? reply.settings : null;
+    } on connect.ConnectException catch (e) {
+      if (e.code == connect.Code.permissionDenied) rethrow;
+      return null;
+    }
+  }
+
+  Future<List<LinearProcessingRecord>> listLinearProcessingRecords(
+    String token,
+    String workspace, {
+    String appId = '',
+    LinearProcessingStatus status =
+        LinearProcessingStatus.LINEAR_PROCESSING_STATUS_UNSPECIFIED,
+  }) async => (await _linearProcessing.listLinearProcessingRecords(
+    ListLinearProcessingRecordsRequest(appId: appId, status: status),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).records;
+
+  Future<LinearProcessingRecord> getLinearProcessingRecord(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _linearProcessing.getLinearProcessingRecord(
+      GetLinearProcessingRecordRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRecord()) {
+      throw connect.ConnectException(connect.Code.notFound, 'missing record');
+    }
+    return reply.record;
+  }
+
+  Future<LinearProcessingRecord> resendLinearReply(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _linearProcessing.resendLinearReply(
+      ResendLinearReplyRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRecord()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'resend returned no record',
+      );
+    }
+    return reply.record;
+  }
 
   void close() => _client.close(force: true);
 }
