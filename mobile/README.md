@@ -264,6 +264,24 @@ On a new Agent the draft keeps what was chosen if the type is switched back, but
 
 **Evidence and its limits.** `tool/contractserver/files.go` serves the production `AgentFileService` (in-memory repositories) and wires the production runner with the file store, the Skill repository and the MCP and Remote Agent registries; `go test ./mobile/tool/contractserver` (`files_runtime_test.go`) exercises the service semantics and real runner turns, and `files_contract_test` (root and `/butter`) saves an Agent from the App, reads it back, then runs it through the production AG-UI route: the mount's tool reads the stored content, a `READ` mount refuses a write and leaves the space unchanged, the saved MCP server's tool runs, the Skill is listed, and raising the permission and saving lets the next run write (a new version) but not delete. The **doubles** are the scripted OpenAI-compatible model (`tools?` and `tool:<name> <json>` commands) and the in-process MCP server; storage is in memory, not S3 or Mongo, and no real model provider or device was involved. Dart widget tests use a controllable HTTP boundary (`test/support/file_server.dart`) for late, refused and lost replies.
 
+## Git repository binding (#458)
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List Git hosts (read only) | `GitHostService` List/Get | Binding form host picker | `repo_binding_contract_test` |
+| View binding, overlaps | `GetWorkspaceRepoBinding` | Git repository page | `repo_binding_controller_test`, contract |
+| Save binding config | `PutWorkspaceRepoBinding` | Save binding | `repo_binding_draft_test`, contract |
+| PAT keep / replace | `SetWorkspaceRepoBindingCredential` (write-only) | Token dialog; changing Git host clears on save | contract |
+| Validate | `ValidateWorkspaceRepoBinding` | Validate connection | contract |
+| Onboard EXPORT / IMPORT | `OnboardWorkspaceRepository` | Activate Agent Content (confirmed) | contract |
+| Sync / publish / webhook / baseline | Sync, Publish, ConfigureWebhookSecret, AcceptRepositoryBaseline | Operations card | contract |
+| Browse cached tree | `ListRepositoryEntries`, `GetRepositoryFile` | Cached repository tree | contract |
+| Safe detach | `DeleteWorkspaceRepoBinding` + recovery | Remove binding (materialize or keep DB) | contract |
+
+Members read; owner/admin (or global admin) write. The phone never calls Git providers: every operation goes through Butter, which holds the encrypted PAT. [RepoBindingController](lib/features/repo_binding/repo_binding_controller.dart) exposes `agentContentGitOwned` and `hasActiveRevision` for Agent Content (#459). Writes are never auto-retried; ambiguous outcomes stay unconfirmed until a later read reconciles them.
+
+Evidence: `mobile/tool/contractserver/repo_binding.go` serves production `WorkspaceRepoBindingService` and read-only `GitHostService` with an in-memory fake git provider (`repo_binding_fake.go`). Not a real Git host, Mongo, or device run.
+
 ## Tests and device acceptance
 
 Unit/controller/widget tests use public application interfaces with fake **external** HTTP/OS-storage boundaries. They cover first setup, persistence, real request headers, permission/empty/error/pagination UI, admin without global navigation, expiry, relogin/server/Workspace races, slow credential writes, vault failure and generated-field retention. The separate Go contract fixture is a real-service HTTP integration test.
