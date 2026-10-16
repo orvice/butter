@@ -269,6 +269,42 @@ void main() {
   );
 
   test(
+    'a late agent list from the old server cannot restore state after setServer',
+    () async {
+      await context.setServer(server.url);
+      await context.login('alice', 'password');
+      final arrived = Completer<void>();
+      final release = Completer<void>();
+      server.agentReply = (workspace, _) async {
+        if (workspace == 'alpha') {
+          arrived.complete();
+          await release.future;
+        }
+        return ListAgentsResponse(
+          agents: [Agent(agentId: 'leak', name: 'must-not-apply')],
+        );
+      };
+      final loading = context.selectWorkspace('alpha');
+      await arrived.future;
+      final next = TestServer();
+      await next.start();
+      addTearDown(next.close);
+      await context.setServer(next.url);
+      release.complete();
+      await loading;
+      expect(context.agents, isEmpty);
+      expect(context.user, isNull);
+      expect(storage.credential, isNull);
+      expect(
+        next.requests.every(
+          (r) => r.token == null || !r.token!.contains('alice'),
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
     'changing the server clears the account before credential-free verification',
     () async {
       await context.setServer(server.url);

@@ -1,6 +1,6 @@
 # Butter mobile — development client (#447–#451)
 
-Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password, appearance settings, Model Providers and LLM/Loop/Sequential/Parallel/Workflow Agent configuration are available too. This is not the complete Flutter product. There are no global administration, Skills management or server-list screens.
+Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Release audit artifacts for #469 live in [`docs/parity-matrix.md`](docs/parity-matrix.md) and [`docs/release.md`](docs/release.md). Workspace/member management, self-service profile/avatar/password, appearance settings, Model Providers and LLM/Loop/Sequential/Parallel/Workflow Agent configuration are available too. This is not the complete Flutter product. There are no global administration, Skills management or server-list screens.
 
 ## Develop
 
