@@ -59,7 +59,11 @@ func (s *WorkspaceMemoryConfigServiceServer) SetWorkspaceRepo(repo workspacerepo
 	s.workspaceRepo = repo
 }
 
-// SetHTTPClient overrides the client used for connection probes (tests).
+// SetHTTPClient overrides the client used for mem0 connection probes in tests
+// only (mobile/tool/contractserver/memory.go). Production wiring leaves the
+// default *http.Client, which reaches loopback mem0 URLs like any other host.
+// The fixture shares httptest.Server.Client() so probes hit the in-process
+// double without racing the server lifecycle.
 func (s *WorkspaceMemoryConfigServiceServer) SetHTTPClient(c *http.Client) {
 	if c != nil {
 		s.httpClient = c

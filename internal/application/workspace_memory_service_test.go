@@ -313,3 +313,22 @@ func TestWorkspaceMemoryTestConnection(t *testing.T) {
 		t.Fatalf("Test with revoked key = %v, %v", resp, err)
 	}
 }
+
+// Default probe client reaches loopback mem0 doubles; contract tests may inject
+// httptest.Server.Client() via SetHTTPClient without changing this behavior.
+func TestWorkspaceMemoryDefaultHTTPClientReachesLoopback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/search" && r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"results":[]}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	svc := NewWorkspaceMemoryConfigServiceServer(nil)
+	if err := svc.probe(context.Background(), srv.URL, "any-key"); err != nil {
+		t.Fatalf("default client probe loopback mem0: %v", err)
+	}
+}
