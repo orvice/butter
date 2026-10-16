@@ -207,7 +207,24 @@ class _ComponentNode extends StatelessWidget {
       case 'Status':
         return _status(context, c);
       case 'TextField':
-        return isForm ? _textField(context, c) : const SizedBox.shrink();
+        return isForm
+            ? _FormTextField(
+                name: c['name'] as String? ?? '',
+                label: resolveString(c['label'], processed.data),
+                hint: resolveString(c['hint'], processed.data),
+                value:
+                    draft[c['name'] as String? ?? '']?.toString() ??
+                    resolveString(c['value'], processed.data),
+                disabled: disabled,
+                errorText: fieldErrors[c['name'] as String? ?? ''],
+                multiline: c['variant'] == 'multiline',
+                onChanged: (v) {
+                  final name = c['name'] as String? ?? '';
+                  final next = Map<String, Object?>.from(draft)..[name] = v;
+                  onDraftChanged(next);
+                },
+              )
+            : const SizedBox.shrink();
       case 'ChoicePicker':
         return isForm ? _choicePicker(context, c) : const SizedBox.shrink();
       case 'Button':
@@ -322,33 +339,6 @@ class _ComponentNode extends StatelessWidget {
     );
   }
 
-  Widget _textField(BuildContext context, Map<String, dynamic> c) {
-    final name = c['name'] as String? ?? '';
-    final label = resolveString(c['label'], processed.data);
-    final hint = resolveString(c['hint'], processed.data);
-    final value =
-        draft[name]?.toString() ?? resolveString(c['value'], processed.data);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: TextField(
-        key: Key('field-$name'),
-        enabled: !disabled,
-        decoration: InputDecoration(
-          labelText: label.isEmpty ? null : label,
-          hintText: hint.isEmpty ? null : hint,
-          errorText: fieldErrors[name],
-        ),
-        controller: TextEditingController(text: value)
-          ..selection = TextSelection.collapsed(offset: value.length),
-        onChanged: (v) {
-          final next = Map<String, Object?>.from(draft)..[name] = v;
-          onDraftChanged(next);
-        },
-        maxLines: c['variant'] == 'multiline' ? 4 : 1,
-      ),
-    );
-  }
-
   Widget _choicePicker(BuildContext context, Map<String, dynamic> c) {
     final name = c['name'] as String? ?? '';
     final label = resolveString(c['label'], processed.data);
@@ -431,5 +421,83 @@ class _ComponentNode extends StatelessWidget {
       for (final item in raw)
         if (item is String) item,
     ];
+  }
+}
+
+/// Keeps one [TextEditingController] across rebuilds so focus and drafts survive.
+class _FormTextField extends StatefulWidget {
+  const _FormTextField({
+    required this.name,
+    required this.label,
+    required this.hint,
+    required this.value,
+    required this.disabled,
+    required this.errorText,
+    required this.multiline,
+    required this.onChanged,
+  });
+
+  final String name;
+  final String label;
+  final String hint;
+  final String value;
+  final bool disabled;
+  final String? errorText;
+  final bool multiline;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_FormTextField> createState() => _FormTextFieldState();
+}
+
+class _FormTextFieldState extends State<_FormTextField> {
+  late final TextEditingController _controller;
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value)
+      ..selection = TextSelection.collapsed(offset: widget.value.length);
+  }
+
+  @override
+  void didUpdateWidget(_FormTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _controller.text &&
+        widget.value != oldWidget.value &&
+        !_focus.hasFocus) {
+      _controller.text = widget.value;
+      _controller.selection = TextSelection.collapsed(
+        offset: widget.value.length,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        key: Key('field-${widget.name}'),
+        focusNode: _focus,
+        enabled: !widget.disabled,
+        decoration: InputDecoration(
+          labelText: widget.label.isEmpty ? null : widget.label,
+          hintText: widget.hint.isEmpty ? null : widget.hint,
+          errorText: widget.errorText,
+        ),
+        controller: _controller,
+        onChanged: widget.onChanged,
+        maxLines: widget.multiline ? 4 : 1,
+      ),
+    );
   }
 }
