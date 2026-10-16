@@ -283,9 +283,5 @@ func registerCronFixture(
 	notifyPath, notifyHandler := agentsv1connect.NewNotifyGroupServiceHandler(notifySvc, opts...)
 	r.Any("/api"+notifyPath+"*path", gin.WrapH(http.StripPrefix("/api", notifyHandler)))
 
-	tgSvc := application.NewTelegramDestinationServiceServer(telegramRepo)
-	tgPath, tgHandler := agentsv1connect.NewTelegramDestinationServiceHandler(tgSvc, opts...)
-	r.Any("/api"+tgPath+"*path", gin.WrapH(http.StripPrefix("/api", tgHandler)))
-
 	return nil
 }
