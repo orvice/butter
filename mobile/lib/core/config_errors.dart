@@ -3,7 +3,7 @@ import 'package:connectrpc/connect.dart';
 import '../gen/agents/v1/dashboard.pb.dart';
 
 /// What a configuration screen is about, for wording.
-enum ConfigKind { mcp, preset, remote, daemon, fileSpace, file }
+enum ConfigKind { mcp, preset, remote, daemon, fileSpace, file, cron }
 
 enum ConfigOperation {
   load,
@@ -42,6 +42,7 @@ String _subject(ConfigKind kind) => switch (kind) {
   ConfigKind.daemon => 'daemon runtime',
   ConfigKind.fileSpace => 'file space',
   ConfigKind.file => 'file',
+  ConfigKind.cron => 'cron job',
 };
 
 /// Specific, safe wording for the failures an MCP or Remote Agent operation

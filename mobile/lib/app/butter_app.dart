@@ -15,6 +15,7 @@ import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_lifecycle_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
+import '../features/cron/cron_pages.dart';
 import '../features/sessions/session_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
@@ -584,6 +585,12 @@ class _Agents extends StatelessWidget {
             onPressed: client.busy ? null : () => openSessions(context, client),
             icon: const Icon(Icons.history),
             label: const Text('Sessions'),
+          ),
+          TextButton.icon(
+            key: const Key('open-cron'),
+            onPressed: client.busy ? null : () => openCronJobs(context, client),
+            icon: const Icon(Icons.schedule),
+            label: const Text('Cron jobs'),
           ),
           TextButton.icon(
             key: const Key('open-remote-agents'),
