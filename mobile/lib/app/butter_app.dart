@@ -16,7 +16,9 @@ import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_lifecycle_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
+import '../features/automation/automation_pages.dart';
 import '../features/cron/cron_pages.dart';
+import '../features/notify_groups/notify_group_pages.dart';
 import '../features/sessions/session_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
@@ -600,6 +602,22 @@ class _Agents extends StatelessWidget {
             onPressed: client.busy ? null : () => openCronJobs(context, client),
             icon: const Icon(Icons.schedule),
             label: const Text('Cron jobs'),
+          ),
+          TextButton.icon(
+            key: const Key('open-notify-groups'),
+            onPressed: client.busy
+                ? null
+                : () => openNotifyGroups(context, client),
+            icon: const Icon(Icons.notifications_outlined),
+            label: const Text('Notify Groups'),
+          ),
+          TextButton.icon(
+            key: const Key('open-automations'),
+            onPressed: client.busy
+                ? null
+                : () => openAutomations(context, client),
+            icon: const Icon(Icons.account_tree_outlined),
+            label: const Text('Automations'),
           ),
           TextButton.icon(
             key: const Key('open-remote-agents'),

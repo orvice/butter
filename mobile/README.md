@@ -301,6 +301,23 @@ Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disabl
 
 Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
 
+## Notify Groups and Automations (#467)
+
+Agents → **Notify Groups** lists outbound groups and supports CRUD with structured targets (Telegram Destination ID, Lark webhook, Discord webhook). Legacy raw Telegram fields (`bot_token`, `chat_id`, …) are refused on write.
+
+Agents → **Automations** lists workspace automations with structured conditions, ordered steps, trigger/policy fields, manual run (confirmed, never auto-retried), run list and step-run detail. Only **Manual** and **Schedule** triggers are selectable; webhook/forum/channel/daemon triggers appear disabled because the server does not execute them yet.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Notify Group list / CRUD | `NotifyGroupService` | Notify Groups list, editor | `notify_group_contract_test`, `notify_group_draft_test`, `notify_group_widget_test` |
+| Telegram Destination picker | `ListTelegramDestinations` | Notify Group target editor | `notify_group_contract_test` (`tool/contractserver/automation_fixture.go`) |
+| Automation list / CRUD | `AutomationService` | Automations list, editor | `automation_contract_test`, `automation_draft_test`, `automation_widget_test` |
+| Manual run | `RunAutomationNow` | Detail → confirm → Run now | `automation_contract_test` (multi-step webhook + notify, condition skip, step failure) |
+| Runs / step runs | `ListAutomationRuns`, `ListAutomationStepRuns`, `GetAutomationRun` | Detail runs, run detail dialog | `automation_contract_test` |
+| Step / notify pickers | `ListNotifyGroups`, agents list | Automation step editor | `automation_contract_test` |
+
+Contract workspace: `automation` (owner role). Fixture seeds `seeded-manual`, `cond-fail`, and `webhook-fail` automations plus group `alerts`.
+
 ## File spaces and Agent associations (#456)
 
 Workspace → **File spaces** manages `AgentFileService`: spaces, the text files in them, their versions and search. The Agent editor (LLM, Loop, Sequential, Parallel and Workflow Agents; Pi and Cursor leaves are unchanged) selects the existing MCP servers, Remote Agents, file spaces (mounts) and Skills an Agent references. Skill creation, `SKILL.md` editing and Skill Resource management stay in Web: the Skill list is read for selection only. File content travels as the UTF-8 text of `WriteAgentFile` / `GetAgentFile`, never through the avatar upload.

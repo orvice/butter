@@ -15,7 +15,9 @@ import '../features/daemons/daemon_controller.dart';
 import '../features/files/file_controller.dart';
 import '../features/memory/memory_controller.dart';
 import '../features/repo_binding/repo_binding_controller.dart';
+import '../features/automation/automation_controller.dart';
 import '../features/cron/cron_controller.dart';
+import '../features/notify_groups/notify_group_controller.dart';
 import '../features/sessions/session_controller.dart';
 import '../features/mcp/mcp_controller.dart';
 import '../features/remote_agents/remote_agent_controller.dart';
@@ -287,6 +289,47 @@ final class ClientContext extends ChangeNotifier {
   FileSpaceController? _fileSpaces;
   SessionController? _sessions;
   CronController? _cron;
+  NotifyGroupController? _notifyGroups;
+  AutomationController? _automations;
+
+  /// Notify Groups for outbound delivery targets.
+  NotifyGroupController? get notifyGroups {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _notifyGroups ??= NotifyGroupController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _notifyGroups;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  /// Workspace automations, runs and manual execution.
+  AutomationController? get automations {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _automations ??= AutomationController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _automations;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      agents: () => agents,
+    );
+  }
 
   /// Cron jobs, executions, run-now and WAITING_INPUT reply.
   CronController? get cron {
@@ -462,6 +505,12 @@ final class ClientContext extends ChangeNotifier {
     final oldCron = _cron;
     _cron = null;
     oldCron?.dispose();
+    final oldNotify = _notifyGroups;
+    _notifyGroups = null;
+    oldNotify?.dispose();
+    final oldAuto = _automations;
+    _automations = null;
+    oldAuto?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -953,6 +1002,8 @@ final class ClientContext extends ChangeNotifier {
     _memory?.suspend();
     _sessions?.suspend();
     _cron?.suspend();
+    _notifyGroups?.suspend();
+    _automations?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -1031,6 +1082,8 @@ final class ClientContext extends ChangeNotifier {
     unawaited(_memory?.recover());
     unawaited(_sessions?.recover());
     unawaited(_cron?.recover());
+    unawaited(_notifyGroups?.recover());
+    unawaited(_automations?.recover());
   }
 
   Future<void> refreshWorkspaces() async {
