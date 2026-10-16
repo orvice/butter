@@ -30,10 +30,8 @@ import (
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
-	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
-	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
@@ -217,24 +215,25 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace, repoBindingWorkspace, repoBindingMemberWorkspace} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, nil, err
 		}
 		role := "member"
-		if id == daemonWorkspace {
-			// The Daemon Workspace is the one the account owns, so token
-			// revocation is allowed there; every other Workspace shows the
-			// member's refusal.
+		if id == daemonWorkspace || id == repoBindingWorkspace {
+			// Owner role for Daemon token revocation and repo binding writes.
 			role = "owner"
+		}
+		if id == repoBindingMemberWorkspace {
+			role = "member"
 		}
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
 			return nil, nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace {
+		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace || id == repoBindingWorkspace {
 			// Chat's agent is the runnable one the chat fixture registers;
-			// the box, MCP and Daemon Workspaces start with none, their
-			// resources are created by the contract tests.
+			// the box, MCP, Daemon and repo-binding Workspaces start with none,
+			// their resources are created by the contract tests / repo fixture.
 			continue
 		}
 		if _, err := agentRepo.CreateAgent(ctx, id, &agentsv1.Agent{AgentId: "shared", Name: id + "-agent"}); err != nil {
@@ -277,20 +276,20 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	opts := connectx.HandlerOptions()
 	_, authHandler := agentsv1connect.NewAuthServiceHandler(authSvc, opts...)
 	_, wsHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceServer(wsRepo), opts...)
-	bindingRepo := repobindingmemory.New()
+	repoFx, err := newRepoBindingFixture(ctx, wsRepo, agentRepo)
+	if err != nil {
+		return nil, nil, err
+	}
 	// beta is bound but has no Active Revision: Agent Content remains
 	// database-owned for existing Agent edits, including member writes.
-	if _, err := bindingRepo.Put(ctx, "beta", &agentsv1.WorkspaceRepoBinding{
-		GitHostId: "contract-host", Repository: "owner/repo", Branch: "main",
+	if _, err := repoFx.binding.Put(ctx, "beta", &agentsv1.WorkspaceRepoBinding{
+		GitHostId: repoBindingGitHostID, Repository: "owner/repo", Branch: "main",
 	}); err != nil {
 		return nil, nil, err
 	}
-	bindingSvc := application.NewRepoBindingServiceServer(bindingRepo, githostmemory.New())
-	bindingSvc.SetWorkspaceRepo(wsRepo)
-	_, bindingHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(bindingSvc, opts...)
 	agentSvc := application.NewAgentServiceServer(agentRepo)
 	agentSvc.SetWorkspaceRepo(wsRepo)
-	agentSvc.SetContentCoordinator(bindingSvc)
+	agentSvc.SetContentCoordinator(repoFx.svc)
 	bx := newBoxFixture(agentRepo)
 	agentSvc.SetButterBoxRepo(bx.repo)
 	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
@@ -362,9 +361,7 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	// Skill selection is read-only; no standalone CRUD or content/resource API.
 	r.POST("/api"+agentsv1connect.SkillServiceListSkillsProcedure,
 		gin.WrapH(http.StripPrefix("/api", skillHandler)))
-	// Read-only binding discovery, not repository onboarding or Git writes.
-	r.POST("/api"+agentsv1connect.WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure,
-		gin.WrapH(http.StripPrefix("/api", bindingHandler)))
+	repoFx.register(r, opts)
 	for _, procedure := range []string{
 		agentsv1connect.ModelProviderServiceListModelProvidersProcedure,
 		agentsv1connect.ModelProviderServiceGetModelProviderProcedure,

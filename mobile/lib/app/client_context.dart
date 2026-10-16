@@ -12,6 +12,7 @@ import '../core/native_oauth.dart';
 import '../features/agents/associations.dart';
 import '../features/daemons/daemon_controller.dart';
 import '../features/files/file_controller.dart';
+import '../features/repo_binding/repo_binding_controller.dart';
 import '../features/mcp/mcp_controller.dart';
 import '../features/remote_agents/remote_agent_controller.dart';
 import '../core/server_address.dart';
@@ -280,6 +281,44 @@ final class ClientContext extends ChangeNotifier {
   }
 
   FileSpaceController? _fileSpaces;
+  RepoBindingController? _repoBinding;
+
+  /// Git repository binding and cache browser (#458). [RepoBindingController]
+  /// exposes [RepoBindingController.agentContentGitOwned] for Agent Content (#459).
+  RepoBindingController? get repoBinding {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _repoBinding ??= RepoBindingController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      canManage: () => canManageWorkspaceResources,
+      onUnauthenticated: () {
+        final self = _repoBinding;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      onBindingChanged: () => unawaited(refreshAgentBindingFlags()),
+    );
+  }
+
+  /// Re-read binding flags used by the Agent editor after Git operations.
+  Future<void> refreshAgentBindingFlags() async {
+    if (_token == null || workspace == null) return;
+    final generation = scope;
+    try {
+      final binding = await _api!.repositoryBinding(_token!, workspace!.id);
+      if (scope != generation) return;
+      agentRepositoryBound = binding != null;
+      agentContentGitOwned = binding?.activeCommitSha.isNotEmpty ?? false;
+      notifyListeners();
+    } catch (_) {
+      // Reads fail closed; Agent saves re-read binding themselves.
+    }
+  }
 
   /// File spaces and their files for the current server, user and Workspace.
   FileSpaceController? get fileSpaces {
@@ -316,6 +355,9 @@ final class ClientContext extends ChangeNotifier {
     final oldFiles = _fileSpaces;
     _fileSpaces = null;
     oldFiles?.dispose();
+    final oldRepo = _repoBinding;
+    _repoBinding = null;
+    oldRepo?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -325,6 +367,16 @@ final class ClientContext extends ChangeNotifier {
       managedWorkspace != null &&
       (user?.role == 'admin' ||
           members.any((m) => m.userId == user?.id && m.role == 'owner'));
+
+  /// Owner, workspace admin, or global admin — matches repo-binding and similar RPC gates.
+  bool get canManageWorkspaceResources =>
+      managedWorkspace != null &&
+      (user?.role == 'admin' ||
+          members.any(
+            (m) =>
+                m.userId == user?.id &&
+                (m.role == 'owner' || m.role == 'admin'),
+          ));
 
   void _clearManagement() {
     _clearAgentDetail();
@@ -792,6 +844,7 @@ final class ClientContext extends ChangeNotifier {
     _remoteAgents?.suspend();
     _daemons?.suspend();
     _fileSpaces?.suspend();
+    _repoBinding?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -866,6 +919,7 @@ final class ClientContext extends ChangeNotifier {
     unawaited(_remoteAgents?.recover());
     unawaited(_daemons?.recover());
     unawaited(_fileSpaces?.recover());
+    unawaited(_repoBinding?.recover());
   }
 
   Future<void> refreshWorkspaces() async {

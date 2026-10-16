@@ -9,6 +9,7 @@ import '../features/butterboxes/box_pages.dart';
 import '../features/mcp/mcp_pages.dart';
 import '../features/daemons/daemon_pages.dart';
 import '../features/files/file_pages.dart';
+import '../features/repo_binding/repo_binding_pages.dart';
 import '../features/remote_agents/remote_agent_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
@@ -567,6 +568,14 @@ class _Agents extends StatelessWidget {
                 : () => openFileSpaces(context, client),
             icon: const Icon(Icons.folder_outlined),
             label: const Text('File spaces'),
+          ),
+          TextButton.icon(
+            key: const Key('open-repo-binding'),
+            onPressed: client.busy
+                ? null
+                : () => openRepoBinding(context, client),
+            icon: const Icon(Icons.account_tree_outlined),
+            label: const Text('Git repository'),
           ),
           TextButton.icon(
             key: const Key('open-remote-agents'),

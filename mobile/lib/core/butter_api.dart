@@ -24,6 +24,8 @@ import '../gen/agents/v1/butterbox.connect.client.dart';
 import '../gen/agents/v1/butterbox.pb.dart';
 import '../gen/agents/v1/dashboard.connect.client.dart';
 import '../gen/agents/v1/dashboard.pb.dart';
+import '../gen/agents/v1/githost.connect.client.dart';
+import '../gen/agents/v1/githost.pb.dart';
 import '../gen/agents/v1/repobinding.connect.client.dart';
 import '../gen/agents/v1/repobinding.pb.dart';
 import '../gen/agents/v1/skill.connect.client.dart';
@@ -47,6 +49,7 @@ final class ButterApi {
     _agents = AgentServiceClient(transport);
     _files = AgentFileServiceClient(transport);
     _repoBindings = WorkspaceRepoBindingServiceClient(transport);
+    _gitHosts = GitHostServiceClient(transport);
     _skills = SkillServiceClient(transport);
     _modelProviders = ModelProviderServiceClient(transport);
     _sessions = SessionServiceClient(transport);
@@ -65,6 +68,7 @@ final class ButterApi {
   late final AgentServiceClient _agents;
   late final AgentFileServiceClient _files;
   late final WorkspaceRepoBindingServiceClient _repoBindings;
+  late final GitHostServiceClient _gitHosts;
   late final SkillServiceClient _skills;
   late final ModelProviderServiceClient _modelProviders;
   late final SessionServiceClient _sessions;
@@ -200,12 +204,178 @@ final class ButterApi {
     String token,
     String workspace,
   ) async {
+    final snap = await workspaceRepoBinding(token, workspace);
+    return snap.binding;
+  }
+
+  Future<({WorkspaceRepoBinding? binding, List<RepoBindingOverlap> overlaps})>
+  workspaceRepoBinding(String token, String workspace) async {
     final reply = await _repoBindings.getWorkspaceRepoBinding(
       GetWorkspaceRepoBindingRequest(),
       headers: _headers(token, workspace),
       signal: _deadline,
     );
-    return reply.hasBinding() ? reply.binding : null;
+    return (
+      binding: reply.hasBinding() ? reply.binding : null,
+      overlaps: reply.overlaps,
+    );
+  }
+
+  Future<List<GitHost>> gitHosts(String token) async {
+    final reply = await _gitHosts.listGitHosts(
+      ListGitHostsRequest(),
+      headers: _headers(token),
+      signal: _deadline,
+    );
+    return reply.hosts;
+  }
+
+  Future<WorkspaceRepoBinding> putWorkspaceRepoBinding(
+    String token,
+    String workspace,
+    WorkspaceRepoBinding binding,
+  ) async {
+    final reply = await _repoBindings.putWorkspaceRepoBinding(
+      PutWorkspaceRepoBindingRequest(binding: binding),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<WorkspaceRepoBinding> setRepoBindingCredential(
+    String token,
+    String workspace,
+    String pat,
+  ) async {
+    final reply = await _repoBindings.setWorkspaceRepoBindingCredential(
+      SetWorkspaceRepoBindingCredentialRequest(pat: pat),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<WorkspaceRepoBinding> validateRepoBinding(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _repoBindings.validateWorkspaceRepoBinding(
+      ValidateWorkspaceRepoBindingRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<OnboardWorkspaceRepositoryResponse> onboardWorkspaceRepository(
+    String token,
+    String workspace,
+    RepoBindingOnboardingMode mode,
+  ) async {
+    return _repoBindings.onboardWorkspaceRepository(
+      OnboardWorkspaceRepositoryRequest(mode: mode),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<SyncWorkspaceRepositoryResponse> syncWorkspaceRepository(
+    String token,
+    String workspace,
+  ) async {
+    return _repoBindings.syncWorkspaceRepository(
+      SyncWorkspaceRepositoryRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<WorkspaceRepoBinding> publishWorkspaceRepository(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _repoBindings.publishWorkspaceRepository(
+      PublishWorkspaceRepositoryRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<int> deleteWorkspaceRepoBinding(
+    String token,
+    String workspace,
+    RepoBindingDetachRecovery recovery,
+  ) async {
+    final reply = await _repoBindings.deleteWorkspaceRepoBinding(
+      DeleteWorkspaceRepoBindingRequest(recovery: recovery),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.agentsMaterialized;
+  }
+
+  Future<ConfigureWebhookSecretResponse> configureRepoWebhookSecret(
+    String token,
+    String workspace,
+  ) async {
+    return _repoBindings.configureWebhookSecret(
+      ConfigureWebhookSecretRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<WorkspaceRepoBinding> acceptRepositoryBaseline(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _repoBindings.acceptRepositoryBaseline(
+      AcceptRepositoryBaselineRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<ListRepositoryEntriesResponse> listRepositoryEntries(
+    String token,
+    String workspace,
+    String path,
+  ) async {
+    return _repoBindings.listRepositoryEntries(
+      ListRepositoryEntriesRequest(path: path),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<GetRepositoryFileResponse> getRepositoryFile(
+    String token,
+    String workspace,
+    String path,
+  ) async {
+    return _repoBindings.getRepositoryFile(
+      GetRepositoryFileRequest(path: path),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
   }
 
   /// Read-only catalog for Agent associations, not standalone Skill management.
