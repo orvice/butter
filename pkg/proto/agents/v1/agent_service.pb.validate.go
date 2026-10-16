@@ -7960,6 +7960,278 @@ var _ interface {
 	ErrorName() string
 } = UpdateMCPServerResponseValidationError{}
 
+// Validate checks the field values on UpdateMCPServerKeepingCredentialsRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the first error encountered is returned, or nil if
+// there are no violations.
+func (m *UpdateMCPServerKeepingCredentialsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// UpdateMCPServerKeepingCredentialsRequest with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in
+// UpdateMCPServerKeepingCredentialsRequestMultiError, or nil if none found.
+func (m *UpdateMCPServerKeepingCredentialsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateMCPServerKeepingCredentialsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetMcpServer()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateMCPServerKeepingCredentialsRequestValidationError{
+					field:  "McpServer",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateMCPServerKeepingCredentialsRequestValidationError{
+					field:  "McpServer",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMcpServer()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateMCPServerKeepingCredentialsRequestValidationError{
+				field:  "McpServer",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for KeepOauthClientSecret
+
+	if len(errors) > 0 {
+		return UpdateMCPServerKeepingCredentialsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateMCPServerKeepingCredentialsRequestMultiError is an error wrapping
+// multiple validation errors returned by
+// UpdateMCPServerKeepingCredentialsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateMCPServerKeepingCredentialsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateMCPServerKeepingCredentialsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateMCPServerKeepingCredentialsRequestMultiError) AllErrors() []error { return m }
+
+// UpdateMCPServerKeepingCredentialsRequestValidationError is the validation
+// error returned by UpdateMCPServerKeepingCredentialsRequest.Validate if the
+// designated constraints aren't met.
+type UpdateMCPServerKeepingCredentialsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateMCPServerKeepingCredentialsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateMCPServerKeepingCredentialsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateMCPServerKeepingCredentialsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateMCPServerKeepingCredentialsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateMCPServerKeepingCredentialsRequestValidationError) ErrorName() string {
+	return "UpdateMCPServerKeepingCredentialsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateMCPServerKeepingCredentialsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateMCPServerKeepingCredentialsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateMCPServerKeepingCredentialsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateMCPServerKeepingCredentialsRequestValidationError{}
+
+// Validate checks the field values on
+// UpdateMCPServerKeepingCredentialsResponse with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *UpdateMCPServerKeepingCredentialsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// UpdateMCPServerKeepingCredentialsResponse with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in
+// UpdateMCPServerKeepingCredentialsResponseMultiError, or nil if none found.
+func (m *UpdateMCPServerKeepingCredentialsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateMCPServerKeepingCredentialsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetMcpServer()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateMCPServerKeepingCredentialsResponseValidationError{
+					field:  "McpServer",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateMCPServerKeepingCredentialsResponseValidationError{
+					field:  "McpServer",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMcpServer()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateMCPServerKeepingCredentialsResponseValidationError{
+				field:  "McpServer",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateMCPServerKeepingCredentialsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateMCPServerKeepingCredentialsResponseMultiError is an error wrapping
+// multiple validation errors returned by
+// UpdateMCPServerKeepingCredentialsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateMCPServerKeepingCredentialsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateMCPServerKeepingCredentialsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateMCPServerKeepingCredentialsResponseMultiError) AllErrors() []error { return m }
+
+// UpdateMCPServerKeepingCredentialsResponseValidationError is the validation
+// error returned by UpdateMCPServerKeepingCredentialsResponse.Validate if the
+// designated constraints aren't met.
+type UpdateMCPServerKeepingCredentialsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateMCPServerKeepingCredentialsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateMCPServerKeepingCredentialsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateMCPServerKeepingCredentialsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateMCPServerKeepingCredentialsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateMCPServerKeepingCredentialsResponseValidationError) ErrorName() string {
+	return "UpdateMCPServerKeepingCredentialsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateMCPServerKeepingCredentialsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateMCPServerKeepingCredentialsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateMCPServerKeepingCredentialsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateMCPServerKeepingCredentialsResponseValidationError{}
+
 // Validate checks the field values on DeleteMCPServerRequest with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.

@@ -213,16 +213,57 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *conne
 	if err := validateMCPServerConfig(req.Msg.GetMcpServer()); err != nil {
 		return nil, err
 	}
-	logger := log.FromContext(ctx)
 	prev, err := s.repo.GetMCPServer(ctx, wsID, req.Msg.GetMcpServer().GetId())
 	if err != nil {
 		return nil, toConnectError(err)
 	}
-	logger.Info("updating mcp server", "workspace_id", wsID, "id", req.Msg.GetMcpServer().GetId(), "name", req.Msg.GetMcpServer().GetName())
+	m, err := s.applyMCPServerUpdate(ctx, wsID, prev, req.Msg.GetMcpServer(), false)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&agentsv1.UpdateMCPServerResponse{McpServer: m}), nil
+}
 
+// UpdateMCPServerKeepingCredentials is UpdateMCPServer for a caller that
+// cannot read the credentials it wants to keep (see the proto). It is a method
+// of its own so that a server without it answers Unimplemented instead of
+// ignoring the keep fields of an UpdateMCPServerRequest and deleting what the
+// caller meant to keep.
+func (s *MCPServerServiceServer) UpdateMCPServerKeepingCredentials(ctx context.Context, req *connect.Request[agentsv1.UpdateMCPServerKeepingCredentialsRequest]) (*connect.Response[agentsv1.UpdateMCPServerKeepingCredentialsResponse], error) {
+	wsID, err := requireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Msg.GetMcpServer() == nil {
+		return nil, connectx.RequiredArgument("mcp_server")
+	}
+	prev, err := s.repo.GetMCPServer(ctx, wsID, req.Msg.GetMcpServer().GetId())
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	next, err := keepStoredMCPCredentials(prev, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateMCPServerConfig(next); err != nil {
+		return nil, err
+	}
+	m, err := s.applyMCPServerUpdate(ctx, wsID, prev, next, true)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&agentsv1.UpdateMCPServerKeepingCredentialsResponse{McpServer: m}), nil
+}
+
+// applyMCPServerUpdate stores next over prev and reloads the runtime, undoing
+// the store when the reload fails. With redact the result hides credentials the
+// way reads of an installed preset do.
+func (s *MCPServerServiceServer) applyMCPServerUpdate(ctx context.Context, wsID string, prev, next *agentsv1.MCPServer, redact bool) (*agentsv1.MCPServer, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("updating mcp server", "workspace_id", wsID, "id", next.GetId(), "name", next.GetName(), "keeps_credentials", redact)
 	m, err := mutateWithRuntime(
 		func() (*agentsv1.MCPServer, error) {
-			return s.repo.UpdateMCPServer(ctx, wsID, req.Msg.GetMcpServer())
+			return s.repo.UpdateMCPServer(ctx, wsID, next)
 		},
 		func() error {
 			return s.reloadRuntime(ctx)
@@ -235,11 +276,68 @@ func (s *MCPServerServiceServer) UpdateMCPServer(ctx context.Context, req *conne
 		},
 	)
 	if err != nil {
-		logger.Error("update mcp server failed", "workspace_id", wsID, "id", req.Msg.GetMcpServer().GetId(), "err", err)
+		logger.Error("update mcp server failed", "workspace_id", wsID, "id", next.GetId(), "err", err)
 		return nil, toConnectError(err)
 	}
 	logger.Info("mcp server updated", "workspace_id", wsID, "id", m.GetId(), "name", m.GetName())
-	return connect.NewResponse(&agentsv1.UpdateMCPServerResponse{McpServer: m}), nil
+	if redact {
+		// The caller asked to keep credentials it cannot read, so it must
+		// not be handed them back by the response either.
+		m = redactStoredMCPCredentials(m)
+	}
+	return m, nil
+}
+
+// keepStoredMCPCredentials builds the server an update stores when it keeps
+// credentials the caller never saw (reads of an installed global preset hide
+// them). It is the request's whole server plus the named stored credentials;
+// nothing is inferred from mask values. The installed-preset marker is carried
+// over from the stored server, so a caller cannot strip it to read the kept
+// credentials back through an unredacted read.
+func keepStoredMCPCredentials(prev *agentsv1.MCPServer, req *agentsv1.UpdateMCPServerKeepingCredentialsRequest) (*agentsv1.MCPServer, error) {
+	next := proto.Clone(req.GetMcpServer()).(*agentsv1.MCPServer)
+	for _, key := range req.GetKeepHeaderKeys() {
+		stored, ok := prev.GetHeaders()[key]
+		if !ok {
+			return nil, connectx.InvalidArgument("keep_header_keys", fmt.Sprintf("header %q is not stored on this server", key))
+		}
+		if _, dup := next.GetHeaders()[key]; dup {
+			return nil, connectx.InvalidArgument("keep_header_keys", fmt.Sprintf("header %q is both kept and given a value", key))
+		}
+		if next.Headers == nil {
+			next.Headers = map[string]string{}
+		}
+		next.Headers[key] = stored
+	}
+	if req.GetKeepOauthClientSecret() {
+		oauth := next.GetAuth().GetOauth2()
+		if mcpoauth.AuthType(next) != agentsv1.MCPServerAuthType_MCP_SERVER_AUTH_TYPE_OAUTH2 || oauth == nil {
+			return nil, connectx.InvalidArgument("keep_oauth_client_secret", "the server must use OAuth 2.0 to keep a client secret")
+		}
+		if oauth.GetClientSecret() != "" {
+			return nil, connectx.InvalidArgument("keep_oauth_client_secret", "the client secret is both kept and given a value")
+		}
+		if storedClient := prev.GetAuth().GetOauth2(); storedClient.GetClientSecret() == "" {
+			// Nothing stored: keeping it is a no-op, never an error.
+		} else if oauth.GetClientId() != storedClient.GetClientId() {
+			return nil, connectx.InvalidArgument("keep_oauth_client_secret", "a client secret belongs to its client_id; give the new secret when the client_id changes")
+		} else {
+			oauth.ClientSecret = storedClient.GetClientSecret()
+		}
+	}
+	if marker := prev.GetMetadata()[globalMCPPresetMetadataKey]; marker != "" {
+		if next.Metadata == nil {
+			next.Metadata = map[string]string{}
+		}
+		next.Metadata[globalMCPPresetMetadataKey] = marker
+	}
+	return next, nil
+}
+
+// redactStoredMCPCredentials hides header values and the OAuth client secret
+// the way reads of an installed preset do, whether or not the server is one.
+func redactStoredMCPCredentials(server *agentsv1.MCPServer) *agentsv1.MCPServer {
+	return mcpServerForResponseClone(server, true)
 }
 
 func (s *MCPServerServiceServer) DeleteMCPServer(ctx context.Context, req *connect.Request[agentsv1.DeleteMCPServerRequest]) (*connect.Response[agentsv1.DeleteMCPServerResponse], error) {

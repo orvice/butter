@@ -1042,17 +1042,18 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	MCPServerService_ListMCPServers_FullMethodName           = "/agents.v1.MCPServerService/ListMCPServers"
-	MCPServerService_GetMCPServer_FullMethodName             = "/agents.v1.MCPServerService/GetMCPServer"
-	MCPServerService_CreateMCPServer_FullMethodName          = "/agents.v1.MCPServerService/CreateMCPServer"
-	MCPServerService_UpdateMCPServer_FullMethodName          = "/agents.v1.MCPServerService/UpdateMCPServer"
-	MCPServerService_DeleteMCPServer_FullMethodName          = "/agents.v1.MCPServerService/DeleteMCPServer"
-	MCPServerService_GetMCPServerStatus_FullMethodName       = "/agents.v1.MCPServerService/GetMCPServerStatus"
-	MCPServerService_ListMCPTools_FullMethodName             = "/agents.v1.MCPServerService/ListMCPTools"
-	MCPServerService_StartMCPServerOAuth_FullMethodName      = "/agents.v1.MCPServerService/StartMCPServerOAuth"
-	MCPServerService_CompleteMCPServerOAuth_FullMethodName   = "/agents.v1.MCPServerService/CompleteMCPServerOAuth"
-	MCPServerService_GetMCPServerOAuthStatus_FullMethodName  = "/agents.v1.MCPServerService/GetMCPServerOAuthStatus"
-	MCPServerService_DisconnectMCPServerOAuth_FullMethodName = "/agents.v1.MCPServerService/DisconnectMCPServerOAuth"
+	MCPServerService_ListMCPServers_FullMethodName                    = "/agents.v1.MCPServerService/ListMCPServers"
+	MCPServerService_GetMCPServer_FullMethodName                      = "/agents.v1.MCPServerService/GetMCPServer"
+	MCPServerService_CreateMCPServer_FullMethodName                   = "/agents.v1.MCPServerService/CreateMCPServer"
+	MCPServerService_UpdateMCPServer_FullMethodName                   = "/agents.v1.MCPServerService/UpdateMCPServer"
+	MCPServerService_UpdateMCPServerKeepingCredentials_FullMethodName = "/agents.v1.MCPServerService/UpdateMCPServerKeepingCredentials"
+	MCPServerService_DeleteMCPServer_FullMethodName                   = "/agents.v1.MCPServerService/DeleteMCPServer"
+	MCPServerService_GetMCPServerStatus_FullMethodName                = "/agents.v1.MCPServerService/GetMCPServerStatus"
+	MCPServerService_ListMCPTools_FullMethodName                      = "/agents.v1.MCPServerService/ListMCPTools"
+	MCPServerService_StartMCPServerOAuth_FullMethodName               = "/agents.v1.MCPServerService/StartMCPServerOAuth"
+	MCPServerService_CompleteMCPServerOAuth_FullMethodName            = "/agents.v1.MCPServerService/CompleteMCPServerOAuth"
+	MCPServerService_GetMCPServerOAuthStatus_FullMethodName           = "/agents.v1.MCPServerService/GetMCPServerOAuthStatus"
+	MCPServerService_DisconnectMCPServerOAuth_FullMethodName          = "/agents.v1.MCPServerService/DisconnectMCPServerOAuth"
 )
 
 // MCPServerServiceClient is the client API for MCPServerService service.
@@ -1065,6 +1066,9 @@ type MCPServerServiceClient interface {
 	GetMCPServer(ctx context.Context, in *GetMCPServerRequest, opts ...grpc.CallOption) (*GetMCPServerResponse, error)
 	CreateMCPServer(ctx context.Context, in *CreateMCPServerRequest, opts ...grpc.CallOption) (*CreateMCPServerResponse, error)
 	UpdateMCPServer(ctx context.Context, in *UpdateMCPServerRequest, opts ...grpc.CallOption) (*UpdateMCPServerResponse, error)
+	// UpdateMCPServerKeepingCredentials updates a server while keeping stored
+	// credentials the caller cannot read. Servers without it answer Unimplemented.
+	UpdateMCPServerKeepingCredentials(ctx context.Context, in *UpdateMCPServerKeepingCredentialsRequest, opts ...grpc.CallOption) (*UpdateMCPServerKeepingCredentialsResponse, error)
 	DeleteMCPServer(ctx context.Context, in *DeleteMCPServerRequest, opts ...grpc.CallOption) (*DeleteMCPServerResponse, error)
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
@@ -1125,6 +1129,16 @@ func (c *mCPServerServiceClient) UpdateMCPServer(ctx context.Context, in *Update
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateMCPServerResponse)
 	err := c.cc.Invoke(ctx, MCPServerService_UpdateMCPServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mCPServerServiceClient) UpdateMCPServerKeepingCredentials(ctx context.Context, in *UpdateMCPServerKeepingCredentialsRequest, opts ...grpc.CallOption) (*UpdateMCPServerKeepingCredentialsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMCPServerKeepingCredentialsResponse)
+	err := c.cc.Invoke(ctx, MCPServerService_UpdateMCPServerKeepingCredentials_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1211,6 +1225,9 @@ type MCPServerServiceServer interface {
 	GetMCPServer(context.Context, *GetMCPServerRequest) (*GetMCPServerResponse, error)
 	CreateMCPServer(context.Context, *CreateMCPServerRequest) (*CreateMCPServerResponse, error)
 	UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error)
+	// UpdateMCPServerKeepingCredentials updates a server while keeping stored
+	// credentials the caller cannot read. Servers without it answer Unimplemented.
+	UpdateMCPServerKeepingCredentials(context.Context, *UpdateMCPServerKeepingCredentialsRequest) (*UpdateMCPServerKeepingCredentialsResponse, error)
 	DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error)
 	// GetMCPServerStatus returns the current runtime status of a configured
 	// MCP server. Implemented in dashboard.proto.
@@ -1248,6 +1265,9 @@ func (UnimplementedMCPServerServiceServer) CreateMCPServer(context.Context, *Cre
 }
 func (UnimplementedMCPServerServiceServer) UpdateMCPServer(context.Context, *UpdateMCPServerRequest) (*UpdateMCPServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateMCPServer not implemented")
+}
+func (UnimplementedMCPServerServiceServer) UpdateMCPServerKeepingCredentials(context.Context, *UpdateMCPServerKeepingCredentialsRequest) (*UpdateMCPServerKeepingCredentialsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateMCPServerKeepingCredentials not implemented")
 }
 func (UnimplementedMCPServerServiceServer) DeleteMCPServer(context.Context, *DeleteMCPServerRequest) (*DeleteMCPServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteMCPServer not implemented")
@@ -1359,6 +1379,24 @@ func _MCPServerService_UpdateMCPServer_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MCPServerServiceServer).UpdateMCPServer(ctx, req.(*UpdateMCPServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MCPServerService_UpdateMCPServerKeepingCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMCPServerKeepingCredentialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MCPServerServiceServer).UpdateMCPServerKeepingCredentials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MCPServerService_UpdateMCPServerKeepingCredentials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MCPServerServiceServer).UpdateMCPServerKeepingCredentials(ctx, req.(*UpdateMCPServerKeepingCredentialsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1511,6 +1549,10 @@ var MCPServerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateMCPServer",
 			Handler:    _MCPServerService_UpdateMCPServer_Handler,
+		},
+		{
+			MethodName: "UpdateMCPServerKeepingCredentials",
+			Handler:    _MCPServerService_UpdateMCPServerKeepingCredentials_Handler,
 		},
 		{
 			MethodName: "DeleteMCPServer",

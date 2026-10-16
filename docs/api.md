@@ -2827,13 +2827,39 @@ POST /api/agents.v1.MCPServerService/UpdateMCPServer
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `mcp_server` | MCPServer | MCP server to update |
+| `mcp_server` | MCPServer | MCP server to update (whole-object replacement) |
+
+The request is whole-object replacement and carries only `mcp_server`: a header or client secret that the message omits is deleted. An installed Workspace preset is returned with its headers redacted (`***`) and its client secret empty, so a client must not send that view back through this call; it uses [`UpdateMCPServerKeepingCredentials`](#updatemcpserverkeepingcredentials) instead. The request shape is unchanged, so every existing client (the Web console) behaves exactly as before.
 
 **Response:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `mcp_server` | MCPServer | Updated MCP server |
+
+#### UpdateMCPServerKeepingCredentials
+
+```
+POST /api/agents.v1.MCPServerService/UpdateMCPServerKeepingCredentials
+```
+
+Like `UpdateMCPServer`, but names the stored credentials the message does not carry and that must survive. It is a separate method on purpose: a server that predates it answers an unknown method with `404` (Connect `unimplemented`) and stores nothing, whereas an older `UpdateMCPServer` would silently ignore extra request fields and delete the credentials. A client that needs to keep credentials calls this method and, on `unimplemented`, stops with an upgrade message; it never falls back to `UpdateMCPServer`.
+
+**Request:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mcp_server` | MCPServer | MCP server to update (whole-object replacement apart from the kept credentials) |
+| `keep_header_keys` | string[] | Names of stored headers to keep when `mcp_server.headers` does not carry them. Each must be stored, and none may also be given a value in `headers`; otherwise the call is `InvalidArgument`. |
+| `keep_oauth_client_secret` | bool | Keep the stored OAuth client secret when `mcp_server.auth.oauth2.client_secret` is empty. Requires OAuth 2.0, an empty `client_secret` in the message and the same `client_id` as the stored one, otherwise `InvalidArgument`. |
+
+Keep is never inferred from a mask or an empty value. The preset marker (`metadata["butter.global_mcp_preset_id"]`) is taken from the stored record, so an edit can neither strip nor forge it. The response is always redacted like a read.
+
+**Response:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mcp_server` | MCPServer | Updated MCP server, credentials redacted |
 
 #### DeleteMCPServer
 

@@ -120,3 +120,61 @@ func TestGlobalMCPServerServiceServer_InstallRejectsWorkspaceIDCollision(t *test
 		t.Fatalf("expected AlreadyExists for workspace id collision, got %v", err)
 	}
 }
+
+// A preset's static headers are credentials ("Authorization: Bearer …"). A
+// non-admin reads presets to browse and install them, so neither the listing
+// nor the install answer may carry the values; the admin who authored the
+// preset still sees what they wrote. (mobile #454)
+func TestGlobalMCPServerServiceServer_HidesHeaderValuesFromNonAdmins(t *testing.T) {
+	store := memory.New()
+	mcpSvc := NewMCPServerServiceServer(store)
+	svc := NewGlobalMCPServerServiceServer(store, mcpSvc)
+
+	preset := testMCPServer("preset", "preset")
+	preset.Headers = map[string]string{"Authorization": "Bearer top-secret"}
+	preset.Auth = &agentsv1.MCPServerAuth{Oauth2: &agentsv1.MCPServerOAuth2Config{ClientId: "cid", ClientSecret: "csecret"}}
+	if _, err := svc.CreateGlobalMCPServer(adminCtx(), connect.NewRequest(&agentsv1.CreateGlobalMCPServerRequest{McpServer: preset})); err != nil {
+		t.Fatal(err)
+	}
+
+	memberCtx := workspace.WithID(context.Background(), wsTest)
+	listed, err := svc.ListGlobalMCPServers(memberCtx, connect.NewRequest(&agentsv1.ListGlobalMCPServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := listed.Msg.GetMcpServers()
+	if len(got) != 1 || got[0].GetHeaders()["Authorization"] != redactedHeaderValue {
+		t.Fatalf("member listing headers = %v", got)
+	}
+	if got[0].GetAuth().GetOauth2().GetClientSecret() != "" || got[0].GetAuth().GetOauth2().GetClientId() != "cid" {
+		t.Fatalf("member listing oauth = %v", got[0].GetAuth())
+	}
+
+	installed, err := svc.InstallGlobalMCPServer(memberCtx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{Id: "preset"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := installed.Msg.GetMcpServer().GetHeaders()["Authorization"]; h != redactedHeaderValue {
+		t.Fatalf("install answer header = %q", h)
+	}
+
+	adminListed, err := svc.ListGlobalMCPServers(adminCtx(), connect.NewRequest(&agentsv1.ListGlobalMCPServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := adminListed.Msg.GetMcpServers()[0].GetHeaders()["Authorization"]; h != "Bearer top-secret" {
+		t.Fatalf("admin must still see what they wrote, got %q", h)
+	}
+}
+
+// Installing a preset that no longer exists must say so (NotFound), so a
+// client can tell "nothing was installed" from a server failure. (mobile #454)
+func TestGlobalMCPServerServiceServer_InstallMissingPresetIsNotFound(t *testing.T) {
+	store := memory.New()
+	svc := NewGlobalMCPServerServiceServer(store, NewMCPServerServiceServer(store))
+	ctx := workspace.WithID(context.Background(), wsTest)
+	_, err := svc.InstallGlobalMCPServer(ctx, connect.NewRequest(&agentsv1.InstallGlobalMCPServerRequest{Id: "gone"}))
+	if twerr, ok := err.(*connect.Error); !ok || twerr.Code() != connect.CodeNotFound {
+		t.Fatalf("expected NotFound, got %v", err)
+	}
+}

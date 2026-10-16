@@ -15,6 +15,7 @@ import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/butterbox.connect.client.dart';
 import '../gen/agents/v1/butterbox.pb.dart';
+import '../gen/agents/v1/dashboard.pb.dart';
 import '../gen/agents/v1/repobinding.connect.client.dart';
 import '../gen/agents/v1/repobinding.pb.dart';
 import '../gen/agents/v1/skill.connect.client.dart';
@@ -41,6 +42,9 @@ final class ButterApi {
     _modelProviders = ModelProviderServiceClient(transport);
     _sessions = SessionServiceClient(transport);
     _boxes = ButterBoxServiceClient(transport);
+    _mcp = MCPServerServiceClient(transport);
+    _globalMcp = GlobalMCPServerServiceClient(transport);
+    _remoteAgents = RemoteAgentServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -53,6 +57,9 @@ final class ButterApi {
   late final ModelProviderServiceClient _modelProviders;
   late final SessionServiceClient _sessions;
   late final ButterBoxServiceClient _boxes;
+  late final MCPServerServiceClient _mcp;
+  late final GlobalMCPServerServiceClient _globalMcp;
+  late final RemoteAgentServiceClient _remoteAgents;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -498,6 +505,293 @@ final class ButterApi {
     headers: _headers(token, workspace),
     signal: connect.TimeoutSignal(cursorCatalogTimeout),
   )).models;
+
+  // ---- MCP servers (MCPServerService), global presets
+  // (GlobalMCPServerService: list and install only) and Remote Agents
+  // (RemoteAgentService). Every call carries the selected Workspace. ----
+
+  /// A probe makes the server connect to the MCP server (its own timeout is
+  /// per server, and ListMCPTools probes servers one after another), so the
+  /// client waits longer than for a plain read rather than abandoning a call
+  /// the server still honors.
+  static const mcpProbeTimeout = Duration(seconds: 60);
+
+  Future<List<MCPServer>> mcpServers(String token, String workspace) async =>
+      (await _mcp.listMCPServers(
+        ListMCPServersRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      )).mcpServers;
+
+  MCPServer _mcpReply(bool has, MCPServer Function() read) {
+    if (!has) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'MCP server reply missing.',
+      );
+    }
+    return read();
+  }
+
+  Future<MCPServer> mcpServer(String token, String workspace, String id) async {
+    final reply = await _mcp.getMCPServer(
+      GetMCPServerRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasMcpServer()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'MCP server missing.',
+      );
+    }
+    return reply.mcpServer;
+  }
+
+  /// One create. [server] is the complete message to store.
+  Future<MCPServer> createMcpServer(
+    String token,
+    String workspace,
+    MCPServer server,
+  ) async {
+    final reply = await _mcp.createMCPServer(
+      CreateMCPServerRequest(mcpServer: server),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _mcpReply(reply.hasMcpServer(), () => reply.mcpServer);
+  }
+
+  /// One whole-object update: what is sent is what is stored.
+  Future<MCPServer> updateMcpServer(
+    String token,
+    String workspace,
+    MCPServer server,
+  ) async {
+    final reply = await _mcp.updateMCPServer(
+      UpdateMCPServerRequest(mcpServer: server),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _mcpReply(reply.hasMcpServer(), () => reply.mcpServer);
+  }
+
+  /// A whole-object update that also keeps the stored credentials named in
+  /// [keepHeaderKeys] / [keepClientSecret], which reads of an installed preset
+  /// hide. It is a method of its own, not fields of [updateMcpServer]: a server
+  /// that predates it answers Unimplemented before storing anything, whereas
+  /// an older update would ignore the keep fields and delete the credentials
+  /// left out of the message. The answer hides credentials too.
+  Future<MCPServer> updateMcpServerKeeping(
+    String token,
+    String workspace,
+    MCPServer server, {
+    List<String> keepHeaderKeys = const [],
+    bool keepClientSecret = false,
+  }) async {
+    final reply = await _mcp.updateMCPServerKeepingCredentials(
+      UpdateMCPServerKeepingCredentialsRequest(
+        mcpServer: server,
+        keepHeaderKeys: keepHeaderKeys,
+        keepOauthClientSecret: keepClientSecret ? true : null,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _mcpReply(reply.hasMcpServer(), () => reply.mcpServer);
+  }
+
+  Future<void> deleteMcpServer(String token, String workspace, String id) =>
+      _mcp.deleteMCPServer(
+        DeleteMCPServerRequest(id: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  /// Connects to the server through Butter. A server that cannot be reached
+  /// is an answer (`DISCONNECTED`), not an RPC failure.
+  Future<MCPServerStatus> mcpServerStatus(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _mcp.getMCPServerStatus(
+      GetMCPServerStatusRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: connect.TimeoutSignal(mcpProbeTimeout),
+    );
+    if (!reply.hasStatus()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'MCP status reply missing.',
+      );
+    }
+    return reply.status;
+  }
+
+  /// Lists the tools of one server; failures come back per server.
+  Future<ListMCPToolsResponse> mcpTools(
+    String token,
+    String workspace,
+    String id,
+  ) => _mcp.listMCPTools(
+    ListMCPToolsRequest(serverId: id),
+    headers: _headers(token, workspace),
+    signal: connect.TimeoutSignal(mcpProbeTimeout),
+  );
+
+  Future<StartMCPServerOAuthResponse> startMcpOAuth(
+    String token,
+    String workspace,
+    String id,
+  ) => _mcp.startMCPServerOAuth(
+    // No return URL: the server's callback finishes the exchange itself and
+    // the App reads the resulting state, so no address is invented for it.
+    StartMCPServerOAuthRequest(serverId: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<MCPOAuthConnectionStatus> mcpOAuthStatus(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _mcp.getMCPServerOAuthStatus(
+      GetMCPServerOAuthStatusRequest(serverId: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasStatus()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'MCP OAuth status reply missing.',
+      );
+    }
+    return reply.status;
+  }
+
+  Future<void> disconnectMcpOAuth(String token, String workspace, String id) =>
+      _mcp.disconnectMCPServerOAuth(
+        DisconnectMCPServerOAuthRequest(serverId: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  Future<List<MCPServer>> globalMcpPresets(
+    String token,
+    String workspace,
+  ) async => (await _globalMcp.listGlobalMCPServers(
+    ListGlobalMCPServersRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).mcpServers;
+
+  /// Installs a preset into [workspace]: create-or-overwrite of the
+  /// Workspace's server with the preset's ID. The reply is redacted.
+  Future<MCPServer> installGlobalMcpPreset(
+    String token,
+    String workspace,
+    String presetId,
+  ) async {
+    final reply = await _globalMcp.installGlobalMCPServer(
+      InstallGlobalMCPServerRequest(id: presetId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _mcpReply(reply.hasMcpServer(), () => reply.mcpServer);
+  }
+
+  Future<List<RemoteAgent>> remoteAgents(
+    String token,
+    String workspace,
+  ) async => (await _remoteAgents.listRemoteAgents(
+    ListRemoteAgentsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).remoteAgents;
+
+  RemoteAgent _remoteReply(bool has, RemoteAgent Function() read) {
+    if (!has) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Remote Agent reply missing.',
+      );
+    }
+    return read();
+  }
+
+  Future<RemoteAgent> remoteAgent(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _remoteAgents.getRemoteAgent(
+      GetRemoteAgentRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRemoteAgent()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Remote Agent missing.',
+      );
+    }
+    return reply.remoteAgent;
+  }
+
+  Future<RemoteAgent> createRemoteAgent(
+    String token,
+    String workspace,
+    RemoteAgent agent,
+  ) async {
+    final reply = await _remoteAgents.createRemoteAgent(
+      CreateRemoteAgentRequest(remoteAgent: agent),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _remoteReply(reply.hasRemoteAgent(), () => reply.remoteAgent);
+  }
+
+  Future<RemoteAgent> updateRemoteAgent(
+    String token,
+    String workspace,
+    RemoteAgent agent,
+  ) async {
+    final reply = await _remoteAgents.updateRemoteAgent(
+      UpdateRemoteAgentRequest(remoteAgent: agent),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _remoteReply(reply.hasRemoteAgent(), () => reply.remoteAgent);
+  }
+
+  Future<void> deleteRemoteAgent(String token, String workspace, String id) =>
+      _remoteAgents.deleteRemoteAgent(
+        DeleteRemoteAgentRequest(id: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  /// Probes the endpoint through the server. Unreachable is a normal answer.
+  Future<RemoteAgentStatus> remoteAgentStatus(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _remoteAgents.getRemoteAgentStatus(
+      GetRemoteAgentStatusRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasStatus()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Remote Agent status reply missing.',
+      );
+    }
+    return reply.status;
+  }
 
   /// One page of the caller's AG-UI thread sessions in [workspace]. The server
   /// scopes the list to that Workspace; which sessions are bound threads is

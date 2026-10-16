@@ -510,6 +510,25 @@ extension type MCPServerServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// UpdateMCPServerKeepingCredentials updates a server while keeping stored
+  /// credentials the caller cannot read. Servers without it answer Unimplemented.
+  Future<agentsv1agent_service.UpdateMCPServerKeepingCredentialsResponse> updateMCPServerKeepingCredentials(
+    agentsv1agent_service.UpdateMCPServerKeepingCredentialsRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.MCPServerService.updateMCPServerKeepingCredentials,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   Future<agentsv1agent_service.DeleteMCPServerResponse> deleteMCPServer(
     agentsv1agent_service.DeleteMCPServerRequest input, {
     connect.Headers? headers,

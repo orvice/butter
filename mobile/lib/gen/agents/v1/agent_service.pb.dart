@@ -5199,6 +5199,190 @@ class UpdateMCPServerResponse extends $pb.GeneratedMessage {
   $0.MCPServer ensureMcpServer() => $_ensure(0);
 }
 
+/// UpdateMCPServerKeepingCredentialsRequest is UpdateMCPServerRequest plus the
+/// credentials the caller wants kept without being able to read them.
+///
+/// Reads of a server installed from a global preset hide header values and the
+/// OAuth client secret, so a whole-object UpdateMCPServer built from such a read
+/// overwrites them with the masks. This is a separate method, not extra fields
+/// on UpdateMCPServerRequest, on purpose: a server that predates it answers an
+/// unknown method with Unimplemented, which a client can tell apart before
+/// anything is stored, whereas an older UpdateMCPServer silently ignores unknown
+/// fields and would delete every credential the client left out. A client that
+/// needs to keep credentials must call this method and must not fall back to
+/// UpdateMCPServer when it is Unimplemented.
+class UpdateMCPServerKeepingCredentialsRequest extends $pb.GeneratedMessage {
+  factory UpdateMCPServerKeepingCredentialsRequest({
+    $0.MCPServer? mcpServer,
+    $core.Iterable<$core.String>? keepHeaderKeys,
+    $core.bool? keepOauthClientSecret,
+  }) {
+    final result = UpdateMCPServerKeepingCredentialsRequest._();
+    if (mcpServer != null) result.mcpServer = mcpServer;
+    if (keepHeaderKeys != null) result.keepHeaderKeys.addAll(keepHeaderKeys);
+    if (keepOauthClientSecret != null)
+      result.keepOauthClientSecret = keepOauthClientSecret;
+    return result;
+  }
+
+  UpdateMCPServerKeepingCredentialsRequest._();
+
+  factory UpdateMCPServerKeepingCredentialsRequest.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UpdateMCPServerKeepingCredentialsRequest()
+        ..mergeFromBuffer(data, registry);
+  factory UpdateMCPServerKeepingCredentialsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UpdateMCPServerKeepingCredentialsRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UpdateMCPServerKeepingCredentialsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'agents.v1'),
+      createEmptyInstance:
+          UpdateMCPServerKeepingCredentialsRequest.$_createMessage)
+    ..aOM<$0.MCPServer>(1, _omitFieldNames ? '' : 'mcpServer',
+        subBuilder: $0.MCPServer.$_createMessage)
+    ..pPS(2, _omitFieldNames ? '' : 'keepHeaderKeys')
+    ..aOB(3, _omitFieldNames ? '' : 'keepOauthClientSecret')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateMCPServerKeepingCredentialsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateMCPServerKeepingCredentialsRequest copyWith(
+          void Function(UpdateMCPServerKeepingCredentialsRequest) updates) =>
+      super.copyWith((message) =>
+              updates(message as UpdateMCPServerKeepingCredentialsRequest))
+          as UpdateMCPServerKeepingCredentialsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use UpdateMCPServerKeepingCredentialsRequest() / UpdateMCPServerKeepingCredentialsRequest.new instead')
+  static UpdateMCPServerKeepingCredentialsRequest create() =>
+      UpdateMCPServerKeepingCredentialsRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      UpdateMCPServerKeepingCredentialsRequest._();
+  @$core.override
+  UpdateMCPServerKeepingCredentialsRequest createEmptyInstance() =>
+      UpdateMCPServerKeepingCredentialsRequest._();
+  @$core.pragma('dart2js:noInline')
+  static UpdateMCPServerKeepingCredentialsRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<
+              UpdateMCPServerKeepingCredentialsRequest>(
+          UpdateMCPServerKeepingCredentialsRequest.$_createMessage);
+  static UpdateMCPServerKeepingCredentialsRequest? _defaultInstance;
+
+  /// The whole server, as in UpdateMCPServer: the update stores exactly this,
+  /// plus the credentials named below.
+  @$pb.TagNumber(1)
+  $0.MCPServer get mcpServer => $_getN(0);
+  @$pb.TagNumber(1)
+  set mcpServer($0.MCPServer value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMcpServer() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMcpServer() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $0.MCPServer ensureMcpServer() => $_ensure(0);
+
+  /// Names of stored headers whose values are kept. Each must exist on the
+  /// stored server and must not also appear (with a value) in
+  /// mcp_server.headers. A header named in neither is removed, as in
+  /// UpdateMCPServer. Nothing is inferred from mask values.
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.String> get keepHeaderKeys => $_getList(1);
+
+  /// Keeps the stored OAuth client secret. Requires oauth2 auth, the same
+  /// client_id as the stored server (a secret belongs to its client) and an empty
+  /// client_secret in mcp_server.
+  @$pb.TagNumber(3)
+  $core.bool get keepOauthClientSecret => $_getBF(2);
+  @$pb.TagNumber(3)
+  set keepOauthClientSecret($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasKeepOauthClientSecret() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearKeepOauthClientSecret() => $_clearField(3);
+}
+
+/// The stored server, with header values and the OAuth client secret hidden the
+/// way reads of an installed preset hide them. The installed-preset marker is
+/// always carried over from the stored server.
+class UpdateMCPServerKeepingCredentialsResponse extends $pb.GeneratedMessage {
+  factory UpdateMCPServerKeepingCredentialsResponse({
+    $0.MCPServer? mcpServer,
+  }) {
+    final result = UpdateMCPServerKeepingCredentialsResponse._();
+    if (mcpServer != null) result.mcpServer = mcpServer;
+    return result;
+  }
+
+  UpdateMCPServerKeepingCredentialsResponse._();
+
+  factory UpdateMCPServerKeepingCredentialsResponse.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UpdateMCPServerKeepingCredentialsResponse()
+        ..mergeFromBuffer(data, registry);
+  factory UpdateMCPServerKeepingCredentialsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UpdateMCPServerKeepingCredentialsResponse()
+        ..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UpdateMCPServerKeepingCredentialsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'agents.v1'),
+      createEmptyInstance:
+          UpdateMCPServerKeepingCredentialsResponse.$_createMessage)
+    ..aOM<$0.MCPServer>(1, _omitFieldNames ? '' : 'mcpServer',
+        subBuilder: $0.MCPServer.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateMCPServerKeepingCredentialsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UpdateMCPServerKeepingCredentialsResponse copyWith(
+          void Function(UpdateMCPServerKeepingCredentialsResponse) updates) =>
+      super.copyWith((message) =>
+              updates(message as UpdateMCPServerKeepingCredentialsResponse))
+          as UpdateMCPServerKeepingCredentialsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use UpdateMCPServerKeepingCredentialsResponse() / UpdateMCPServerKeepingCredentialsResponse.new instead')
+  static UpdateMCPServerKeepingCredentialsResponse create() =>
+      UpdateMCPServerKeepingCredentialsResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      UpdateMCPServerKeepingCredentialsResponse._();
+  @$core.override
+  UpdateMCPServerKeepingCredentialsResponse createEmptyInstance() =>
+      UpdateMCPServerKeepingCredentialsResponse._();
+  @$core.pragma('dart2js:noInline')
+  static UpdateMCPServerKeepingCredentialsResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<
+              UpdateMCPServerKeepingCredentialsResponse>(
+          UpdateMCPServerKeepingCredentialsResponse.$_createMessage);
+  static UpdateMCPServerKeepingCredentialsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $0.MCPServer get mcpServer => $_getN(0);
+  @$pb.TagNumber(1)
+  set mcpServer($0.MCPServer value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMcpServer() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMcpServer() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $0.MCPServer ensureMcpServer() => $_ensure(0);
+}
+
 class DeleteMCPServerRequest extends $pb.GeneratedMessage {
   factory DeleteMCPServerRequest({
     $core.String? id,
@@ -11323,6 +11507,18 @@ class MCPServerServiceApi {
           $pb.ClientContext? ctx, UpdateMCPServerRequest request) =>
       _client.invoke<UpdateMCPServerResponse>(ctx, 'MCPServerService',
           'UpdateMCPServer', request, UpdateMCPServerResponse());
+
+  /// UpdateMCPServerKeepingCredentials updates a server while keeping stored
+  /// credentials the caller cannot read. Servers without it answer Unimplemented.
+  $async.Future<UpdateMCPServerKeepingCredentialsResponse>
+      updateMCPServerKeepingCredentials($pb.ClientContext? ctx,
+              UpdateMCPServerKeepingCredentialsRequest request) =>
+          _client.invoke<UpdateMCPServerKeepingCredentialsResponse>(
+              ctx,
+              'MCPServerService',
+              'UpdateMCPServerKeepingCredentials',
+              request,
+              UpdateMCPServerKeepingCredentialsResponse());
   $async.Future<DeleteMCPServerResponse> deleteMCPServer(
           $pb.ClientContext? ctx, DeleteMCPServerRequest request) =>
       _client.invoke<DeleteMCPServerResponse>(ctx, 'MCPServerService',
