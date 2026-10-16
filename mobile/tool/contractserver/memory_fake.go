@@ -27,18 +27,6 @@ type mem0Store struct {
 	failSearch bool
 }
 
-func (f *mem0Store) setValidKey(key string) {
-	f.mu.Lock()
-	f.validKey = key
-	f.mu.Unlock()
-}
-
-func (f *mem0Store) setFailSearch(v bool) {
-	f.mu.Lock()
-	f.failSearch = v
-	f.mu.Unlock()
-}
-
 func newMem0Store() *mem0Store {
 	f := &mem0Store{
 		validKey: contractMem0Key,
@@ -47,8 +35,6 @@ func newMem0Store() *mem0Store {
 	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
 	return f
 }
-
-func (f *mem0Store) close() { f.srv.Close() }
 
 func (f *mem0Store) baseURL() string { return f.srv.URL }
 

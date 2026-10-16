@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -174,31 +173,6 @@ func mustCreateLinearApp(
 		panic(err)
 	}
 	return resp.Msg.GetApp()
-}
-
-// completeLinearInstallCallback hits the public OAuth route for contract tests.
-func completeLinearInstallCallback(baseURL, authorizeURL, code string) error {
-	u, err := url.Parse(authorizeURL)
-	if err != nil {
-		return err
-	}
-	state := u.Query().Get("state")
-	if state == "" {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/linear/oauth/callback?state="+url.QueryEscape(state)+"&code="+url.QueryEscape(code), nil)
-	if err != nil {
-		return err
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusFound {
-		return err
-	}
-	return nil
 }
 
 func init() {
