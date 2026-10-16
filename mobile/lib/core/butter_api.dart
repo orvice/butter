@@ -10,6 +10,7 @@ import 'package:connectrpc/protocol/connect.dart' as protocol;
 import 'package:fixnum/fixnum.dart';
 import 'package:protobuf/well_known_types/google/protobuf/duration.pb.dart'
     as pbd;
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 
 import '../gen/agents/v1/agent.pb.dart';
 import '../gen/agents/v1/agent_file.connect.client.dart';
@@ -1328,6 +1329,103 @@ final class ButterApi {
         signal: _deadline,
       );
 
+  /// Lists ADK sessions visible under the session access policy. Pass
+  /// [workspaceScoped] true only for the caller's own AG-UI threads in
+  /// [workspace] (Chat). The Session explorer uses the default false.
+  Future<ListSessionsResponse> listSessions(
+    String token,
+    String workspace, {
+    String appName = '',
+    String userId = '',
+    DateTime? startTime,
+    DateTime? endTime,
+    int pageSize = 20,
+    String pageToken = '',
+    bool workspaceScoped = false,
+  }) => _sessions.listSessions(
+    ListSessionsRequest(
+      appName: appName,
+      userId: userId,
+      startTime: startTime == null ? null : _timestamp(startTime),
+      endTime: endTime == null ? null : _timestamp(endTime),
+      pageSize: pageSize,
+      pageToken: pageToken,
+      workspaceScoped: workspaceScoped,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<SessionDetail> getSession(
+    String token,
+    String workspace, {
+    required String appName,
+    required String userId,
+    required String sessionId,
+    required int numRecentEvents,
+  }) async {
+    final reply = await _sessions.getSession(
+      GetSessionRequest(
+        appName: appName,
+        userId: userId,
+        sessionId: sessionId,
+        numRecentEvents: numRecentEvents,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasSessionDetail()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Session not found.',
+      );
+    }
+    return reply.sessionDetail;
+  }
+
+  Future<void> deleteSession(
+    String token,
+    String workspace, {
+    required String appName,
+    required String userId,
+    required String sessionId,
+  }) => _sessions.deleteSession(
+    DeleteSessionRequest(
+      appName: appName,
+      userId: userId,
+      sessionId: sessionId,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// One turn through [ReplySession]. Requires [agentId] and
+  /// [X-Workspace-ID]. Never retried by the client.
+  Future<String> replySession(
+    String token,
+    String workspace, {
+    required String appName,
+    required String userId,
+    required String sessionId,
+    required String agentId,
+    required String message,
+    String modelOverride = '',
+  }) async {
+    final reply = await _sessions.replySession(
+      ReplySessionRequest(
+        appName: appName,
+        userId: userId,
+        sessionId: sessionId,
+        agentId: agentId,
+        message: message,
+        modelOverride: modelOverride,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.response;
+  }
+
   /// One page of the caller's AG-UI thread sessions in [workspace]. The server
   /// scopes the list to that Workspace; which sessions are bound threads is
   /// decided by the caller from the session state.
@@ -1337,17 +1435,23 @@ final class ButterApi {
     required String userId,
     required int pageSize,
     String pageToken = '',
-  }) => _sessions.listSessions(
-    ListSessionsRequest(
-      appName: 'agui',
-      userId: userId,
-      workspaceScoped: true,
-      pageSize: pageSize,
-      pageToken: pageToken,
-    ),
-    headers: _headers(token, workspace),
-    signal: _deadline,
+  }) => listSessions(
+    token,
+    workspace,
+    appName: 'agui',
+    userId: userId,
+    workspaceScoped: true,
+    pageSize: pageSize,
+    pageToken: pageToken,
   );
+
+  static Timestamp _timestamp(DateTime time) {
+    final utc = time.toUtc();
+    return Timestamp(
+      seconds: Int64(utc.millisecondsSinceEpoch ~/ 1000),
+      nanos: (utc.millisecondsSinceEpoch % 1000) * 1000000,
+    );
+  }
 
   /// Sets a session's title. Never repeated on its own.
   Future<SessionInfo> renameSession(

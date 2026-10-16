@@ -215,12 +215,12 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace, repoBindingWorkspace, repoBindingMemberWorkspace} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace, repoBindingWorkspace, repoBindingMemberWorkspace, sessionsWorkspace, sessionsPeerWS} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, nil, err
 		}
 		role := "member"
-		if id == daemonWorkspace || id == repoBindingWorkspace {
+		if id == daemonWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS {
 			// Owner role for Daemon token revocation and repo binding writes.
 			role = "owner"
 		}
@@ -230,7 +230,7 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
 			return nil, nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace || id == repoBindingWorkspace {
+		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS {
 			// Chat's agent is the runnable one the chat fixture registers;
 			// the box, MCP, Daemon and repo-binding Workspaces start with none,
 			// their resources are created by the contract tests / repo fixture.
@@ -373,13 +373,13 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	backends := newFileBackends()
 	backends.register(r, opts)
-	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, opts, bx, backends, skillRepo)
+	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, wsRepo, opts, bx, backends, skillRepo)
 	if err != nil {
 		return nil, nil, err
 	}
 	agentSvc.SetRuntime(reloader{
 		runner: boxRunner, agents: agentRepo,
-		workspaces: []string{chatWorkspace, boxWorkspace, filesWorkspace},
+		workspaces: []string{chatWorkspace, boxWorkspace, filesWorkspace, sessionsWorkspace},
 		providers:  runnerProviders,
 	})
 	_, boxHandler := agentsv1connect.NewButterBoxServiceHandler(bx.svc, opts...)

@@ -42,7 +42,7 @@ func newRepoBindingFixture(
 	hostRepo := githostmemory.New()
 	if _, err := hostRepo.Create(ctx, &agentsv1.GitHost{
 		Id: repoBindingGitHostID, Name: "Contract GitHub",
-		Kind: agentsv1.GitHostKind_GIT_HOST_KIND_GITHUB,
+		Kind:       agentsv1.GitHostKind_GIT_HOST_KIND_GITHUB,
 		ApiBaseUrl: "https://api.github.com",
 	}); err != nil {
 		return nil, err

@@ -13,6 +13,7 @@ import '../features/agents/associations.dart';
 import '../features/daemons/daemon_controller.dart';
 import '../features/files/file_controller.dart';
 import '../features/repo_binding/repo_binding_controller.dart';
+import '../features/sessions/session_controller.dart';
 import '../features/mcp/mcp_controller.dart';
 import '../features/remote_agents/remote_agent_controller.dart';
 import '../core/server_address.dart';
@@ -281,6 +282,27 @@ final class ClientContext extends ChangeNotifier {
   }
 
   FileSpaceController? _fileSpaces;
+  SessionController? _sessions;
+
+  /// ADK session list, detail, rename, delete and ReplySession.
+  SessionController? get sessions {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _sessions ??= SessionController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _sessions;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
   RepoBindingController? _repoBinding;
 
   /// Git repository binding and cache browser (#458). [RepoBindingController]
@@ -358,6 +380,9 @@ final class ClientContext extends ChangeNotifier {
     final oldRepo = _repoBinding;
     _repoBinding = null;
     oldRepo?.dispose();
+    final oldSessions = _sessions;
+    _sessions = null;
+    oldSessions?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -845,6 +870,7 @@ final class ClientContext extends ChangeNotifier {
     _daemons?.suspend();
     _fileSpaces?.suspend();
     _repoBinding?.suspend();
+    _sessions?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -920,6 +946,7 @@ final class ClientContext extends ChangeNotifier {
     unawaited(_daemons?.recover());
     unawaited(_fileSpaces?.recover());
     unawaited(_repoBinding?.recover());
+    unawaited(_sessions?.recover());
   }
 
   Future<void> refreshWorkspaces() async {

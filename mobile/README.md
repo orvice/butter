@@ -243,6 +243,24 @@ Not provided yet: A2UI forms/cards (an Interrupt shows a "waiting for input" not
 
 Detach only on leave/background/switch context — never Stop. POST runs are never retried; ambiguous sends read once to reconcile. `RunFold` resets on each `RUN_STARTED` so attach replay does not append stale partial text. Generation fencing uses conversation scope (`_conv`).
 
+## Session explorer (#463)
+
+Agents → **Sessions** lists ADK sessions the caller may access in the active Workspace, with filters, pagination, detail (events, duration, trace links, session state), title rename, delete and **ReplySession**. Chat threads stay on the separate Chat entry; this screen never opens cron, Linear or other entry-point sessions as AG-UI threads.
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Filter / paginate list | `SessionService.ListSessions` + `X-Workspace-ID` (not `workspace_scoped`; that flag is for Chat thread listing only) | Sessions → filters → Apply | `session_controller_test`, `session_widget_test`, `session_contract_test` |
+| Detail, duration, events, trace | `GetSession` (`num_recent_events` 50 or 0) | row → detail | same |
+| Rename title | `UpdateSessionTitle` | detail → rename | same |
+| Delete (AG-UI: server stop-and-hold first) | `DeleteSession` | list/detail → delete with confirmation | same |
+| Reply (Cron / authorized resume) | `ReplySession` with `agent_id`, app/user/session and Workspace header | detail → Reply | same; `SessionController.reply` for #464 |
+
+**Access policy (server).** Members see their own sessions in the Workspace header; workspace owners and admins may list or read other users' sessions in that Workspace and filter by `user_id`. A denied read answers `not_found`. Automation apps (`cron:…`) are visible to members for reply/resume (ADR-0003). The App never echoes raw server errors.
+
+**Writes.** Rename, delete and reply are explicit, never auto-retried, and blocked after an ambiguous outcome until a read that began afterward reconciles the same object. Context generation fencing matches other management screens (`suspend` / `recover`).
+
+**Evidence and limits.** `tool/contractserver/sessions.go` seeds explorer fixtures; `chat.go` registers the full production `SessionServiceServer` (including `ReplySession` with the chat runner). `session_contract_test` (root and `/butter`) covers owner list/filter, detail, rename, reply, delete, Workspace isolation and missing Agent refusal. Widget tests use `test/support/session_server.dart`. Member-only denial of another user's private session is enforced by the production Go tests in `session_access_test.go`; the contract fixture uses an owner account. No Android/iOS device run.
+
 ## File spaces and Agent associations (#456)
 
 Workspace → **File spaces** manages `AgentFileService`: spaces, the text files in them, their versions and search. The Agent editor (LLM, Loop, Sequential, Parallel and Workflow Agents; Pi and Cursor leaves are unchanged) selects the existing MCP servers, Remote Agents, file spaces (mounts) and Skills an Agent references. Skill creation, `SKILL.md` editing and Skill Resource management stay in Web: the Skill list is read for selection only. File content travels as the UTF-8 text of `WriteAgentFile` / `GetAgentFile`, never through the avatar upload.
