@@ -1104,7 +1104,7 @@ class _FileEditPageState extends State<FileEditPage> {
                 controller: _content,
                 enabled: !files.writing,
                 minLines: 8,
-                maxLines: null,
+                maxLines: 20,
                 autocorrect: false,
                 keyboardType: TextInputType.multiline,
                 style: const TextStyle(fontFamily: 'monospace'),
