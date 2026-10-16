@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,10 +99,29 @@ func (s *Store) List(_ context.Context, filter invocation.ListFilter, pageSize i
 		if filter.SessionID != "" && inv.GetSessionId() != filter.SessionID {
 			continue
 		}
+		if !reachableBy(filter, inv) {
+			continue
+		}
 		matched = append(matched, inv)
 	}
 	page, next := paginate(matched, pageSize, pageToken)
 	return page, next, int32(len(matched)), nil
+}
+
+// reachableBy applies ListFilter's UserID / OrAppPrefixes narrowing.
+func reachableBy(filter invocation.ListFilter, inv *agentsv1.Invocation) bool {
+	if filter.UserID == "" && len(filter.OrAppPrefixes) == 0 {
+		return true
+	}
+	if filter.UserID != "" && inv.GetUserId() == filter.UserID {
+		return true
+	}
+	for _, p := range filter.OrAppPrefixes {
+		if strings.HasPrefix(inv.GetAppName(), p) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) ListRecent(_ context.Context, limit int32, pageToken string) ([]*agentsv1.Invocation, string, error) {

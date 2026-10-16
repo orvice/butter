@@ -97,6 +97,11 @@ func registerOpsFixture(
 		}
 	}
 	agentSvc.SetInvocationRepo(invRepo)
+	// The invocation RPCs follow the session access policy, which needs the
+	// workspace memberships.
+	policy := application.NewSessionServiceServer()
+	policy.SetWorkspaceRepo(wsRepo)
+	agentSvc.SetSessionAuthorizer(policy)
 	agentSvc.SetAGUIRunStopper(&opsAguiStop{repo: invRepo})
 
 	dash := application.NewDashboardServiceServer(agentRepo, daemonReg)

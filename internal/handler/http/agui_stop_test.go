@@ -463,6 +463,7 @@ func TestCancelAgentInvocation_StopsAnAGUIRunOnAnyInstance(t *testing.T) {
 		agents.SetRunnerService(b.handler.getRunner().(*runner.Service))
 		agents.SetInvocationRepo(d.invocations)
 		agents.SetAGUIRunStopper(b.handler)
+		agents.SetSessionAuthorizer(application.NewSessionServiceServer())
 		cancel := func(id string) bool {
 			t.Helper()
 			resp, err := agents.CancelAgentInvocation(memberContext("u1"),
@@ -477,6 +478,14 @@ func TestCancelAgentInvocation_StopsAnAGUIRunOnAnyInstance(t *testing.T) {
 		post := d.start("carder", detachBody("t-1", "run-1", "hi"))
 		model.waitStarted(t)
 		first, _ := d.record("t-1", "run-1")
+		// Another member's cancel is refused, and the run keeps going.
+		if _, err := agents.CancelAgentInvocation(memberContext("u2"),
+			connect.NewRequest(&agentsv1.CancelAgentInvocationRequest{InvocationId: first.GetId()})); connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("another member's CancelAgentInvocation = %v, want not_found", err)
+		}
+		if inv, _ := d.record("t-1", "run-1"); inv.GetStatus() != statusRunning || model.cancelled.Load() != 0 {
+			t.Fatalf("record = %+v, model cancelled %d times: another member's cancel reached the run", inv, model.cancelled.Load())
+		}
 		if !cancel(first.GetId()) {
 			t.Fatal("cancelled = false for a running AG-UI run")
 		}

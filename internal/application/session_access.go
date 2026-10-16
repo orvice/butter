@@ -317,3 +317,39 @@ func (s *SessionServiceServer) listScope(ctx context.Context, appName, userID st
 	}
 	return sessionListScope{}, denied
 }
+
+// AuthorizeInvocation applies the policy to an invocation: it is reachable
+// exactly when its session is. appName, userID and workspaceID are the
+// invocation's own. A denied invocation answers NotFound.
+func (s *SessionServiceServer) AuthorizeInvocation(ctx context.Context, appName, userID, workspaceID string) error {
+	return s.authorizeExisting(ctx, appName, userID, workspaceID)
+}
+
+// invocationScope narrows a listing of the request workspace's invocations
+// to the ones whose sessions the caller may reach.
+type invocationScope struct {
+	all         bool     // the whole workspace
+	userID      string   // else: this user's invocations...
+	appPrefixes []string // ...and those of apps with one of these prefixes
+}
+
+// InvocationScope applies the policy to ListAgentInvocations. Global admins,
+// workspace owners and admins, and API tokens see the whole workspace; a
+// member sees their own invocations and the workspace's automation ones.
+func (s *SessionServiceServer) InvocationScope(ctx context.Context) (invocationScope, error) {
+	p, err := sessionPrincipalFrom(ctx)
+	if err != nil {
+		return invocationScope{}, err
+	}
+	if p.admin || p.apiToken {
+		return invocationScope{all: true}, nil
+	}
+	manager, err := s.managesWorkspace(ctx, p)
+	if err != nil {
+		return invocationScope{}, err
+	}
+	if manager {
+		return invocationScope{all: true}, nil
+	}
+	return invocationScope{userID: p.userID, appPrefixes: automationAppPrefixes}, nil
+}

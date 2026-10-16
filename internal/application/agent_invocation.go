@@ -14,7 +14,7 @@ import (
 )
 
 // GetAgentInvocation returns the authoritative state of one invocation by its
-// ID, scoped by workspace and private-session ownership.
+// ID, scoped by workspace and the session access policy.
 func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connect.Request[agentsv1.GetAgentInvocationRequest]) (*connect.Response[agentsv1.GetAgentInvocationResponse], error) {
 	if s.invRepo == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("invocation repository not available"))
@@ -40,7 +40,7 @@ func (s *AgentServiceServer) GetAgentInvocation(ctx context.Context, req *connec
 		return nil, connectx.NotFound("invocation not found")
 	}
 
-	if err := authorizeInvocationAccess(ctx, wsID, inv); err != nil {
+	if err := s.authorizeInvocationAccess(ctx, wsID, inv); err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&agentsv1.GetAgentInvocationResponse{Invocation: inv}), nil
@@ -53,22 +53,19 @@ func getInvocation(ctx context.Context, repo invocation.Repository, workspaceID,
 	return repo.Get(ctx, workspaceID, invocationID)
 }
 
-// authorizeInvocationAccess scopes an invocation to the caller's workspace.
-// Invocations of the retired dashboard chat (app "web-chat") stay private to
-// the user who submitted them; global admins keep support access.
-func authorizeInvocationAccess(ctx context.Context, workspaceID string, inv *agentsv1.Invocation) error {
+// authorizeInvocationAccess decides whether the caller may reach an
+// invocation: one in the request's workspace (when it names one), and then
+// exactly when its session is (the session access policy). Unwired, only
+// global admins pass. A denied invocation answers NotFound.
+func (s *AgentServiceServer) authorizeInvocationAccess(ctx context.Context, workspaceID string, inv *agentsv1.Invocation) error {
 	if workspaceID != "" && inv.GetWorkspaceId() != workspaceID {
 		return connectx.NotFound("invocation not found")
 	}
-	if auth.IsAdmin(ctx) || inv.GetAppName() != "web-chat" {
-		return nil
+	if s.sessionAuth == nil {
+		if auth.IsAdmin(ctx) {
+			return nil
+		}
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("session access policy not available"))
 	}
-	user, ok := auth.UserFromContext(ctx)
-	if !ok {
-		return connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
-	}
-	if inv.GetUserId() != user.GetId() {
-		return connectx.NotFound("invocation not found")
-	}
-	return nil
+	return s.sessionAuth.AuthorizeInvocation(ctx, inv.GetAppName(), inv.GetUserId(), inv.GetWorkspaceId())
 }

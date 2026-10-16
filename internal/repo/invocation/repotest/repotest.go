@@ -229,4 +229,76 @@ func Run(t *testing.T, factory Factory) {
 		wantStatus(t, open(""), "legacy", failed)
 		wantStatus(t, open(""), "alive", running)
 	})
+
+	t.Run("ListNarrowsToAUsersRecordsAndAppPrefixes", func(t *testing.T) {
+		open := factory(t)
+		repo := open("pod-a")
+		for i, r := range []struct{ id, user, app, ws string }{
+			{"alice", "alice", "agui", "ws-1"},
+			{"bob", "bob", "agui", "ws-1"},
+			{"cron", "cron:nightly", "cron:nightly", "ws-1"},
+			{"auto", "automation:daily", "automation:daily", "ws-1"},
+			{"other-ws", "alice", "agui", "ws-2"},
+		} {
+			inv := record(r.id, done, now.Add(-time.Duration(i)*time.Minute))
+			inv.UserId, inv.AppName, inv.WorkspaceId = r.user, r.app, r.ws
+			save(t, repo, inv)
+		}
+		list := func(f invocation.ListFilter) []string {
+			t.Helper()
+			f.WorkspaceID = "ws-1"
+			// Two a page, so the total and the paging answer for the
+			// narrowed set, not the workspace.
+			var ids []string
+			token := ""
+			for {
+				page, next, total, err := repo.List(t.Context(), f, 2, token)
+				if err != nil {
+					t.Fatalf("List(%+v): %v", f, err)
+				}
+				for _, inv := range page {
+					ids = append(ids, inv.GetId())
+				}
+				if total != int32(len(ids))+countAfter(t, repo, f, next) {
+					t.Fatalf("List(%+v) total = %d after %v", f, total, ids)
+				}
+				if token = next; token == "" {
+					break
+				}
+			}
+			slices.Sort(ids)
+			return ids
+		}
+		if got := list(invocation.ListFilter{}); !slices.Equal(got, []string{"alice", "auto", "bob", "cron"}) {
+			t.Fatalf("an unnarrowed List = %v, want the workspace's four", got)
+		}
+		if got := list(invocation.ListFilter{UserID: "alice"}); !slices.Equal(got, []string{"alice"}) {
+			t.Fatalf("List by user = %v, want [alice]", got)
+		}
+		if got := list(invocation.ListFilter{UserID: "alice", OrAppPrefixes: []string{"cron:", "automation:"}}); !slices.Equal(got, []string{"alice", "auto", "cron"}) {
+			t.Fatalf("List by user or app prefix = %v, want [alice auto cron]", got)
+		}
+		if got := list(invocation.ListFilter{OrAppPrefixes: []string{"cron:"}}); !slices.Equal(got, []string{"cron"}) {
+			t.Fatalf("List by app prefix alone = %v, want [cron]", got)
+		}
+	})
+}
+
+// countAfter is how many records the page token leaves unread.
+func countAfter(t *testing.T, repo invocation.Repository, f invocation.ListFilter, token string) int32 {
+	t.Helper()
+	if token == "" {
+		return 0
+	}
+	var n int32
+	for {
+		page, next, _, err := repo.List(t.Context(), f, 2, token)
+		if err != nil {
+			t.Fatalf("List(%+v): %v", f, err)
+		}
+		n += int32(len(page))
+		if token = next; token == "" {
+			return n
+		}
+	}
 }
