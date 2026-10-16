@@ -12,6 +12,7 @@ import '../features/files/file_pages.dart';
 import '../features/repo_binding/repo_binding_pages.dart';
 import '../features/remote_agents/remote_agent_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
+import '../features/agents/agent_lifecycle_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
 import '../features/sessions/session_pages.dart';
@@ -614,6 +615,13 @@ class _Agents extends StatelessWidget {
             onPressed: client.busy ? null : client.refreshAgents,
             icon: const Icon(Icons.refresh),
             label: const Text('Refresh Agents'),
+          ),
+          TextButton.icon(
+            onPressed: client.busy
+                ? null
+                : () => openAgentOperations(context, client),
+            icon: const Icon(Icons.history_toggle_off),
+            label: const Text('Agent operations'),
           ),
         ],
       ),

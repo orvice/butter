@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:butter_mobile/gen/agents/v1/agent.pb.dart';
+import 'package:butter_mobile/gen/agents/v1/agent_operation.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/agent_service.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/repobinding.pb.dart';
 import 'package:butter_mobile/gen/agents/v1/skill.pb.dart';
@@ -35,6 +36,8 @@ class AgentServer extends TestServer {
 
   /// Refuses `ListAgents` while set.
   (int, String, String)? agentsListRefusal;
+
+  final operations = <AgentOperation>[];
 
   Agent _overlaid(String ws, Agent stored) {
     final files = gitContent[ws]?[stored.agentId];
@@ -179,6 +182,56 @@ class AgentServer extends TestServer {
             write(r, UpdateAgentResponse(agent: stored));
           } else {
             write(r, UpdateAgentConfigurationResponse(agent: stored));
+          }
+        case 'DeleteAgent':
+          await beforeWrite?.call();
+          if (refusal case final failure?) {
+            _fail(r, failure.$1, failure.$2, failure.$3);
+            return true;
+          }
+          if (loseWriteReply) {
+            _fail(r, 503, 'unavailable', 'Reply lost');
+            return true;
+          }
+          final delId = DeleteAgentRequest.fromBuffer(bytes).agentId;
+          final victim = bucket[delId];
+          if (victim == null) {
+            _fail(r, 404, 'not_found', 'Agent missing');
+          } else {
+            victim.lifecycleStatus =
+                AgentLifecycleStatus.AGENT_LIFECYCLE_STATUS_DELETED;
+            operations.add(
+              AgentOperation(
+                id: 'op-delete-$delId',
+                agentId: delId,
+                type: AgentOperationType.AGENT_OPERATION_TYPE_DELETE,
+                status: AgentOperationStatus.AGENT_OPERATION_STATUS_SUCCEEDED,
+              ),
+            );
+            write(r, DeleteAgentResponse(operation: operations.last));
+          }
+        case 'RestoreAgent':
+          final restoreId = RestoreAgentRequest.fromBuffer(bytes).agentId;
+          final tomb = bucket[restoreId];
+          if (tomb == null) {
+            _fail(r, 404, 'not_found', 'Agent missing');
+          } else {
+            tomb.lifecycleStatus =
+                AgentLifecycleStatus.AGENT_LIFECYCLE_STATUS_ACTIVE;
+            write(r, RestoreAgentResponse(agent: _overlaid(ws!, tomb)));
+          }
+        case 'ListAgentOperations':
+          write(r, ListAgentOperationsResponse(operations: operations));
+        case 'GetAgentOperation':
+          final opId = GetAgentOperationRequest.fromBuffer(bytes).operationId;
+          final op = operations.cast<AgentOperation?>().firstWhere(
+            (o) => o!.id == opId,
+            orElse: () => null,
+          );
+          if (op == null) {
+            _fail(r, 404, 'not_found', 'Operation missing');
+          } else {
+            write(r, GetAgentOperationResponse(operation: op));
           }
         default:
           return false;

@@ -16,6 +16,7 @@ import '../gen/agents/v1/agent.pb.dart';
 import '../gen/agents/v1/agent_file.connect.client.dart';
 import '../gen/agents/v1/agent_file.pb.dart';
 import '../gen/agents/v1/agent_service.connect.client.dart';
+import '../gen/agents/v1/agent_operation.pb.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/api_token.connect.client.dart';
 import '../gen/agents/v1/api_token.pb.dart';
@@ -481,6 +482,105 @@ final class ButterApi {
     }
     return saved;
   }
+
+  Future<DeleteAgentResponse> deleteAgent(
+    String token,
+    String workspace,
+    String agentId, {
+    String operationId = '',
+  }) => _agents.deleteAgent(
+    DeleteAgentRequest(agentId: agentId, operationId: operationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<RestoreAgentResponse> restoreAgent(
+    String token,
+    String workspace,
+    String agentId, {
+    String operationId = '',
+  }) => _agents.restoreAgent(
+    RestoreAgentRequest(agentId: agentId, operationId: operationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<AgentOperation> getAgentOperation(
+    String token,
+    String workspace,
+    String operationId,
+  ) async {
+    final reply = await _agents.getAgentOperation(
+      GetAgentOperationRequest(operationId: operationId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasOperation()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Operation missing.',
+      );
+    }
+    return reply.operation;
+  }
+
+  Future<ListAgentOperationsResponse> listAgentOperations(
+    String token,
+    String workspace, {
+    AgentOperationStatus status =
+        AgentOperationStatus.AGENT_OPERATION_STATUS_UNSPECIFIED,
+    String pageToken = '',
+  }) => _agents.listAgentOperations(
+    ListAgentOperationsRequest(status: status, pageToken: pageToken),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<RetryAgentOperationResponse> retryAgentOperation(
+    String token,
+    String workspace,
+    String operationId,
+  ) => _agents.retryAgentOperation(
+    RetryAgentOperationRequest(operationId: operationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<CommitAgentContentResponse> commitAgentContent(
+    String token,
+    String workspace, {
+    required List<ContentFileAction> actions,
+    String message = '',
+    String baseRevision = '',
+  }) => _repoBindings.commitAgentContent(
+    CommitAgentContentRequest(
+      actions: actions,
+      message: message,
+      baseRevision: baseRevision,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<RollbackAgentContentResponse> rollbackAgentContent(
+    String token,
+    String workspace,
+    String targetCommitSha,
+  ) => _repoBindings.rollbackAgentContent(
+    RollbackAgentContentRequest(targetCommitSha: targetCommitSha),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<PurgeAgentContentResponse> purgeAgentContent(
+    String token,
+    String workspace,
+    String agentId,
+  ) => _repoBindings.purgeAgentContent(
+    PurgeAgentContentRequest(agentId: agentId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
 
   // ---- File spaces (AgentFileService). Content travels as the UTF-8 text of
   // WriteAgentFile / GetAgentFile, never through the avatar upload. Every call

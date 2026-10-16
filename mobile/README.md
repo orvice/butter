@@ -103,7 +103,21 @@ Limits: key rotation policies and a live connection test do not exist in this ti
 | Ordered independent child references / labels / metadata / API exposure | child_agent_ids, map rows, interface switches | Structured rows, ID picker, reorder/remove controls | widget and real contract relationship validation |
 | Associate/remove existing Skills | SkillService.ListSkills + AgentConfig.skills | Agent editor checkboxes (no Skill CRUD/content/resource management) | widget and real contract catalog/round-trip tests |
 
-Unbound Agent configuration writes are available to Workspace members under the existing backend rules. The App does not invent an owner-only restriction. The immutable ID is the only lookup/reference key; the display name is never resolved. Runtime name is supplied on create and server-controlled thereafter. Existing type is retained by this editor (type selection is offered on create); changing existing type stays with Web to avoid discarding future type-specific fields. Blocked lifecycle states, unknown types, historical embedded-child configurations and a Pi/Cursor leaf that holds children or Butter-side behavior fields (the server refuses them on write, so a record that has them is legacy) are read-only (composite saves would discard embedded children). Pi and Cursor leaves and ButterBoxes were added by #453 (next section). No deletion, restore, purge or operation-management action is provided for Agents.
+Unbound Agent configuration writes are available to Workspace members under the existing backend rules. The App does not invent an owner-only restriction. The immutable ID is the only lookup/reference key; the display name is never resolved. Runtime name is supplied on create and server-controlled thereafter. Existing type is retained by this editor (type selection is offered on create); changing existing type stays with Web to avoid discarding future type-specific fields. Blocked lifecycle states, unknown types, historical embedded-child configurations and a Pi/Cursor leaf that holds children or Butter-side behavior fields (the server refuses them on write, so a record that has them is legacy) are read-only (composite saves would discard embedded children). Pi and Cursor leaves and ButterBoxes were added by #453 (next section). Tombstone, restore, purge, Git content and lifecycle operations are #459 (next section).
+
+## Agent Content and lifecycle (#459)
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Tombstone Agent (soft delete) | `DeleteAgent` | Agent detail → Tombstone (confirms ID; distinct from purge) | `agent_lifecycle_controller_test`, `agent_lifecycle_contract_test` |
+| Restore tombstoned Agent | `RestoreAgent` (owner/admin when Git-bound) | Agent detail → Restore | same |
+| Purge Git content files | `PurgeAgentContent` (owner/admin) | Agent detail → Purge Git content | same |
+| List / view lifecycle operations | `ListAgentOperations`, `GetAgentOperation` | Agents → Agent operations | same |
+| Retry failed lifecycle Saga | `RetryAgentOperation` (not Invocations or chat runs) | Operation detail → Retry | same |
+| Edit / commit Git Agent Content | `CommitAgentContent`, `RollbackAgentContent` | Agent detail → Edit Git content | `agent_content_draft_test`, `agent_lifecycle_contract_test` |
+| Composite save with version CAS | `UpdateAgentConfiguration` (existing Agent editor when Git-owned) | Edit Agent → Save | existing `agent_contract_test` |
+
+Tombstone keeps the Agent ID and Git files until an owner purges content. Writes are never auto-retried; ambiguous outcomes stay unconfirmed until a reload reconciles. Validation errors from commits are shown and require reload — no force overwrite. `tool/contractserver/agent_lifecycle_runtime_test.go` covers delete + operation list on production handlers; Dart contract tests tombstone, restore and list on the `daemon` workspace (owner, no Git binding — restore on `alpha` needs owner/admin and Git-bound workspaces need a working remote).
 
 Model choices include every configured provider's alias (model ID when no alias is set), keep custom/current values, and never cache or display provider keys. Child choices load every Agent page; choosing an ID does not embed or modify that resource. The server enforces existence, Workspace scope, cycles and single-parent ownership. Existing unavailable references remain visible and can be removed, not silently dropped.
 
@@ -339,6 +353,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Connect streaming and A2UI are not implemented. AG-UI chat (#460) covers detached runs, history, images and threads, but not live re-attach, Stop or A2UI (see Chat and threads). Agent lifecycle (delete/restore/purge) and the remaining editors (Memory, Card Policy) are separate tickets; file spaces and the MCP, Remote Agent, mount and Skill selections are covered by #456; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
+- Connect streaming and A2UI are not implemented. AG-UI chat (#460) covers detached runs, history, images and threads, but not live re-attach, Stop or A2UI (see Chat and threads). Memory and Card Policy editors remain separate tickets; file spaces and the MCP, Remote Agent, mount and Skill selections are covered by #456; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
 - No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.

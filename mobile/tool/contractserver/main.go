@@ -29,6 +29,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
+	agentopmemory "go.orx.me/apps/butter/internal/repo/agentop/memory"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
@@ -289,6 +290,7 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	agentSvc := application.NewAgentServiceServer(agentRepo)
 	agentSvc.SetWorkspaceRepo(wsRepo)
+	agentSvc.SetOperationRepo(agentopmemory.New())
 	agentSvc.SetContentCoordinator(repoFx.svc)
 	bx := newBoxFixture(agentRepo)
 	agentSvc.SetButterBoxRepo(bx.repo)
@@ -354,6 +356,12 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 		agentsv1connect.AgentServiceGetAgentProcedure,
 		agentsv1connect.AgentServiceCreateAgentProcedure,
 		agentsv1connect.AgentServiceUpdateAgentProcedure,
+		agentsv1connect.AgentServiceUpdateAgentConfigurationProcedure,
+		agentsv1connect.AgentServiceDeleteAgentProcedure,
+		agentsv1connect.AgentServiceRestoreAgentProcedure,
+		agentsv1connect.AgentServiceGetAgentOperationProcedure,
+		agentsv1connect.AgentServiceListAgentOperationsProcedure,
+		agentsv1connect.AgentServiceRetryAgentOperationProcedure,
 		agentsv1connect.AgentServiceGetAgentRuntimeStatusProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
