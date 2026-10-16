@@ -5,15 +5,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"connectrpc.com/connect"
+	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
-	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	"go.orx.me/apps/butter/internal/repo/invocation"
+	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -23,8 +23,8 @@ import (
 const opsWorkspace = "ops468"
 
 const (
-	opsRunningInvocation  = "ops-inv-running"
-	opsAguiInvocation     = "ops-inv-agui"
+	opsRunningInvocation   = "ops-inv-running"
+	opsAguiInvocation      = "ops-inv-agui"
 	opsSucceededInvocation = "ops-inv-done"
 )
 
@@ -80,8 +80,8 @@ func registerOpsFixture(
 		{
 			Id: opsAguiInvocation, WorkspaceId: opsWorkspace, AgentId: "ops-agent",
 			AgentName: "ops-agent", SessionId: "agui-thread", UserId: userID,
-			Source: invocation.SourceAGUIDetached,
-			Status: agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
+			Source:    invocation.SourceAGUIDetached,
+			Status:    agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING,
 			StartedAt: timestamppb.New(now.Add(-1 * time.Minute)),
 		},
 		{
