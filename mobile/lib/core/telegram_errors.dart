@@ -1,5 +1,7 @@
 import 'package:connectrpc/connect.dart';
 
+import 'config_resource_controller.dart';
+
 enum TelegramOperation {
   load,
   createChannel,
@@ -16,8 +18,7 @@ enum TelegramOperation {
   processing,
 }
 
-const telegramUnconfirmed =
-    'Change not confirmed; it may already have been applied. Refresh before retrying.';
+const telegramUnconfirmed = configUnconfirmed;
 
 String? describeTelegramFailure(Object failure, TelegramOperation operation) {
   if (failure is! ConnectException) return null;

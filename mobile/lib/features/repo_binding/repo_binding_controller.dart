@@ -4,6 +4,7 @@ import 'package:connectrpc/connect.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/butter_api.dart';
+import '../../core/config_resource_controller.dart';
 import '../../core/repo_binding_errors.dart';
 import '../../gen/agents/v1/githost.pb.dart';
 import '../../gen/agents/v1/repobinding.pb.dart';
@@ -11,8 +12,7 @@ import 'repo_binding_draft.dart';
 
 enum RepoBindingLoad { idle, loading, ready, failed }
 
-const repoBindingUnconfirmed =
-    'Change not confirmed; it may already have been applied. Refresh before retrying.';
+const repoBindingUnconfirmed = configUnconfirmed;
 
 /// Git repository binding for one server, user and Workspace (#458).
 ///

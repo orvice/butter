@@ -4,6 +4,7 @@ import 'package:connectrpc/connect.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/butter_api.dart';
+import '../../core/config_resource_controller.dart';
 import '../../core/linear_errors.dart';
 import '../../core/native_oauth.dart';
 import '../../gen/agents/v1/linear.pb.dart';
@@ -11,9 +12,6 @@ import 'linear_draft.dart';
 import 'linear_install_flow.dart';
 
 enum LinearLoad { idle, loading, ready, failed }
-
-const linearUnconfirmed =
-    'Change not confirmed; it may already have been applied. Refresh before retrying.';
 
 /// Linear Apps, installations, platform URL status and processing records.
 class LinearController extends ChangeNotifier {
@@ -113,7 +111,7 @@ class LinearController extends ChangeNotifier {
       unconfirmed = false;
     } else if (unknown) {
       unconfirmed = true;
-      writeError = linearUnconfirmed;
+      writeError = configUnconfirmed;
     }
     _emit();
   }

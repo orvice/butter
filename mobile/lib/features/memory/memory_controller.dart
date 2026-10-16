@@ -4,14 +4,14 @@ import 'package:connectrpc/connect.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/butter_api.dart';
+import '../../core/config_resource_controller.dart';
 import '../../core/memory_errors.dart';
 import '../../gen/agents/v1/workspace_memory.pb.dart';
 import 'memory_draft.dart';
 
 enum MemoryLoad { idle, loading, ready, failed }
 
-const memoryUnconfirmed =
-    'Change not confirmed; it may already have been applied. Refresh before retrying.';
+const memoryUnconfirmed = configUnconfirmed;
 
 class MemoryController extends ChangeNotifier {
   MemoryController({

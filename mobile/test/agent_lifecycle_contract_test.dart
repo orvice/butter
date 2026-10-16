@@ -49,6 +49,62 @@ void main() {
           );
         }
 
+        test(
+          'delete is refused when agent is referenced by telegram destination',
+          skip: server.isEmpty
+              ? 'Run tool/contract.sh.'
+              : prefix.isNotEmpty
+              ? 'Shared fixture; run at root prefix.'
+              : false,
+          () async {
+            const alpha = 'alpha';
+            const agentId = 'shared';
+            final lifecycle = AgentLifecycleController(
+              newApi: () =>
+                  ButterApi(ServerAddress.parse(base, allowHttp: true)),
+              token: token,
+              workspaceId: alpha,
+              canManage: () => true,
+              onUnauthenticated: () {},
+            );
+            addTearDown(lifecycle.dispose);
+            expect(
+              await lifecycle.deleteAgent(agentId, displayName: agentId),
+              isFalse,
+            );
+            expect(lifecycle.writeError, isNotNull);
+            expect(lifecycle.writeError!.toLowerCase(), contains('referenced'));
+          },
+        );
+
+        test(
+          'linear-routed agent delete names the linear app',
+          skip: server.isEmpty
+              ? 'Run tool/contract.sh.'
+              : prefix.isNotEmpty
+              ? 'Shared fixture; run at root prefix.'
+              : false,
+          () async {
+            final lifecycle = AgentLifecycleController(
+              newApi: () =>
+                  ButterApi(ServerAddress.parse(base, allowHttp: true)),
+              token: token,
+              workspaceId: 'linear',
+              canManage: () => true,
+              onUnauthenticated: () {},
+            );
+            addTearDown(lifecycle.dispose);
+            expect(
+              await lifecycle.deleteAgent(
+                'linear-agent',
+                displayName: 'linear-agent',
+              ),
+              isFalse,
+            );
+            expect(lifecycle.writeError!.toLowerCase(), contains('referenced'));
+          },
+        );
+
         test('tombstone restore and list lifecycle operations', () async {
           const id = 'lifecycle-dart-agent';
           await ensureActiveAgent(id);

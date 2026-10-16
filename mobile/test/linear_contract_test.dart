@@ -47,6 +47,13 @@ void main() {
           return c;
         }
 
+        test('platform linear settings are read-only for members', () async {
+          final c = linear();
+          await c.loadPlatformSettings();
+          expect(c.platformSettingsDenied, isTrue);
+          expect(c.platformBaseUrl, anyOf(isNull, isEmpty));
+        });
+
         test('lists seeded app without leaking secrets', () async {
           final c = linear();
           await c.loadApps();

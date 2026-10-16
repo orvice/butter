@@ -16,6 +16,7 @@ import (
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
+	linearrepo "go.orx.me/apps/butter/internal/repo/linear"
 	linearmemory "go.orx.me/apps/butter/internal/repo/linear/memory"
 	linearprocessingmemory "go.orx.me/apps/butter/internal/repo/linearprocessing/memory"
 	linearsettingmemory "go.orx.me/apps/butter/internal/repo/linearsetting/memory"
@@ -59,6 +60,7 @@ func (r *contractLinearResender) Resend(_ context.Context, workspaceID, id strin
 }
 
 type linearFixture struct {
+	repo     linearrepo.Repository
 	fake     *contractLinearFake
 	resender *contractLinearResender
 }
@@ -151,7 +153,7 @@ func registerLinearFixture(
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", procHandler)))
 	}
 
-	return &linearFixture{fake: fake, resender: resender}, nil
+	return &linearFixture{repo: repo, fake: fake, resender: resender}, nil
 }
 
 func mustCreateLinearApp(

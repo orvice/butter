@@ -23,7 +23,20 @@ type mem0Store struct {
 	memories map[string]mem0.Memory
 	searches []map[string]any
 	deleted  []string
-	closed   bool
+	closed     bool
+	failSearch bool
+}
+
+func (f *mem0Store) setValidKey(key string) {
+	f.mu.Lock()
+	f.validKey = key
+	f.mu.Unlock()
+}
+
+func (f *mem0Store) setFailSearch(v bool) {
+	f.mu.Lock()
+	f.failSearch = v
+	f.mu.Unlock()
 }
 
 func newMem0Store() *mem0Store {
@@ -92,6 +105,10 @@ func (f *mem0Store) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"results": out})
 	case r.Method == http.MethodPost && r.URL.Path == "/search":
+		if f.failSearch {
+			http.Error(w, `{"detail":"unreachable"}`, http.StatusServiceUnavailable)
+			return
+		}
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		f.searches = append(f.searches, body)

@@ -29,6 +29,7 @@ const (
 	cronAgentID         = "cron-agent"
 	cronSeededJob       = "seeded-daily"
 	cronWaitingExecID   = "exec-waiting"
+	cronInstantJob      = "instant-log"
 	cronNotifyGroup     = "ops"
 	cronTelegramDestID  = "cron-destination"
 	cronTelegramChannel = "cron-channel"
@@ -234,10 +235,18 @@ func registerCronFixture(
 	}); err != nil {
 		return err
 	}
+	if err := jobs.Create(ctx, &agentsv1.CronJob{
+		Name: cronInstantJob, Schedule: "@yearly", AgentId: cronAgentID,
+		WorkspaceId: cronWorkspace, Enabled: true, Input: "cron ping",
+		Delivery: &agentsv1.CronDelivery{Type: agentsv1.CronDeliveryType_CRON_DELIVERY_TYPE_LOG},
+	}); err != nil {
+		return err
+	}
 
 	appName := "cron:" + cronSeededJob
 	userID := appName
-	sessionID := "sess-wait"
+	// Session IDs must carry the cron: prefix so HandleTurn finalizes WAITING_INPUT.
+	sessionID := "cron:" + cronSeededJob + ":" + cronWaitingExecID
 	if err := createSessionWithEvents(ctx, sessions, cronWorkspace, appName, userID, sessionID, "waiting"); err != nil {
 		return err
 	}

@@ -6,13 +6,13 @@ import 'package:flutter/foundation.dart';
 import '../../core/agent_errors.dart';
 import '../../core/agent_lifecycle_errors.dart';
 import '../../core/butter_api.dart';
+import '../../core/config_resource_controller.dart';
 import '../../gen/agents/v1/agent_operation.pb.dart';
 import 'agent_content_draft.dart';
 
 enum LifecycleLoad { idle, loading, ready, failed }
 
-const lifecycleUnconfirmed =
-    'Change not confirmed; it may already have been applied. Refresh before retrying.';
+const lifecycleUnconfirmed = configUnconfirmed;
 
 /// Agent lifecycle operations and Git content commits for one Workspace (#459).
 class AgentLifecycleController extends ChangeNotifier {

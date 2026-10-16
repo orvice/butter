@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../core/butter_api.dart';
 import '../core/agent_errors.dart';
+import '../core/config_resource_controller.dart';
 import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
@@ -630,8 +631,6 @@ final class ClientContext extends ChangeNotifier {
   String? error;
   String? writeNotice;
   int? _writingGeneration;
-  static const _unconfirmedWrite =
-      'Change not confirmed; it may already have been applied. Refresh before retrying.';
 
   /// OAuth providers the server offers for sign-in.
   List<OAuthProvider> oauthProviders = const [];
@@ -671,7 +670,7 @@ final class ClientContext extends ChangeNotifier {
   }
 
   int _begin({bool clearIdentity = false}) {
-    if (_writingGeneration == _generation) writeNotice = _unconfirmedWrite;
+    if (_writingGeneration == _generation) writeNotice = configUnconfirmed;
     _generation++;
     _api?.close();
     _api = address == null ? null : ButterApi(address!);
@@ -1087,7 +1086,7 @@ final class ClientContext extends ChangeNotifier {
     _automations?.suspend();
     _linear?.suspend();
     _telegram?.suspend();
-    if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
+    if (_writingGeneration != null) writeNotice = configUnconfirmed;
     _generation++;
     _api?.close();
     busy = false;
@@ -1454,7 +1453,7 @@ final class ClientContext extends ChangeNotifier {
     }, describe: describe);
     if (_writingGeneration == generation) _writingGeneration = null;
     if (!succeeded && ambiguous && _current(generation) && user != null) {
-      writeNotice = _unconfirmedWrite;
+      writeNotice = configUnconfirmed;
       _emit();
     }
     return succeeded && _current(generation);

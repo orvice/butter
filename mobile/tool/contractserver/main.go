@@ -286,6 +286,7 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	agentSvc.SetWorkspaceRepo(wsRepo)
 	agentSvc.SetOperationRepo(agentopmemory.New())
 	agentSvc.SetContentCoordinator(repoFx.svc)
+	agentSvc.SetTelegramGuard(application.NewTelegramReferenceGuard(telegramRepo))
 	bx := newBoxFixture(agentRepo)
 	agentSvc.SetButterBoxRepo(bx.repo)
 	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
@@ -417,9 +418,11 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	memFx := newMemoryFixture(wsRepo)
 	memFx.register(r, opts)
-	if _, err := registerLinearFixture(ctx, r, opts, agentRepo, wsRepo); err != nil {
+	linearFx, err := registerLinearFixture(ctx, r, opts, agentRepo, wsRepo)
+	if err != nil {
 		return nil, nil, err
 	}
+	agentSvc.SetLinearGuard(application.NewLinearReferenceGuard(linearFx.repo))
 	mcpFx := newMCPFixture(agentRepo)
 	mux := http.NewServeMux()
 	mcpFx.register(r, mux, opts)
