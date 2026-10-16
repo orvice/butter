@@ -7,7 +7,7 @@ import "package:connectrpc/connect.dart" as connect;
 import "automation.pb.dart" as agentsv1automation;
 import "automation.connect.spec.dart" as specs;
 
-extension type AutomationServiceClient(connect.Transport _transport) {
+extension type AutomationServiceClient (connect.Transport _transport) {
   Future<agentsv1automation.ListAutomationsResponse> listAutomations(
     agentsv1automation.ListAutomationsRequest input, {
     connect.Headers? headers,
@@ -144,8 +144,7 @@ extension type AutomationServiceClient(connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1automation.ListAutomationStepRunsResponse>
-  listAutomationStepRuns(
+  Future<agentsv1automation.ListAutomationStepRunsResponse> listAutomationStepRuns(
     agentsv1automation.ListAutomationStepRunsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,

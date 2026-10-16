@@ -11,12 +11,11 @@ import "repobinding.connect.spec.dart" as specs;
 /// binding. All RPCs derive the workspace from the X-Workspace-ID header.
 /// Get is available to every workspace member; the mutating RPCs require the
 /// caller to be a workspace owner or admin (global admins bypass).
-extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
+extension type WorkspaceRepoBindingServiceClient (connect.Transport _transport) {
   /// GetWorkspaceRepoBinding returns the binding (unset when none exists)
   /// plus any overlapping bindings in other workspaces. Never returns
   /// credential material.
-  Future<agentsv1repobinding.GetWorkspaceRepoBindingResponse>
-  getWorkspaceRepoBinding(
+  Future<agentsv1repobinding.GetWorkspaceRepoBindingResponse> getWorkspaceRepoBinding(
     agentsv1repobinding.GetWorkspaceRepoBindingRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -37,8 +36,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
   /// configuration. Server-owned fields (credential, status, timestamps) are
   /// ignored on input. Every Put resets status to UNVALIDATED: each binding
   /// field (including write mode) changes what validation must prove.
-  Future<agentsv1repobinding.PutWorkspaceRepoBindingResponse>
-  putWorkspaceRepoBinding(
+  Future<agentsv1repobinding.PutWorkspaceRepoBindingResponse> putWorkspaceRepoBinding(
     agentsv1repobinding.PutWorkspaceRepoBindingRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -61,8 +59,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
   /// binding and its encrypted PAT. It never modifies remote Git content, and
   /// refuses to proceed when there is no valid active snapshot unless the caller
   /// selects a supported recovery path. Requires owner/admin role.
-  Future<agentsv1repobinding.DeleteWorkspaceRepoBindingResponse>
-  deleteWorkspaceRepoBinding(
+  Future<agentsv1repobinding.DeleteWorkspaceRepoBindingResponse> deleteWorkspaceRepoBinding(
     agentsv1repobinding.DeleteWorkspaceRepoBindingRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -86,8 +83,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
   /// modes the workspace only switches to Git-owned content after the
   /// commit/import, read-back, validation, Effective Agent construction, and
   /// Active Revision publication all succeed. Requires owner/admin role.
-  Future<agentsv1repobinding.OnboardWorkspaceRepositoryResponse>
-  onboardWorkspaceRepository(
+  Future<agentsv1repobinding.OnboardWorkspaceRepositoryResponse> onboardWorkspaceRepository(
     agentsv1repobinding.OnboardWorkspaceRepositoryRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -106,8 +102,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
 
   /// SetWorkspaceRepoBindingCredential sets or replaces the binding's PAT.
   /// The PAT is write-only: it is encrypted before storage and never returned.
-  Future<agentsv1repobinding.SetWorkspaceRepoBindingCredentialResponse>
-  setWorkspaceRepoBindingCredential(
+  Future<agentsv1repobinding.SetWorkspaceRepoBindingCredentialResponse> setWorkspaceRepoBindingCredential(
     agentsv1repobinding.SetWorkspaceRepoBindingCredentialRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -128,8 +123,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
   /// credential (visibility/read, branch existence, write capability, PR/MR
   /// capability as required by the write mode), persists the outcome on the
   /// binding, and returns it.
-  Future<agentsv1repobinding.ValidateWorkspaceRepoBindingResponse>
-  validateWorkspaceRepoBinding(
+  Future<agentsv1repobinding.ValidateWorkspaceRepoBindingResponse> validateWorkspaceRepoBinding(
     agentsv1repobinding.ValidateWorkspaceRepoBindingRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -149,8 +143,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
   /// SyncWorkspaceRepository reads the bound repository's managed tree and
   /// Markdown blobs into the workspace-scoped DB cache. Requires owner or
   /// admin role. The sync is idempotent when the remote HEAD has not changed.
-  Future<agentsv1repobinding.SyncWorkspaceRepositoryResponse>
-  syncWorkspaceRepository(
+  Future<agentsv1repobinding.SyncWorkspaceRepositoryResponse> syncWorkspaceRepository(
     agentsv1repobinding.SyncWorkspaceRepositoryRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -169,8 +162,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
 
   /// GetRepositorySyncStatus returns the binding with its current sync state
   /// without triggering a new synchronization.
-  Future<agentsv1repobinding.GetRepositorySyncStatusResponse>
-  getRepositorySyncStatus(
+  Future<agentsv1repobinding.GetRepositorySyncStatusResponse> getRepositorySyncStatus(
     agentsv1repobinding.GetRepositorySyncStatusRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -189,8 +181,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
 
   /// ListRepositoryEntries returns cached directory entries for a path within
   /// the managed tree. Reads only from the DB cache; never issues Git requests.
-  Future<agentsv1repobinding.ListRepositoryEntriesResponse>
-  listRepositoryEntries(
+  Future<agentsv1repobinding.ListRepositoryEntriesResponse> listRepositoryEntries(
     agentsv1repobinding.ListRepositoryEntriesRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -230,8 +221,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
   /// agent content and, on success, atomically advances the Active Revision
   /// and reloads the runner. Fails gracefully when validation errors are
   /// present; the binding reports per-agent errors.
-  Future<agentsv1repobinding.PublishWorkspaceRepositoryResponse>
-  publishWorkspaceRepository(
+  Future<agentsv1repobinding.PublishWorkspaceRepositoryResponse> publishWorkspaceRepository(
     agentsv1repobinding.PublishWorkspaceRepositoryRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -250,8 +240,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
 
   /// ConfigureWebhookSecret generates (or replaces) a webhook secret for the
   /// binding and returns the callback URL and the secret (shown only once).
-  Future<agentsv1repobinding.ConfigureWebhookSecretResponse>
-  configureWebhookSecret(
+  Future<agentsv1repobinding.ConfigureWebhookSecretResponse> configureWebhookSecret(
     agentsv1repobinding.ConfigureWebhookSecretRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -270,8 +259,7 @@ extension type WorkspaceRepoBindingServiceClient(connect.Transport _transport) {
 
   /// AcceptRepositoryBaseline accepts a diverged (force-pushed) HEAD as the
   /// new baseline, re-syncs and publishes. Requires owner/admin role.
-  Future<agentsv1repobinding.AcceptRepositoryBaselineResponse>
-  acceptRepositoryBaseline(
+  Future<agentsv1repobinding.AcceptRepositoryBaselineResponse> acceptRepositoryBaseline(
     agentsv1repobinding.AcceptRepositoryBaselineRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,

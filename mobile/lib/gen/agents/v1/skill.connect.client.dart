@@ -7,7 +7,7 @@ import "package:connectrpc/connect.dart" as connect;
 import "skill.pb.dart" as agentsv1skill;
 import "skill.connect.spec.dart" as specs;
 
-extension type SkillServiceClient(connect.Transport _transport) {
+extension type SkillServiceClient (connect.Transport _transport) {
   Future<agentsv1skill.ListSkillsResponse> listSkills(
     agentsv1skill.ListSkillsRequest input, {
     connect.Headers? headers,

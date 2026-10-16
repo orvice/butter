@@ -8,7 +8,7 @@ import "cron.pb.dart" as agentsv1cron;
 import "cron.connect.spec.dart" as specs;
 
 /// CronJobService manages cron jobs and their execution history.
-extension type CronJobServiceClient(connect.Transport _transport) {
+extension type CronJobServiceClient (connect.Transport _transport) {
   /// ListCronJobs returns all cron jobs.
   Future<agentsv1cron.ListCronJobsResponse> listCronJobs(
     agentsv1cron.ListCronJobsRequest input, {

@@ -9,7 +9,7 @@ import "linear.connect.spec.dart" as specs;
 
 /// LinearAppService manages a workspace's Linear Apps. Members may read;
 /// workspace owners and admins manage.
-extension type LinearAppServiceClient(connect.Transport _transport) {
+extension type LinearAppServiceClient (connect.Transport _transport) {
   Future<agentsv1linear.ListLinearAppsResponse> listLinearApps(
     agentsv1linear.ListLinearAppsRequest input, {
     connect.Headers? headers,
@@ -82,8 +82,7 @@ extension type LinearAppServiceClient(connect.Transport _transport) {
   }
 
   /// PutLinearAppCredentials sets or clears the write-only secrets.
-  Future<agentsv1linear.PutLinearAppCredentialsResponse>
-  putLinearAppCredentials(
+  Future<agentsv1linear.PutLinearAppCredentialsResponse> putLinearAppCredentials(
     agentsv1linear.PutLinearAppCredentialsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -138,8 +137,7 @@ extension type LinearAppServiceClient(connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1linear.ListLinearInstallationsResponse>
-  listLinearInstallations(
+  Future<agentsv1linear.ListLinearInstallationsResponse> listLinearInstallations(
     agentsv1linear.ListLinearInstallationsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -158,8 +156,7 @@ extension type LinearAppServiceClient(connect.Transport _transport) {
 
   /// DeleteLinearInstallation removes an installation, revoking its token at
   /// Linear as a best effort.
-  Future<agentsv1linear.DeleteLinearInstallationResponse>
-  deleteLinearInstallation(
+  Future<agentsv1linear.DeleteLinearInstallationResponse> deleteLinearInstallation(
     agentsv1linear.DeleteLinearInstallationRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -176,7 +173,6 @@ extension type LinearAppServiceClient(connect.Transport _transport) {
     );
   }
 }
-
 /// =============================================================================
 /// LinearAdminService manages platform-level Linear settings.
 /// The public base URL is global, not per-workspace: it names the public
@@ -184,7 +180,7 @@ extension type LinearAppServiceClient(connect.Transport _transport) {
 /// it, so workspace input can never redirect Linear webhooks or OAuth
 /// callbacks.
 /// =============================================================================
-extension type LinearAdminServiceClient(connect.Transport _transport) {
+extension type LinearAdminServiceClient (connect.Transport _transport) {
   Future<agentsv1linear.GetLinearSettingsResponse> getLinearSettings(
     agentsv1linear.GetLinearSettingsRequest input, {
     connect.Headers? headers,
@@ -219,13 +215,11 @@ extension type LinearAdminServiceClient(connect.Transport _transport) {
     );
   }
 }
-
 /// LinearProcessingService exposes processing records. Members read;
 /// owners and admins resend a reply that was produced but not posted. There
 /// is deliberately no rerun action.
-extension type LinearProcessingServiceClient(connect.Transport _transport) {
-  Future<agentsv1linear.ListLinearProcessingRecordsResponse>
-  listLinearProcessingRecords(
+extension type LinearProcessingServiceClient (connect.Transport _transport) {
+  Future<agentsv1linear.ListLinearProcessingRecordsResponse> listLinearProcessingRecords(
     agentsv1linear.ListLinearProcessingRecordsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -242,8 +236,7 @@ extension type LinearProcessingServiceClient(connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1linear.GetLinearProcessingRecordResponse>
-  getLinearProcessingRecord(
+  Future<agentsv1linear.GetLinearProcessingRecordResponse> getLinearProcessingRecord(
     agentsv1linear.GetLinearProcessingRecordRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,

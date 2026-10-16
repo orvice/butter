@@ -85,7 +85,6 @@ abstract final class LinearAppService {
     agentsv1linear.DeleteLinearInstallationResponse.new,
   );
 }
-
 /// =============================================================================
 /// LinearAdminService manages platform-level Linear settings.
 /// The public base URL is global, not per-workspace: it names the public
@@ -111,7 +110,6 @@ abstract final class LinearAdminService {
     agentsv1linear.UpdateLinearSettingsResponse.new,
   );
 }
-
 /// LinearProcessingService exposes processing records. Members read;
 /// owners and admins resend a reply that was produced but not posted. There
 /// is deliberately no rerun action.

@@ -18,11 +18,11 @@ const contractMem0Key = "contract-mem0-key"
 type mem0Store struct {
 	srv *httptest.Server
 
-	mu       sync.Mutex
-	validKey string
-	memories map[string]mem0.Memory
-	searches []map[string]any
-	deleted  []string
+	mu         sync.Mutex
+	validKey   string
+	memories   map[string]mem0.Memory
+	searches   []map[string]any
+	deleted    []string
 	closed     bool
 	failSearch bool
 }

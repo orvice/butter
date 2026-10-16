@@ -49,7 +49,6 @@ abstract final class WorkspaceMemoryConfigService {
     agentsv1workspace_memory.TestWorkspaceMemoryConnectionResponse.new,
   );
 }
-
 abstract final class WorkspaceMemoryService {
   /// Fully-qualified name of the WorkspaceMemoryService service.
   static const name = 'agents.v1.WorkspaceMemoryService';

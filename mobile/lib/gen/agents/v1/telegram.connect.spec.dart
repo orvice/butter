@@ -92,7 +92,6 @@ abstract final class TelegramChannelService {
     agentsv1telegram.GetTelegramChannelStatusResponse.new,
   );
 }
-
 /// =============================================================================
 /// TelegramDestinationService
 /// =============================================================================
@@ -156,7 +155,6 @@ abstract final class TelegramDestinationService {
     agentsv1telegram.SendTelegramTestMessageResponse.new,
   );
 }
-
 /// =============================================================================
 /// TelegramAdminService manages platform-level Telegram settings.
 /// The Webhook base URL is global, not per-workspace: it names the public
@@ -184,7 +182,6 @@ abstract final class TelegramAdminService {
     agentsv1telegram.UpdateTelegramSettingsResponse.new,
   );
 }
-
 /// =============================================================================
 /// TelegramProcessingService
 /// Workspace members may read processing records and redacted failures for

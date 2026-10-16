@@ -46,7 +46,6 @@ abstract final class DashboardService {
     agentsv1dashboard.GetActivityMetricsResponse.new,
   );
 }
-
 abstract final class DaemonService {
   /// Fully-qualified name of the DaemonService service.
   static const name = 'agents.v1.DaemonService';
