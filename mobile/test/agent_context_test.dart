@@ -332,7 +332,7 @@ void main() {
       await client.prepareAgentEditor();
       expect(client.agentChoices.length, 55);
       expect(client.agentModelChoices, ['fast']);
-      expect(client.agentSkillChoices, ['writing']);
+      expect([for (final c in client.agentSkills.items) c.id], ['writing']);
       expect(client.modelProviders, isEmpty);
       expect(client.agentEditorReady, isTrue);
     },

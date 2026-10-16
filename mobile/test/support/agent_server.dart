@@ -33,6 +33,9 @@ class AgentServer extends TestServer {
   /// Refuses `GetAgent` while set, e.g. the read-back after a composite save.
   (int, String, String)? getRefusal;
 
+  /// Refuses `ListAgents` while set.
+  (int, String, String)? agentsListRefusal;
+
   Agent _overlaid(String ws, Agent stored) {
     final files = gitContent[ws]?[stored.agentId];
     if (files == null) return stored;
@@ -92,6 +95,10 @@ class AgentServer extends TestServer {
       }
       switch (method) {
         case 'ListAgents':
+          if (agentsListRefusal case final failure?) {
+            _fail(r, failure.$1, failure.$2, failure.$3);
+            return true;
+          }
           final req = ListAgentsRequest.fromBuffer(bytes);
           final list = bucket.values.toList();
           final offset = int.tryParse(req.pageToken) ?? 0;

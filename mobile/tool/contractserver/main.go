@@ -217,7 +217,7 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, nil, err
 		}
@@ -231,7 +231,7 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
 			return nil, nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace {
+		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace {
 			// Chat's agent is the runnable one the chat fixture registers;
 			// the box, MCP and Daemon Workspaces start with none, their
 			// resources are created by the contract tests.
@@ -296,6 +296,10 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
 	skillRepo := skillmemory.New()
 	if _, err := skillRepo.Create(ctx, "alpha", &agentsv1.Skill{Name: "existing-skill"}, "fixture content"); err != nil {
+		return nil, nil, err
+	}
+	if _, err := skillRepo.Create(ctx, filesWorkspace, &agentsv1.Skill{Name: filesSkill, Description: "Summarise a document"},
+		"---\nname: "+filesSkill+"\ndescription: Summarise a document\n---\nKeep it short.\n"); err != nil {
 		return nil, nil, err
 	}
 	_, skillHandler := agentsv1connect.NewSkillServiceHandler(application.NewSkillServiceServer(skillRepo), opts...)
@@ -370,13 +374,15 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", modelProviderHandler)))
 	}
-	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, opts, bx)
+	backends := newFileBackends()
+	backends.register(r, opts)
+	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, opts, bx, backends, skillRepo)
 	if err != nil {
 		return nil, nil, err
 	}
 	agentSvc.SetRuntime(reloader{
 		runner: boxRunner, agents: agentRepo,
-		workspaces: []string{chatWorkspace, boxWorkspace},
+		workspaces: []string{chatWorkspace, boxWorkspace, filesWorkspace},
 		providers:  runnerProviders,
 	})
 	_, boxHandler := agentsv1connect.NewButterBoxServiceHandler(bx.svc, opts...)

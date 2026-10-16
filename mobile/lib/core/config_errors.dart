@@ -3,7 +3,7 @@ import 'package:connectrpc/connect.dart';
 import '../gen/agents/v1/dashboard.pb.dart';
 
 /// What a configuration screen is about, for wording.
-enum ConfigKind { mcp, preset, remote, daemon }
+enum ConfigKind { mcp, preset, remote, daemon, fileSpace, file }
 
 enum ConfigOperation {
   load,
@@ -40,6 +40,8 @@ String _subject(ConfigKind kind) => switch (kind) {
   ConfigKind.preset => 'preset',
   ConfigKind.remote => 'Remote Agent',
   ConfigKind.daemon => 'daemon runtime',
+  ConfigKind.fileSpace => 'file space',
+  ConfigKind.file => 'file',
 };
 
 /// Specific, safe wording for the failures an MCP or Remote Agent operation
@@ -57,6 +59,10 @@ String? describeConfigFailure(
   if (failure is! ConnectException) return null;
   final message = failure.message.toLowerCase();
   final subject = _subject(kind);
+  if (kind == ConfigKind.fileSpace || kind == ConfigKind.file) {
+    final files = _describeFileFailure(failure, kind, operation, message);
+    if (files != null) return files;
+  }
   switch (failure.code) {
     case Code.permissionDenied:
       if (operation == ConfigOperation.revoke) {
@@ -119,6 +125,60 @@ String? describeConfigFailure(
       return null;
     case Code.unavailable || Code.deadlineExceeded:
       return null;
+    default:
+      return null;
+  }
+}
+
+/// The limit a size refusal names (`content exceeds max file size of N
+/// bytes`), as digits only: the rest of the server's text is never shown.
+int? fileSizeLimitFrom(String serverText) {
+  final digits = RegExp(
+    r'max file size of (\d{1,12}) bytes',
+  ).firstMatch(serverText.toLowerCase())?.group(1);
+  return digits == null ? null : int.tryParse(digits);
+}
+
+String? _describeFileFailure(
+  ConnectException failure,
+  ConfigKind kind,
+  ConfigOperation operation,
+  String message,
+) {
+  final subject = _subject(kind);
+  switch (failure.code) {
+    case Code.unimplemented:
+      return 'This server does not support file spaces. Update the server; nothing was changed.';
+    case Code.failedPrecondition:
+      if (message.contains('repository not available')) {
+        return 'File storage is not set up on this server. Ask the platform administrator. Nothing was changed.';
+      }
+      return null;
+    case Code.invalidArgument:
+      final limit = fileSizeLimitFrom(message);
+      if (limit != null) {
+        return 'The server refused this file: it is larger than the $limit-byte limit. Shorten it. Nothing was saved.';
+      }
+      if (message.contains('path')) {
+        return 'The server rejected this path. Use a name such as /notes/todo.md (not empty, not the root).';
+      }
+      if (message.contains('query')) {
+        return 'Enter text to search for.';
+      }
+      if (operation == ConfigOperation.create ||
+          operation == ConfigOperation.update) {
+        return 'The server rejected these values. Check that the name is not empty.';
+      }
+      return null;
+    case Code.notFound:
+      return switch (operation) {
+        ConfigOperation.load ||
+        ConfigOperation.status ||
+        ConfigOperation.tools =>
+          'This $subject (or the version asked for) is not available. Refresh the list.',
+        _ =>
+          'This $subject no longer exists, so nothing was changed. Refresh the list.',
+      };
     default:
       return null;
   }

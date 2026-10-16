@@ -8,6 +8,7 @@ import '../core/management_page.dart';
 import '../features/butterboxes/box_pages.dart';
 import '../features/mcp/mcp_pages.dart';
 import '../features/daemons/daemon_pages.dart';
+import '../features/files/file_pages.dart';
 import '../features/remote_agents/remote_agent_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
@@ -558,6 +559,14 @@ class _Agents extends StatelessWidget {
                 : () => openMcpServers(context, client),
             icon: const Icon(Icons.extension_outlined),
             label: const Text('MCP servers'),
+          ),
+          TextButton.icon(
+            key: const Key('open-files'),
+            onPressed: client.busy
+                ? null
+                : () => openFileSpaces(context, client),
+            icon: const Icon(Icons.folder_outlined),
+            label: const Text('File spaces'),
           ),
           TextButton.icon(
             key: const Key('open-remote-agents'),

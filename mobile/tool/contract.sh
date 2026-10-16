@@ -47,4 +47,4 @@ cd -- "$root/mobile"
 # temporarily changes the mobile-test password and revokes sessions, which
 # would fail another file's login if the files ran in parallel. flutter test
 # runs files concurrently by default, so run them one at a time.
-flutter test --concurrency=1 test/contract_test.dart test/native_oauth_contract_test.dart test/model_provider_contract_test.dart test/agent_contract_test.dart test/chat_contract_test.dart test/box_contract_test.dart test/mcp_contract_test.dart test/daemon_contract_test.dart "--dart-define=BUTTER_TEST_SERVER=$url"
+flutter test --concurrency=1 test/contract_test.dart test/native_oauth_contract_test.dart test/model_provider_contract_test.dart test/agent_contract_test.dart test/chat_contract_test.dart test/box_contract_test.dart test/mcp_contract_test.dart test/daemon_contract_test.dart test/files_contract_test.dart "--dart-define=BUTTER_TEST_SERVER=$url"

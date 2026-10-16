@@ -22,6 +22,7 @@ import (
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
+	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
@@ -246,6 +247,9 @@ func fakeModel(ctx context.Context) (string, error) {
 			return
 		}
 		text := lastUserText(req.Messages)
+		if toolCommand(w, req, text) {
+			return
+		}
 		reply := fmt.Sprintf("fixture(%s)", text)
 		if strings.Contains(text, "markdown") {
 			reply = chatMarkdownReply
@@ -291,7 +295,7 @@ func lastUserText(messages []openaifake.ChatCompletionMessage) string {
 }
 
 // registerChat wires the chat fixture's routes onto r.
-func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, opts []connect.HandlerOption, bx *boxFixture) (*runner.Service, []agentsv1.ModelProvider, error) {
+func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, opts []connect.HandlerOption, bx *boxFixture, backends *fileBackends, skills skillrepo.Repository) (*runner.Service, []agentsv1.ModelProvider, error) {
 	modelURL, err := fakeModel(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -308,7 +312,7 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	}
 	providers := chatProviders(modelURL)
 	svc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, agents, providers,
-		nil, nil, nil, sessions, nil, nil, nil, 0, nil, adkrunner.PluginConfig{}, nil, bx.builders)
+		nil, nil, nil, sessions, nil, nil, backends.files, 0, skills, adkrunner.PluginConfig{}, nil, bx.builders)
 	if err != nil {
 		return nil, nil, err
 	}

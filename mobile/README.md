@@ -1,6 +1,6 @@
 # Butter mobile — development client (#447–#451)
 
-Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password, appearance settings, Model Providers and LLM/Loop/Sequential/Parallel/Workflow Agent configuration are available too. This is not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
+Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password, appearance settings, Model Providers and LLM/Loop/Sequential/Parallel/Workflow Agent configuration are available too. This is not the complete Flutter product. There are no global administration, Skills management or server-list screens.
 
 ## Develop
 
@@ -231,6 +231,39 @@ Scope notes: tool-role results only answer client-declared frontend tools, and t
 
 Not provided yet (labelled in the UI): reconnecting to a live run after leaving or a dropped stream, **Stop**, and A2UI forms/cards (an Interrupt shows a "waiting for input" notice only). Workflow Human Input cannot be answered in the App.
 
+## File spaces and Agent associations (#456)
+
+Workspace → **File spaces** manages `AgentFileService`: spaces, the text files in them, their versions and search. The Agent editor (LLM, Loop, Sequential, Parallel and Workflow Agents; Pi and Cursor leaves are unchanged) selects the existing MCP servers, Remote Agents, file spaces (mounts) and Skills an Agent references. Skill creation, `SKILL.md` editing and Skill Resource management stay in Web: the Skill list is read for selection only. File content travels as the UTF-8 text of `WriteAgentFile` / `GetAgentFile`, never through the avatar upload.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / view / create / edit / delete a space | `ListAgentFileSpaces`, `GetAgentFileSpace`, `CreateAgentFileSpace`, `UpdateAgentFileSpace` (whole record; the edit starts from a fresh read), `DeleteAgentFileSpace` (confirmation names the space, the number of files it holds and the Agents that mount it, or says the check failed) | File spaces → row, Add, Edit, Delete | `file_controller_test`, `file_widget_test`, real `files_contract_test` |
+| List files, filter by path prefix, search text | `ListAgentFiles` (`path_prefix`), `SearchAgentFiles` | space → prefix field, Search | same |
+| Open / create / edit / save a file | `GetAgentFile`, `WriteAgentFile` (UTF-8 text, content type and metadata carried over because a write replaces them); path normalized as the server does (trim, leading `/`, clean; empty and `/` refused) and shown before saving | space → file → Edit, New file | `file_rules_test`, `file_controller_test`, `file_widget_test`, contract (a table of paths against the real server) |
+| Versions | `GetAgentFile(version)`; older versions show text and content type only (metadata is not versioned); **Restore** writes the old text as a new latest version and says so | file → Older / Newer / Jump | same |
+| Delete a file | `DeleteAgentFile` (confirmation names the path and space; all versions go) | file → Delete | same |
+| Pick MCP servers, Remote Agents, Skills | `ListMCPServers`, `ListRemoteAgents`, `ListSkills` (read only), saved on the Agent by `AgentService` | Agent editor → MCP servers / Remote Agents / Existing Skills | `agent_association_test`, `agent_draft_test`, contract |
+| Mount file spaces | `ListAgentFileSpaces`, saved as `AgentConfig.file_mounts` | Agent editor → File mounts (space, virtual path, permission) | `agent_association_test`, contract |
+
+**What the server does, and so what the App says.** There is no compare-and-swap and no history-list RPC: every write makes a new version, so a concurrent edit cannot be refused by the server. The App reads the file just before saving and refuses a save over a version it did not open (`exists`, `changed`, `deleted`), and the dialog says this narrows the window and does not close it; only an explicit **Overwrite** replaces it. Version numbers come from the latest read; the App never invents a history listing, and versions are reached by number. The size limit is the server's (256 KiB by default, counted in UTF-8 bytes; the App reads it from the refusal text and shows digits only), a file over 1 MiB is not opened on the phone, and content is text only. A write whose reply is lost is never repeated: it is *unconfirmed* until a read of the same file settles it (**Check whether it was saved**). A read that began before a write, or about another object, cannot settle it. Spaces never cross Workspaces; a Workspace the person does not belong to answers *permission denied*; `FailedPrecondition` "agent file repository not available" is shown as storage not configured.
+
+**Associations by Agent type** (what the runtime uses, proven by `TestSavedAssociationsDecideWhatARealRunCanDo`):
+
+| Agent type | MCP servers | Remote Agents | File mounts | Skills |
+| --- | --- | --- | --- | --- |
+| LLM | yes | yes | yes | yes |
+| Loop / Sequential / Parallel | ignored: retained, remove only | yes | ignored: retained, remove only | ignored: retained, remove only |
+| Workflow | ignored: retained, remove only | ignored: retained, remove only | ignored: retained, remove only | ignored: retained, remove only |
+| Pi / Cursor leaf | not offered (the server refuses them) | not offered | not offered | not offered |
+
+On a new Agent the draft keeps what was chosen if the type is switched back, but `buildForCreate` does not send associations the final type ignores. On an existing Agent, ignored legacy entries are shown with removal only, because a reference to a missing server still makes the server refuse the save.
+
+**Mounts.** Each mount has a virtual path, a permission and its space. A new mount defaults to a slug of the space name and an explicit `READ`. Paths are normalized as the runtime does (empty → `/`); **two mounts that normalize to the same path are blocked in the editor**, because the runtime silently drops the later one. The longest path wins. The runtime offers the file tools whatever the permission and refuses a write or delete the permission does not allow when it runs (the editor says so, and names the space when it grants write or delete). `UNSPECIFIED` behaves as read-only. A permission the App does not know (a newer server) and any unknown field on a mount are kept byte for byte until the person picks a permission. A mount of a space that is not in the Workspace is flagged: the server accepts it and every file call through it fails.
+
+**Honest lists.** Each association list loads on its own. A refused or failed list (permission denied, unavailable) never blocks editing: the current selection stays, the editor says why nothing can be added, and server text is never shown. A selected reference missing from a loaded list stays selected and flagged until removed. A save refused because a reference no longer resolves (the server rebuilds the runtime and rolls the save back, answering `internal`) reads *Nothing was saved: an MCP server / a Remote Agent this Agent references no longer exists*; it is not retried.
+
+**Evidence and its limits.** `tool/contractserver/files.go` serves the production `AgentFileService` (in-memory repositories) and wires the production runner with the file store, the Skill repository and the MCP and Remote Agent registries; `go test ./mobile/tool/contractserver` (`files_runtime_test.go`) exercises the service semantics and real runner turns, and `files_contract_test` (root and `/butter`) saves an Agent from the App, reads it back, then runs it through the production AG-UI route: the mount's tool reads the stored content, a `READ` mount refuses a write and leaves the space unchanged, the saved MCP server's tool runs, the Skill is listed, and raising the permission and saving lets the next run write (a new version) but not delete. The **doubles** are the scripted OpenAI-compatible model (`tools?` and `tool:<name> <json>` commands) and the in-process MCP server; storage is in memory, not S3 or Mongo, and no real model provider or device was involved. Dart widget tests use a controllable HTTP boundary (`test/support/file_server.dart`) for late, refused and lost replies.
+
 ## Tests and device acceptance
 
 Unit/controller/widget tests use public application interfaces with fake **external** HTTP/OS-storage boundaries. They cover first setup, persistence, real request headers, permission/empty/error/pagination UI, admin without global navigation, expiry, relogin/server/Workspace races, slow credential writes, vault failure and generated-field retention. The separate Go contract fixture is a real-service HTTP integration test.
@@ -258,6 +291,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Connect streaming and A2UI are not implemented. AG-UI chat (#460) covers detached runs, history, images and threads, but not live re-attach, Stop or A2UI (see Chat and threads). Agent lifecycle (delete/restore/purge) and the remaining association editors (the Agent form's MCP and Remote Agent references, files, Memory, Card Policy) are separate tickets; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
+- Connect streaming and A2UI are not implemented. AG-UI chat (#460) covers detached runs, history, images and threads, but not live re-attach, Stop or A2UI (see Chat and threads). Agent lifecycle (delete/restore/purge) and the remaining editors (Memory, Card Policy) are separate tickets; file spaces and the MCP, Remote Agent, mount and Skill selections are covered by #456; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
 - No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.
