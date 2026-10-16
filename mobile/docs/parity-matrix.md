@@ -41,18 +41,18 @@ Legend:
 | --- | --- | --- | --- | --- |
 | Dashboard overview (global) | `DashboardService` | Overview (admin user) | `ops_contract_test` | OK (labeled server-wide) |
 | Workspace-scoped overview | List*/Get* aggregates | Overview | `overview_controller_test`, `ops_contract_test` | OK |
-| Invocations list/cancel | `ListAgentInvocations`, `CancelAgentInvocation` | Operations | `ops_contract_test` | OK |
-| Personal API tokens | `APITokenService` (USER kind) | API tokens | `ops_contract_test`, `management_permission_matrix_test` (controller gates) | OK |
+| Invocations list/cancel | `ListAgentInvocations`, `CancelAgentInvocation` | Operations | `ops_contract_test` (non–AG-UI cancel refused), `ops_widget_test` | OK |
+| Personal API tokens | `APITokenService` (USER kind) | API tokens | `ops_contract_test`, `ops_widget_test` (secret cleared on leave), `management_permission_matrix_test` | OK |
 | Integrations hub / copy URLs | derived + navigation | Integrations | manual via `ops_pages` | OK |
 
 ## Chat, threads, reconnect, A2UI (#460–#462, #461)
 
 | Web operation | RPC / REST | App entry | Tests | Status |
 | --- | --- | --- | --- | --- |
-| Detached AG-UI run, images | `POST /api/agui/:agent_id` | Chat | `chat_run_context_test`, `chat_contract_test` | OK |
+| Detached AG-UI run, images | `POST /api/agui/:agent_id` | Chat | `chat_run_context_test` (busy / `run_exists`), `chat_contract_test` | OK |
 | Thread list/rename/delete | `SessionService` + AG-UI | Chat threads | `chat_threads_*`, `chat_widget_test` | OK |
 | Attach / Stop / fallback | AG-UI GET run, `/stop`, history | Chat reconnect | `chat_reconnect_test`, `chat_reconnect_contract_test` | OK in fixture; **GAP**: multi-Pod + Redis cross-client |
-| A2UI cards / Human Input | `butter.a2ui`, UI snapshot | Chat surfaces | `a2ui_*`, `run_fold_test` | OK in tests; **GAP**: device rendering/a11y |
+| A2UI cards / Human Input | `butter.a2ui`, UI snapshot | Chat surfaces | `a2ui_*`, `a2ui_form_widget_test`, `run_fold_test` | OK in tests; **GAP**: device rendering/a11y; **GAP**: full AG-UI form POST round trip in contract fixture |
 | Agent avatar in chat | — | Initial letter only | — | **GAP**: Web shows configured avatar |
 | Frontend tools | — | Not declared | `run_request_test` | N/A (by design) |
 
@@ -63,7 +63,7 @@ Legend:
 | List/get/create/edit agents (LLM/composite) | `AgentService` | Agents hub | `agent_*`, `workflow_draft_test` | OK |
 | Workflow structured edit | `AgentConfig.workflow` | Agent editor | `workflow_draft_test`, `workflow_runtime_test.go` | OK (no drag canvas) |
 | Pi/Cursor leaves | `AgentService` + box | Agent editor | `box_*` | OK |
-| Tombstone/restore/purge/operations | `AgentService` lifecycle RPCs | Agent detail | `agent_lifecycle_*` | OK |
+| Tombstone/restore/purge/operations | `AgentService` lifecycle RPCs | Agent detail | `agent_lifecycle_*` (reference-blocked delete, confirm dialogs) | OK |
 | Git Agent Content / CAS save | `UpdateAgentConfiguration`, commits | Edit Agent / Git content | `agent_lifecycle_contract_test` | **GAP**: real Git-bound deployment overlay not verified here |
 | Skill association | `ListSkills` + config | Agent editor checkboxes | `agent_association_test` | READ (pick only) |
 
@@ -84,7 +84,7 @@ Legend:
 | --- | --- | --- | --- | --- |
 | File space/file CRUD, versions | `AgentFileService` | File spaces | `file_*`, `files_contract_test` | OK (text UTF-8; no CAS) |
 | Agent mounts / associations | `AgentService` | Agent editor | `agent_association_test`, `files_runtime_test.go` | OK |
-| Workspace memory config + browse | `WorkspaceMemoryConfigService`, `WorkspaceMemoryService` | Memory | `memory_*` | OK |
+| Workspace memory config + browse | `WorkspaceMemoryConfigService`, `WorkspaceMemoryService` | Memory | `memory_*` (key replace/clear, bad creds, unreachable warning, delete config vs memories) | OK |
 | Agent memory / result cards | `Agent.config` | Agent editor | `memory_draft_test`, `agent_contract_test` | OK |
 | Git binding onboarding/detach | `WorkspaceRepoBindingService` | Git repository | `repo_binding_*` | OK (fake git provider in contract) |
 | List Git hosts | `GitHostService` | Host picker | `repo_binding_contract_test` | READ (list/get only) |
@@ -95,7 +95,7 @@ Legend:
 | --- | --- | --- | --- | --- |
 | Session explorer + reply | `SessionService` | Sessions | `session_*` | OK |
 | Cron CRUD, run now, WAITING_INPUT reply | `CronJobService`, `ReplySession` | Cron jobs | `cron_*` | OK |
-| Automation CRUD, manual run | `AutomationService` | Automations | `automation_*` | OK |
+| Automation CRUD, manual run | `AutomationService` | Automations | `automation_*`, `automation_runtime_test.go` | OK |
 | Automation triggers (webhook/forum/…) | — | Editor (disabled) | `automation_draft_test` | **GAP**: triggers not executable on server; UI disables |
 | Notify group CRUD | `NotifyGroupService` | Notify Groups | `notify_group_*` | OK |
 
@@ -105,9 +105,9 @@ Legend:
 | --- | --- | --- | --- | --- |
 | Channel/destination CRUD, test send | Telegram services | Telegram hub | `telegram_*` | OK |
 | Processing resend-only | `ResendTelegramReply` | Processing detail | `telegram_contract_test` | OK |
-| Platform webhook base (global admin) | `TelegramAdminService` | Hint on list | `telegram_contract_test` | READ (members see hint only) |
+| Platform webhook base (global admin) | `TelegramAdminService` | Hint on list | `telegram_contract_test`, `telegram_widget_test` (admin hint when denied) | READ (members see hint only) |
 | Linear app/install/processing | Linear services | Linear | `linear_*` | OK |
-| Linear public base URL admin | `LinearAdminService` | Banner / copy fields | `linear_widget_test` | READ |
+| Linear public base URL admin | `LinearAdminService` | Banner / copy fields | `linear_contract_test`, `linear_widget_test` | READ |
 
 ## Permission visibility (#469)
 

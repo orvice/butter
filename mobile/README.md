@@ -109,9 +109,9 @@ Unbound Agent configuration writes are available to Workspace members under the 
 
 | Web operation | API | App entry | Tests |
 | --- | --- | --- | --- |
-| Tombstone Agent (soft delete) | `DeleteAgent` | Agent detail → Tombstone (confirms ID; distinct from purge) | `agent_lifecycle_controller_test`, `agent_lifecycle_contract_test` |
+| Tombstone Agent (soft delete) | `DeleteAgent` | Agent detail → Tombstone (confirms ID; distinct from purge) | `agent_lifecycle_controller_test`, `agent_lifecycle_contract_test`, `agent_lifecycle_widget_test` |
 | Restore tombstoned Agent | `RestoreAgent` (owner/admin when Git-bound) | Agent detail → Restore | same |
-| Purge Git content files | `PurgeAgentContent` (owner/admin) | Agent detail → Purge Git content | same |
+| Purge Git content files | `PurgeAgentContent` (owner/admin) | Agent detail → Purge Git content | same + reference-blocked delete in `agent_lifecycle_contract_test` |
 | List / view lifecycle operations | `ListAgentOperations`, `GetAgentOperation` | Agents → Agent operations | same |
 | Retry failed lifecycle Saga | `RetryAgentOperation` (not Invocations or chat runs) | Operation detail → Retry | same |
 | Edit / commit Git Agent Content | `CommitAgentContent`, `RollbackAgentContent` | Agent detail → Edit Git content | `agent_content_draft_test`, `agent_lifecycle_contract_test` |
@@ -251,9 +251,9 @@ Native **butter-basic-v1** / A2UI v0.9.1: read-only Result Cards and server-buil
 | --- | --- | --- | --- |
 | Live surfaces | `CUSTOM butter.a2ui` (revision + seq) | `RunFold` → `A2uiSurfaceStore.apply` | `run_fold_test`, `a2ui_store_test` |
 | UI snapshot restore | `GET …/threads/:thread_id/ui` + history `surfaces` placement | Open thread, fallback poll (with history) | `a2ui_contract_test`, `chat_controller` refresh |
-| Form submit (one resolved resume) | `POST /api/agui/:agent_id` + `resume[].payload.butterForm` | Form Submit button | `a2ui_form_test`, `a2ui_widget_test` |
+| Form submit (one resolved resume) | `POST /api/agui/:agent_id` + `resume[].payload.butterForm` | Form Submit button | `a2ui_form_test`, `a2ui_form_widget_test`, `a2ui_widget_test` |
 | Composer FIFO text answer | Same POST, no `resume` | Send message while Interrupts open | `run_request_test` |
-| Form errors 400/409/422 | Refusal before stream | Locked form + field errors; draft kept | `a2ui_form_test`, `AguiHttpError.fieldErrors` |
+| Form errors 400/409/422 | Refusal before stream | Locked form + field errors; draft kept | `a2ui_form_test`, `a2ui_form_widget_test`, `AguiHttpError.fieldErrors` |
 
 Fallback polling and thread refresh load **both** history and the UI snapshot so cards survive a dropped attach stream.
 
@@ -297,7 +297,7 @@ Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disabl
 | Run now | `RunCronJobNow` | Detail → confirm → Run | `cron_contract_test`, `cron_controller_test` |
 | Executions | `ListCronExecutions` | Detail → execution rows | `cron_contract_test` |
 | Delivery pickers | `NotifyGroupService.ListNotifyGroups`, `TelegramDestinationService.ListTelegramDestinations` | Editor delivery fields | `cron_contract_test` |
-| WAITING_INPUT reply | `SessionService.ReplySession` via `CronController.replyToExecution` | Execution detail → Send reply | `cron_contract_test` (session seeded in `tool/contractserver/cron.go`) |
+| WAITING_INPUT reply | `SessionService.ReplySession` via `CronController.replyToExecution` | Execution detail → Send reply | `cron_contract_test`, `cron_runtime_test.go` (session seeded in `tool/contractserver/cron.go`) |
 
 Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
 
@@ -308,9 +308,9 @@ Agents → **Overview** shows Workspace-scoped counts, recent invocation activit
 | Operation | API | App entry | Tests |
 | --- | --- | --- | --- |
 | Server-wide overview (admin) | `DashboardService` GetOverview / GetActivityFeed / GetActivityMetrics / GetCronExecutionTimeseries | Overview (admin account) | `ops_contract_test` (permission denied for member) |
-| Workspace overview (member) | List agents/MCP/remote/cron/daemon + `ListAgentInvocations` + `ListCronExecutions` + `GetBridgeDiagnostics` | Overview | `overview_controller_test`, widget smoke optional |
-| Invocations list/detail/cancel | `ListAgentInvocations`, `GetAgentInvocation`, `CancelAgentInvocation` | Operations | `ops_contract_test`, `overview_controller_test` |
-| Personal API tokens | `APITokenService` List / Create / Revoke (`USER` kind only in UI) | API tokens | `ops_contract_test` |
+| Workspace overview (member) | List agents/MCP/remote/cron/daemon + `ListAgentInvocations` + `ListCronExecutions` + `GetBridgeDiagnostics` | Overview | `overview_controller_test`, `ops_widget_test` |
+| Invocations list/detail/cancel | `ListAgentInvocations`, `GetAgentInvocation`, `CancelAgentInvocation` | Operations | `ops_contract_test`, `ops_widget_test`, `overview_controller_test` |
+| Personal API tokens | `APITokenService` List / Create / Revoke (`USER` kind only in UI) | API tokens | `ops_contract_test`, `ops_widget_test` |
 | Integration URLs / hub | (copy-only bases + navigation) | Integrations | `ops_pages` smoke via navigation keys |
 
 Fixture: `tool/contractserver/dashboard_ops.go` (workspace `ops468`). Contract: `ops_contract_test.dart`.
@@ -326,7 +326,7 @@ Agents → **Automations** lists workspace automations with structured condition
 | Notify Group list / CRUD | `NotifyGroupService` | Notify Groups list, editor | `notify_group_contract_test`, `notify_group_draft_test`, `notify_group_widget_test` |
 | Telegram Destination picker | `ListTelegramDestinations` | Notify Group target editor | `notify_group_contract_test` (`tool/contractserver/automation_fixture.go`) |
 | Automation list / CRUD | `AutomationService` | Automations list, editor | `automation_contract_test`, `automation_draft_test`, `automation_widget_test` |
-| Manual run | `RunAutomationNow` | Detail → confirm → Run now | `automation_contract_test` (multi-step webhook + notify, condition skip, step failure) |
+| Manual run | `RunAutomationNow` | Detail → confirm → Run now | `automation_contract_test`, `automation_runtime_test.go` (multi-step webhook + notify, condition skip, step failure) |
 | Runs / step runs | `ListAutomationRuns`, `ListAutomationStepRuns`, `GetAutomationRun` | Detail runs, run detail dialog | `automation_contract_test` |
 | Step / notify pickers | `ListNotifyGroups`, agents list | Automation step editor | `automation_contract_test` |
 
@@ -420,7 +420,7 @@ Evidence: `mobile/tool/contractserver/repo_binding.go` serves production `Worksp
 | Web operation | API | App entry | Tests |
 | --- | --- | --- | --- |
 | View / save mem0 connection (URL, enabled, write-only API key keep/replace/clear) | `WorkspaceMemoryConfigService` Get/Put/Delete | Agents → Memory | `memory_draft_test`, `memory_controller_test`, `memory_widget_test`, `memory_contract_test` |
-| Test connection / save warning when mem0 unreachable | `TestWorkspaceMemoryConnection`; Put warning | Memory settings | `memory_draft_test`, `memory_contract_test` |
+| Test connection / save warning when mem0 unreachable | `TestWorkspaceMemoryConnection`; Put warning | Memory settings | `memory_draft_test`, `memory_contract_test`, `memory_runtime_test.go` |
 | List / search Workspace or Agent memories, truncation notice | `WorkspaceMemoryService` List/Search | Memory settings (when enabled) | `memory_contract_test` |
 | Delete memory (owner/admin); principal hidden from members | `DeleteWorkspaceMemory` | Memory row delete | `memory_contract_test` |
 | Agent memory recall/capture/tools/scopes | `Agent.config.memory` | Agent editor → Memory | `memory_draft_test`, `agent_contract_test`, `memory_contract_test` |

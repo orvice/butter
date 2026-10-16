@@ -28,4 +28,28 @@ void main() {
     );
     expect(find.text('Seeded'), findsOneWidget);
   });
+
+  testWidgets('shows administrator hint when platform webhook base is denied', (
+    tester,
+  ) async {
+    const server = String.fromEnvironment('BUTTER_TEST_SERVER');
+    if (server.isEmpty) return;
+
+    late ClientContext client;
+    addTearDown(() => client.dispose());
+    await tester.runAsync(() async {
+      client = ClientContext(storage: MemoryStorage(), allowHttp: true);
+      await client.setServer(server);
+      await client.login('mobile-test', 'contract-test-password');
+      await client.selectWorkspace('telegram');
+    });
+
+    await openPage(tester, TelegramChannelListPage(client: client));
+    await tester.runAsync(() async {
+      await client.telegram!.loadChannels();
+      await client.telegram!.loadPlatformSettings();
+    });
+    await waitFor(tester, () => client.telegram!.platformSettingsDenied);
+    expect(find.textContaining('platform administrator'), findsOneWidget);
+  });
 }

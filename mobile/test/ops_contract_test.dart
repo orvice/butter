@@ -66,6 +66,22 @@ void main() {
         expect(page.invocations.every((i) => i.agentId == 'ops-agent'), isTrue);
       });
 
+      test('Cancel stream invocation is not stopped like AG-UI', () async {
+        final reply = await api.cancelAgentInvocation(
+          token,
+          opsWorkspace,
+          'ops-inv-running',
+        );
+        expect(reply.cancelled, isFalse);
+        final inv = await api.getAgentInvocation(
+          token,
+          opsWorkspace,
+          'ops-inv-running',
+        );
+        expect(inv.status, InvocationStatus.INVOCATION_STATUS_RUNNING);
+        expect(invocationCancelExplanation(inv), isNot(contains('AG-UI Stop')));
+      });
+
       test('Cancel detached AG-UI invocation accepts Stop path', () async {
         final reply = await api.cancelAgentInvocation(
           token,

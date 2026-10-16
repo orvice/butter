@@ -8,6 +8,8 @@ import 'package:butter_mobile/gen/agents/v1/cron.pb.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const workspace = 'cron';
+const cronInstantJob = 'instant-log';
+const cronSeededJob = 'seeded-daily';
 
 void main() {
   const server = String.fromEnvironment('BUTTER_TEST_SERVER');
@@ -60,10 +62,20 @@ void main() {
           final waiting = c.executions.firstWhere(
             (e) => e.id == 'exec-waiting',
           );
-          expect(
-            waiting.status,
-            CronExecutionStatus.CRON_EXECUTION_STATUS_WAITING_INPUT,
-          );
+          if (prefix.isEmpty) {
+            expect(
+              waiting.status,
+              CronExecutionStatus.CRON_EXECUTION_STATUS_WAITING_INPUT,
+            );
+          } else {
+            expect(
+              waiting.status,
+              anyOf(
+                CronExecutionStatus.CRON_EXECUTION_STATUS_WAITING_INPUT,
+                CronExecutionStatus.CRON_EXECUTION_STATUS_SUCCESS,
+              ),
+            );
+          }
         });
 
         test('create rejects legacy CHANNEL delivery', () async {
@@ -76,6 +88,48 @@ void main() {
           expect(await c.create(draft.build()), isFalse);
           expect(c.writeError, contains('Legacy CHANNEL'));
         });
+
+        test(
+          'run now on instant job and reply on WAITING_INPUT execution',
+          skip: server.isEmpty
+              ? 'Run tool/contract.sh.'
+              : prefix.isNotEmpty
+              ? 'Shared fixture; run at root prefix.'
+              : false,
+          () async {
+            final sessions = SessionController(
+              newApi: () =>
+                  ButterApi(ServerAddress.parse(base, allowHttp: true)),
+              token: token,
+              workspaceId: workspace,
+              onUnauthenticated: () {},
+            );
+            addTearDown(sessions.dispose);
+            final c = cron(sessions: () => sessions);
+            expect(await c.runNow(cronInstantJob), isTrue, reason: c.runError);
+            expect(c.lastRun?.jobName, cronInstantJob);
+
+            await c.loadExecutions(cronSeededJob);
+            final waiting = c.executions.firstWhere(
+              (e) => e.id == 'exec-waiting',
+            );
+            final reply = await c.replyToExecution(
+              execution: waiting,
+              message: 'approved',
+            );
+            expect(reply.error, isNull);
+            expect(reply.unconfirmed, isFalse);
+
+            await c.loadExecutions(cronSeededJob);
+            final after = c.executions.firstWhere(
+              (e) => e.id == 'exec-waiting',
+            );
+            expect(
+              after.status,
+              CronExecutionStatus.CRON_EXECUTION_STATUS_SUCCESS,
+            );
+          },
+        );
 
         test(
           'creates log-delivery job and deletes it',

@@ -20,4 +20,13 @@ void main() {
       isTrue,
     );
   });
+
+  test('run outcome known on validation errors', () {
+    expect(
+      cronWriteOutcomeUnknown(
+        ConnectException(Code.invalidArgument, 'bad job'),
+      ),
+      isFalse,
+    );
+  });
 }

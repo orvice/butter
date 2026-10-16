@@ -236,6 +236,7 @@ void main() {
 
     for (final (status, body, text) in [
       (409, {'code': 'busy'}, 'busy'),
+      (409, {'code': 'run_exists'}, 'already sent'),
       (400, {'code': 'thread_unbound'}, 'new thread'),
       (403, {'error': 'x'}, 'agent'),
       (413, {'error': 'x'}, 'too large'),
