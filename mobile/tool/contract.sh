@@ -64,6 +64,7 @@ contract_tests=(
   test/agent_lifecycle_contract_test.dart
   test/cron_contract_test.dart
   test/memory_contract_test.dart
+  test/linear_contract_test.dart
   test/telegram_contract_test.dart
 )
 flutter test --concurrency=1 "${contract_tests[@]}" "--dart-define=BUTTER_TEST_SERVER=$url"

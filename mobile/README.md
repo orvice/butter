@@ -301,6 +301,21 @@ Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disabl
 
 Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
 
+## Linear Agent Sessions (#466)
+
+Agents → **Linear** manages workspace Linear Apps (OAuth app registration routed to one Agent), browser installation into a Linear organization, processing deliveries and resend-only recovery. Linear install OAuth is separate from user login and MCP OAuth: the App opens the system browser, the server callback exchanges the code, and the App re-reads `ListLinearInstallations` (poll while waiting, refresh on return). Secrets never appear in responses or URLs.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / view / create / edit / delete App | `LinearAppService` | Linear list, editor, detail | `linear_contract_test`, `linear_draft_test`, `linear_widget_test` |
+| Write-only client / webhook secrets (keep / replace / clear) | `CreateLinearApp`, `PutLinearAppCredentials` | Create form; edit via credentials update | `linear_contract_test` |
+| Install / list / remove Installation | `BeginLinearInstall`, `ListLinearInstallations`, `DeleteLinearInstallation` | Detail → Install; installation rows | `linear_contract_test` (OAuth callback via `tool/contractserver/linear.go` + lineartest fake) |
+| Inbound toggle and preflight | `UpdateLinearApp` | Editor inbound switch | `linear_contract_test` |
+| Processing list / detail / resend | `LinearProcessingService` | Deliveries list and detail | `linear_contract_test` |
+| Public base URL (read-only) | `LinearAdminService.GetLinearSettings` (global admin); derived URLs on each App for members | List banner; App callback/webhook fields | `linear_contract_test`, `linear_widget_test` |
+
+Members read Apps, installations and processing records; owners and admins mutate. Resend posts a persisted `FAILED` reply only (`ResendLinearReply`); there is no rerun. `NEEDS_REINSTALL` installations are shown with the server’s sanitized reason. Platform endpoint editing stays in the Web global-admin console.
+
 ## Telegram (#465)
 
 Agents → **Telegram** manages Channels (Bot transport), Destinations (exact chat/topic addresses), inbound processing records and delivery recovery. Members read; workspace owner/admin write. Bot tokens are write-only (create and rotate). Test messages and resend require explicit confirmation. The App does not register webhooks or run the inbound worker — it configures resources and reads derived status. Platform webhook base URL is read-only via `TelegramAdminService` for global admins; other users see channel status blockers and an administrator hint.
