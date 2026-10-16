@@ -48,3 +48,10 @@ func createSessionWithEvents(ctx context.Context, store *chatSessions, wsID, app
 	agentEv.Content = genai.NewContentFromText("fixture reply", genai.RoleModel)
 	return store.AppendEvent(wctx, resp.Session, agentEv)
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: sessionsWorkspace, Owner: true, NoSeedAgent: true},
+		fixtureWorkspace{ID: sessionsPeerWS, Owner: true, NoSeedAgent: true},
+	)
+}

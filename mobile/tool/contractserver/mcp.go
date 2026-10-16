@@ -375,3 +375,9 @@ func (a *fakeAuthServer) token(w http.ResponseWriter, r *http.Request) {
 		"access_token": mcpAccessToken, "token_type": "Bearer", "expires_in": 3600, "refresh_token": "mcp-refresh-token",
 	})
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: mcpWorkspace, NoSeedAgent: true},
+	)
+}

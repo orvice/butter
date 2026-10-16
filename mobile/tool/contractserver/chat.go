@@ -406,3 +406,9 @@ func chatProviders(modelURL string) []agentsv1.ModelProvider {
 		Models: []*agentsv1.ModelConfig{{Name: chatModel}},
 	}}
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: chatWorkspace, NoSeedAgent: true},
+	)
+}

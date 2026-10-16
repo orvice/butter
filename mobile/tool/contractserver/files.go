@@ -111,3 +111,10 @@ func offeredTools(req openaifake.ChatCompletionRequest) []string {
 	sort.Strings(names)
 	return names
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: filesWorkspace, NoSeedAgent: true},
+		fixtureWorkspace{ID: filesPeerWorkspace, NoSeedAgent: true},
+	)
+}

@@ -64,6 +64,8 @@ contract_tests=(
   test/agent_lifecycle_contract_test.dart
   test/cron_contract_test.dart
   test/memory_contract_test.dart
+  test/notify_group_contract_test.dart
+  test/automation_contract_test.dart
   test/linear_contract_test.dart
   test/telegram_contract_test.dart
 )

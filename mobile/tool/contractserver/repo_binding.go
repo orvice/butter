@@ -112,3 +112,10 @@ func (fx *repoBindingFixture) register(r *gin.Engine, opts []connect.HandlerOpti
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", gitHandler)))
 	}
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: repoBindingWorkspace, Owner: true, NoSeedAgent: true},
+		fixtureWorkspace{ID: repoBindingMemberWorkspace},
+	)
+}

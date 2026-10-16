@@ -336,3 +336,9 @@ func (r reloader) ReloadRunner(ctx context.Context) error {
 func (reloader) ReloadChannels(context.Context) error { return nil }
 
 var _ application.ConfigRuntime = reloader{}
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: boxWorkspace, NoSeedAgent: true},
+	)
+}

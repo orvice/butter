@@ -21,4 +21,5 @@ inputs:
       - ../proto/agents/v1/cron.proto
       - ../proto/agents/v1/telegram.proto
       - ../proto/agents/v1/workspace_memory.proto
+      - ../proto/agents/v1/automation.proto
       - ../proto/agents/v1/linear.proto

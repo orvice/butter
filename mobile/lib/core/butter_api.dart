@@ -24,6 +24,8 @@ import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/butterbox.connect.client.dart';
 import '../gen/agents/v1/butterbox.pb.dart';
+import '../gen/agents/v1/automation.connect.client.dart';
+import '../gen/agents/v1/automation.pb.dart';
 import '../gen/agents/v1/cron.connect.client.dart';
 import '../gen/agents/v1/cron.pb.dart';
 import '../gen/agents/v1/dashboard.connect.client.dart';
@@ -70,6 +72,7 @@ final class ButterApi {
     _daemons = DaemonServiceClient(transport);
     _apiTokens = APITokenServiceClient(transport);
     _cron = CronJobServiceClient(transport);
+    _automations = AutomationServiceClient(transport);
     _notifyGroups = NotifyGroupServiceClient(transport);
     _telegramDestinations = TelegramDestinationServiceClient(transport);
     _telegramChannels = TelegramChannelServiceClient(transport);
@@ -100,6 +103,7 @@ final class ButterApi {
   late final DaemonServiceClient _daemons;
   late final APITokenServiceClient _apiTokens;
   late final CronJobServiceClient _cron;
+  late final AutomationServiceClient _automations;
   late final NotifyGroupServiceClient _notifyGroups;
   late final TelegramDestinationServiceClient _telegramDestinations;
   late final TelegramChannelServiceClient _telegramChannels;
@@ -1993,6 +1997,180 @@ final class ButterApi {
     headers: _headers(token, workspace),
     signal: _deadline,
   )).notifyGroups;
+
+  Future<NotifyGroup> getNotifyGroup(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _notifyGroups.getNotifyGroup(
+      GetNotifyGroupRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasNotifyGroup()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Notify Group missing.',
+      );
+    }
+    return reply.notifyGroup;
+  }
+
+  Future<NotifyGroup> createNotifyGroup(
+    String token,
+    String workspace,
+    NotifyGroup group,
+  ) async => (await _notifyGroups.createNotifyGroup(
+    CreateNotifyGroupRequest(notifyGroup: group),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).notifyGroup;
+
+  Future<NotifyGroup> updateNotifyGroup(
+    String token,
+    String workspace,
+    NotifyGroup group,
+  ) async => (await _notifyGroups.updateNotifyGroup(
+    UpdateNotifyGroupRequest(notifyGroup: group),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).notifyGroup;
+
+  Future<void> deleteNotifyGroup(
+    String token,
+    String workspace,
+    String name,
+  ) async => _notifyGroups.deleteNotifyGroup(
+    DeleteNotifyGroupRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  // ---- Automations (#467) ----
+
+  Future<List<Automation>> listAutomations(
+    String token,
+    String workspace,
+  ) async => (await _automations.listAutomations(
+    ListAutomationsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automations;
+
+  Future<Automation> getAutomation(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _automations.getAutomation(
+      GetAutomationRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasAutomation()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Automation missing.',
+      );
+    }
+    return reply.automation;
+  }
+
+  Future<Automation> createAutomation(
+    String token,
+    String workspace,
+    Automation automation,
+  ) async => (await _automations.createAutomation(
+    CreateAutomationRequest(automation: automation),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automation;
+
+  Future<Automation> updateAutomation(
+    String token,
+    String workspace,
+    Automation automation,
+  ) async => (await _automations.updateAutomation(
+    UpdateAutomationRequest(automation: automation),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automation;
+
+  Future<Automation> deleteAutomation(
+    String token,
+    String workspace,
+    String name,
+  ) async => (await _automations.deleteAutomation(
+    DeleteAutomationRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automation;
+
+  Future<AutomationRun> runAutomationNow(
+    String token,
+    String workspace,
+    String name, {
+    String triggerPayloadJson = '{}',
+  }) async {
+    final reply = await _automations.runAutomationNow(
+      RunAutomationNowRequest(
+        name: name,
+        triggerPayloadJson: triggerPayloadJson,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRun()) {
+      throw connect.ConnectException(connect.Code.internal, 'Run missing.');
+    }
+    return reply.run;
+  }
+
+  Future<({List<AutomationRun> runs, String nextPageToken})> listAutomationRuns(
+    String token,
+    String workspace, {
+    String automationName = '',
+    int pageSize = 20,
+    String pageToken = '',
+  }) async {
+    final reply = await _automations.listAutomationRuns(
+      ListAutomationRunsRequest(
+        automationName: automationName,
+        pageSize: pageSize,
+        pageToken: pageToken,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return (runs: reply.runs, nextPageToken: reply.nextPageToken);
+  }
+
+  Future<AutomationRun> getAutomationRun(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _automations.getAutomationRun(
+      GetAutomationRunRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRun()) {
+      throw connect.ConnectException(connect.Code.notFound, 'Run missing.');
+    }
+    return reply.run;
+  }
+
+  Future<List<AutomationStepRun>> listAutomationStepRuns(
+    String token,
+    String workspace,
+    String runId,
+  ) async => (await _automations.listAutomationStepRuns(
+    ListAutomationStepRunsRequest(runId: runId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).stepRuns;
 
   Future<List<TelegramDestination>> listTelegramDestinations(
     String token,

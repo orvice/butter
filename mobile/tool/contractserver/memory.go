@@ -89,3 +89,10 @@ func (fx *memoryFixture) register(r *gin.Engine, opts []connect.HandlerOption) {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", memHandler)))
 	}
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: memoryWorkspace, Owner: true, NoSeedAgent: true},
+		fixtureWorkspace{ID: memoryMemberWorkspace, NoSeedAgent: true},
+	)
+}

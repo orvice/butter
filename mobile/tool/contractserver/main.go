@@ -216,28 +216,22 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace, repoBindingWorkspace, repoBindingMemberWorkspace, sessionsWorkspace, sessionsPeerWS, cronWorkspace, memoryWorkspace, memoryMemberWorkspace, telegramWorkspace, linearWorkspace, linearMemberWorkspace} {
-		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
+	for _, w := range fixtureWorkspaces {
+		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: w.ID, Name: w.ID, Slug: w.ID}); err != nil {
 			return nil, nil, err
 		}
 		role := "member"
-		if id == daemonWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS || id == cronWorkspace || id == memoryWorkspace || id == telegramWorkspace || id == linearWorkspace {
-			// Owner role for Daemon token revocation and repo binding writes and memory writes.
+		if w.Owner {
 			role = "owner"
 		}
-		if id == repoBindingMemberWorkspace || id == memoryMemberWorkspace || id == linearMemberWorkspace {
-			role = "member"
-		}
-		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
+		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: w.ID, UserId: authRepo.user.GetId(), Role: role}); err != nil {
 			return nil, nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS || id == cronWorkspace || id == memoryWorkspace || id == memoryMemberWorkspace || id == telegramWorkspace || id == linearWorkspace || id == linearMemberWorkspace {
-			// Chat's agent is the runnable one the chat fixture registers;
-			// the box, MCP, Daemon and repo-binding Workspaces start with none,
-			// their resources are created by the contract tests / repo fixture.
+		if w.NoSeedAgent {
+			// Each such fixture registers the Agents and resources it needs.
 			continue
 		}
-		if _, err := agentRepo.CreateAgent(ctx, id, &agentsv1.Agent{AgentId: "shared", Name: id + "-agent"}); err != nil {
+		if _, err := agentRepo.CreateAgent(ctx, w.ID, &agentsv1.Agent{AgentId: "shared", Name: w.ID + "-agent"}); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -392,6 +386,9 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	agentSvc.SetRuntime(rt)
 	if err := registerCronFixture(ctx, r, opts, agentRepo, boxRunner, chatSessions, telegramRepo); err != nil {
+		return nil, nil, err
+	}
+	if err := registerAutomationFixture(ctx, r, opts, agentRepo, boxRunner, telegramRepo); err != nil {
 		return nil, nil, err
 	}
 	if err := registerTelegramFixture(ctx, r, opts, wsRepo, agentRepo, telegramRepo); err != nil {

@@ -12,9 +12,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.orx.me/apps/butter/internal/application"
-	"go.orx.me/apps/butter/internal/repo/auth"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
-	wsctx "go.orx.me/apps/butter/internal/workspace"
+	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
 	linearmemory "go.orx.me/apps/butter/internal/repo/linear/memory"
@@ -23,6 +22,7 @@ import (
 	linearstatememory "go.orx.me/apps/butter/internal/repo/linearstate/memory"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/secretbox"
+	wsctx "go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	agentsv1connect "go.orx.me/apps/butter/pkg/proto/agents/v1/agentsv1connect"
 )
@@ -197,4 +197,11 @@ func completeLinearInstallCallback(baseURL, authorizeURL, code string) error {
 		return err
 	}
 	return nil
+}
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: linearWorkspace, Owner: true, NoSeedAgent: true},
+		fixtureWorkspace{ID: linearMemberWorkspace, NoSeedAgent: true},
+	)
 }

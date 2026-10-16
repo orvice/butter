@@ -24,19 +24,19 @@ import (
 )
 
 const (
-	telegramWorkspace        = "telegram"
-	telegramContractBotToken = "111111:contract-tg-bot"
+	telegramWorkspace         = "telegram"
+	telegramContractBotToken  = "111111:contract-tg-bot"
 	telegramContractBotToken2 = "222222:contract-tg-bot-2"
-	telegramSeededChannelID  = "tg-seeded-channel"
-	telegramSeededDestID     = "tg-seeded-dest"
-	telegramResendRecordID   = "tg-resend-record"
+	telegramSeededChannelID   = "tg-seeded-channel"
+	telegramSeededDestID      = "tg-seeded-dest"
+	telegramResendRecordID    = "tg-resend-record"
 )
 
 type contractQueueProbe struct{}
 
 func (contractQueueProbe) Available() bool                       { return true }
-func (contractQueueProbe) Ping(context.Context) error           { return nil }
-func (contractQueueProbe) CheckReady(context.Context) error     { return nil }
+func (contractQueueProbe) Ping(context.Context) error            { return nil }
+func (contractQueueProbe) CheckReady(context.Context) error      { return nil }
 func (contractQueueProbe) CheckLeaseReady(context.Context) error { return nil }
 
 func registerTelegramFixture(
@@ -102,7 +102,7 @@ func registerTelegramFixture(
 		&agentsv1.TelegramChannel{
 			Id: telegramSeededChannelID, Key: "seeded", Name: "Seeded",
 			BotId: "111111", BotUsername: "contractbot",
-			ReceiveMode: agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
+			ReceiveMode:    agentsv1.TelegramReceiveMode_TELEGRAM_RECEIVE_MODE_WEBHOOK,
 			InboundEnabled: true, OutboundEnabled: true,
 			CredentialState: agentsv1.TelegramCredentialState_TELEGRAM_CREDENTIAL_STATE_VALID,
 		},
@@ -153,4 +153,10 @@ func registerTelegramFixture(
 	admPath, admHandler := agentsv1connect.NewTelegramAdminServiceHandler(admin, opts...)
 	r.Any("/api"+admPath+"*path", gin.WrapH(http.StripPrefix("/api", admHandler)))
 	return nil
+}
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: telegramWorkspace, Owner: true, NoSeedAgent: true},
+	)
 }

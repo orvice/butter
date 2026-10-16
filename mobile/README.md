@@ -301,6 +301,23 @@ Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disabl
 
 Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
 
+## Notify Groups and Automations (#467)
+
+Agents → **Notify Groups** lists outbound groups and supports CRUD with structured targets (Telegram Destination ID, Lark webhook, Discord webhook). Legacy raw Telegram fields (`bot_token`, `chat_id`, …) are refused on write.
+
+Agents → **Automations** lists workspace automations with structured conditions, ordered steps, trigger/policy fields, manual run (confirmed, never auto-retried), run list and step-run detail. Only **Manual** and **Schedule** triggers are selectable; webhook/forum/channel/daemon triggers appear disabled because the server does not execute them yet.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Notify Group list / CRUD | `NotifyGroupService` | Notify Groups list, editor | `notify_group_contract_test`, `notify_group_draft_test`, `notify_group_widget_test` |
+| Telegram Destination picker | `ListTelegramDestinations` | Notify Group target editor | `notify_group_contract_test` (`tool/contractserver/automation_fixture.go`) |
+| Automation list / CRUD | `AutomationService` | Automations list, editor | `automation_contract_test`, `automation_draft_test`, `automation_widget_test` |
+| Manual run | `RunAutomationNow` | Detail → confirm → Run now | `automation_contract_test` (multi-step webhook + notify, condition skip, step failure) |
+| Runs / step runs | `ListAutomationRuns`, `ListAutomationStepRuns`, `GetAutomationRun` | Detail runs, run detail dialog | `automation_contract_test` |
+| Step / notify pickers | `ListNotifyGroups`, agents list | Automation step editor | `automation_contract_test` |
+
+Contract workspace: `automation` (owner role). Fixture seeds `seeded-manual`, `cond-fail`, and `webhook-fail` automations plus group `alerts`.
+
 ## Linear Agent Sessions (#466)
 
 Agents → **Linear** manages workspace Linear Apps (OAuth app registration routed to one Agent), browser installation into a Linear organization, processing deliveries and resend-only recovery. Linear install OAuth is separate from user login and MCP OAuth: the App opens the system browser, the server callback exchanges the code, and the App re-reads `ListLinearInstallations` (poll while waiting, refresh on return). Secrets never appear in responses or URLs.

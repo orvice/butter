@@ -285,3 +285,9 @@ func registerCronFixture(
 
 	return nil
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: cronWorkspace, Owner: true, NoSeedAgent: true},
+	)
+}
