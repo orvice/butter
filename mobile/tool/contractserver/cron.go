@@ -25,13 +25,13 @@ import (
 )
 
 const (
-	cronWorkspace        = "cron"
-	cronAgentID          = "cron-agent"
-	cronSeededJob        = "seeded-daily"
-	cronWaitingExecID    = "exec-waiting"
-	cronNotifyGroup      = "ops"
-	cronTelegramDestID   = "cron-destination"
-	cronTelegramChannel  = "cron-channel"
+	cronWorkspace       = "cron"
+	cronAgentID         = "cron-agent"
+	cronSeededJob       = "seeded-daily"
+	cronWaitingExecID   = "exec-waiting"
+	cronNotifyGroup     = "ops"
+	cronTelegramDestID  = "cron-destination"
+	cronTelegramChannel = "cron-channel"
 )
 
 type memoryCronJobs struct {

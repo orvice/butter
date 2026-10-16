@@ -8,7 +8,7 @@ import "butterbox.pb.dart" as agentsv1butterbox;
 import "butterbox.connect.spec.dart" as specs;
 
 /// ButterBoxService manages the workspace's registered ButterBoxes.
-extension type ButterBoxServiceClient (connect.Transport _transport) {
+extension type ButterBoxServiceClient(connect.Transport _transport) {
   Future<agentsv1butterbox.ListButterBoxesResponse> listButterBoxes(
     agentsv1butterbox.ListButterBoxesRequest input, {
     connect.Headers? headers,
@@ -153,7 +153,8 @@ extension type ButterBoxServiceClient (connect.Transport _transport) {
 
   /// ListButterBoxCursorModels reports the box's Cursor model catalog (from
   /// the box's CursorService, which asks Cursor's API with the box's key).
-  Future<agentsv1butterbox.ListButterBoxCursorModelsResponse> listButterBoxCursorModels(
+  Future<agentsv1butterbox.ListButterBoxCursorModelsResponse>
+  listButterBoxCursorModels(
     agentsv1butterbox.ListButterBoxCursorModelsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,

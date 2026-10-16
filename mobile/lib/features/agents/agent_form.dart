@@ -11,6 +11,10 @@ import 'box_leaf_fields.dart';
 import 'structured_fields.dart';
 import 'workflow_draft.dart';
 import 'workflow_editor.dart';
+import '../memory/agent_memory_config.dart';
+import '../memory/agent_memory_fields.dart';
+import '../memory/agent_result_card_fields.dart';
+import '../memory/agent_result_cards.dart';
 
 class AgentFormPage extends StatefulWidget {
   const AgentFormPage({super.key, required this.client, this.base});
@@ -29,6 +33,18 @@ class _AgentFormPageState extends State<AgentFormPage> {
   bool _saved = false;
   bool _showIssues = false;
   late final _model = TextEditingController(text: _agent.config.model);
+  late final AgentMemoryFormValues _memoryValues = memoryFormFromConfig(
+    _agent.hasConfig() && _agent.config.hasMemory()
+        ? _agent.config.memory
+        : null,
+  );
+  late final AgentResultCardsFormValues _resultCardsValues =
+      resultCardsFromConfig(
+        _agent.hasConfig() && _agent.config.hasResultCards()
+            ? _agent.config.resultCards
+            : null,
+      );
+
   @override
   void dispose() {
     _model.dispose();
@@ -56,6 +72,8 @@ class _AgentFormPageState extends State<AgentFormPage> {
       return;
     }
     FocusScope.of(context).unfocus();
+    applyMemoryForm(_draft, _memoryValues);
+    applyResultCardsForm(_draft, _resultCardsValues);
     final saved = await widget.client.saveAgent(
       widget.base == null ? _draft.buildForCreate() : _draft.build(),
       create: widget.base == null,
@@ -306,6 +324,20 @@ class _AgentFormPageState extends State<AgentFormPage> {
                           'Expose AG-UI',
                           _agent.enableAgui,
                           (v) => _agent.enableAgui = v,
+                        ),
+                        AgentMemoryFields(
+                          agent: _agent,
+                          values: _memoryValues,
+                          workspaceMemoryReady:
+                              widget.client.memory?.configEnabled ?? false,
+                          enabled: !client.busy && !_saved,
+                          onChanged: () => _change(() {}),
+                        ),
+                        AgentResultCardFields(
+                          agent: _agent,
+                          values: _resultCardsValues,
+                          enabled: !client.busy && !_saved,
+                          onChanged: () => _change(() {}),
                         ),
                         ..._associations(),
                         const Text(

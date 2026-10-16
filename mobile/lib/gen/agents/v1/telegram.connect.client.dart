@@ -14,7 +14,7 @@ import "telegram.connect.spec.dart" as specs;
 /// caller to hold the workspace "owner" or "admin" role; global admins bypass.
 /// No RPC ever returns a Bot Token.
 /// =============================================================================
-extension type TelegramChannelServiceClient (connect.Transport _transport) {
+extension type TelegramChannelServiceClient(connect.Transport _transport) {
   /// ListTelegramChannels returns every Channel in the current workspace.
   Future<agentsv1telegram.ListTelegramChannelsResponse> listTelegramChannels(
     agentsv1telegram.ListTelegramChannelsRequest input, {
@@ -95,7 +95,8 @@ extension type TelegramChannelServiceClient (connect.Transport _transport) {
   /// RotateTelegramChannelCredential validates the new Bot Token first and
   /// accepts it only when it resolves to the same immutable Bot ID. The prior
   /// credential stays active if validation or persistence fails.
-  Future<agentsv1telegram.RotateTelegramChannelCredentialResponse> rotateTelegramChannelCredential(
+  Future<agentsv1telegram.RotateTelegramChannelCredentialResponse>
+  rotateTelegramChannelCredential(
     agentsv1telegram.RotateTelegramChannelCredentialRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -114,7 +115,8 @@ extension type TelegramChannelServiceClient (connect.Transport _transport) {
 
   /// SetTelegramChannelEnabled applies the desired inbound/outbound state
   /// after a strict preflight. Enabling inbound without outbound is rejected.
-  Future<agentsv1telegram.SetTelegramChannelEnabledResponse> setTelegramChannelEnabled(
+  Future<agentsv1telegram.SetTelegramChannelEnabledResponse>
+  setTelegramChannelEnabled(
     agentsv1telegram.SetTelegramChannelEnabledRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -153,7 +155,8 @@ extension type TelegramChannelServiceClient (connect.Transport _transport) {
   /// GetTelegramChannelStatus returns configured desired state plus derived
   /// runtime readiness. Runtime availability is never persisted as
   /// configuration.
-  Future<agentsv1telegram.GetTelegramChannelStatusResponse> getTelegramChannelStatus(
+  Future<agentsv1telegram.GetTelegramChannelStatusResponse>
+  getTelegramChannelStatus(
     agentsv1telegram.GetTelegramChannelStatusRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -170,13 +173,15 @@ extension type TelegramChannelServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// =============================================================================
 /// TelegramDestinationService
 /// =============================================================================
-extension type TelegramDestinationServiceClient (connect.Transport _transport) {
+extension type TelegramDestinationServiceClient(connect.Transport _transport) {
   /// ListTelegramDestinations returns the workspace's Destinations, optionally
   /// narrowed to one Channel.
-  Future<agentsv1telegram.ListTelegramDestinationsResponse> listTelegramDestinations(
+  Future<agentsv1telegram.ListTelegramDestinationsResponse>
+  listTelegramDestinations(
     agentsv1telegram.ListTelegramDestinationsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -194,7 +199,8 @@ extension type TelegramDestinationServiceClient (connect.Transport _transport) {
   }
 
   /// GetTelegramDestination returns one Destination by ID.
-  Future<agentsv1telegram.GetTelegramDestinationResponse> getTelegramDestination(
+  Future<agentsv1telegram.GetTelegramDestinationResponse>
+  getTelegramDestination(
     agentsv1telegram.GetTelegramDestinationRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -213,7 +219,8 @@ extension type TelegramDestinationServiceClient (connect.Transport _transport) {
 
   /// CreateTelegramDestination registers one exact Telegram address. Creating
   /// a Destination sends no Telegram message.
-  Future<agentsv1telegram.CreateTelegramDestinationResponse> createTelegramDestination(
+  Future<agentsv1telegram.CreateTelegramDestinationResponse>
+  createTelegramDestination(
     agentsv1telegram.CreateTelegramDestinationRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -233,7 +240,8 @@ extension type TelegramDestinationServiceClient (connect.Transport _transport) {
   /// UpdateTelegramDestination changes name, enablement, and policy. It
   /// requires the expected revision and rejects any change to the immutable
   /// address; redirecting traffic requires creating a new Destination.
-  Future<agentsv1telegram.UpdateTelegramDestinationResponse> updateTelegramDestination(
+  Future<agentsv1telegram.UpdateTelegramDestinationResponse>
+  updateTelegramDestination(
     agentsv1telegram.UpdateTelegramDestinationRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -252,7 +260,8 @@ extension type TelegramDestinationServiceClient (connect.Transport _transport) {
 
   /// DeleteTelegramDestination removes a Destination. It is refused while a
   /// Notify Group or Cron job still references it.
-  Future<agentsv1telegram.DeleteTelegramDestinationResponse> deleteTelegramDestination(
+  Future<agentsv1telegram.DeleteTelegramDestinationResponse>
+  deleteTelegramDestination(
     agentsv1telegram.DeleteTelegramDestinationRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -273,7 +282,8 @@ extension type TelegramDestinationServiceClient (connect.Transport _transport) {
   /// unified sender. It is the explicit action that proves an address works:
   /// creating a Destination never sends anything. A successful send marks an
   /// unverified Destination verified.
-  Future<agentsv1telegram.SendTelegramTestMessageResponse> sendTelegramTestMessage(
+  Future<agentsv1telegram.SendTelegramTestMessageResponse>
+  sendTelegramTestMessage(
     agentsv1telegram.SendTelegramTestMessageRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -290,6 +300,7 @@ extension type TelegramDestinationServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// =============================================================================
 /// TelegramAdminService manages platform-level Telegram settings.
 /// The Webhook base URL is global, not per-workspace: it names the public
@@ -297,7 +308,7 @@ extension type TelegramDestinationServiceClient (connect.Transport _transport) {
 /// fact rather than a tenant choice. Only global administrators may read or
 /// change it, so workspace input can never redirect Telegram callbacks.
 /// =============================================================================
-extension type TelegramAdminServiceClient (connect.Transport _transport) {
+extension type TelegramAdminServiceClient(connect.Transport _transport) {
   /// GetTelegramSettings returns the platform Telegram settings.
   Future<agentsv1telegram.GetTelegramSettingsResponse> getTelegramSettings(
     agentsv1telegram.GetTelegramSettingsRequest input, {
@@ -317,7 +328,8 @@ extension type TelegramAdminServiceClient (connect.Transport _transport) {
   }
 
   /// UpdateTelegramSettings replaces the platform Telegram settings.
-  Future<agentsv1telegram.UpdateTelegramSettingsResponse> updateTelegramSettings(
+  Future<agentsv1telegram.UpdateTelegramSettingsResponse>
+  updateTelegramSettings(
     agentsv1telegram.UpdateTelegramSettingsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -334,6 +346,7 @@ extension type TelegramAdminServiceClient (connect.Transport _transport) {
     );
   }
 }
+
 /// =============================================================================
 /// TelegramProcessingService
 /// Workspace members may read processing records and redacted failures for
@@ -342,8 +355,9 @@ extension type TelegramAdminServiceClient (connect.Transport _transport) {
 /// produced side effects, repeating it is an operator decision made with
 /// context this API does not have.
 /// =============================================================================
-extension type TelegramProcessingServiceClient (connect.Transport _transport) {
-  Future<agentsv1telegram.ListTelegramProcessingRecordsResponse> listTelegramProcessingRecords(
+extension type TelegramProcessingServiceClient(connect.Transport _transport) {
+  Future<agentsv1telegram.ListTelegramProcessingRecordsResponse>
+  listTelegramProcessingRecords(
     agentsv1telegram.ListTelegramProcessingRecordsRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -360,7 +374,8 @@ extension type TelegramProcessingServiceClient (connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1telegram.GetTelegramProcessingRecordResponse> getTelegramProcessingRecord(
+  Future<agentsv1telegram.GetTelegramProcessingRecordResponse>
+  getTelegramProcessingRecord(
     agentsv1telegram.GetTelegramProcessingRecordRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,

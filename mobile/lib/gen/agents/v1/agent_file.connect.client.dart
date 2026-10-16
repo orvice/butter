@@ -7,7 +7,7 @@ import "package:connectrpc/connect.dart" as connect;
 import "agent_file.pb.dart" as agentsv1agent_file;
 import "agent_file.connect.spec.dart" as specs;
 
-extension type AgentFileServiceClient (connect.Transport _transport) {
+extension type AgentFileServiceClient(connect.Transport _transport) {
   Future<agentsv1agent_file.ListAgentFileSpacesResponse> listAgentFileSpaces(
     agentsv1agent_file.ListAgentFileSpacesRequest input, {
     connect.Headers? headers,

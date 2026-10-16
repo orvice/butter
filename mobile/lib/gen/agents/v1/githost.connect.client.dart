@@ -10,7 +10,7 @@ import "githost.connect.spec.dart" as specs;
 /// GitHostService manages the platform-level allowlist of Git hosts.
 /// List/Get are available to any authenticated user (workspace owners need
 /// them to configure a binding); Create/Update/Delete require global admin.
-extension type GitHostServiceClient (connect.Transport _transport) {
+extension type GitHostServiceClient(connect.Transport _transport) {
   Future<agentsv1githost.ListGitHostsResponse> listGitHosts(
     agentsv1githost.ListGitHostsRequest input, {
     connect.Headers? headers,

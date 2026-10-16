@@ -20,3 +20,4 @@ inputs:
       - ../proto/agents/v1/agent_file.proto
       - ../proto/agents/v1/cron.proto
       - ../proto/agents/v1/telegram.proto
+      - ../proto/agents/v1/workspace_memory.proto

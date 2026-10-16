@@ -352,6 +352,21 @@ Members read; owner/admin (or global admin) write. The phone never calls Git pro
 
 Evidence: `mobile/tool/contractserver/repo_binding.go` serves production `WorkspaceRepoBindingService` and read-only `GitHostService` with an in-memory fake git provider (`repo_binding_fake.go`). Not a real Git host, Mongo, or device run.
 
+## Workspace memory and Agent policy (#457)
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| View / save mem0 connection (URL, enabled, write-only API key keep/replace/clear) | `WorkspaceMemoryConfigService` Get/Put/Delete | Agents → Memory | `memory_draft_test`, `memory_controller_test`, `memory_widget_test`, `memory_contract_test` |
+| Test connection / save warning when mem0 unreachable | `TestWorkspaceMemoryConnection`; Put warning | Memory settings | `memory_draft_test`, `memory_contract_test` |
+| List / search Workspace or Agent memories, truncation notice | `WorkspaceMemoryService` List/Search | Memory settings (when enabled) | `memory_contract_test` |
+| Delete memory (owner/admin); principal hidden from members | `DeleteWorkspaceMemory` | Memory row delete | `memory_contract_test` |
+| Agent memory recall/capture/tools/scopes | `Agent.config.memory` | Agent editor → Memory | `memory_draft_test`, `agent_contract_test`, `memory_contract_test` |
+| Result Card generation/presentation (inheritance) | `Agent.config.result_cards` | Agent editor → Result cards | `memory_draft_test`, `memory_contract_test` |
+
+Members read settings and memories; owners, workspace admins and global admins write connection settings and delete memories. The phone never calls mem0: every operation goes through Butter, which holds the encrypted API key. Probe and warning text from the server is classified for display, not echoed verbatim. Typed API keys are cleared after every save attempt. Removing the connection does not delete data on the mem0 server.
+
+Evidence: `tool/contractserver/memory.go` serves production `WorkspaceMemoryConfigService` and `WorkspaceMemoryService` over in-memory config storage and an in-process mem0 OSS double (`memory_fake.go`). Not a real mem0 deployment, Mongo, or device run.
+
 ## Tests and device acceptance
 
 Unit/controller/widget tests use public application interfaces with fake **external** HTTP/OS-storage boundaries. They cover first setup, persistence, real request headers, permission/empty/error/pagination UI, admin without global navigation, expiry, relogin/server/Workspace races, slow credential writes, vault failure and generated-field retention. The separate Go contract fixture is a real-service HTTP integration test.
@@ -379,6 +394,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Connect streaming and A2UI are not implemented. AG-UI chat (#460) covers detached runs, history, images and threads, but not live re-attach, Stop or A2UI (see Chat and threads). Memory and Card Policy editors remain separate tickets; file spaces and the MCP, Remote Agent, mount and Skill selections are covered by #456; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
+- Connect streaming is not implemented. AG-UI chat covers detached runs, history, images, threads, re-attach, Stop and A2UI (see Chat and threads). Agent lifecycle is covered by #459; Workspace memory connection, memory browsing and Agent memory/Card Policy by #457. File spaces and the MCP, Remote Agent, mount and Skill selections are covered by #456; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
 - No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.

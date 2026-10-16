@@ -219,6 +219,7 @@ abstract final class AgentService {
     agentsv1agent_service.RetryAgentOperationResponse.new,
   );
 }
+
 /// MCPServerService manages MCP Server configurations.
 abstract final class MCPServerService {
   /// Fully-qualified name of the MCPServerService service.
@@ -319,6 +320,7 @@ abstract final class MCPServerService {
     agentsv1agent_service.DisconnectMCPServerOAuthResponse.new,
   );
 }
+
 /// GlobalMCPServerService manages workspace-agnostic MCP server presets that
 /// admins curate and end users install into their workspace. Browse / install
 /// is open to authenticated callers; admin role is required for the
@@ -365,6 +367,7 @@ abstract final class GlobalMCPServerService {
     agentsv1agent_service.InstallGlobalMCPServerResponse.new,
   );
 }
+
 /// ModelProviderService manages LLM provider configurations.
 abstract final class ModelProviderService {
   /// Fully-qualified name of the ModelProviderService service.
@@ -405,6 +408,7 @@ abstract final class ModelProviderService {
     agentsv1agent_service.DeleteModelProviderResponse.new,
   );
 }
+
 /// NotifyGroupService manages outbound notification groups.
 abstract final class NotifyGroupService {
   /// Fully-qualified name of the NotifyGroupService service.
@@ -445,6 +449,7 @@ abstract final class NotifyGroupService {
     agentsv1agent_service.DeleteNotifyGroupResponse.new,
   );
 }
+
 /// RemoteAgentService manages Remote Agent configurations.
 abstract final class RemoteAgentService {
   /// Fully-qualified name of the RemoteAgentService service.
@@ -494,6 +499,7 @@ abstract final class RemoteAgentService {
     agentsv1dashboard.GetRemoteAgentStatusResponse.new,
   );
 }
+
 /// ChannelService manages AgentChannel configurations.
 abstract final class ChannelService {
   /// Fully-qualified name of the ChannelService service.
@@ -568,6 +574,7 @@ abstract final class ChannelService {
     agentsv1agent_service.ResumeChannelResponse.new,
   );
 }
+
 abstract final class SessionService {
   /// Fully-qualified name of the SessionService service.
   static const name = 'agents.v1.SessionService';
