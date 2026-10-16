@@ -17,3 +17,6 @@ front/pnpm-lock.yaml
 front/yarn.lock
 front/pnpm-workspace.yaml
 tmp/
+
+# Contract fixture build output; build it outside the tree.
+/contractserver

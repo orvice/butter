@@ -258,7 +258,7 @@ func (s *DaemonServiceServer) CancelDaemonTask(ctx context.Context, req *connect
 		)
 		return nil, connectx.InternalWith(err)
 	}
-	logger.Info("daemon task cancelled", "task_id", req.Msg.GetTaskId(), "daemon_runtime_id", target.Info.GetDaemonRuntimeId())
+	logger.Info("daemon task cancel delivered", "task_id", req.Msg.GetTaskId(), "daemon_runtime_id", target.Info.GetDaemonRuntimeId())
 	return connect.NewResponse(&agentsv1.CancelDaemonTaskResponse{DaemonRuntimeId: target.Info.GetDaemonRuntimeId()}), nil
 }
 

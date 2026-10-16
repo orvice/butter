@@ -19,10 +19,12 @@ Future<ConfigRig> signedIn(
   WidgetTester tester, {
   void Function(McpServerFake)? seed,
   Duration? mcpPollInterval,
+  Duration? daemonPollInterval,
+  McpServerFake? using,
 }) async {
   final old = HttpOverrides.current;
   HttpOverrides.global = null;
-  final server = McpServerFake();
+  final server = using ?? McpServerFake();
   seed?.call(server);
   final platform = FakeOAuthPlatform();
   late ClientContext client;
@@ -42,6 +44,7 @@ Future<ConfigRig> signedIn(
       allowHttp: true,
       oauth: platform,
       mcpPollInterval: mcpPollInterval ?? const Duration(seconds: 5),
+      daemonPollInterval: daemonPollInterval ?? const Duration(seconds: 5),
     );
     await client.setServer(server.url);
     await client.login('alice', 'password');

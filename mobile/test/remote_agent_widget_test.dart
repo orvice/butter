@@ -1,3 +1,4 @@
+import 'package:butter_mobile/core/config_resource_controller.dart';
 import 'package:butter_mobile/features/remote_agents/remote_agent_controller.dart';
 import 'package:butter_mobile/features/remote_agents/remote_agent_pages.dart';
 import 'package:butter_mobile/gen/agents/v1/agent.pb.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/config_rig.dart';
+import 'support/daemon_server.dart';
 
 RemoteAgent a2a(String id) => RemoteAgent(
   id: id,
@@ -49,11 +51,11 @@ Future<void> openDetail(WidgetTester tester, ConfigRig h, String id) async {
 }
 
 void main() {
-  testWidgets('lists this Workspace only; Daemon agents are read-only', (
-    tester,
-  ) async {
+  testWidgets('lists this Workspace only and flags a Daemon agent whose '
+      'runtime is gone', (tester) async {
     final h = await signedIn(
       tester,
+      using: DaemonServerFake(),
       seed: (s) {
         s.seedRemote('alpha', a2a('a1'));
         s.seedRemote('alpha', daemon('d1'));
@@ -61,22 +63,124 @@ void main() {
       },
     );
     await openList(tester, h);
+    await tester.runAsync(() => h.client.remoteAgents!.loadRuntimes());
+    await tester.pumpAndSettle();
     expect(find.text('Agent a1'), findsOneWidget);
     expect(find.text('Daemon d1'), findsOneWidget);
     expect(find.text('Agent b1'), findsNothing);
-
-    await tester.runAsync(
-      () => tester.pumpWidget(
-        MaterialApp(
-          home: RemoteAgentDetailPage(client: h.client, id: 'd1'),
-        ),
-      ),
+    expect(
+      find.textContaining('Runtime "rt-1" does not exist in this Workspace'),
+      findsOneWidget,
     );
-    await waitFor(tester, () => h.client.remoteAgents!.item?.id == 'd1');
-    expect(find.byKey(const Key('remote-daemon-note')), findsOneWidget);
-    expect(find.byKey(const Key('edit-remote')), findsNothing);
-    expect(find.byKey(const Key('delete-remote')), findsNothing);
+  });
+
+  testWidgets('a Daemon agent shows its runtime and worker and can be edited '
+      'and deleted', (tester) async {
+    final h = await signedIn(
+      tester,
+      using: DaemonServerFake(),
+      seed: (s) {
+        final fake = s as DaemonServerFake;
+        fake.seedRuntime('alpha', DaemonRuntime(id: 'rt-1', name: 'Build box'));
+        fake.onlineWorkers['alpha']!.add(
+          DaemonStatus(
+            daemonRuntimeId: 'rt-1',
+            name: 'laptop',
+            acpRuntimes: ['opencode', 'codex'],
+            state: DaemonStatus_State.STATE_ONLINE,
+          ),
+        );
+        s.seedRemote('alpha', daemon('d1'));
+      },
+    );
+    await openDetail(tester, h, 'd1');
+    await waitFor(
+      tester,
+      () => h.client.remoteAgents!.runtimeState == ConfigLoad.ready,
+    );
+    expect(find.textContaining('Build box (rt-1)'), findsOneWidget);
+    expect(find.textContaining('Worker: connected (laptop)'), findsOneWidget);
+    expect(find.byKey(const Key('remote-reference-problem')), findsNothing);
+    expect(find.byKey(const Key('edit-remote')), findsOneWidget);
+    expect(find.byKey(const Key('delete-remote')), findsOneWidget);
     expect(find.byKey(const Key('probe-remote')), findsOneWidget);
+  });
+
+  testWidgets('a Daemon agent without a worker or runtime says what is wrong', (
+    tester,
+  ) async {
+    final h = await signedIn(
+      tester,
+      using: DaemonServerFake(),
+      seed: (s) => s.seedRemote('alpha', daemon('d1')),
+    );
+    await openDetail(tester, h, 'd1');
+    await waitFor(
+      tester,
+      () => h.client.remoteAgents!.runtimeState == ConfigLoad.ready,
+    );
+    expect(find.byKey(const Key('remote-reference-problem')), findsOneWidget);
+    expect(
+      find.textContaining('does not exist in this Workspace'),
+      findsWidgets,
+    );
+  });
+
+  testWidgets('adding a Daemon agent stores the runtime and executor, no URL', (
+    tester,
+  ) async {
+    final h = await signedIn(
+      tester,
+      using: DaemonServerFake(),
+      seed: (s) => (s as DaemonServerFake)
+        ..seedRuntime('alpha', DaemonRuntime(id: 'rt-1', name: 'Build box')),
+    );
+    await openList(tester, h);
+    await tapScreen(tester, find.byKey(const Key('add-remote')));
+    await enter(tester, const Key('remote-id'), 'dd');
+    await enter(tester, const Key('remote-name'), 'Coder');
+    await tapReal(tester, find.text('Daemon'));
+    await waitFor(
+      tester,
+      () => h.client.remoteAgents!.runtimeState == ConfigLoad.ready,
+    );
+    expect(find.byKey(const Key('remote-url')), findsNothing);
+    await tapScreen(
+      tester,
+      find.byKey(const Key('remote-daemon-runtime-field')),
+    );
+    await tapScreen(tester, find.text('Build box (rt-1)').last);
+    await tapScreen(tester, find.text('codex'));
+    await tapReal(tester, find.byKey(const Key('save-remote')));
+    await waitFor(tester, () => h.server.count('CreateRemoteAgent') == 1);
+    final stored = h.server.remotes['alpha']!['dd']!;
+    expect(stored.protocol, RemoteAgentProtocol.REMOTE_AGENT_PROTOCOL_DAEMON);
+    expect(stored.daemonRuntimeId, 'rt-1');
+    expect(stored.acpRuntime, 'codex');
+    expect(stored.hasUrl(), isFalse);
+  });
+
+  testWidgets('saving a Daemon agent for a runtime that is gone is refused '
+      'before any request', (tester) async {
+    final h = await signedIn(
+      tester,
+      using: DaemonServerFake(),
+      seed: (s) => s.seedRemote('alpha', daemon('d1')),
+    );
+    await openDetail(tester, h, 'd1');
+    await waitFor(
+      tester,
+      () => h.client.remoteAgents!.runtimeState == ConfigLoad.ready,
+    );
+    await tapScreen(tester, find.byKey(const Key('edit-remote')));
+    await enter(tester, const Key('remote-name'), 'Renamed');
+    await tapReal(tester, find.byKey(const Key('save-remote')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('does not exist in this Workspace'),
+      findsWidgets,
+    );
+    expect(h.server.count('UpdateRemoteAgent'), 0);
   });
 
   testWidgets('adding an OpenCode agent stores the password and never shows '

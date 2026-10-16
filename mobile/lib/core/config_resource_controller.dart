@@ -241,6 +241,9 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
   /// it aimed at and what kind of read can settle it.
   final List<({int tick, String? id, String scope})> _unknown = [];
   bool get unconfirmed => _unknown.isNotEmpty;
+
+  /// What kinds of read can settle the unknown writes (see [reconcile]).
+  Set<String> get unconfirmedScopes => {for (final w in _unknown) w.scope};
   String? get writeNotice => unconfirmed ? configUnconfirmed : null;
 
   String? _inFlightId;
@@ -258,6 +261,13 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
 
   @protected
   int beginRead() => ++_clock;
+
+  /// Records a write whose outcome is unknown outside [runWrite], for a result
+  /// the caller knows happened but could not keep.
+  @protected
+  void markUnconfirmed({String? id, String scope = 'config'}) {
+    _unknown.add((tick: ++_clock, id: id, scope: scope));
+  }
 
   /// Runs [action] as the one write in flight. Refused while another write is
   /// in flight or unconfirmed.

@@ -108,7 +108,103 @@ class RemoteAgentController extends ConfigResourceController<RemoteAgent> {
     emit();
   }
 
+  // ---- The runtimes a Daemon agent can run on ----
+
+  /// This Workspace's daemon runtimes, null until read (and again after the
+  /// app leaves the foreground).
+  List<DaemonRuntime>? runtimes;
+
+  /// The workers connected now; null when unknown.
+  List<DaemonStatus>? online;
+  ConfigLoad runtimeState = ConfigLoad.idle;
+  String? runtimeError;
+  int _runtimeSeq = 0;
+  bool _reloadRuntimes = false;
+
+  Future<void> loadRuntimes() async {
+    if (disposed) return;
+    final epoch = this.epoch, seq = ++_runtimeSeq;
+    _reloadRuntimes = true;
+    runtimeState = ConfigLoad.loading;
+    runtimeError = null;
+    emit();
+    List<DaemonRuntime>? read;
+    String? problem;
+    try {
+      read = await api.daemonRuntimes(token, workspaceId);
+      // A read that was superseded, or whose app left the foreground, asks
+      // nothing more: `api` would open a fresh client for it.
+      if (!live(epoch) || seq != _runtimeSeq) return;
+    } catch (failure) {
+      if (!live(epoch) || seq != _runtimeSeq || expired(failure)) return;
+      problem = configFailureMessage(
+        failure,
+        ConfigKind.daemon,
+        ConfigOperation.load,
+      );
+    }
+    List<DaemonStatus>? workers;
+    if (read != null) {
+      try {
+        workers = await api.daemons(token, workspaceId);
+      } catch (failure) {
+        if (!live(epoch) || seq != _runtimeSeq || expired(failure)) return;
+        // Which workers are connected is a hint, not a requirement.
+      }
+    }
+    if (!live(epoch) || seq != _runtimeSeq) return;
+    runtimes = read == null ? null : List.unmodifiable(read);
+    online = workers == null ? null : List.unmodifiable(workers);
+    runtimeState = read == null ? ConfigLoad.failed : ConfigLoad.ready;
+    runtimeError = problem;
+    emit();
+  }
+
+  /// The runtime of [id] when it is known to be missing, else null.
+  DaemonRuntime? runtimeOf(String id) {
+    for (final r in runtimes ?? const <DaemonRuntime>[]) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  /// Why a Daemon agent cannot work as configured, or null when nothing is
+  /// known to be wrong (including before the runtimes are read: nothing is
+  /// claimed without evidence). Never the server's text.
+  String? referenceProblem(RemoteAgent agent) {
+    if (agent.protocol != RemoteAgentProtocol.REMOTE_AGENT_PROTOCOL_DAEMON) {
+      return null;
+    }
+    if (runtimes == null) return null;
+    final id = agent.daemonRuntimeId;
+    if (id.isEmpty) {
+      return 'No runtime is chosen. Choose one of this Workspace\'s daemon runtimes.';
+    }
+    if (runtimeOf(id) == null) {
+      return 'Runtime "$id" does not exist in this Workspace, so runs through this agent fail. Choose another runtime.';
+    }
+    final executor = agent.acpRuntime;
+    for (final w in online ?? const <DaemonStatus>[]) {
+      if (w.daemonRuntimeId != id) continue;
+      if (executor.isNotEmpty &&
+          w.acpRuntimes.isNotEmpty &&
+          !w.acpRuntimes.contains(executor)) {
+        return 'The worker connected for runtime "$id" does not offer executor "$executor".';
+      }
+    }
+    return null;
+  }
+
   @override
-  void onSuspend() =>
-      probes.removeWhere((_, p) => p.kind == RemoteProbeKind.probing);
+  void onSuspend() {
+    probes.removeWhere((_, p) => p.kind == RemoteProbeKind.probing);
+    runtimes = null;
+    online = null;
+    runtimeState = ConfigLoad.idle;
+  }
+
+  @override
+  Future<void> onRecover() async {
+    if (_reloadRuntimes) await loadRuntimes();
+  }
 }

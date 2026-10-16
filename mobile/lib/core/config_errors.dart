@@ -3,7 +3,7 @@ import 'package:connectrpc/connect.dart';
 import '../gen/agents/v1/dashboard.pb.dart';
 
 /// What a configuration screen is about, for wording.
-enum ConfigKind { mcp, preset, remote }
+enum ConfigKind { mcp, preset, remote, daemon }
 
 enum ConfigOperation {
   load,
@@ -16,6 +16,12 @@ enum ConfigOperation {
   oauthStatus,
   oauthDisconnect,
   install,
+
+  /// Minting a worker token for a daemon runtime.
+  mint,
+
+  /// Revoking a worker token.
+  revoke,
 }
 
 /// A change the server cannot make safely, found before anything was sent or
@@ -33,6 +39,7 @@ String _subject(ConfigKind kind) => switch (kind) {
   ConfigKind.mcp => 'MCP server',
   ConfigKind.preset => 'preset',
   ConfigKind.remote => 'Remote Agent',
+  ConfigKind.daemon => 'daemon runtime',
 };
 
 /// Specific, safe wording for the failures an MCP or Remote Agent operation
@@ -52,6 +59,9 @@ String? describeConfigFailure(
   final subject = _subject(kind);
   switch (failure.code) {
     case Code.permissionDenied:
+      if (operation == ConfigOperation.revoke) {
+        return 'Revoking a worker token needs the owner or admin role in this Workspace. Nothing was changed.';
+      }
       return 'You do not have access to this Workspace, or your role does not allow this. Nothing was changed.';
     case Code.alreadyExists:
       if (operation == ConfigOperation.install) {
@@ -61,6 +71,12 @@ String? describeConfigFailure(
     case Code.notFound:
       if (operation == ConfigOperation.install) {
         return 'This preset is no longer offered, so nothing was installed. Refresh the presets.';
+      }
+      if (operation == ConfigOperation.mint) {
+        return 'This daemon runtime no longer exists in this Workspace, so no token was created. Refresh the list.';
+      }
+      if (operation == ConfigOperation.revoke) {
+        return 'This token no longer exists, so nothing was changed. Refresh the tokens.';
       }
       return switch (operation) {
         ConfigOperation.load ||
@@ -77,6 +93,8 @@ String? describeConfigFailure(
         return switch (kind) {
           ConfigKind.remote =>
             'The server rejected these values. Check the URL (absolute http or https), the protocol fields and that a username comes with a password.',
+          ConfigKind.daemon =>
+            'The server rejected these values. Check that the name is not empty.',
           _ =>
             'The server rejected these values. Check the URL (absolute http or https), the authentication fields and that a client secret comes with a client ID.',
         };
@@ -209,6 +227,9 @@ String remoteProbeReason(RemoteAgentStatus_State state, String serverText) {
     case RemoteAgentStatus_State.STATE_ERROR:
       if (any(['401', 'username/password'])) {
         return 'The endpoint rejected the username or password.';
+      }
+      if (any(['acp_runtime'])) {
+        return 'The executor must be opencode or codex.';
       }
       if (any(['is required'])) {
         return 'The configuration is incomplete for this protocol.';

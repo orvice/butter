@@ -7,6 +7,7 @@ import '../../core/config_resource_controller.dart';
 import '../../core/config_widgets.dart';
 import '../../core/management_page.dart';
 import '../../gen/agents/v1/agent.pb.dart';
+import '../../gen/agents/v1/dashboard.pb.dart';
 import 'remote_agent_controller.dart';
 import 'remote_agent_draft.dart';
 
@@ -18,6 +19,7 @@ Future<void> openRemoteAgents(
   final remote = client.remoteAgents;
   if (remote == null) return;
   unawaited(remote.load());
+  unawaited(remote.loadRuntimes());
   await openManagementPage(
     context,
     client,
@@ -66,7 +68,7 @@ class RemoteAgentListPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'A Remote Agent is an agent that runs elsewhere and speaks A2A or OpenCode HTTP. Butter calls it for you. Daemon agents are read-only here; Daemon management is not in the App yet.',
+              'A Remote Agent is an agent that runs elsewhere. Butter calls it for you over A2A or OpenCode HTTP, or hands its work to a worker connected through a daemon runtime.',
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -124,6 +126,8 @@ class RemoteAgentListPage extends StatelessWidget {
                   [
                     if (agent.url.isNotEmpty) agent.url,
                     remoteProtocolLabel(agent.protocol),
+                    if (remote.referenceProblem(agent) case final problem?)
+                      'Problem: $problem',
                     remoteProbeSummary(remote.probes[agent.id]),
                   ].join('\n'),
                 ),
@@ -170,6 +174,7 @@ class _RemoteAgentDetailPageState extends State<RemoteAgentDetailPage> {
     final remote = widget.client.remoteAgents;
     if (remote != null) {
       unawaited(remote.loadItem(widget.id));
+      unawaited(remote.loadRuntimes());
     }
   }
 
@@ -253,12 +258,26 @@ class _RemoteAgentDetailPageState extends State<RemoteAgentDetailPage> {
                 ),
               ],
               if (isDaemonAgent(agent)) ...[
-                Text('Daemon runtime: ${agent.daemonRuntimeId}'),
-                Text('ACP runtime: ${agent.acpRuntime}'),
-                const Text(
-                  'Daemon agents are read-only here; Daemon management is not in the App yet.',
-                  key: Key('remote-daemon-note'),
+                Text(
+                  'Daemon runtime: ${remote.runtimeOf(agent.daemonRuntimeId)?.name.isNotEmpty == true ? '${remote.runtimeOf(agent.daemonRuntimeId)!.name} (${agent.daemonRuntimeId})' : agent.daemonRuntimeId}',
+                  key: const Key('remote-daemon-runtime'),
                 ),
+                Text('Executor: ${agent.acpRuntime}'),
+                Text(
+                  _workerLine(remote, agent.daemonRuntimeId),
+                  key: const Key('remote-daemon-worker'),
+                ),
+                if (remote.referenceProblem(agent) case final problem?)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      problem,
+                      key: const Key('remote-reference-problem'),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
               ],
               if (!editable && !isDaemonAgent(agent))
                 const Text(
@@ -327,6 +346,18 @@ class _RemoteAgentDetailPageState extends State<RemoteAgentDetailPage> {
   }
 }
 
+/// Whether a worker is connected for the runtime, from the last read.
+String _workerLine(RemoteAgentController remote, String runtimeId) {
+  if (remote.online == null) return 'Worker: not checked';
+  final w = remote.online!
+      .where((w) => w.daemonRuntimeId == runtimeId)
+      .firstOrNull;
+  if (w == null) {
+    return 'Worker: not connected. Runs fail until a worker connects.';
+  }
+  return 'Worker: connected${w.name.isEmpty ? '' : ' (${w.name})'}';
+}
+
 class RemoteAgentFormPage extends StatefulWidget {
   const RemoteAgentFormPage({super.key, required this.client, this.base});
   final ClientContext client;
@@ -349,7 +380,14 @@ class _RemoteAgentFormPageState extends State<RemoteAgentFormPage> {
 
   Future<void> _save(RemoteAgentController remote) async {
     final valid = _form.currentState!.validate();
-    final problem = _draft.firstError();
+    var problem = _draft.firstError();
+    if (problem == null &&
+        _draft.kind == RemoteKind.daemon &&
+        remote.runtimes != null &&
+        remote.runtimeOf(_draft.daemonRuntimeId) == null) {
+      problem =
+          'Runtime "${_draft.daemonRuntimeId}" does not exist in this Workspace. Choose another one.';
+    }
     if (!valid || problem != null) {
       setState(() => _problem = problem);
       return;
@@ -382,6 +420,89 @@ class _RemoteAgentFormPageState extends State<RemoteAgentFormPage> {
   }
 
   void _change(VoidCallback f) => setState(f);
+
+  List<Widget> _daemonFields(
+    RemoteAgentController remote,
+    RemoteAgentDraft d,
+    bool locked,
+  ) {
+    final runtimes = remote.runtimes ?? const <DaemonRuntime>[];
+    final known = runtimes.any((r) => r.id == d.daemonRuntimeId);
+    return [
+      const SizedBox(height: 12),
+      if (remote.runtimeState == ConfigLoad.loading && remote.runtimes == null)
+        const LinearProgressIndicator(semanticsLabel: 'Loading runtimes'),
+      if (remote.runtimeState == ConfigLoad.failed) ...[
+        ErrorLine(remote.runtimeError ?? 'Runtimes could not be loaded.'),
+        TextButton(
+          key: const Key('reload-runtimes'),
+          onPressed: remote.loadRuntimes,
+          child: const Text('Load runtimes again'),
+        ),
+      ],
+      DropdownButtonFormField<String>(
+        key: const Key('remote-daemon-runtime-field'),
+        initialValue: d.daemonRuntimeId.isEmpty ? null : d.daemonRuntimeId,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Daemon runtime',
+          helperText:
+              'The runtime whose connected worker runs this agent. Create runtimes under Daemon execution.',
+          helperMaxLines: 2,
+        ),
+        items: [
+          for (final r in runtimes)
+            DropdownMenuItem(
+              value: r.id,
+              child: Text(
+                r.name.isEmpty || r.name == r.id ? r.id : '${r.name} (${r.id})',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          // A stored reference to a runtime that is not there stays visible
+          // so it can be seen and replaced, never silently dropped.
+          if (d.daemonRuntimeId.isNotEmpty && !known && remote.runtimes != null)
+            DropdownMenuItem(
+              value: d.daemonRuntimeId,
+              child: Text(
+                '${d.daemonRuntimeId} (not in this Workspace)',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        validator: (_) => d.validateRuntime(),
+        onChanged: locked
+            ? null
+            : (v) => _change(() => d.daemonRuntimeId = v ?? ''),
+      ),
+      if (d.daemonRuntimeId.isNotEmpty && remote.runtimes != null && !known)
+        const Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Text(
+            'This runtime does not exist in this Workspace. Choose another one before saving.',
+            key: Key('remote-runtime-missing'),
+          ),
+        ),
+      const SizedBox(height: 12),
+      Text('Executor', style: Theme.of(context).textTheme.titleSmall),
+      SegmentedButton<String>(
+        key: const Key('remote-executor'),
+        emptySelectionAllowed: true,
+        segments: [
+          for (final e in daemonExecutors)
+            ButtonSegment(value: e, label: Text(e)),
+        ],
+        selected: {if (daemonExecutors.contains(d.acpRuntime)) d.acpRuntime},
+        showSelectedIcon: false,
+        onSelectionChanged: locked
+            ? null
+            : (s) => _change(() => d.acpRuntime = s.isEmpty ? '' : s.first),
+      ),
+      if (d.validateAcpRuntime() case final problem?
+          when d.acpRuntime.isNotEmpty)
+        ErrorLine(problem),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -446,12 +567,24 @@ class _RemoteAgentFormPageState extends State<RemoteAgentFormPage> {
                           value: RemoteKind.opencode,
                           label: Text('OpenCode HTTP'),
                         ),
+                        ButtonSegment(
+                          value: RemoteKind.daemon,
+                          label: Text('Daemon'),
+                        ),
                       ],
                       selected: {d.kind},
                       showSelectedIcon: false,
                       onSelectionChanged: locked
                           ? null
-                          : (s) => _change(() => d.kind = s.first),
+                          : (s) {
+                              _change(() => d.kind = s.first);
+                              // The picker needs the Workspace's runtimes.
+                              if (s.first == RemoteKind.daemon &&
+                                  remote.runtimes == null &&
+                                  remote.runtimeState != ConfigLoad.loading) {
+                                unawaited(remote.loadRuntimes());
+                              }
+                            },
                     ),
                     if (!d.isCreate &&
                         d.kind == RemoteKind.a2a &&
@@ -464,24 +597,27 @@ class _RemoteAgentFormPageState extends State<RemoteAgentFormPage> {
                           'Saving as A2A removes the OpenCode agent, model, username and password.',
                         ),
                       ),
-                    TextFormField(
-                      key: const Key('remote-url'),
-                      initialValue: d.url,
-                      enabled: !locked,
-                      keyboardType: TextInputType.url,
-                      autocorrect: false,
-                      decoration: InputDecoration(
-                        labelText: d.kind == RemoteKind.a2a
-                            ? 'Agent URL'
-                            : 'OpenCode server URL',
-                        helperText: d.kind == RemoteKind.a2a
-                            ? 'The agent\'s base URL; Butter reads its agent card from /.well-known/agent.json.'
-                            : 'Where `opencode serve` listens. The Butter server connects to it.',
-                        helperMaxLines: 3,
+                    if (d.kind == RemoteKind.daemon)
+                      ..._daemonFields(remote, d, locked)
+                    else
+                      TextFormField(
+                        key: const Key('remote-url'),
+                        initialValue: d.url,
+                        enabled: !locked,
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        decoration: InputDecoration(
+                          labelText: d.kind == RemoteKind.a2a
+                              ? 'Agent URL'
+                              : 'OpenCode server URL',
+                          helperText: d.kind == RemoteKind.a2a
+                              ? 'The agent\'s base URL; Butter reads its agent card from /.well-known/agent.json.'
+                              : 'Where `opencode serve` listens. The Butter server connects to it.',
+                          helperMaxLines: 3,
+                        ),
+                        validator: (_) => d.validateUrl(),
+                        onChanged: (v) => _change(() => d.url = v),
                       ),
-                      validator: (_) => d.validateUrl(),
-                      onChanged: (v) => _change(() => d.url = v),
-                    ),
                     if (d.kind == RemoteKind.opencode) ...[
                       TextFormField(
                         key: const Key('remote-opencode-agent'),

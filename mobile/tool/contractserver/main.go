@@ -27,6 +27,7 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/repo"
+	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
@@ -198,10 +199,17 @@ func (fakeProvider) Exchange(_ context.Context, code string) (*provider.Claims, 
 }
 
 func fixture(ctx context.Context) (http.Handler, error) {
+	handler, _, err := newFixture(ctx)
+	return handler, err
+}
+
+// newFixture also returns the Daemon fixture, whose repositories and registry
+// the Go tests inspect directly.
+func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	// These public credentials must never be used outside this loopback fixture.
 	hash, err := bcrypt.GenerateFromPassword([]byte("contract-test-password"), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	authRepo := &authStore{
 		user: &agentsv1.User{Id: "mobile-test", Username: "mobile-test", DisplayName: "Mobile Test", Role: "user"},
@@ -209,27 +217,34 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: "member"}); err != nil {
-			return nil, err
+		role := "member"
+		if id == daemonWorkspace {
+			// The Daemon Workspace is the one the account owns, so token
+			// revocation is allowed there; every other Workspace shows the
+			// member's refusal.
+			role = "owner"
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace {
+		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
+			return nil, nil, err
+		}
+		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace {
 			// Chat's agent is the runnable one the chat fixture registers;
-			// the box and MCP Workspaces start with none, their resources
-			// are created by the contract tests.
+			// the box, MCP and Daemon Workspaces start with none, their
+			// resources are created by the contract tests.
 			continue
 		}
 		if _, err := agentRepo.CreateAgent(ctx, id, &agentsv1.Agent{AgentId: "shared", Name: id + "-agent"}); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	// A Workspace the account is not a member of: every request naming it is
 	// refused by the real membership check.
 	if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: mcpDeniedWorkspace, Name: mcpDeniedWorkspace, Slug: mcpDeniedWorkspace}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// A real Telegram Destination routes to two model aliases in alpha, so the
 	// real reference guard has something to refuse.
@@ -237,7 +252,7 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	if _, err := telegramRepo.CreateChannel(ctx, "alpha",
 		&agentsv1.TelegramChannel{Id: "contract-channel", Key: "contract", Name: "contract", BotId: "424242"},
 		telegramrepo.ChannelCredentials{BotToken: telegramrepo.Credential{Ciphertext: "unused", KeyID: "contract"}}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if _, err := telegramRepo.CreateDestination(ctx, "alpha", &agentsv1.TelegramDestination{
 		Id: guardedDestinationID, Key: "contract-topic", ChannelId: "contract-channel", ChatId: "-1001",
@@ -247,7 +262,7 @@ func fixture(ctx context.Context) (http.Handler, error) {
 			SelectableModels: []string{guardedSelectableAlias},
 		},
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	modelProviderSvc := application.NewModelProviderServiceServer(agentRepo)
 	modelProviderSvc.SetTelegramGuard(application.NewTelegramReferenceGuard(telegramRepo))
@@ -268,7 +283,7 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	if _, err := bindingRepo.Put(ctx, "beta", &agentsv1.WorkspaceRepoBinding{
 		GitHostId: "contract-host", Repository: "owner/repo", Branch: "main",
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	bindingSvc := application.NewRepoBindingServiceServer(bindingRepo, githostmemory.New())
 	bindingSvc.SetWorkspaceRepo(wsRepo)
@@ -281,7 +296,7 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
 	skillRepo := skillmemory.New()
 	if _, err := skillRepo.Create(ctx, "alpha", &agentsv1.Skill{Name: "existing-skill"}, "fixture content"); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	_, skillHandler := agentsv1connect.NewSkillServiceHandler(application.NewSkillServiceServer(skillRepo), opts...)
 	_, modelProviderHandler := agentsv1connect.NewModelProviderServiceHandler(modelProviderSvc, opts...)
@@ -293,8 +308,13 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	r.Use(gin.Recovery())
 	cfg := &config.AppConfig{}
 	cfg.HTTP.Greeting = "Hello, world!"
+	dfx, err := newDaemonFixture(ctx, agentRepo)
+	if err != nil {
+		return nil, nil, err
+	}
 	r.Use(httpHandler.AuthMiddleware(cfg,
-		func() auth.Repository { return authRepo }, nil,
+		func() auth.Repository { return authRepo },
+		func() apitoken.Repository { return dfx.tokens },
 		func() workspace.Repository { return wsRepo }))
 	httpHandler.NewHealthHandler(service.NewHealthService(repo.NewHealthRepository(), cfg)).Register(r)
 	// Keep unsupported methods inaccessible rather than simulating their behavior.
@@ -352,7 +372,7 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	}
 	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, opts, bx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	agentSvc.SetRuntime(reloader{
 		runner: boxRunner, agents: agentRepo,
@@ -376,11 +396,13 @@ func fixture(ctx context.Context) (http.Handler, error) {
 	mcpFx := newMCPFixture(agentRepo)
 	mux := http.NewServeMux()
 	mcpFx.register(r, mux, opts)
+	mcpFx.remoteSvc.SetDaemonRegistry(dfx.registry)
+	dfx.register(r, mux, opts, wsRepo)
 	mux.Handle("/fake-box/", boxDouble())
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
 	mux.Handle(legacyPrefix+"/", legacyMCPServer(r))
 	mux.Handle("/", r)
-	return mcpFx.wrap(mux), nil
+	return mcpFx.wrap(mux), dfx, nil
 }
 
 func run() error {

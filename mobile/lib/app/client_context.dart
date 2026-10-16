@@ -9,6 +9,7 @@ import '../core/agent_errors.dart';
 import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
+import '../features/daemons/daemon_controller.dart';
 import '../features/mcp/mcp_controller.dart';
 import '../features/remote_agents/remote_agent_controller.dart';
 import '../core/server_address.dart';
@@ -69,6 +70,7 @@ final class ClientContext extends ChangeNotifier {
     DateTime Function()? now,
     this.oauthTimeout = const Duration(minutes: 10),
     this.mcpPollInterval = mcpOAuthPollInterval,
+    this.daemonPollInterval = const Duration(seconds: 5),
     this.chatPageSize = 50,
     this.chatIdleTimeout = const Duration(seconds: 60),
     String Function()? newChatId,
@@ -83,6 +85,9 @@ final class ClientContext extends ChangeNotifier {
   /// How often a waiting MCP OAuth flow is looked at while the app is in the
   /// foreground; tests shorten it.
   final Duration mcpPollInterval;
+
+  /// How often the open Daemon task list is read again.
+  final Duration daemonPollInterval;
   final NativeOAuthPlatform? _oauth;
   final String Function() _newVerifier;
   final DateTime Function() _now;
@@ -244,6 +249,28 @@ final class ClientContext extends ChangeNotifier {
     );
   }
 
+  DaemonController? _daemons;
+
+  /// Daemon runtimes, workers, tasks and worker tokens for the current
+  /// server, user and Workspace.
+  DaemonController? get daemons {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _daemons ??= DaemonController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _daemons;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
   void _disposeChat() {
     final old = _chat;
     _chat = null;
@@ -254,6 +281,9 @@ final class ClientContext extends ChangeNotifier {
     final oldRemote = _remoteAgents;
     _remoteAgents = null;
     oldRemote?.dispose();
+    final oldDaemons = _daemons;
+    _daemons = null;
+    oldDaemons?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -728,6 +758,7 @@ final class ClientContext extends ChangeNotifier {
     _boxes?.suspend();
     _mcp?.suspend();
     _remoteAgents?.suspend();
+    _daemons?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -797,6 +828,7 @@ final class ClientContext extends ChangeNotifier {
     // for the end of an authorization that was open in the browser.
     unawaited(_mcp?.recover());
     unawaited(_remoteAgents?.recover());
+    unawaited(_daemons?.recover());
   }
 
   Future<void> refreshWorkspaces() async {
