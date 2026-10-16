@@ -59,6 +59,13 @@ func (s *WorkspaceMemoryConfigServiceServer) SetWorkspaceRepo(repo workspacerepo
 	s.workspaceRepo = repo
 }
 
+// SetHTTPClient overrides the client used for connection probes (tests).
+func (s *WorkspaceMemoryConfigServiceServer) SetHTTPClient(c *http.Client) {
+	if c != nil {
+		s.httpClient = c
+	}
+}
+
 func (s *WorkspaceMemoryConfigServiceServer) requireRepo() error {
 	if s.repo == nil {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("workspace memory config repository not configured"))

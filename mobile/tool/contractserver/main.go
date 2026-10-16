@@ -215,22 +215,22 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace, repoBindingWorkspace, repoBindingMemberWorkspace, sessionsWorkspace, sessionsPeerWS} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace, repoBindingWorkspace, repoBindingMemberWorkspace, sessionsWorkspace, sessionsPeerWS, memoryWorkspace, memoryMemberWorkspace} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, nil, err
 		}
 		role := "member"
-		if id == daemonWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS {
-			// Owner role for Daemon token revocation and repo binding writes.
+		if id == daemonWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS || id == memoryWorkspace {
+			// Owner role for Daemon token revocation, repo binding, and memory writes.
 			role = "owner"
 		}
-		if id == repoBindingMemberWorkspace {
+		if id == repoBindingMemberWorkspace || id == memoryMemberWorkspace {
 			role = "member"
 		}
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
 			return nil, nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS {
+		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace || id == repoBindingWorkspace || id == sessionsWorkspace || id == sessionsPeerWS || id == memoryWorkspace || id == memoryMemberWorkspace {
 			// Chat's agent is the runnable one the chat fixture registers;
 			// the box, MCP, Daemon and repo-binding Workspaces start with none,
 			// their resources are created by the contract tests / repo fixture.
@@ -396,6 +396,8 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", boxHandler)))
 	}
+	memFx := newMemoryFixture(wsRepo)
+	memFx.register(r, opts)
 	mcpFx := newMCPFixture(agentRepo)
 	mux := http.NewServeMux()
 	mcpFx.register(r, mux, opts)

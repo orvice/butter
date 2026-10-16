@@ -33,6 +33,8 @@ import '../gen/agents/v1/skill.connect.client.dart';
 import '../gen/agents/v1/skill.pb.dart';
 import '../gen/agents/v1/workspace.connect.client.dart';
 import '../gen/agents/v1/workspace.pb.dart';
+import '../gen/agents/v1/workspace_memory.connect.client.dart';
+import '../gen/agents/v1/workspace_memory.pb.dart';
 import 'server_address.dart';
 import 'avatar.dart';
 
@@ -60,6 +62,8 @@ final class ButterApi {
     _remoteAgents = RemoteAgentServiceClient(transport);
     _daemons = DaemonServiceClient(transport);
     _apiTokens = APITokenServiceClient(transport);
+    _memoryConfig = WorkspaceMemoryConfigServiceClient(transport);
+    _memories = WorkspaceMemoryServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -79,6 +83,8 @@ final class ButterApi {
   late final RemoteAgentServiceClient _remoteAgents;
   late final DaemonServiceClient _daemons;
   late final APITokenServiceClient _apiTokens;
+  late final WorkspaceMemoryConfigServiceClient _memoryConfig;
+  late final WorkspaceMemoryServiceClient _memories;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -1563,6 +1569,94 @@ final class ButterApi {
   ) => _auth.changePassword(
     ChangePasswordRequest(currentPassword: current, newPassword: next),
     headers: _headers(token),
+    signal: _deadline,
+  );
+
+  // ---- Workspace memory (mem0 via Butter; never call mem0 directly). ----
+
+  Future<WorkspaceMemoryConfig?> workspaceMemoryConfig(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _memoryConfig.getWorkspaceMemoryConfig(
+      GetWorkspaceMemoryConfigRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.hasConfig() ? reply.config : null;
+  }
+
+  Future<({WorkspaceMemoryConfig config, String warning})>
+  putWorkspaceMemoryConfig(
+    String token,
+    String workspace,
+    PutWorkspaceMemoryConfigRequest request,
+  ) async {
+    final reply = await _memoryConfig.putWorkspaceMemoryConfig(
+      request,
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasConfig()) {
+      throw StateError('PutWorkspaceMemoryConfig returned no config');
+    }
+    return (config: reply.config, warning: reply.warning);
+  }
+
+  Future<void> deleteWorkspaceMemoryConfig(String token, String workspace) =>
+      _memoryConfig.deleteWorkspaceMemoryConfig(
+        DeleteWorkspaceMemoryConfigRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  Future<TestWorkspaceMemoryConnectionResponse> testWorkspaceMemoryConnection(
+    String token,
+    String workspace,
+  ) => _memoryConfig.testWorkspaceMemoryConnection(
+    TestWorkspaceMemoryConnectionRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<ListWorkspaceMemoriesResponse> listWorkspaceMemories(
+    String token,
+    String workspace, {
+    WorkspaceMemoryScope scope =
+        WorkspaceMemoryScope.WORKSPACE_MEMORY_SCOPE_WORKSPACE,
+    String agentId = '',
+  }) => _memories.listWorkspaceMemories(
+    ListWorkspaceMemoriesRequest(scope: scope, agentId: agentId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<SearchWorkspaceMemoriesResponse> searchWorkspaceMemories(
+    String token,
+    String workspace, {
+    required String query,
+    WorkspaceMemoryScope scope =
+        WorkspaceMemoryScope.WORKSPACE_MEMORY_SCOPE_WORKSPACE,
+    String agentId = '',
+    int topK = 0,
+  }) => _memories.searchWorkspaceMemories(
+    SearchWorkspaceMemoriesRequest(
+      query: query,
+      scope: scope,
+      agentId: agentId,
+      topK: topK,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<void> deleteWorkspaceMemory(
+    String token,
+    String workspace,
+    String memoryId,
+  ) => _memories.deleteWorkspaceMemory(
+    DeleteWorkspaceMemoryRequest(memoryId: memoryId),
+    headers: _headers(token, workspace),
     signal: _deadline,
   );
 

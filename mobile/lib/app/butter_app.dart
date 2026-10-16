@@ -11,6 +11,7 @@ import '../features/daemons/daemon_pages.dart';
 import '../features/files/file_pages.dart';
 import '../features/repo_binding/repo_binding_pages.dart';
 import '../features/remote_agents/remote_agent_pages.dart';
+import '../features/memory/memory_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
@@ -538,6 +539,14 @@ class _Agents extends StatelessWidget {
                   ),
             icon: const Icon(Icons.manage_accounts),
             label: const Text('Manage Workspace'),
+          ),
+          TextButton.icon(
+            key: const Key('open-memory'),
+            onPressed: client.busy
+                ? null
+                : () => openMemorySettings(context, client),
+            icon: const Icon(Icons.psychology_outlined),
+            label: const Text('Memory'),
           ),
           TextButton.icon(
             onPressed: client.busy

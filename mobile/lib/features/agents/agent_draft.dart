@@ -94,6 +94,10 @@ final class AgentDraft {
     if (!offersMounts(built)) c.fileMounts.clear();
     if (!offersSkills(built)) c.skills.clear();
     if (!offersRemote(built)) c.remoteAgentIds.clear();
+    if (isBoxLeaf(built)) {
+      c.clearMemory();
+      c.clearResultCards();
+    }
     return built;
   }
 
