@@ -229,7 +229,19 @@ Delivery rules: the SSE parser accepts arbitrary UTF-8 chunking, LF/CRLF/CR, mul
 
 Scope notes: tool-role results only answer client-declared frontend tools, and this App declares none, so a run request carries exactly one user message. An Agent shows its name and an initial, not its configured avatar image, so chat fetches no remote image.
 
-Not provided yet: A2UI forms/cards (an Interrupt shows a "waiting for input" notice only; #462). Workflow Human Input cannot be answered in the App.
+## A2UI result cards and Human Input (#462)
+
+Native **butter-basic-v1** / A2UI v0.9.1: read-only Result Cards and server-built Human Input forms. Negotiation is declared only after client validation (`forwardedProps.butterA2UI`). Cards are not links or HTML; form buttons only submit through `butter.submitForm`.
+
+| Operation | Protocol | App entry | Tests |
+| --- | --- | --- | --- |
+| Live surfaces | `CUSTOM butter.a2ui` (revision + seq) | `RunFold` → `A2uiSurfaceStore.apply` | `run_fold_test`, `a2ui_store_test` |
+| UI snapshot restore | `GET …/threads/:thread_id/ui` + history `surfaces` placement | Open thread, fallback poll (with history) | `a2ui_contract_test`, `chat_controller` refresh |
+| Form submit (one resolved resume) | `POST /api/agui/:agent_id` + `resume[].payload.butterForm` | Form Submit button | `a2ui_form_test`, `a2ui_widget_test` |
+| Composer FIFO text answer | Same POST, no `resume` | Send message while Interrupts open | `run_request_test` |
+| Form errors 400/409/422 | Refusal before stream | Locked form + field errors; draft kept | `a2ui_form_test`, `AguiHttpError.fieldErrors` |
+
+Fallback polling and thread refresh load **both** history and the UI snapshot so cards survive a dropped attach stream.
 
 ## Chat reconnect, Stop and recovery (#461)
 
@@ -239,7 +251,7 @@ Not provided yet: A2UI forms/cards (an Interrupt shows a "waiting for input" not
 | Fallback when attach 204/truncated/wrong runId/`butter.fallback` | Thread history poll 1s→5s backoff until not `running` | Automatic; composer disabled while waiting | `chat_reconnect_test`, `backoff`/`run_fold_test` |
 | Stop | `POST …/threads/:thread_id/stop` (202 accept, 204 idle) | Stop while streaming or fallback wait | `chat_reconnect_test`, `chat_reconnect_contract_test` |
 | `lastRun` notice + Restore input | History `lastRun` + cut messages | Notice banner | `last_run_input`, widget tests |
-| Shared state mirror | `STATE_SNAPSHOT` / RFC 6902 `STATE_DELTA` | Held on controller (`sharedState`); A2UI hook via `RunEffects` (#462) | `state_patch_test`, `run_fold_test` |
+| Shared state mirror | `STATE_SNAPSHOT` / RFC 6902 `STATE_DELTA` | Held on controller (`sharedState`) | `state_patch_test`, `run_fold_test` |
 
 Detach only on leave/background/switch context — never Stop. POST runs are never retried; ambiguous sends read once to reconcile. `RunFold` resets on each `RUN_STARTED` so attach replay does not append stale partial text. Generation fencing uses conversation scope (`_conv`).
 
