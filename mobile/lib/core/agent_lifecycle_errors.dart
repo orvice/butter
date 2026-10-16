@@ -19,7 +19,9 @@ String? describeAgentLifecycleFailure(Object failure) {
     if (message.contains('lifecycle operations are not available')) {
       return 'Agent lifecycle operations need a Git repository binding in this Workspace.';
     }
-    if (message.contains('referenced by')) {
+    if (message.contains('referenced by') ||
+        message.contains('telegram destinations') ||
+        message.contains('linear apps')) {
       return 'This Agent is still referenced elsewhere and cannot be removed yet. Update those references first.';
     }
     if (message.contains('orphan')) {
