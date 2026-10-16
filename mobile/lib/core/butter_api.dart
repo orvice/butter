@@ -12,6 +12,8 @@ import 'package:protobuf/well_known_types/google/protobuf/duration.pb.dart'
     as pbd;
 
 import '../gen/agents/v1/agent.pb.dart';
+import '../gen/agents/v1/agent_file.connect.client.dart';
+import '../gen/agents/v1/agent_file.pb.dart';
 import '../gen/agents/v1/agent_service.connect.client.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/api_token.connect.client.dart';
@@ -43,6 +45,7 @@ final class ButterApi {
     _auth = AuthServiceClient(transport);
     _workspaces = WorkspaceServiceClient(transport);
     _agents = AgentServiceClient(transport);
+    _files = AgentFileServiceClient(transport);
     _repoBindings = WorkspaceRepoBindingServiceClient(transport);
     _skills = SkillServiceClient(transport);
     _modelProviders = ModelProviderServiceClient(transport);
@@ -60,6 +63,7 @@ final class ButterApi {
   late final AuthServiceClient _auth;
   late final WorkspaceServiceClient _workspaces;
   late final AgentServiceClient _agents;
+  late final AgentFileServiceClient _files;
   late final WorkspaceRepoBindingServiceClient _repoBindings;
   late final SkillServiceClient _skills;
   late final ModelProviderServiceClient _modelProviders;
@@ -306,6 +310,171 @@ final class ButterApi {
     }
     return saved;
   }
+
+  // ---- File spaces (AgentFileService). Content travels as the UTF-8 text of
+  // WriteAgentFile / GetAgentFile, never through the avatar upload. Every call
+  // carries the selected Workspace. ----
+
+  Future<List<AgentFileSpace>> fileSpaces(
+    String token,
+    String workspace,
+  ) async => (await _files.listAgentFileSpaces(
+    ListAgentFileSpacesRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).spaces;
+
+  Future<AgentFileSpace> fileSpace(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _files.getAgentFileSpace(
+      GetAgentFileSpaceRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasSpace()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'File space missing.',
+      );
+    }
+    return reply.space;
+  }
+
+  Future<AgentFileSpace> createFileSpace(
+    String token,
+    String workspace,
+    AgentFileSpace space,
+  ) async {
+    final reply = await _files.createAgentFileSpace(
+      CreateAgentFileSpaceRequest(space: space),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _spaceReply(reply.hasSpace(), () => reply.space);
+  }
+
+  /// Replaces the whole stored record: [space] must start from a fresh read.
+  Future<AgentFileSpace> updateFileSpace(
+    String token,
+    String workspace,
+    AgentFileSpace space,
+  ) async {
+    final reply = await _files.updateAgentFileSpace(
+      UpdateAgentFileSpaceRequest(space: space),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _spaceReply(reply.hasSpace(), () => reply.space);
+  }
+
+  AgentFileSpace _spaceReply(bool has, AgentFileSpace Function() read) {
+    if (!has) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'File space reply missing.',
+      );
+    }
+    return read();
+  }
+
+  /// Deletes the space and every file and version in it.
+  Future<void> deleteFileSpace(String token, String workspace, String id) =>
+      _files.deleteAgentFileSpace(
+        DeleteAgentFileSpaceRequest(id: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  Future<List<AgentFile>> agentFiles(
+    String token,
+    String workspace,
+    String spaceId, {
+    String pathPrefix = '',
+  }) async => (await _files.listAgentFiles(
+    ListAgentFilesRequest(spaceId: spaceId, pathPrefix: pathPrefix),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).files;
+
+  /// The latest version, or [version] when it is above zero.
+  Future<GetAgentFileResponse> readAgentFile(
+    String token,
+    String workspace,
+    String spaceId,
+    String path, {
+    int version = 0,
+  }) async {
+    final reply = await _files.getAgentFile(
+      GetAgentFileRequest(
+        spaceId: spaceId,
+        path: path,
+        version: Int64(version),
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasFile()) {
+      throw connect.ConnectException(connect.Code.notFound, 'File missing.');
+    }
+    return reply;
+  }
+
+  /// Always stores a new version. The server has no compare-and-swap, and a
+  /// write replaces the file's metadata, so [metadata] is the whole map.
+  Future<AgentFile> writeAgentFile(
+    String token,
+    String workspace,
+    String spaceId,
+    String path,
+    String content, {
+    required String contentType,
+    Map<String, String> metadata = const {},
+  }) async {
+    final reply = await _files.writeAgentFile(
+      WriteAgentFileRequest(
+        spaceId: spaceId,
+        path: path,
+        content: content,
+        contentType: contentType,
+        metadata: metadata.entries,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasFile()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'File reply missing.',
+      );
+    }
+    return reply.file;
+  }
+
+  Future<void> deleteAgentFile(
+    String token,
+    String workspace,
+    String spaceId,
+    String path,
+  ) => _files.deleteAgentFile(
+    DeleteAgentFileRequest(spaceId: spaceId, path: path),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<List<AgentFileSearchResult>> searchAgentFiles(
+    String token,
+    String workspace,
+    String spaceId,
+    String query, {
+    int limit = 50,
+  }) async => (await _files.searchAgentFiles(
+    SearchAgentFilesRequest(spaceId: spaceId, query: query, limit: limit),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).results;
 
   Future<List<ModelProvider>> modelProviders(
     String token,

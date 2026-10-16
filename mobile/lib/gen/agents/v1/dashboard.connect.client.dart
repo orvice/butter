@@ -7,7 +7,7 @@ import "package:connectrpc/connect.dart" as connect;
 import "dashboard.pb.dart" as agentsv1dashboard;
 import "dashboard.connect.spec.dart" as specs;
 
-extension type DashboardServiceClient (connect.Transport _transport) {
+extension type DashboardServiceClient(connect.Transport _transport) {
   /// GetOverview returns aggregate counts, component health and the latest
   /// daemon handshake for the dashboard Overview screen.
   Future<agentsv1dashboard.GetOverviewResponse> getOverview(
@@ -48,7 +48,8 @@ extension type DashboardServiceClient (connect.Transport _transport) {
 
   /// GetCronExecutionTimeseries aggregates cron_executions into time buckets,
   /// suitable for the Overview screen "Cron Executions" chart.
-  Future<agentsv1dashboard.GetCronExecutionTimeseriesResponse> getCronExecutionTimeseries(
+  Future<agentsv1dashboard.GetCronExecutionTimeseriesResponse>
+  getCronExecutionTimeseries(
     agentsv1dashboard.GetCronExecutionTimeseriesRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,
@@ -84,7 +85,7 @@ extension type DashboardServiceClient (connect.Transport _transport) {
     );
   }
 }
-extension type DaemonServiceClient (connect.Transport _transport) {
+extension type DaemonServiceClient(connect.Transport _transport) {
   /// Workspace-scoped daemon runtime configuration. A runtime must exist before
   /// a worker credential can be issued or a runtime connection accepted.
   Future<agentsv1dashboard.ListDaemonRuntimesResponse> listDaemonRuntimes(
@@ -172,7 +173,8 @@ extension type DaemonServiceClient (connect.Transport _transport) {
     );
   }
 
-  Future<agentsv1dashboard.CreateDaemonRuntimeTokenResponse> createDaemonRuntimeToken(
+  Future<agentsv1dashboard.CreateDaemonRuntimeTokenResponse>
+  createDaemonRuntimeToken(
     agentsv1dashboard.CreateDaemonRuntimeTokenRequest input, {
     connect.Headers? headers,
     connect.AbortSignal? signal,

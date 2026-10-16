@@ -10,6 +10,7 @@ import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
 import '../features/daemons/daemon_controller.dart';
+import '../features/files/file_controller.dart';
 import '../features/mcp/mcp_controller.dart';
 import '../features/remote_agents/remote_agent_controller.dart';
 import '../core/server_address.dart';
@@ -271,6 +272,27 @@ final class ClientContext extends ChangeNotifier {
     );
   }
 
+  FileSpaceController? _fileSpaces;
+
+  /// File spaces and their files for the current server, user and Workspace.
+  FileSpaceController? get fileSpaces {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _fileSpaces ??= FileSpaceController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _fileSpaces;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
   void _disposeChat() {
     final old = _chat;
     _chat = null;
@@ -284,6 +306,9 @@ final class ClientContext extends ChangeNotifier {
     final oldDaemons = _daemons;
     _daemons = null;
     oldDaemons?.dispose();
+    final oldFiles = _fileSpaces;
+    _fileSpaces = null;
+    oldFiles?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -759,6 +784,7 @@ final class ClientContext extends ChangeNotifier {
     _mcp?.suspend();
     _remoteAgents?.suspend();
     _daemons?.suspend();
+    _fileSpaces?.suspend();
     if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
     _generation++;
     _api?.close();
@@ -829,6 +855,7 @@ final class ClientContext extends ChangeNotifier {
     unawaited(_mcp?.recover());
     unawaited(_remoteAgents?.recover());
     unawaited(_daemons?.recover());
+    unawaited(_fileSpaces?.recover());
   }
 
   Future<void> refreshWorkspaces() async {
