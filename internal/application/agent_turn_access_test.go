@@ -24,6 +24,12 @@ import (
 type allowAllTurns struct{}
 
 func (allowAllTurns) AuthorizeTurn(context.Context, string, string, string) error { return nil }
+func (allowAllTurns) AuthorizeInvocation(context.Context, string, string, string) error {
+	return nil
+}
+func (allowAllTurns) InvocationScope(context.Context) (invocationScope, error) {
+	return invocationScope{all: true}, nil
+}
 
 // turnRecordingRunner records the ContextInfo of every turn and can fail
 // them all with err.

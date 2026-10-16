@@ -20,11 +20,17 @@ const SourceAGUIDetached = "agui-detached"
 // ListFilter narrows results returned by List. AgentID filters by the
 // immutable agent_id; AgentName is the legacy filter kept so historical
 // records written before the Agent ID migration stay reachable.
+//
+// UserID and OrAppPrefixes narrow to the records one caller may reach: with
+// either set, a record matches when its user_id is UserID (if set) or its
+// app_name starts with one of OrAppPrefixes. Both empty narrows nothing.
 type ListFilter struct {
-	WorkspaceID string
-	AgentID     string
-	AgentName   string
-	SessionID   string
+	WorkspaceID   string
+	AgentID       string
+	AgentName     string
+	SessionID     string
+	UserID        string
+	OrAppPrefixes []string
 }
 
 // StatusSummary describes the runtime-relevant view of one agent's

@@ -2139,9 +2139,11 @@ POST /api/agents.v1.AgentService/CancelAgentInvocation
 Explicitly cancels an in-flight invocation by id, in the selected Workspace.
 A run that lives in its request (`StreamAgent`, `InvokeAgent`, an AG-UI run
 without `butterRun`) is cancelled on the instance that runs it; a detached
-AG-UI run is stopped as described below. Invocations of the retired dashboard
-async chat (`app_name` `web-chat`) stay private: a non-admin caller may cancel
-only their own.
+AG-UI run is stopped as described below. An invocation is reachable exactly
+when its session is ([Session access](#session-access)): one the caller may
+not reach answers `not_found`, like a missing one, and its run keeps going.
+An id the store holds no record of answers `not_found` too, except to a
+global admin.
 
 **Request:**
 
@@ -2170,10 +2172,9 @@ POST /api/agents.v1.AgentService/GetAgentInvocation
 ```
 
 Returns the authoritative state of one invocation, by id, in the selected
-Workspace. Invocations of the retired dashboard async chat (`app_name`
-`web-chat`) are private: only the user who submitted one sees it; other
-members — including workspace owners — get `not_found`; global admins retain
-support access.
+Workspace. An invocation is reachable exactly when its session is
+([Session access](#session-access)); one the caller may not reach answers
+`not_found`.
 
 **Request:**
 
@@ -2266,7 +2267,12 @@ Batched variant; if `agent_ids` is empty, returns statuses for all configured ag
 POST /api/agents.v1.AgentService/ListAgentInvocations
 ```
 
-Returns persisted invocation records, optionally filtered.
+Returns persisted invocation records, optionally filtered, in the selected
+Workspace. It returns only the invocations whose sessions the caller may
+reach ([Session access](#session-access)): a member sees their own and the
+workspace's automation invocations; workspace owners and admins, API tokens
+and global admins see the whole workspace. `next_page_token` and `total`
+count only what the caller may see.
 
 **Request:**
 
@@ -3621,6 +3627,15 @@ leaves `user_id` empty gets their own sessions, and one who names another
 person gets `permission_denied`. With `workspace_scoped: true` a person
 always gets their own sessions; admins and API tokens may name any
 `user_id` or leave it empty for everyone.
+
+`AgentService.GetAgentInvocation`, `CancelAgentInvocation` and
+`ListAgentInvocations` apply the same rules to an invocation's own `app_name`,
+`user_id` and workspace: an invocation carries a turn's input and output, so
+it is reachable exactly when its session is. A denied invocation answers
+`not_found` to Get and Cancel (so another member's AG-UI run cannot be
+stopped through `CancelAgentInvocation`; the run keeps going), and List leaves
+it out. This replaces the earlier rule that kept only the retired `web-chat`
+invocations private.
 
 `AgentService.StreamAgent` and `InvokeAgent` run a turn with the session's
 whole history, so they follow the `ReplySession` rules for the session their

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"time"
@@ -24,7 +25,8 @@ const collectionName = "invocations"
 // Store is a MongoDB-backed implementation of invocation.Repository.
 //
 // Records keep the canonical protojson payload in `spec` and denormalize the
-// indexable identifiers (workspace_id, agent_name, session_id, started_at)
+// indexable identifiers (workspace_id, agent_name, session_id, user_id,
+// app_name, started_at)
 // into top-level fields so List queries can do exact-match BSON filters
 // instead of regex scans over the JSON blob. The owner stamp lives only in the
 // top-level `owner` field, never in `spec`, so it stays out of API responses.
@@ -55,7 +57,12 @@ type fields struct {
 	StartedAt   time.Time `bson:"started_at,omitempty"`
 	Status      string    `bson:"status,omitempty"`
 	RequestID   string    `bson:"request_id,omitempty"`
-	Spec        string    `bson:"spec"`
+	// UserID and AppName are written even when empty, so a record that
+	// lacks them is one saved before they were denormalized
+	// (BackfillAccessFields).
+	UserID  string `bson:"user_id"`
+	AppName string `bson:"app_name"`
+	Spec    string `bson:"spec"`
 }
 
 var _ invocation.Repository = (*Store)(nil)
@@ -86,6 +93,7 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_name", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "agent_id", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "session_id", Value: 1}, {Key: "started_at", Value: -1}}},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "user_id", Value: 1}, {Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "started_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "request_id", Value: 1}},
 			Options: options.Index().SetUnique(true).SetPartialFilterExpression(bson.M{"request_id": bson.M{"$gt": ""}})},
@@ -98,6 +106,42 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 		return fmt.Errorf("create invocation indexes: %w", err)
 	}
 	return nil
+}
+
+// BackfillAccessFields denormalizes user_id and app_name into the records
+// saved before List narrowed by them, reading both from the record's spec.
+// It is idempotent, never overwrites a record a Save has already written, and
+// returns how many records it updated.
+func (s *Store) BackfillAccessFields(ctx context.Context) (int64, error) {
+	cursor, err := s.coll.Find(ctx, bson.M{"app_name": bson.M{"$exists": false}},
+		options.Find().SetProjection(bson.M{"_id": 1, "spec": 1}))
+	if err != nil {
+		return 0, fmt.Errorf("find invocations to backfill: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var updated int64
+	for cursor.Next(ctx) {
+		var d doc
+		if err := cursor.Decode(&d); err != nil {
+			return updated, fmt.Errorf("decode invocation to backfill: %w", err)
+		}
+		inv, err := decode(&d)
+		if err != nil {
+			return updated, fmt.Errorf("backfill invocation %s: %w", d.ID, err)
+		}
+		res, err := s.coll.UpdateOne(ctx,
+			bson.M{"_id": d.ID, "app_name": bson.M{"$exists": false}},
+			bson.M{"$set": bson.M{"user_id": inv.GetUserId(), "app_name": inv.GetAppName()}})
+		if err != nil {
+			return updated, fmt.Errorf("backfill invocation %s: %w", d.ID, err)
+		}
+		updated += res.ModifiedCount
+	}
+	if err := cursor.Err(); err != nil {
+		return updated, fmt.Errorf("backfill invocations: %w", err)
+	}
+	return updated, nil
 }
 
 // Save upserts the record. The owner stamp is set only when the record is
@@ -113,6 +157,8 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 		AgentName:   inv.GetAgentName(),
 		AgentID:     inv.GetAgentId(),
 		SessionID:   inv.GetSessionId(),
+		UserID:      inv.GetUserId(),
+		AppName:     inv.GetAppName(),
 		Status:      inv.GetStatus().String(),
 		RequestID:   inv.GetRequestId(),
 		Spec:        string(b),
@@ -164,6 +210,18 @@ func (s *Store) List(ctx context.Context, filter invocation.ListFilter, pageSize
 	}
 	if filter.SessionID != "" {
 		q["session_id"] = filter.SessionID
+	}
+	// Either side of the narrowing matches: the user's own records or an
+	// app prefix (a literal prefix, anchored).
+	var reachable []bson.M
+	if filter.UserID != "" {
+		reachable = append(reachable, bson.M{"user_id": filter.UserID})
+	}
+	for _, p := range filter.OrAppPrefixes {
+		reachable = append(reachable, bson.M{"app_name": bson.M{"$regex": "^" + regexp.QuoteMeta(p)}})
+	}
+	if len(reachable) > 0 {
+		q["$or"] = reachable
 	}
 
 	total, err := s.coll.CountDocuments(ctx, q)

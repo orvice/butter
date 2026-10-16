@@ -9,6 +9,7 @@ import (
 	"google.golang.org/genai"
 
 	"go.orx.me/apps/butter/internal/repo/auth"
+	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/workspace"
@@ -62,6 +63,15 @@ func (r *asyncTestRunner) GetAgentIdentity(name string) (string, string, bool) {
 	return "", name, true
 }
 
+// newInvocationService is an AgentService over invRepo that applies the
+// session access policy without workspace memberships: callers are members,
+// or global admins.
+func newInvocationService(invRepo invocation.Repository) *AgentServiceServer {
+	svc := &AgentServiceServer{invRepo: invRepo}
+	svc.SetSessionAuthorizer(NewSessionServiceServer())
+	return svc
+}
+
 func testContextWithUser(wsID, userID string) context.Context {
 	ctx := workspace.WithID(context.Background(), wsID)
 	ctx = auth.WithAuthenticated(ctx, &agentsv1.User{Id: userID, Role: "member"}, nil)
@@ -70,7 +80,7 @@ func testContextWithUser(wsID, userID string) context.Context {
 
 func TestGetAgentInvocation_Basic(t *testing.T) {
 	invRepo := invocationmemory.New()
-	svc := &AgentServiceServer{invRepo: invRepo}
+	svc := newInvocationService(invRepo)
 
 	ctx := testContextWithUser(wsTest, "user-1")
 
@@ -78,6 +88,8 @@ func TestGetAgentInvocation_Basic(t *testing.T) {
 	inv := &agentsv1.Invocation{
 		Id:          "inv-1",
 		WorkspaceId: wsTest,
+		UserId:      "user-1",
+		AppName:     "agui",
 		AgentName:   "test",
 		Status:      agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED,
 		Output:      "result",
@@ -102,7 +114,7 @@ func TestGetAgentInvocation_Basic(t *testing.T) {
 
 func TestGetAgentInvocation_NotFound(t *testing.T) {
 	invRepo := invocationmemory.New()
-	svc := &AgentServiceServer{invRepo: invRepo}
+	svc := newInvocationService(invRepo)
 	ctx := testContextWithUser(wsTest, "user-1")
 
 	_, err := svc.GetAgentInvocation(ctx, connect.NewRequest(&agentsv1.GetAgentInvocationRequest{
@@ -115,7 +127,7 @@ func TestGetAgentInvocation_NotFound(t *testing.T) {
 
 func TestGetAgentInvocation_WorkspaceIsolation(t *testing.T) {
 	invRepo := invocationmemory.New()
-	svc := &AgentServiceServer{invRepo: invRepo}
+	svc := newInvocationService(invRepo)
 
 	// Invocation belongs to "other-workspace".
 	inv := &agentsv1.Invocation{
@@ -139,7 +151,7 @@ func TestGetAgentInvocation_WorkspaceIsolation(t *testing.T) {
 
 func TestGetAgentInvocation_PrivateSessionOwnership(t *testing.T) {
 	invRepo := invocationmemory.New()
-	svc := &AgentServiceServer{invRepo: invRepo}
+	svc := newInvocationService(invRepo)
 	if err := invRepo.Save(context.Background(), &agentsv1.Invocation{
 		Id:          "inv-private",
 		WorkspaceId: wsTest,
@@ -161,7 +173,7 @@ func TestGetAgentInvocation_PrivateSessionOwnership(t *testing.T) {
 
 func TestGetAgentInvocation_PrivateOwnershipEnforced(t *testing.T) {
 	invRepo := invocationmemory.New()
-	svc := &AgentServiceServer{invRepo: invRepo}
+	svc := newInvocationService(invRepo)
 
 	inv := &agentsv1.Invocation{
 		Id:          "inv-owned",
@@ -201,10 +213,8 @@ func TestGetAgentInvocation_PrivateOwnershipEnforced(t *testing.T) {
 func TestCancelAgentInvocation_RejectsOtherPrivateSessionOwner(t *testing.T) {
 	invRepo := invocationmemory.New()
 	runner := &cancelCountingRunner{}
-	svc := &AgentServiceServer{
-		runnerSvc: runner,
-		invRepo:   invRepo,
-	}
+	svc := newInvocationService(invRepo)
+	svc.runnerSvc = runner
 	if err := invRepo.Save(context.Background(), &agentsv1.Invocation{
 		Id:          "inv-owned",
 		WorkspaceId: wsTest,

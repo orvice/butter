@@ -119,3 +119,48 @@ func TestOwnerStampStaysOutOfTheInvocation(t *testing.T) {
 		t.Fatalf("spec = %q, want the Invocation without any owner", got)
 	}
 }
+
+// Records saved before List narrowed by user and app have neither field; the
+// backfill reads them from the record's spec, and leaves records a Save wrote
+// alone.
+func TestBackfillAccessFieldsReachesRecordsSavedBeforeThem(t *testing.T) {
+	store := testStore(t)
+	legacy := &agentsv1.Invocation{
+		Id: "legacy", WorkspaceId: "ws-1", UserId: "alice", AppName: "agui", AgentName: "agent",
+		StartedAt: timestamppb.Now(),
+	}
+	if err := store.Save(t.Context(), legacy); err != nil {
+		t.Fatal(err)
+	}
+	// Make it look like one saved before the fields existed.
+	if _, err := store.coll.UpdateOne(t.Context(), bson.M{"_id": "legacy"},
+		bson.M{"$unset": bson.M{"user_id": "", "app_name": ""}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(t.Context(), &agentsv1.Invocation{
+		Id: "fresh", WorkspaceId: "ws-1", UserId: "bob", AppName: "agui", AgentName: "agent",
+		StartedAt: timestamppb.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	list := func() int32 {
+		_, _, total, err := store.List(t.Context(), invocation.ListFilter{WorkspaceID: "ws-1", UserID: "alice"}, 10, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return total
+	}
+	if got := list(); got != 0 {
+		t.Fatalf("before the backfill List by user found %d, want 0", got)
+	}
+	if n, err := store.BackfillAccessFields(t.Context()); err != nil || n != 1 {
+		t.Fatalf("BackfillAccessFields = %d, %v; want 1 record (the legacy one)", n, err)
+	}
+	if got := list(); got != 1 {
+		t.Fatalf("after the backfill List by user found %d, want 1", got)
+	}
+	if n, err := store.BackfillAccessFields(t.Context()); err != nil || n != 0 {
+		t.Fatalf("a second BackfillAccessFields = %d, %v; want 0", n, err)
+	}
+}

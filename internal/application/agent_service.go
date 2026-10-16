@@ -74,22 +74,30 @@ type AgentServiceServer struct {
 	content        agentContentCoordinator
 	aguiRuns       AGUIRunStopper
 	cutoverSources *AgentCutoverSources
-	sessionAuth    sessionTurnAuthorizer
+	sessionAuth    sessionAuthorizer
 }
 
 func NewAgentServiceServer(repo configrepo.AgentRepository) *AgentServiceServer {
 	return &AgentServiceServer{repo: repo}
 }
 
-// sessionTurnAuthorizer applies the session access policy to a turn on a
-// session that may not exist yet (satisfied by *SessionServiceServer).
-type sessionTurnAuthorizer interface {
+// sessionAuthorizer applies the session access policy (satisfied by
+// *SessionServiceServer): to a turn on a session that may not exist yet,
+// and to the invocations of a session.
+type sessionAuthorizer interface {
 	AuthorizeTurn(ctx context.Context, appName, userID, sessionID string) error
+	// AuthorizeInvocation answers NotFound for an invocation (given by its
+	// own app, user and workspace) whose session the caller may not reach.
+	AuthorizeInvocation(ctx context.Context, appName, userID, workspaceID string) error
+	// InvocationScope says which of the request workspace's invocations the
+	// caller may list.
+	InvocationScope(ctx context.Context) (invocationScope, error)
 }
 
 // SetSessionAuthorizer wires the session access policy StreamAgent and
-// InvokeAgent apply before running a turn.
-func (s *AgentServiceServer) SetSessionAuthorizer(a sessionTurnAuthorizer) {
+// InvokeAgent apply before running a turn, and the invocation RPCs apply
+// to the invocations they return or cancel.
+func (s *AgentServiceServer) SetSessionAuthorizer(a sessionAuthorizer) {
 	s.sessionAuth = a
 }
 
@@ -833,12 +841,28 @@ func (s *AgentServiceServer) ListAgentInvocations(ctx context.Context, req *conn
 	if err != nil {
 		return nil, err
 	}
-	invs, next, total, err := s.invRepo.List(ctx, invocation.ListFilter{
+	// Only the invocations whose sessions the caller may reach, narrowed in
+	// the store so the page and the total answer for what they may see.
+	filter := invocation.ListFilter{
 		WorkspaceID: wsID,
 		AgentID:     req.Msg.GetAgentId(),
 		AgentName:   req.Msg.GetAgentName(),
 		SessionID:   req.Msg.GetSessionId(),
-	}, req.Msg.GetPageSize(), req.Msg.GetPageToken())
+	}
+	if s.sessionAuth == nil {
+		if !auth.IsAdmin(ctx) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("session access policy not available"))
+		}
+	} else {
+		scope, err := s.sessionAuth.InvocationScope(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !scope.all {
+			filter.UserID, filter.OrAppPrefixes = scope.userID, scope.appPrefixes
+		}
+	}
+	invs, next, total, err := s.invRepo.List(ctx, filter, req.Msg.GetPageSize(), req.Msg.GetPageToken())
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
@@ -864,15 +888,27 @@ func (s *AgentServiceServer) CancelAgentInvocation(ctx context.Context, req *con
 			errors.New("workspace required (set X-Workspace-ID header)"))
 	}
 
+	// The invocation's session decides who may cancel it, so an invocation
+	// the store does not hold is not the caller's to cancel; only a global
+	// admin keeps the runner path for one.
 	var inv *agentsv1.Invocation
-	if s.invRepo != nil {
+	if s.invRepo == nil {
+		if !auth.IsAdmin(ctx) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("invocation repository not available"))
+		}
+	} else {
 		stored, err := getInvocation(ctx, s.invRepo, wsID, req.Msg.GetInvocationId())
-		if err == nil {
-			if err := authorizeInvocationAccess(ctx, wsID, stored); err != nil {
+		switch {
+		case err == nil:
+			if err := s.authorizeInvocationAccess(ctx, wsID, stored); err != nil {
 				return nil, err
 			}
 			inv = stored
-		} else if !errors.Is(err, invocation.ErrNotFound) {
+		case errors.Is(err, invocation.ErrNotFound):
+			if !auth.IsAdmin(ctx) {
+				return nil, connectx.NotFound("invocation not found")
+			}
+		default:
 			return nil, connectx.InternalWith(err)
 		}
 	}

@@ -237,6 +237,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 			logger.Error("failed to create invocation indexes", "err", err)
 			return nil, err
 		}
+		if n, err := invMongo.BackfillAccessFields(ctx); err != nil {
+			logger.Error("failed to backfill invocation access fields", "err", err)
+			return nil, err
+		} else if n > 0 {
+			logger.Info("backfilled invocation access fields", "records", n)
+		}
 		invRepo = invMongo
 		ipMongo := inputpartmongo.New(db)
 		if err := ipMongo.EnsureIndexes(ctx); err != nil {

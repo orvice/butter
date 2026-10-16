@@ -64,7 +64,8 @@ func TestCancelAgentInvocation_AGUIRunsGoThroughTheAGUIStop(t *testing.T) {
 	}
 	runner := &cancelCountingRunner{}
 	stopper := &fakeAGUIStopper{stopped: true}
-	svc := &AgentServiceServer{runnerSvc: runner, invRepo: invRepo}
+	svc := newInvocationService(invRepo)
+	svc.runnerSvc = runner
 	svc.SetAGUIRunStopper(stopper)
 	cancel := func(id string) (*connect.Response[agentsv1.CancelAgentInvocationResponse], error) {
 		return svc.CancelAgentInvocation(testContextWithUser(wsTest, "user-1"),
