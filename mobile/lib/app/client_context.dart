@@ -17,6 +17,7 @@ import '../features/memory/memory_controller.dart';
 import '../features/repo_binding/repo_binding_controller.dart';
 import '../features/automation/automation_controller.dart';
 import '../features/cron/cron_controller.dart';
+import '../features/ops/workspace_ops_controller.dart';
 import '../features/notify_groups/notify_group_controller.dart';
 import '../features/linear/linear_controller.dart';
 import '../features/telegram/telegram_controller.dart';
@@ -291,6 +292,29 @@ final class ClientContext extends ChangeNotifier {
   FileSpaceController? _fileSpaces;
   SessionController? _sessions;
   CronController? _cron;
+  WorkspaceOpsController? _ops;
+
+  /// Overview, invocations and personal API tokens for the current scope.
+  WorkspaceOpsController? get ops {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _ops ??= WorkspaceOpsController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      isGlobalAdmin: () => user?.role == 'admin',
+      agentCount: () => agents.length,
+      onUnauthenticated: () {
+        final self = _ops;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
   NotifyGroupController? _notifyGroups;
   AutomationController? _automations;
 
@@ -552,6 +576,9 @@ final class ClientContext extends ChangeNotifier {
     final oldCron = _cron;
     _cron = null;
     oldCron?.dispose();
+    final oldOps = _ops;
+    _ops = null;
+    oldOps?.dispose();
     final oldNotify = _notifyGroups;
     _notifyGroups = null;
     oldNotify?.dispose();
@@ -1055,6 +1082,7 @@ final class ClientContext extends ChangeNotifier {
     _memory?.suspend();
     _sessions?.suspend();
     _cron?.suspend();
+    _ops?.suspend();
     _notifyGroups?.suspend();
     _automations?.suspend();
     _linear?.suspend();
@@ -1137,6 +1165,7 @@ final class ClientContext extends ChangeNotifier {
     unawaited(_memory?.recover());
     unawaited(_sessions?.recover());
     unawaited(_cron?.recover());
+    unawaited(_ops?.recover());
     unawaited(_notifyGroups?.recover());
     unawaited(_automations?.recover());
     unawaited(_linear?.recover());

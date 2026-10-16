@@ -80,6 +80,7 @@ final class ButterApi {
     _telegramAdmin = TelegramAdminServiceClient(transport);
     _memoryConfig = WorkspaceMemoryConfigServiceClient(transport);
     _memories = WorkspaceMemoryServiceClient(transport);
+    _dashboard = DashboardServiceClient(transport);
     _linearApp = LinearAppServiceClient(transport);
     _linearAdmin = LinearAdminServiceClient(transport);
     _linearProcessing = LinearProcessingServiceClient(transport);
@@ -111,6 +112,7 @@ final class ButterApi {
   late final TelegramAdminServiceClient _telegramAdmin;
   late final WorkspaceMemoryConfigServiceClient _memoryConfig;
   late final WorkspaceMemoryServiceClient _memories;
+  late final DashboardServiceClient _dashboard;
   late final LinearAppServiceClient _linearApp;
   late final LinearAdminServiceClient _linearAdmin;
   late final LinearProcessingServiceClient _linearProcessing;
@@ -1462,6 +1464,100 @@ final class ButterApi {
         headers: _headers(token, workspace),
         signal: _deadline,
       );
+
+  Future<CreateAPITokenResponse> createApiToken(
+    String token,
+    String workspace,
+    String name,
+  ) => _apiTokens.createAPIToken(
+    CreateAPITokenRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// Server-wide dashboard metrics (global admin only; no workspace header).
+  Future<GetOverviewResponse> getDashboardOverview(String token) =>
+      _dashboard.getOverview(
+        GetOverviewRequest(),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+
+  Future<GetActivityFeedResponse> getActivityFeed(
+    String token, {
+    int limit = 20,
+    String pageToken = '',
+  }) => _dashboard.getActivityFeed(
+    GetActivityFeedRequest(limit: limit, pageToken: pageToken),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+
+  Future<GetActivityMetricsResponse> getActivityMetrics(
+    String token,
+    GetActivityMetricsRequest_Range range,
+  ) => _dashboard.getActivityMetrics(
+    GetActivityMetricsRequest(range: range),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+
+  Future<GetCronExecutionTimeseriesResponse> getCronExecutionTimeseries(
+    String token,
+    GetCronExecutionTimeseriesRequest_Range range, {
+    String jobName = '',
+  }) => _dashboard.getCronExecutionTimeseries(
+    GetCronExecutionTimeseriesRequest(range: range, jobName: jobName),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+
+  Future<ListAgentInvocationsResponse> listAgentInvocations(
+    String token,
+    String workspace, {
+    String agentId = '',
+    String sessionId = '',
+    int pageSize = 20,
+    String pageToken = '',
+  }) => _agents.listAgentInvocations(
+    ListAgentInvocationsRequest(
+      agentId: agentId,
+      sessionId: sessionId,
+      pageSize: pageSize,
+      pageToken: pageToken,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<Invocation> getAgentInvocation(
+    String token,
+    String workspace,
+    String invocationId,
+  ) async {
+    final reply = await _agents.getAgentInvocation(
+      GetAgentInvocationRequest(invocationId: invocationId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasInvocation()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Invocation not found.',
+      );
+    }
+    return reply.invocation;
+  }
+
+  Future<CancelAgentInvocationResponse> cancelAgentInvocation(
+    String token,
+    String workspace,
+    String invocationId,
+  ) => _agents.cancelAgentInvocation(
+    CancelAgentInvocationRequest(invocationId: invocationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
 
   /// Lists ADK sessions visible under the session access policy. Pass
   /// [workspaceScoped] true only for the caller's own AG-UI threads in

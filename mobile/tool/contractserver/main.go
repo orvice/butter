@@ -357,6 +357,9 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 		agentsv1connect.AgentServiceListAgentOperationsProcedure,
 		agentsv1connect.AgentServiceRetryAgentOperationProcedure,
 		agentsv1connect.AgentServiceGetAgentRuntimeStatusProcedure,
+		agentsv1connect.AgentServiceListAgentInvocationsProcedure,
+		agentsv1connect.AgentServiceGetAgentInvocationProcedure,
+		agentsv1connect.AgentServiceCancelAgentInvocationProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
 	}
@@ -385,6 +388,7 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 		providers:  runnerProviders,
 	}
 	agentSvc.SetRuntime(rt)
+	agentSvc.SetRunnerService(boxRunner)
 	if err := registerCronFixture(ctx, r, opts, agentRepo, boxRunner, chatSessions, telegramRepo); err != nil {
 		return nil, nil, err
 	}
@@ -421,6 +425,9 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	mcpFx.register(r, mux, opts)
 	mcpFx.remoteSvc.SetDaemonRegistry(dfx.registry)
 	dfx.register(r, mux, opts, wsRepo)
+	if err := registerOpsFixture(ctx, r, opts, agentSvc, agentRepo, wsRepo, dfx.tokens, dfx.registry, func() bool { return boxRunner != nil }, authRepo.user.GetId()); err != nil {
+		return nil, nil, err
+	}
 	mux.Handle("/fake-box/", boxDouble())
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
 	mux.Handle(legacyPrefix+"/", legacyMCPServer(r))
