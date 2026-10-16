@@ -265,7 +265,14 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) ([]*ag
 
 	// Build lookup from registry.
 	byID := make(map[string]*agentsv1.MCPServer, len(registry))
+	// The registry spans Workspaces, so an ID is only resolved among the
+	// agent's own: two Workspaces may each own an MCP server with the same
+	// ID, and a run must never reach the other one's endpoint or headers.
+	hostWorkspace := pb.GetWorkspaceId()
 	for i := range registry {
+		if ws := registry[i].GetWorkspaceId(); hostWorkspace != "" && ws != "" && ws != hostWorkspace {
+			continue
+		}
 		if id := registry[i].GetId(); id != "" {
 			byID[id] = &registry[i]
 		}
@@ -611,7 +618,14 @@ func resolveRemoteAgents(pb *agentsv1.Agent, registry []agentsv1.RemoteAgent, da
 
 	// Build lookup from registry.
 	byID := make(map[string]*agentsv1.RemoteAgent, len(registry))
+	// The registry spans Workspaces, so an ID is only resolved among the
+	// agent's own: two Workspaces may each own a Remote Agent with the same
+	// ID, and a run must never reach the other one's endpoint or runtime.
+	hostWorkspace := pb.GetWorkspaceId()
 	for i := range registry {
+		if ws := registry[i].GetWorkspaceId(); hostWorkspace != "" && ws != "" && ws != hostWorkspace {
+			continue
+		}
 		if id := registry[i].GetId(); id != "" {
 			byID[id] = &registry[i]
 		}

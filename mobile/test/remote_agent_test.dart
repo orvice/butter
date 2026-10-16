@@ -126,10 +126,92 @@ void main() {
       expect(a.unknownFields.getField(99)?.varints.single.toInt(), 5);
     });
 
-    test('Daemon agents are not editable here', () {
-      expect(remoteAgentEditable(daemon('d1')), isFalse);
+    test('Daemon agents are editable; unknown protocols are not', () {
+      expect(remoteAgentEditable(daemon('d1')), isTrue);
       expect(remoteAgentEditable(a2a('a')), isTrue);
       expect(isDaemonAgent(daemon('d1')), isTrue);
+      expect(remoteAgentEditable(RemoteAgent(id: 'x', name: 'X')), isFalse);
+    });
+
+    test(
+      'a Daemon agent needs a runtime of this Workspace and an executor',
+      () {
+        final d = RemoteAgentDraft.create()
+          ..id = 'd'
+          ..name = 'D'
+          ..kind = RemoteKind.daemon;
+        expect(d.validateRuntime(), contains('runtime'));
+        d.daemonRuntimeId = 'rt-1';
+        expect(d.validateAcpRuntime(), contains('executor'));
+        d.acpRuntime = 'claude';
+        expect(d.validateAcpRuntime(), contains('opencode or codex'));
+        d.acpRuntime = 'codex';
+        // The URL is not part of a Daemon agent.
+        expect(d.firstError(), isNull);
+        final a = d.build();
+        expect(a.protocol, RemoteAgentProtocol.REMOTE_AGENT_PROTOCOL_DAEMON);
+        expect(a.daemonRuntimeId, 'rt-1');
+        expect(a.acpRuntime, 'codex');
+        expect(a.hasUrl(), isFalse);
+        expect(a.hasUsername(), isFalse);
+      },
+    );
+
+    test('editing a Daemon agent keeps what the form does not own', () {
+      final stored = daemon('d1')
+        ..workspaceId = 'alpha'
+        ..url = 'https://ignored.example.com';
+      stored.unknownFields.mergeVarintField(99, Int64(5));
+      final d = RemoteAgentDraft.edit(stored);
+      expect(d.kind, RemoteKind.daemon);
+      expect(d.daemonRuntimeId, 'rt-1');
+      expect(d.acpRuntime, 'opencode');
+      expect(d.dirty, isFalse);
+      expect(d.discards(), isEmpty);
+      d.acpRuntime = 'codex';
+      final a = d.build();
+      expect(a.acpRuntime, 'codex');
+      expect(a.url, 'https://ignored.example.com');
+      expect(a.workspaceId, 'alpha');
+      expect(a.unknownFields.getField(99)?.varints.single.toInt(), 5);
+    });
+
+    test('switching protocol names what is discarded, never silently', () {
+      final fromOpenCode = RemoteAgentDraft.edit(opencode('o1'))
+        ..kind = RemoteKind.daemon
+        ..daemonRuntimeId = 'rt-1'
+        ..acpRuntime = 'codex';
+      final text = fromOpenCode.discards().join(' ');
+      expect(text, contains('OpenCode'));
+      expect(text, contains('https://oc.example.com'));
+      expect(text, contains('password'));
+      final built = fromOpenCode.build();
+      expect(built.hasUrl(), isFalse);
+      expect(built.opencodeAgent, '');
+      expect(built.password, '');
+      expect(built.daemonRuntimeId, 'rt-1');
+
+      final fromA2a = RemoteAgentDraft.edit(a2a('a1'))
+        ..kind = RemoteKind.daemon;
+      expect(fromA2a.discards().join(' '), contains('https://a2a.example.com'));
+
+      final toA2a = RemoteAgentDraft.edit(daemon('d1'))
+        ..kind = RemoteKind.a2a
+        ..url = 'https://a2a.example.com';
+      expect(
+        toA2a.discards().join(' '),
+        allOf(contains('rt-1'), contains('opencode')),
+      );
+      final back = toA2a.build();
+      expect(back.protocol, RemoteAgentProtocol.REMOTE_AGENT_PROTOCOL_A2A);
+      expect(back.hasDaemonRuntimeId(), isFalse);
+      expect(back.hasAcpRuntime(), isFalse);
+
+      final toOpenCode = RemoteAgentDraft.edit(daemon('d1'))
+        ..kind = RemoteKind.opencode
+        ..url = 'https://oc.example.com';
+      expect(toOpenCode.discards(), isNotEmpty);
+      expect(toOpenCode.build().hasDaemonRuntimeId(), isFalse);
     });
 
     test('create is clean until something is entered', () {

@@ -7,14 +7,20 @@ import 'dart:typed_data';
 import 'package:connectrpc/connect.dart' as connect;
 import 'package:connectrpc/protobuf.dart';
 import 'package:connectrpc/protocol/connect.dart' as protocol;
+import 'package:fixnum/fixnum.dart';
+import 'package:protobuf/well_known_types/google/protobuf/duration.pb.dart'
+    as pbd;
 
 import '../gen/agents/v1/agent.pb.dart';
 import '../gen/agents/v1/agent_service.connect.client.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
+import '../gen/agents/v1/api_token.connect.client.dart';
+import '../gen/agents/v1/api_token.pb.dart';
 import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/butterbox.connect.client.dart';
 import '../gen/agents/v1/butterbox.pb.dart';
+import '../gen/agents/v1/dashboard.connect.client.dart';
 import '../gen/agents/v1/dashboard.pb.dart';
 import '../gen/agents/v1/repobinding.connect.client.dart';
 import '../gen/agents/v1/repobinding.pb.dart';
@@ -45,6 +51,8 @@ final class ButterApi {
     _mcp = MCPServerServiceClient(transport);
     _globalMcp = GlobalMCPServerServiceClient(transport);
     _remoteAgents = RemoteAgentServiceClient(transport);
+    _daemons = DaemonServiceClient(transport);
+    _apiTokens = APITokenServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -60,6 +68,8 @@ final class ButterApi {
   late final MCPServerServiceClient _mcp;
   late final GlobalMCPServerServiceClient _globalMcp;
   late final RemoteAgentServiceClient _remoteAgents;
+  late final DaemonServiceClient _daemons;
+  late final APITokenServiceClient _apiTokens;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -792,6 +802,180 @@ final class ButterApi {
     }
     return reply.status;
   }
+
+  // ---- Daemon execution (DaemonService). Every call carries the selected
+  // Workspace. A worker token is minted only by [createDaemonRuntimeToken];
+  // this client never creates an ordinary API token. ----
+
+  Future<List<DaemonRuntime>> daemonRuntimes(
+    String token,
+    String workspace,
+  ) async => (await _daemons.listDaemonRuntimes(
+    ListDaemonRuntimesRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).runtimes;
+
+  Future<DaemonRuntime> daemonRuntime(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _daemons.getDaemonRuntime(
+      GetDaemonRuntimeRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRuntime()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Daemon runtime missing.',
+      );
+    }
+    return reply.runtime;
+  }
+
+  DaemonRuntime _runtimeReply(bool has, DaemonRuntime Function() read) {
+    if (!has) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Daemon runtime reply missing.',
+      );
+    }
+    return read();
+  }
+
+  Future<DaemonRuntime> createDaemonRuntime(
+    String token,
+    String workspace,
+    DaemonRuntime runtime,
+  ) async {
+    final reply = await _daemons.createDaemonRuntime(
+      CreateDaemonRuntimeRequest(runtime: runtime),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _runtimeReply(reply.hasRuntime(), () => reply.runtime);
+  }
+
+  /// One whole-object update: what is sent is what is stored.
+  Future<DaemonRuntime> updateDaemonRuntime(
+    String token,
+    String workspace,
+    DaemonRuntime runtime,
+  ) async {
+    final reply = await _daemons.updateDaemonRuntime(
+      UpdateDaemonRuntimeRequest(runtime: runtime),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _runtimeReply(reply.hasRuntime(), () => reply.runtime);
+  }
+
+  Future<void> deleteDaemonRuntime(String token, String workspace, String id) =>
+      _daemons.deleteDaemonRuntime(
+        DeleteDaemonRuntimeRequest(id: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  /// Mints one worker token bound to [runtimeId]. Not idempotent: every call
+  /// stores another token, so a caller must never repeat it on its own. The
+  /// reply carries the secret exactly once.
+  Future<CreateDaemonRuntimeTokenResponse> createDaemonRuntimeToken(
+    String token,
+    String workspace,
+    String runtimeId,
+    String name, {
+    Duration? ttl,
+  }) async {
+    final reply = await _daemons.createDaemonRuntimeToken(
+      CreateDaemonRuntimeTokenRequest(
+        daemonRuntimeId: runtimeId,
+        name: name,
+        // Absent means the token does not expire; never a zero duration.
+        ttl: ttl == null || ttl <= Duration.zero
+            ? null
+            : pbd.Duration(seconds: Int64(ttl.inSeconds)),
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (reply.secret.isEmpty || !reply.hasToken()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Worker token reply incomplete.',
+      );
+    }
+    return reply;
+  }
+
+  /// The daemons connected right now. A runtime that is not listed is offline.
+  Future<List<DaemonStatus>> daemons(String token, String workspace) async =>
+      (await _daemons.listDaemons(
+        ListDaemonsRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      )).daemons;
+
+  /// Tasks in flight only; a finished task is not listed anywhere.
+  Future<List<DaemonTaskInFlight>> daemonTasks(
+    String token,
+    String workspace,
+  ) async => (await _daemons.listDaemonTasks(
+    ListDaemonTasksRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).tasks;
+
+  /// Asks the server to deliver a cancel to the worker running [taskId]. The
+  /// reply means the cancel was handed over, never that the task stopped.
+  /// Returns the runtime that received it.
+  Future<String> cancelDaemonTask(
+    String token,
+    String workspace,
+    String taskId,
+    String runtimeId,
+  ) async => (await _daemons.cancelDaemonTask(
+    CancelDaemonTaskRequest(taskId: taskId, daemonRuntimeId: runtimeId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).daemonRuntimeId;
+
+  /// Process metrics of the Butter server, shared by every Workspace.
+  Future<BridgeDiagnostics> bridgeDiagnostics(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _daemons.getBridgeDiagnostics(
+      GetBridgeDiagnosticsRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasDiagnostics()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Diagnostics reply missing.',
+      );
+    }
+    return reply.diagnostics;
+  }
+
+  /// Every token of the Workspace, of every kind. Callers must keep only the
+  /// worker tokens they manage and never show another kind.
+  Future<List<APIToken>> apiTokens(String token, String workspace) async =>
+      (await _apiTokens.listAPITokens(
+        ListAPITokensRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      )).tokens;
+
+  Future<void> revokeApiToken(String token, String workspace, String id) =>
+      _apiTokens.revokeAPIToken(
+        RevokeAPITokenRequest(id: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
 
   /// One page of the caller's AG-UI thread sessions in [workspace]. The server
   /// scopes the list to that Workspace; which sessions are bound threads is

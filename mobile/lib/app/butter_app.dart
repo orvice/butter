@@ -7,6 +7,7 @@ import 'app_preferences.dart';
 import '../core/management_page.dart';
 import '../features/butterboxes/box_pages.dart';
 import '../features/mcp/mcp_pages.dart';
+import '../features/daemons/daemon_pages.dart';
 import '../features/remote_agents/remote_agent_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
@@ -565,6 +566,12 @@ class _Agents extends StatelessWidget {
                 : () => openRemoteAgents(context, client),
             icon: const Icon(Icons.hub_outlined),
             label: const Text('Remote Agents'),
+          ),
+          TextButton.icon(
+            key: const Key('open-daemons'),
+            onPressed: client.busy ? null : () => openDaemons(context, client),
+            icon: const Icon(Icons.developer_board),
+            label: const Text('Daemon execution'),
           ),
           TextButton.icon(
             onPressed: client.busy ? null : client.refreshWorkspaces,
