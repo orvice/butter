@@ -17,6 +17,7 @@ import '../features/agents/agent_lifecycle_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
 import '../features/cron/cron_pages.dart';
+import '../features/ops/ops_pages.dart';
 import '../features/sessions/session_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
@@ -519,6 +520,36 @@ class _Agents extends StatelessWidget {
       Wrap(
         spacing: 12,
         children: [
+          TextButton.icon(
+            key: const Key('open-overview'),
+            onPressed: client.busy ? null : () => openOverview(context, client),
+            icon: const Icon(Icons.dashboard_outlined),
+            label: const Text('Overview'),
+          ),
+          TextButton.icon(
+            key: const Key('open-operations'),
+            onPressed: client.busy
+                ? null
+                : () => openInvocations(context, client),
+            icon: const Icon(Icons.playlist_play),
+            label: const Text('Operations'),
+          ),
+          TextButton.icon(
+            key: const Key('open-api-tokens'),
+            onPressed: client.busy
+                ? null
+                : () => openApiTokens(context, client),
+            icon: const Icon(Icons.key_outlined),
+            label: const Text('API tokens'),
+          ),
+          TextButton.icon(
+            key: const Key('open-integrations'),
+            onPressed: client.busy
+                ? null
+                : () => openIntegrationsHub(context, client),
+            icon: const Icon(Icons.hub),
+            label: const Text('Integrations'),
+          ),
           FilledButton.tonalIcon(
             key: const Key('open-chat'),
             onPressed: client.busy

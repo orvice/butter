@@ -301,6 +301,20 @@ Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disabl
 
 Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
 
+## Overview, Operations, API tokens, Integrations (#468)
+
+Agents → **Overview** shows Workspace-scoped counts, recent invocation activity, cron execution history, and server bridge diagnostics for ordinary members. Global admins additionally see `DashboardService` aggregates labeled as server-wide (all Workspaces). **Operations** lists `ListAgentInvocations` for the current Workspace and offers `CancelAgentInvocation` with source-specific messaging (runner vs detached AG-UI Stop). **API tokens** lists only `API_TOKEN_KIND_USER` tokens, with create/revoke for owners/admins and a one-time secret screen (never persisted). **Integrations** copies Connect/OpenAI-compatible base URLs and deep-links to MCP, Remote Agents, Daemon execution (#455), Cron (#464), tokens and Operations. Daemon worker tokens stay on Daemon execution only.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Server-wide overview (admin) | `DashboardService` GetOverview / GetActivityFeed / GetActivityMetrics / GetCronExecutionTimeseries | Overview (admin account) | `ops_contract_test` (permission denied for member) |
+| Workspace overview (member) | List agents/MCP/remote/cron/daemon + `ListAgentInvocations` + `ListCronExecutions` + `GetBridgeDiagnostics` | Overview | `overview_controller_test`, widget smoke optional |
+| Invocations list/detail/cancel | `ListAgentInvocations`, `GetAgentInvocation`, `CancelAgentInvocation` | Operations | `ops_contract_test`, `overview_controller_test` |
+| Personal API tokens | `APITokenService` List / Create / Revoke (`USER` kind only in UI) | API tokens | `ops_contract_test` |
+| Integration URLs / hub | (copy-only bases + navigation) | Integrations | `ops_pages` smoke via navigation keys |
+
+Fixture: `tool/contractserver/dashboard_ops.go` (workspace `ops468`). Contract: `ops_contract_test.dart`.
+
 ## File spaces and Agent associations (#456)
 
 Workspace → **File spaces** manages `AgentFileService`: spaces, the text files in them, their versions and search. The Agent editor (LLM, Loop, Sequential, Parallel and Workflow Agents; Pi and Cursor leaves are unchanged) selects the existing MCP servers, Remote Agents, file spaces (mounts) and Skills an Agent references. Skill creation, `SKILL.md` editing and Skill Resource management stay in Web: the Skill list is read for selection only. File content travels as the UTF-8 text of `WriteAgentFile` / `GetAgentFile`, never through the avatar upload.
