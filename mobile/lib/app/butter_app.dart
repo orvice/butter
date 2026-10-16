@@ -13,6 +13,7 @@ import '../features/remote_agents/remote_agent_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
+import '../features/sessions/session_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/workspaces/workspace_pages.dart';
@@ -567,6 +568,12 @@ class _Agents extends StatelessWidget {
                 : () => openFileSpaces(context, client),
             icon: const Icon(Icons.folder_outlined),
             label: const Text('File spaces'),
+          ),
+          TextButton.icon(
+            key: const Key('open-sessions'),
+            onPressed: client.busy ? null : () => openSessions(context, client),
+            icon: const Icon(Icons.history),
+            label: const Text('Sessions'),
           ),
           TextButton.icon(
             key: const Key('open-remote-agents'),

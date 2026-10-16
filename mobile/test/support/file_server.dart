@@ -319,6 +319,11 @@ class FileServerFake extends McpServerFake {
   }
 
   bool _fail(HttpRequest r, int status, String code, String message) {
+    return rpcFail(r, status, code, message);
+  }
+
+  /// Connect-style JSON error for fakes extended by other test servers.
+  bool rpcFail(HttpRequest r, int status, String code, String message) {
     r.response.statusCode = status;
     r.response.headers.contentType = ContentType.json;
     r.response.write(jsonEncode({'code': code, 'message': message}));

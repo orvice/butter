@@ -217,21 +217,20 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace} {
+	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace, filesWorkspace, filesPeerWorkspace, sessionsWorkspace, sessionsPeerWS} {
 		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
 			return nil, nil, err
 		}
 		role := "member"
-		if id == daemonWorkspace {
-			// The Daemon Workspace is the one the account owns, so token
-			// revocation is allowed there; every other Workspace shows the
-			// member's refusal.
+		if id == daemonWorkspace || id == sessionsWorkspace || id == sessionsPeerWS {
+			// Owner role so session listing for another user and token
+			// revocation tests can run in those Workspaces.
 			role = "owner"
 		}
 		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
 			return nil, nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace {
+		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace || id == filesWorkspace || id == filesPeerWorkspace || id == sessionsWorkspace || id == sessionsPeerWS {
 			// Chat's agent is the runnable one the chat fixture registers;
 			// the box, MCP and Daemon Workspaces start with none, their
 			// resources are created by the contract tests.
@@ -376,13 +375,13 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	backends := newFileBackends()
 	backends.register(r, opts)
-	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, opts, bx, backends, skillRepo)
+	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, wsRepo, opts, bx, backends, skillRepo)
 	if err != nil {
 		return nil, nil, err
 	}
 	agentSvc.SetRuntime(reloader{
 		runner: boxRunner, agents: agentRepo,
-		workspaces: []string{chatWorkspace, boxWorkspace, filesWorkspace},
+		workspaces: []string{chatWorkspace, boxWorkspace, filesWorkspace, sessionsWorkspace},
 		providers:  runnerProviders,
 	})
 	_, boxHandler := agentsv1connect.NewButterBoxServiceHandler(bx.svc, opts...)
