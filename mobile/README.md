@@ -261,6 +261,20 @@ Agents → **Sessions** lists ADK sessions the caller may access in the active W
 
 **Evidence and limits.** `tool/contractserver/sessions.go` seeds explorer fixtures; `chat.go` registers the full production `SessionServiceServer` (including `ReplySession` with the chat runner). `session_contract_test` (root and `/butter`) covers owner list/filter, detail, rename, reply, delete, Workspace isolation and missing Agent refusal. Widget tests use `test/support/session_server.dart`. Member-only denial of another user's private session is enforced by the production Go tests in `session_access_test.go`; the contract fixture uses an owner account. No Android/iOS device run.
 
+## Cron jobs (#464)
+
+Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disable, structured schedule/timezone/reliability/delivery editing, run-now (confirmed, never auto-retried), execution list/detail, and **WAITING_INPUT** reply through `SessionController.reply` (not Chat or Telegram).
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / CRUD / enable | `CronJobService` | Cron list, editor, detail switch | `cron_contract_test`, `cron_draft_test`, `cron_widget_test` |
+| Run now | `RunCronJobNow` | Detail → confirm → Run | `cron_contract_test`, `cron_controller_test` |
+| Executions | `ListCronExecutions` | Detail → execution rows | `cron_contract_test` |
+| Delivery pickers | `NotifyGroupService.ListNotifyGroups`, `TelegramDestinationService.ListTelegramDestinations` | Editor delivery fields | `cron_contract_test` |
+| WAITING_INPUT reply | `SessionService.ReplySession` via `CronController.replyToExecution` | Execution detail → Send reply | `cron_contract_test` (session seeded in `tool/contractserver/cron.go`) |
+
+Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
+
 ## File spaces and Agent associations (#456)
 
 Workspace → **File spaces** manages `AgentFileService`: spaces, the text files in them, their versions and search. The Agent editor (LLM, Loop, Sequential, Parallel and Workflow Agents; Pi and Cursor leaves are unchanged) selects the existing MCP servers, Remote Agents, file spaces (mounts) and Skills an Agent references. Skill creation, `SKILL.md` editing and Skill Resource management stay in Web: the Skill list is read for selection only. File content travels as the UTF-8 text of `WriteAgentFile` / `GetAgentFile`, never through the avatar upload.

@@ -23,8 +23,12 @@ import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/butterbox.connect.client.dart';
 import '../gen/agents/v1/butterbox.pb.dart';
+import '../gen/agents/v1/cron.connect.client.dart';
+import '../gen/agents/v1/cron.pb.dart';
 import '../gen/agents/v1/dashboard.connect.client.dart';
 import '../gen/agents/v1/dashboard.pb.dart';
+import '../gen/agents/v1/telegram.connect.client.dart';
+import '../gen/agents/v1/telegram.pb.dart';
 import '../gen/agents/v1/githost.connect.client.dart';
 import '../gen/agents/v1/githost.pb.dart';
 import '../gen/agents/v1/repobinding.connect.client.dart';
@@ -60,6 +64,9 @@ final class ButterApi {
     _remoteAgents = RemoteAgentServiceClient(transport);
     _daemons = DaemonServiceClient(transport);
     _apiTokens = APITokenServiceClient(transport);
+    _cron = CronJobServiceClient(transport);
+    _notifyGroups = NotifyGroupServiceClient(transport);
+    _telegramDestinations = TelegramDestinationServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -79,6 +86,9 @@ final class ButterApi {
   late final RemoteAgentServiceClient _remoteAgents;
   late final DaemonServiceClient _daemons;
   late final APITokenServiceClient _apiTokens;
+  late final CronJobServiceClient _cron;
+  late final NotifyGroupServiceClient _notifyGroups;
+  late final TelegramDestinationServiceClient _telegramDestinations;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -1669,6 +1679,121 @@ final class ButterApi {
       connect.Headers(),
     );
   }
+
+  // ---- Cron jobs (#464) ----
+
+  Future<List<CronJob>> listCronJobs(String token, String workspace) async =>
+      (await _cron.listCronJobs(
+        ListCronJobsRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      )).cronJobs;
+
+  Future<CronJob> getCronJob(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _cron.getCronJob(
+      GetCronJobRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasCronJob()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Cron job missing.',
+      );
+    }
+    return reply.cronJob;
+  }
+
+  Future<CronJob> createCronJob(
+    String token,
+    String workspace,
+    CronJob job,
+  ) async => (await _cron.createCronJob(
+    CreateCronJobRequest(cronJob: job),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).cronJob;
+
+  Future<CronJob> updateCronJob(
+    String token,
+    String workspace,
+    CronJob job,
+  ) async => (await _cron.updateCronJob(
+    UpdateCronJobRequest(cronJob: job),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).cronJob;
+
+  Future<CronJob> deleteCronJob(
+    String token,
+    String workspace,
+    String name,
+  ) async => (await _cron.deleteCronJob(
+    DeleteCronJobRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).cronJob;
+
+  Future<CronExecution> runCronJobNow(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _cron.runCronJobNow(
+      RunCronJobNowRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasExecution()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'Run response missing execution.',
+      );
+    }
+    return reply.execution;
+  }
+
+  Future<({List<CronExecution> executions, String nextPageToken})>
+  listCronExecutions(
+    String token,
+    String workspace, {
+    String jobName = '',
+    int pageSize = 20,
+    String pageToken = '',
+  }) async {
+    final reply = await _cron.listCronExecutions(
+      ListCronExecutionsRequest(
+        jobName: jobName,
+        pageSize: pageSize,
+        pageToken: pageToken,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return (executions: reply.executions, nextPageToken: reply.nextPageToken);
+  }
+
+  Future<List<NotifyGroup>> listNotifyGroups(
+    String token,
+    String workspace,
+  ) async => (await _notifyGroups.listNotifyGroups(
+    ListNotifyGroupsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).notifyGroups;
+
+  Future<List<TelegramDestination>> listTelegramDestinations(
+    String token,
+    String workspace,
+  ) async => (await _telegramDestinations.listTelegramDestinations(
+    ListTelegramDestinationsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).destinations;
 
   void close() => _client.close(force: true);
 }

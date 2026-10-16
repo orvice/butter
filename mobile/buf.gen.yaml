@@ -18,3 +18,5 @@ inputs:
       - ../proto/agents/v1/githost.proto
       - ../proto/agents/v1/repobinding.proto
       - ../proto/agents/v1/agent_file.proto
+      - ../proto/agents/v1/cron.proto
+      - ../proto/agents/v1/telegram.proto

@@ -60,5 +60,6 @@ contract_tests=(
   test/repo_binding_contract_test.dart
   test/chat_reconnect_contract_test.dart
   test/session_contract_test.dart
+  test/cron_contract_test.dart
 )
 flutter test --concurrency=1 "${contract_tests[@]}" "--dart-define=BUTTER_TEST_SERVER=$url"

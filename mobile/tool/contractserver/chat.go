@@ -323,10 +323,10 @@ func lastUserText(messages []openaifake.ChatCompletionMessage) string {
 }
 
 // registerChat wires the chat fixture's routes onto r.
-func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, wsRepo workspace.Repository, opts []connect.HandlerOption, bx *boxFixture, backends *fileBackends, skills skillrepo.Repository) (*runner.Service, []agentsv1.ModelProvider, error) {
+func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, wsRepo workspace.Repository, opts []connect.HandlerOption, bx *boxFixture, backends *fileBackends, skills skillrepo.Repository) (*runner.Service, *chatSessions, []agentsv1.ModelProvider, error) {
 	modelURL, err := fakeModel(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	agents := []agentsv1.Agent{{
 		Name: "chat-talker", AgentId: chatAgentID, WorkspaceId: chatWorkspace,
@@ -335,17 +335,17 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	if _, err := agentRepo.CreateAgent(ctx, chatWorkspace, &agentsv1.Agent{
 		Name: agents[0].Name, AgentId: agents[0].AgentId, Config: agents[0].Config,
 	}); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	sessions := newChatSessions()
 	if err := seedExplorerSessions(ctx, sessions); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if _, err := agentRepo.CreateAgent(ctx, sessionsWorkspace, &agentsv1.Agent{
 		Name: "sessions-helper", AgentId: sessionsAgentID, WorkspaceId: sessionsWorkspace,
 		Config: &agentsv1.AgentConfig{Model: chatModel},
 	}); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	agents = append(agents, agentsv1.Agent{
 		Name: "sessions-helper", AgentId: sessionsAgentID, WorkspaceId: sessionsWorkspace,
@@ -355,7 +355,7 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	svc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, agents, providers,
 		nil, nil, nil, sessions, nil, nil, backends.files, 0, skills, adkrunner.PluginConfig{}, nil, bx.builders)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	invocations := invocationmemory.New().WithOwner("contract-fixture")
 	svc.SetInvocationRecorder(invocations)
@@ -374,7 +374,7 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	if _, err := sessions.Create(legacyCtx, &adksession.CreateRequest{
 		AppName: "agui", UserID: chatUserID, SessionID: "agui-" + legacyThread,
 	}); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	sessionSvc := application.NewSessionServiceServer()
@@ -395,7 +395,7 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", handler)))
 	}
-	return svc, providers, nil
+	return svc, sessions, providers, nil
 }
 
 // chatProviders is the one provider the fixture's runner serves, pointed at
