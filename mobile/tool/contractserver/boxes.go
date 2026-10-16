@@ -305,7 +305,32 @@ func (r reloader) ReloadRunner(ctx context.Context) error {
 			all[len(all)-1].WorkspaceId = ws
 		}
 	}
-	return r.runner.ReloadProtoAgents(ctx, all, r.providers, nil, nil)
+	// The runner resolves an Agent's mcp_server_ids and remote_agent_ids
+	// against these registries, as the production reload does with the
+	// flattened config store.
+	var mcps []agentsv1.MCPServer
+	var remotes []agentsv1.RemoteAgent
+	for _, ws := range r.workspaces {
+		servers, err := r.agents.ListMCPServers(ctx, ws)
+		if err != nil {
+			return err
+		}
+		for _, stored := range servers {
+			mcps = append(mcps, agentsv1.MCPServer{})
+			proto.Merge(&mcps[len(mcps)-1], stored)
+			mcps[len(mcps)-1].WorkspaceId = ws
+		}
+		agents, err := r.agents.ListRemoteAgents(ctx, ws)
+		if err != nil {
+			return err
+		}
+		for _, stored := range agents {
+			remotes = append(remotes, agentsv1.RemoteAgent{})
+			proto.Merge(&remotes[len(remotes)-1], stored)
+			remotes[len(remotes)-1].WorkspaceId = ws
+		}
+	}
+	return r.runner.ReloadProtoAgents(ctx, all, r.providers, mcps, remotes)
 }
 
 func (reloader) ReloadChannels(context.Context) error { return nil }
