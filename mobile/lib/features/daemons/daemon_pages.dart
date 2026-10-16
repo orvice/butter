@@ -454,19 +454,42 @@ class MintChoice {
   final Duration? ttl;
 }
 
-/// Days until a worker token expires: blank means it never does. Null error
-/// means the text is usable.
-({Duration? ttl, String? error}) parseExpiryDays(String text) {
+/// The longest lifetime the server can represent: its `time.Duration` holds
+/// `math.MaxInt64` nanoseconds (about 292 years). A longer one would be
+/// clamped there without a word, so it is refused instead.
+const maxTokenLifetimeHours = 2562047;
+
+final _hoursText = RegExp(r'^(\d+\.?\d*|\.\d+)$');
+
+/// Hours until a worker token expires, as the Web dashboard asks for them: a
+/// positive decimal such as `1`, `12` or `0.5`. Blank means it never expires.
+/// Anything else (zero, negative, `NaN`, `Infinity`, exponents, separators,
+/// words, a lifetime the server cannot hold or one that rounds to nothing) is
+/// an error and never becomes a token without an expiry. A null error means
+/// the text is usable.
+({Duration? ttl, String? error}) parseExpiryHours(String text) {
   final t = text.trim();
   if (t.isEmpty) return (ttl: null, error: null);
-  final days = int.tryParse(t);
-  if (days == null || days < 1 || days > 3650) {
+  const refusal =
+      'Enter a positive number of hours, such as 1, 12 or 0.5, or leave it empty.';
+  if (!_hoursText.hasMatch(t)) return (ttl: null, error: refusal);
+  final hours = double.tryParse(t);
+  if (hours == null || !hours.isFinite || hours <= 0) {
+    return (ttl: null, error: refusal);
+  }
+  if (hours > maxTokenLifetimeHours) {
     return (
       ttl: null,
-      error: 'Enter a whole number of days from 1 to 3650, or leave it empty.',
+      error: 'The longest expiry is $maxTokenLifetimeHours hours (292 years).',
     );
   }
-  return (ttl: Duration(days: days), error: null);
+  // Whole microseconds, the finest a Dart Duration holds; the wire carries
+  // them as seconds and nanoseconds.
+  final micros = (hours * Duration.microsecondsPerHour).round();
+  if (micros < 1) {
+    return (ttl: null, error: 'That is shorter than one microsecond.');
+  }
+  return (ttl: Duration(microseconds: micros), error: null);
 }
 
 class _MintDialog extends StatefulWidget {
@@ -482,23 +505,23 @@ class _MintDialogState extends State<_MintDialog> {
         ? 'Worker for ${widget.runtime.id}'
         : 'Worker for ${widget.runtime.name}',
   );
-  final _days = TextEditingController();
+  final _hours = TextEditingController();
   String? _nameError;
-  String? _daysError;
+  String? _hoursError;
 
   @override
   void dispose() {
     _name.dispose();
-    _days.dispose();
+    _hours.dispose();
     super.dispose();
   }
 
   void _submit() {
     final name = _name.text.trim();
-    final expiry = parseExpiryDays(_days.text);
+    final expiry = parseExpiryHours(_hours.text);
     setState(() {
       _nameError = name.isEmpty ? 'Enter a name.' : null;
-      _daysError = expiry.error;
+      _hoursError = expiry.error;
     });
     if (name.isEmpty || expiry.error != null) return;
     Navigator.pop(context, MintChoice(name, expiry.ttl));
@@ -524,15 +547,15 @@ class _MintDialogState extends State<_MintDialog> {
             ),
           ),
           TextField(
-            key: const Key('mint-expiry-days'),
-            controller: _days,
-            keyboardType: TextInputType.number,
+            key: const Key('mint-expiry-hours'),
+            controller: _hours,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              labelText: 'Expires after (days)',
+              labelText: 'Expires after (hours)',
               helperText:
-                  'Empty: the token does not expire until you revoke it.',
+                  'Optional, for example 1, 12 or 0.5. Empty: the token does not expire until you revoke it.',
               helperMaxLines: 2,
-              errorText: _daysError,
+              errorText: _hoursError,
             ),
           ),
         ],

@@ -254,7 +254,8 @@ void main() {
         );
 
         test(
-          'a worker token expires only when an expiry was asked for',
+          'a worker token expires only when an expiry was asked for, down to '
+          'half an hour',
           () async {
             final c = daemons();
             final id = 'ttl-$tag';
@@ -264,22 +265,29 @@ void main() {
               DaemonRuntime(id: id, name: 'Ttl'),
             );
             addTearDown(() => api.deleteDaemonRuntime(token, workspace, id));
-            expect(await c.mint(id, 'forever'), isTrue, reason: c.writeError);
-            final forever = c.minted!.token;
-            c.dismissSecret();
-            final before = DateTime.now().toUtc();
-            expect(
-              await c.mint(id, 'a week', ttl: const Duration(days: 7)),
-              isTrue,
-              reason: c.writeError,
-            );
-            final week = c.minted!.token;
-            c.dismissSecret();
-            expect(forever.hasExpiresAt(), isFalse);
-            expect(week.hasExpiresAt(), isTrue);
-            final left = week.expiresAt.toDateTime().difference(before);
-            expect(left, greaterThan(const Duration(days: 6, hours: 23)));
-            expect(left, lessThan(const Duration(days: 7, hours: 1)));
+            Future<APIToken> mint(String name, {Duration? ttl}) async {
+              final before = DateTime.now().toUtc();
+              expect(
+                await c.mint(id, name, ttl: ttl),
+                isTrue,
+                reason: c.writeError,
+              );
+              final minted = c.minted!.token;
+              c.dismissSecret();
+              if (ttl != null) {
+                expect(minted.hasExpiresAt(), isTrue, reason: name);
+                final left = minted.expiresAt.toDateTime().difference(before);
+                expect(left, greaterThan(ttl - const Duration(seconds: 5)));
+                expect(left, lessThan(ttl + const Duration(seconds: 5)));
+              }
+              return minted;
+            }
+
+            expect((await mint('forever')).hasExpiresAt(), isFalse);
+            await mint('half an hour', ttl: const Duration(minutes: 30));
+            await mint('an hour', ttl: const Duration(hours: 1));
+            await mint('twelve hours', ttl: const Duration(hours: 12));
+            await mint('a week', ttl: const Duration(days: 7));
           },
         );
 

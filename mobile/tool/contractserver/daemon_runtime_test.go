@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"go.orx.me/apps/butter/internal/application"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -642,5 +643,46 @@ func TestWorkerTokensAreListedWithoutSecretsAndRevocationNeedsAnOwnerOrAdmin(t *
 	list, err = tokens.ListAPITokens(ctx, connect.NewRequest(&agentsv1.ListAPITokensRequest{}))
 	if err != nil || !list.Msg.GetTokens()[0].GetRevoked() {
 		t.Fatalf("tokens after revoke = %v, %v", list, err)
+	}
+}
+
+// The App asks for a worker token's lifetime in hours, so one hour, twelve
+// hours and half an hour must each reach the production service as exactly
+// that, and a request without a ttl must stay a token that never expires.
+func TestWorkerTokenLifetimeIsHonoredBelowOneDay(t *testing.T) {
+	h := newDaemonHarness(t)
+	ctx := context.Background()
+	h.createRuntime(daemonWorkspace, "rt-ttl")
+
+	mint := func(ttl *durationpb.Duration) *agentsv1.APIToken {
+		t.Helper()
+		resp, err := h.daemons(daemonWorkspace).CreateDaemonRuntimeToken(ctx, connect.NewRequest(
+			&agentsv1.CreateDaemonRuntimeTokenRequest{DaemonRuntimeId: "rt-ttl", Name: "ttl", Ttl: ttl}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.Msg.GetToken()
+	}
+	for _, tc := range []struct {
+		name string
+		ttl  time.Duration
+	}{
+		{"one hour", time.Hour},
+		{"twelve hours", 12 * time.Hour},
+		{"half an hour", 30 * time.Minute},
+		{"a tenth of a second", 100 * time.Millisecond},
+	} {
+		before := time.Now()
+		tok := mint(durationpb.New(tc.ttl))
+		if tok.GetExpiresAt() == nil {
+			t.Fatalf("%s: the token does not expire", tc.name)
+		}
+		left := tok.GetExpiresAt().AsTime().Sub(before)
+		if left < tc.ttl-time.Second || left > tc.ttl+time.Second {
+			t.Fatalf("%s: expires in %s, want about %s", tc.name, left, tc.ttl)
+		}
+	}
+	if tok := mint(nil); tok.GetExpiresAt() != nil {
+		t.Fatalf("no ttl minted a token that expires at %v", tok.GetExpiresAt())
 	}
 }

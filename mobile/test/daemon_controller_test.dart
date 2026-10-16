@@ -545,22 +545,58 @@ void main() {
         final h = await start(
           seed: (s) => s.seedRuntime('alpha', runtime('rt1')),
         );
-        expect(await h.daemons.mint('rt1', 'forever'), isTrue);
-        h.daemons.dismissSecret();
-        expect(
-          await h.daemons.mint('rt1', 'a day', ttl: const Duration(hours: 24)),
-          isTrue,
-        );
+        Future<void> mint(String name, {Duration? ttl}) async {
+          expect(await h.daemons.mint('rt1', name, ttl: ttl), isTrue);
+          h.daemons.dismissSecret();
+        }
+
+        await mint('forever');
+        await mint('a day', ttl: const Duration(hours: 24));
+        await mint('an hour', ttl: const Duration(hours: 1));
+        await mint('twelve hours', ttl: const Duration(hours: 12));
+        await mint('half an hour', ttl: const Duration(minutes: 30));
+        await mint('a tenth', ttl: const Duration(milliseconds: 1500));
         final bodies = [
           for (final c in h.server.daemonCalls)
             if (c.method == 'CreateDaemonRuntimeToken')
               CreateDaemonRuntimeTokenRequest.fromBuffer(c.body),
         ];
-        expect(bodies.map((b) => b.name), ['forever', 'a day']);
+        expect(bodies.map((b) => b.name), [
+          'forever',
+          'a day',
+          'an hour',
+          'twelve hours',
+          'half an hour',
+          'a tenth',
+        ]);
         expect(bodies[0].hasTtl(), isFalse);
         expect(bodies[1].ttl.seconds.toInt(), 86400);
+        expect(bodies[2].ttl.seconds.toInt(), 3600);
+        expect(bodies[3].ttl.seconds.toInt(), 12 * 3600);
+        expect(bodies[4].ttl.seconds.toInt(), 1800);
+        expect(bodies[4].ttl.nanos, 0);
+        expect(bodies[5].ttl.seconds.toInt(), 1);
+        expect(bodies[5].ttl.nanos, 500000000);
       },
     );
+
+    test('a zero or negative lifetime is refused and never sent', () async {
+      final h = await start(
+        seed: (s) => s.seedRuntime('alpha', runtime('rt1')),
+      );
+      for (final ttl in [Duration.zero, const Duration(hours: -1)]) {
+        expect(await h.daemons.mint('rt1', 'bad', ttl: ttl), isFalse);
+        expect(h.daemons.minted, isNull);
+        expect(h.daemons.writeError, contains('positive'));
+        expect(h.daemons.unconfirmed, isFalse);
+      }
+      expect(h.server.daemonCount('CreateDaemonRuntimeToken'), 0);
+      // Nothing is blocked afterwards: a valid mint still works.
+      expect(
+        await h.daemons.mint('rt1', 'fine', ttl: const Duration(hours: 1)),
+        isTrue,
+      );
+    });
 
     test('leaving the screen wipes the secret that was shown', () async {
       final h = await start(

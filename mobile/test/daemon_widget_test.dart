@@ -600,13 +600,7 @@ void main() {
       expect(fake(h).daemonCount('CreateDaemonRuntimeToken'), 1);
     });
 
-    testWidgets('the dialog sends the name and expiry it was given', (
-      tester,
-    ) async {
-      final h = await rig(
-        tester,
-        seed: (s) => s.seedRuntime('alpha', stored()),
-      );
+    Future<void> openMintDialog(WidgetTester tester, dynamic h) async {
       await open(tester, DaemonRuntimeDetailPage(client: h.client, id: 'rt1'));
       await waitFor(
         tester,
@@ -614,24 +608,70 @@ void main() {
       );
       await tapReal(tester, find.byKey(const Key('mint-token')));
       await tester.pumpAndSettle();
+    }
+
+    List<CreateDaemonRuntimeTokenRequest> mintRequests(dynamic h) => [
+      for (final c in fake(h).daemonCalls)
+        if (c.method == 'CreateDaemonRuntimeToken')
+          CreateDaemonRuntimeTokenRequest.fromBuffer(c.body),
+    ];
+
+    testWidgets('the dialog refuses an expiry that is not a positive number '
+        'of hours, before any request', (tester) async {
+      final h = await rig(
+        tester,
+        seed: (s) => s.seedRuntime('alpha', stored()),
+      );
+      await openMintDialog(tester, h);
       await tester.enterText(find.byKey(const Key('mint-name')), 'ci box');
-      await tester.enterText(find.byKey(const Key('mint-expiry-days')), '0');
-      await tester.tap(find.text('Create token'));
-      await tester.pump();
-      // Refused in the dialog, before any request.
-      expect(find.textContaining('from 1 to 3650'), findsOneWidget);
-      expect(fake(h).daemonCount('CreateDaemonRuntimeToken'), 0);
-      await tester.enterText(find.byKey(const Key('mint-expiry-days')), '30');
-      await tapDialogReal(tester, find.text('Create token'));
-      await waitFor(tester, () => h.client.daemons!.minted != null);
-      final request = [
-        for (final c in fake(h).daemonCalls)
-          if (c.method == 'CreateDaemonRuntimeToken')
-            CreateDaemonRuntimeTokenRequest.fromBuffer(c.body),
-      ].single;
-      expect(request.name, 'ci box');
-      expect(request.ttl.seconds.toInt(), 30 * 86400);
+      for (final text in ['0', '-1', 'abc', 'NaN', 'Infinity', '1e3', '1,5']) {
+        await tester.enterText(
+          find.byKey(const Key('mint-expiry-hours')),
+          text,
+        );
+        await tester.tap(find.text('Create token'));
+        await tester.pump();
+        expect(
+          find.textContaining('positive number of hours'),
+          findsOneWidget,
+          reason: '"$text"',
+        );
+        expect(fake(h).daemonCount('CreateDaemonRuntimeToken'), 0);
+      }
+      // The dialog is still open and nothing was minted.
+      expect(find.byKey(const Key('mint-expiry-hours')), findsOneWidget);
+      expect(h.client.daemons!.minted, isNull);
     });
+
+    for (final (text, seconds, nanos) in [
+      ('1', 3600, 0),
+      ('12', 12 * 3600, 0),
+      ('0.5', 1800, 0),
+      ('720', 30 * 86400, 0),
+      ('0.0005', 1, 800000000),
+    ]) {
+      testWidgets('the dialog sends $text hours as $seconds s $nanos ns', (
+        tester,
+      ) async {
+        final h = await rig(
+          tester,
+          seed: (s) => s.seedRuntime('alpha', stored()),
+        );
+        await openMintDialog(tester, h);
+        await tester.enterText(find.byKey(const Key('mint-name')), 'ci box');
+        await tester.enterText(
+          find.byKey(const Key('mint-expiry-hours')),
+          text,
+        );
+        await tapDialogReal(tester, find.text('Create token'));
+        await waitFor(tester, () => h.client.daemons!.minted != null);
+        final request = mintRequests(h).single;
+        expect(request.name, 'ci box');
+        expect(request.hasTtl(), isTrue);
+        expect(request.ttl.seconds.toInt(), seconds);
+        expect(request.ttl.nanos, nanos);
+      });
+    }
 
     testWidgets('an empty expiry sends none: the token does not expire', (
       tester,

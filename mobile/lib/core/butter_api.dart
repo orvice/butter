@@ -889,14 +889,26 @@ final class ButterApi {
     String name, {
     Duration? ttl,
   }) async {
+    if (ttl != null && ttl <= Duration.zero) {
+      throw ArgumentError.value(ttl, 'ttl', 'must be positive, or null');
+    }
     final reply = await _daemons.createDaemonRuntimeToken(
       CreateDaemonRuntimeTokenRequest(
         daemonRuntimeId: runtimeId,
         name: name,
-        // Absent means the token does not expire; never a zero duration.
-        ttl: ttl == null || ttl <= Duration.zero
+        // Absent means the token does not expire. The server reads a zero or
+        // negative duration the same way, so one is never sent for a token
+        // that was meant to expire.
+        ttl: ttl == null
             ? null
-            : pbd.Duration(seconds: Int64(ttl.inSeconds)),
+            : pbd.Duration(
+                seconds: Int64(
+                  ttl.inMicroseconds ~/ Duration.microsecondsPerSecond,
+                ),
+                nanos:
+                    (ttl.inMicroseconds % Duration.microsecondsPerSecond) *
+                    1000,
+              ),
       ),
       headers: _headers(token, workspace),
       signal: _deadline,

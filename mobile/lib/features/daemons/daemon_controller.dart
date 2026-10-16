@@ -346,6 +346,13 @@ class DaemonController extends ConfigResourceController<DaemonRuntime> {
   /// is never replaced unseen.
   Future<bool> mint(String runtimeId, String name, {Duration? ttl}) async {
     if (minted != null) return false;
+    if (ttl != null && ttl <= Duration.zero) {
+      // Nothing was asked of the server: a zero lifetime is never sent, since
+      // the server would read it as a token that does not expire.
+      writeError = 'The expiry must be a positive length of time.';
+      emit();
+      return false;
+    }
     final visit = _screenVisit;
     final ok = await runWrite(id: runtimeId, scope: 'mint', (epoch) async {
       final reply = await api.createDaemonRuntimeToken(
