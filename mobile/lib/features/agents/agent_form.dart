@@ -6,6 +6,7 @@ import '../../app/client_context.dart';
 import '../../core/management_page.dart';
 import '../../gen/agents/v1/agent.pb.dart';
 import 'agent_draft.dart';
+import 'associations.dart';
 import 'box_leaf_fields.dart';
 import 'structured_fields.dart';
 import 'workflow_draft.dart';
@@ -56,7 +57,7 @@ class _AgentFormPageState extends State<AgentFormPage> {
     }
     FocusScope.of(context).unfocus();
     final saved = await widget.client.saveAgent(
-      _draft.build(),
+      widget.base == null ? _draft.buildForCreate() : _draft.build(),
       create: widget.base == null,
       previous: widget.base,
     );
@@ -306,20 +307,7 @@ class _AgentFormPageState extends State<AgentFormPage> {
                           _agent.enableAgui,
                           (v) => _agent.enableAgui = v,
                         ),
-                        if (!isBoxLeaf(_agent))
-                          ExistingSkillFields(
-                            selected: _agent.config.skills,
-                            choices: client.agentSkillChoices,
-                            enabled:
-                                !client.busy &&
-                                !_saved &&
-                                client.agentEditorReady,
-                            onChanged: (names) => _change(() {
-                              _draft.config.skills
-                                ..clear()
-                                ..addAll(names);
-                            }),
-                          ),
+                        ..._associations(),
                         const Text(
                           'Other associations and configuration are retained unchanged. No Agent run or lifecycle action is performed by Save.',
                         ),
@@ -347,6 +335,99 @@ class _AgentFormPageState extends State<AgentFormPage> {
       );
     },
   );
+
+  /// MCP servers, Remote Agents, file mounts and Skills, for the Agent types
+  /// whose runtime uses them. For a type that ignores what the draft holds,
+  /// the entries stay visible with removal only, because a missing id would
+  /// still make the server refuse the save.
+  List<Widget> _associations() {
+    final client = widget.client;
+    if (isBoxLeaf(_agent)) return const [];
+    final enabled = !client.busy && !_saved && client.agentEditorReady;
+    final config = _agent.config;
+    void touch() => _change(() {});
+    final showRetainedMcp =
+        !offersMcp(_agent) && config.mcpServerIds.isNotEmpty;
+    final showRetainedRemote =
+        widget.base != null &&
+        !offersRemote(_agent) &&
+        config.remoteAgentIds.isNotEmpty;
+    final showRetainedMounts =
+        widget.base != null &&
+        !offersMounts(_agent) &&
+        config.fileMounts.isNotEmpty;
+    final showRetainedSkills =
+        widget.base != null &&
+        !offersSkills(_agent) &&
+        config.skills.isNotEmpty;
+    return [
+      if (offersMcp(_agent) || showRetainedMcp)
+        ReferenceChecklist(
+          keyPrefix: 'mcp',
+          title: 'MCP servers',
+          help:
+              'Tools from the selected existing servers are offered to this Agent. Server setup stays under MCP servers.',
+          emptyText: 'No MCP servers in this Workspace.',
+          selected: config.mcpServerIds,
+          choices: client.agentMcp,
+          enabled: enabled,
+          addable: offersMcp(_agent),
+          missingNote:
+              'Not found in this Workspace. The server refuses to save a missing MCP server; remove it.',
+          onChanged: (ids) => _change(() {
+            _draft.config.mcpServerIds
+              ..clear()
+              ..addAll(ids);
+          }),
+        ),
+      if (offersRemote(_agent) || showRetainedRemote)
+        ReferenceChecklist(
+          keyPrefix: 'remote',
+          title: 'Remote Agents',
+          help:
+              'Selected existing Remote Agents join this Agent as sub-agents.',
+          emptyText: 'No Remote Agents in this Workspace.',
+          selected: config.remoteAgentIds,
+          choices: client.agentRemote,
+          enabled: enabled,
+          addable: offersRemote(_agent),
+          missingNote:
+              'Not found in this Workspace. The server refuses to save a missing Remote Agent; remove it.',
+          onChanged: (ids) => _change(() {
+            _draft.config.remoteAgentIds
+              ..clear()
+              ..addAll(ids);
+          }),
+        ),
+      if (offersMounts(_agent) || showRetainedMounts)
+        FileMountFields(
+          mounts: config.fileMounts,
+          spaces: client.agentSpaces,
+          enabled: enabled,
+          addable: offersMounts(_agent),
+          onChanged: touch,
+        ),
+      if (offersSkills(_agent) || showRetainedSkills)
+        ReferenceChecklist(
+          keyPrefix: 'skill',
+          title: 'Existing Skills',
+          help:
+              'Associate existing Workspace Skills. Skill creation and content editing remain in Web.',
+          emptyText: 'No existing Skills in this Workspace.',
+          selected: config.skills,
+          choices: client.agentSkills,
+          enabled: enabled,
+          addable: offersSkills(_agent),
+          missingNote:
+              'Not in the current Workspace catalog; retained until removed.',
+          onChanged: (names) => _change(() {
+            _draft.config.skills
+              ..clear()
+              ..addAll(names);
+          }),
+        ),
+    ];
+  }
 
   List<Widget> _llmFields() {
     final config = _agent.config;

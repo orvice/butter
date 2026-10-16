@@ -29,9 +29,9 @@ FileSpaceController ctl(ConfigRig h) => h.client.fileSpaces!;
 
 /// Builds [page] in the real zone; its first read keeps a progress bar
 /// moving, so the tree is not settled until the caller's wait says so.
-Future<void> mount(WidgetTester tester, Widget page) =>
-    tester.runAsync(() => tester.pumpWidget(MaterialApp(home: page)))
-        as Future<void>;
+Future<void> mount(WidgetTester tester, Widget page) async {
+  await tester.runAsync(() => tester.pumpWidget(MaterialApp(home: page)));
+}
 
 Future<void> openSpace(WidgetTester tester, ConfigRig h) async {
   await mount(tester, SpaceDetailPage(client: h.client, id: 'docs'));

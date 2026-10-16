@@ -1,6 +1,7 @@
 import 'package:protobuf/protobuf.dart';
 
 import '../../gen/agents/v1/agent.pb.dart';
+import 'associations.dart';
 
 enum GuardMode { off, threshold, slidingWindow, retained }
 
@@ -77,6 +78,24 @@ final class AgentDraft {
     : agent = base?.deepCopy() ?? Agent(type: AgentType.AGENT_TYPE_LLM);
   final Agent agent;
   Agent build() => agent.deepCopy();
+
+  /// The Agent to create. The draft keeps associations across type switches so
+  /// a user flipping back loses nothing, but a new Agent must not be sent the
+  /// ones its final type ignores (MCP servers, mounts and Skills outside an
+  /// LLM; Remote Agents outside an LLM or a composite).
+  Agent buildForCreate() {
+    final built = build();
+    if (!built.hasConfig()) return built;
+    final c = built.config;
+    if (!offersMcp(built)) {
+      c.mcpServers.clear();
+      c.mcpServerIds.clear();
+    }
+    if (!offersMounts(built)) c.fileMounts.clear();
+    if (!offersSkills(built)) c.skills.clear();
+    if (!offersRemote(built)) c.remoteAgentIds.clear();
+    return built;
+  }
 
   AgentConfig get config {
     if (!agent.hasConfig()) agent.config = AgentConfig();

@@ -9,6 +9,7 @@ import '../core/agent_errors.dart';
 import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
+import '../features/agents/associations.dart';
 import '../features/daemons/daemon_controller.dart';
 import '../features/files/file_controller.dart';
 import '../features/mcp/mcp_controller.dart';
@@ -112,7 +113,10 @@ final class ClientContext extends ChangeNotifier {
   String? _agentId;
   List<Agent> agentChoices = const [];
   List<String> agentModelChoices = const [];
-  List<String> agentSkillChoices = const [];
+  ChoiceSet agentSkills = const ChoiceSet.unloaded();
+  ChoiceSet agentMcp = const ChoiceSet.unloaded();
+  ChoiceSet agentRemote = const ChoiceSet.unloaded();
+  ChoiceSet agentSpaces = const ChoiceSet.unloaded();
   bool agentContentGitOwned = false;
   bool agentEditorReady = false;
   bool agentRepositoryBound = false;
@@ -124,7 +128,10 @@ final class ClientContext extends ChangeNotifier {
     agentEditorReady = false;
     agentRepositoryBound = false;
     agentContentGitOwned = false;
-    agentSkillChoices = const [];
+    agentSkills = const ChoiceSet.unloaded();
+    agentMcp = const ChoiceSet.unloaded();
+    agentRemote = const ChoiceSet.unloaded();
+    agentSpaces = const ChoiceSet.unloaded();
     _agentEditorShown = false;
   }
 
@@ -795,7 +802,10 @@ final class ClientContext extends ChangeNotifier {
     agentChoices = const [];
     agentModelChoices = const [];
     agentEditorReady = false;
-    agentSkillChoices = const [];
+    agentSkills = const ChoiceSet.unloaded();
+    agentMcp = const ChoiceSet.unloaded();
+    agentRemote = const ChoiceSet.unloaded();
+    agentSpaces = const ChoiceSet.unloaded();
     // Keys must not wait in memory while the app is in the background; the
     // read-only foreground recovery reloads what was open.
     modelProviders = const [];
@@ -918,6 +928,33 @@ final class ClientContext extends ChangeNotifier {
     await _run(generation, () => _loadAgentEditor(generation));
   }
 
+  /// One association list. A failure here must not block editing the Agent:
+  /// the list is reported as denied or unavailable and the selection is kept.
+  /// A sign-in that lapsed still ends the session, and server text is never
+  /// shown.
+  Future<ChoiceSet> _associationChoices(
+    int generation,
+    Future<List<Choice>> Function() read,
+  ) async {
+    try {
+      final items = await read();
+      final seen = <String>{};
+      return ChoiceSet(ChoiceStatus.loaded, [
+        for (final c in items)
+          if (seen.add(c.id)) c,
+      ]);
+    } catch (failure) {
+      if (failure is ConnectException && failure.code == Code.unauthenticated) {
+        rethrow;
+      }
+      return ChoiceSet(
+        failure is ConnectException && failure.code == Code.permissionDenied
+            ? ChoiceStatus.denied
+            : ChoiceStatus.unavailable,
+      );
+    }
+  }
+
   Future<void> _loadAgentEditor(int generation) async {
     final api = _api!;
     final token = _token!;
@@ -940,7 +977,36 @@ final class ClientContext extends ChangeNotifier {
     if (!_current(generation)) return;
     final binding = await api.repositoryBinding(token, ws);
     if (!_current(generation)) return;
-    final skills = await api.skillNames(token, ws);
+    final skills = await _associationChoices(
+      generation,
+      () async => [
+        for (final n in await api.skillNames(token, ws)) Choice(n, n),
+      ],
+    );
+    if (!_current(generation)) return;
+    final mcp = await _associationChoices(
+      generation,
+      () async => [
+        for (final m in await api.mcpServers(token, ws))
+          if (m.id.isNotEmpty) Choice(m.id, m.name.isEmpty ? m.id : m.name),
+      ],
+    );
+    if (!_current(generation)) return;
+    final remote = await _associationChoices(
+      generation,
+      () async => [
+        for (final r in await api.remoteAgents(token, ws))
+          if (r.id.isNotEmpty) Choice(r.id, r.name.isEmpty ? r.id : r.name),
+      ],
+    );
+    if (!_current(generation)) return;
+    final spaces = await _associationChoices(
+      generation,
+      () async => [
+        for (final s in await api.fileSpaces(token, ws))
+          if (s.id.isNotEmpty) Choice(s.id, s.name.isEmpty ? s.id : s.name),
+      ],
+    );
     if (!_current(generation)) return;
     agentChoices = List.unmodifiable(choices);
     agentModelChoices = List.unmodifiable({
@@ -950,7 +1016,10 @@ final class ClientContext extends ChangeNotifier {
     });
     agentRepositoryBound = binding != null;
     agentContentGitOwned = binding?.activeCommitSha.isNotEmpty ?? false;
-    agentSkillChoices = List.unmodifiable(skills);
+    agentSkills = skills;
+    agentMcp = mcp;
+    agentRemote = remote;
+    agentSpaces = spaces;
     agentEditorReady = true;
   }
 
