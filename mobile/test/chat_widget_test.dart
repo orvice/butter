@@ -329,7 +329,7 @@ void main() {
   });
 
   chatTest(
-    'leaving the page detaches: no stop, no resend; Stop is labelled unavailable',
+    'leaving the page detaches: no stop on leave; Stop is enabled while streaming',
     (tester) async {
       final c = await openApp(tester);
       final never = Completer<void>();
@@ -349,11 +349,8 @@ void main() {
 
       final stop = find.widgetWithIcon(IconButton, Icons.stop_circle_outlined);
       expect(stop, findsOneWidget);
-      expect(
-        tester.widget<IconButton>(stop).tooltip,
-        'Stop is not available in this app yet',
-      );
-      expect(tester.widget<IconButton>(stop).onPressed, isNull);
+      expect(tester.widget<IconButton>(stop).tooltip, 'Stop run');
+      expect(tester.widget<IconButton>(stop).onPressed, isNotNull);
 
       await tester.pageBack();
       await frames(tester);

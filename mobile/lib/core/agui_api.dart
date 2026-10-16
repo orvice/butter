@@ -50,6 +50,18 @@ final class AguiRun {
   final void Function() abort;
 }
 
+/// The run a Stop reached (202). It ends shortly after on the server.
+final class AguiStoppedRun {
+  const AguiStoppedRun({
+    required this.threadId,
+    required this.runId,
+    required this.invocationId,
+  });
+  final String threadId;
+  final String runId;
+  final String invocationId;
+}
+
 /// Plain `dart:io` HTTP for the AG-UI endpoints. Redirects are never
 /// followed (a redirect would carry the credential elsewhere), nothing is
 /// retried, and a response body is only ever read within a bound.
@@ -75,10 +87,14 @@ final class AguiApi {
   Uri _run(String agentId) =>
       address.endpoint('api/agui/${Uri.encodeComponent(agentId)}');
 
-  Uri _messages(String agentId, String threadId) => address.endpoint(
-    'api/agui/${Uri.encodeComponent(agentId)}/threads/'
-    '${Uri.encodeComponent(threadId)}/messages',
-  );
+  Uri _threadResource(String agentId, String threadId, String resource) =>
+      address.endpoint(
+        'api/agui/${Uri.encodeComponent(agentId)}/threads/'
+        '${Uri.encodeComponent(threadId)}/$resource',
+      );
+
+  Uri _messages(String agentId, String threadId) =>
+      _threadResource(agentId, threadId, 'messages');
 
   // The abort of every run still open, so a suspend can end them all.
   final _live = <void Function()>{};
@@ -177,6 +193,105 @@ final class AguiApi {
       }
     }
     return out.takeBytes();
+  }
+
+  /// Follows the thread's detached run log (GET …/run). Null on 204.
+  Future<AguiRun?> attach({
+    required String token,
+    required String workspace,
+    required String agentId,
+    required String threadId,
+  }) async {
+    if (_closed) throw const AguiNotSent();
+    final client = _newClient();
+    var aborted = false;
+    late final void Function() abort;
+    abort = () {
+      aborted = true;
+      _live.remove(abort);
+      client.close(force: true);
+    };
+    _live.add(abort);
+    final HttpClientRequest request;
+    try {
+      request = await client.getUrl(_threadResource(agentId, threadId, 'run'));
+    } catch (_) {
+      abort();
+      throw const AguiNotSent();
+    }
+    final HttpClientResponse response;
+    try {
+      request.followRedirects = false;
+      request.headers
+        ..set('Authorization', 'Bearer $token')
+        ..set('X-Workspace-ID', workspace)
+        ..set('Accept', 'text/event-stream');
+      response = await request.close().timeout(_headerTimeout);
+    } catch (_) {
+      abort();
+      throw const AguiAmbiguous();
+    }
+    if (response.statusCode == 204) {
+      abort();
+      return null;
+    }
+    if (response.statusCode != 200) {
+      final refusal = await _refusal(response);
+      abort();
+      throw refusal;
+    }
+    if (response.headers.contentType?.mimeType != 'text/event-stream') {
+      abort();
+      throw const AguiAmbiguous();
+    }
+    final bytes = response
+        .timeout(
+          idleTimeout,
+          onTimeout: (sink) {
+            sink.addError(const AguiIdle());
+            sink.close();
+          },
+        )
+        .handleError((Object _) {}, test: (_) => aborted);
+    return AguiRun(parseSse(bytes), abort);
+  }
+
+  /// Stops the thread's detached run. Null on 204 (nothing to stop).
+  Future<AguiStoppedRun?> stop({
+    required String token,
+    required String workspace,
+    required String agentId,
+    required String threadId,
+  }) async {
+    if (_closed) throw const AguiNotSent();
+    final request = await _client
+        .postUrl(_threadResource(agentId, threadId, 'stop'))
+        .timeout(const Duration(seconds: 20));
+    request.followRedirects = false;
+    request.headers
+      ..set('Authorization', 'Bearer $token')
+      ..set('X-Workspace-ID', workspace)
+      ..contentLength = 0;
+    final response = await request.close().timeout(const Duration(seconds: 20));
+    if (response.statusCode == 204) return null;
+    if (response.statusCode != 202) throw await _refusal(response);
+    final bytes = await _readBounded(
+      response,
+      _errorBodyLimit,
+    ).timeout(const Duration(seconds: 10));
+    final decoded = jsonDecode(utf8.decode(bytes));
+    if (decoded is! Map) throw const FormatException('Unreadable stop answer.');
+    final runId = decoded['runId'];
+    final invocationId = decoded['invocationId'];
+    final tid = decoded['threadId'];
+    if (runId is! String || invocationId is! String || tid is! String) {
+      throw const FormatException('Unreadable stop answer.');
+    }
+    return AguiStoppedRun(
+      threadId: tid,
+      runId: runId,
+      invocationId: invocationId,
+    );
   }
 
   /// A thread's history as the server's JSON text.

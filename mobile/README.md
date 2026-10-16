@@ -229,7 +229,19 @@ Delivery rules: the SSE parser accepts arbitrary UTF-8 chunking, LF/CRLF/CR, mul
 
 Scope notes: tool-role results only answer client-declared frontend tools, and this App declares none, so a run request carries exactly one user message. An Agent shows its name and an initial, not its configured avatar image, so chat fetches no remote image.
 
-Not provided yet (labelled in the UI): reconnecting to a live run after leaving or a dropped stream, **Stop**, and A2UI forms/cards (an Interrupt shows a "waiting for input" notice only). Workflow Human Input cannot be answered in the App.
+Not provided yet: A2UI forms/cards (an Interrupt shows a "waiting for input" notice only; #462). Workflow Human Input cannot be answered in the App.
+
+## Chat reconnect, Stop and recovery (#461)
+
+| Operation | Protocol | App entry | Tests |
+| --- | --- | --- | --- |
+| Live re-attach after open/background/dropped stream | `GET …/threads/:thread_id/run` (Run Log replay from `RUN_STARTED`) | Open thread while `running`; foreground `recover()` | `chat_reconnect_test`, `chat_run_context_test`, `chat_reconnect_contract_test` |
+| Fallback when attach 204/truncated/wrong runId/`butter.fallback` | Thread history poll 1s→5s backoff until not `running` | Automatic; composer disabled while waiting | `chat_reconnect_test`, `backoff`/`run_fold_test` |
+| Stop | `POST …/threads/:thread_id/stop` (202 accept, 204 idle) | Stop while streaming or fallback wait | `chat_reconnect_test`, `chat_reconnect_contract_test` |
+| `lastRun` notice + Restore input | History `lastRun` + cut messages | Notice banner | `last_run_input`, widget tests |
+| Shared state mirror | `STATE_SNAPSHOT` / RFC 6902 `STATE_DELTA` | Held on controller (`sharedState`); A2UI hook via `RunEffects` (#462) | `state_patch_test`, `run_fold_test` |
+
+Detach only on leave/background/switch context — never Stop. POST runs are never retried; ambiguous sends read once to reconcile. `RunFold` resets on each `RUN_STARTED` so attach replay does not append stale partial text. Generation fencing uses conversation scope (`_conv`).
 
 ## File spaces and Agent associations (#456)
 
