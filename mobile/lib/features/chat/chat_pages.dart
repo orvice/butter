@@ -8,7 +8,8 @@ import '../../gen/agents/v1/agent.pb.dart';
 import 'chat_controller.dart';
 import 'chat_model.dart';
 import 'image_chooser.dart';
-import 'message_view.dart';
+import 'last_run_input.dart';
+import 'a2ui_in_chat.dart';
 import 'run_request.dart';
 import 'threads.dart';
 
@@ -368,6 +369,19 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
+  void _applyRestorable(RestorableTurn turn) {
+    _text.text = turn.text;
+    _tray.clear();
+    for (final image in turn.images) {
+      try {
+        _tray.add(image);
+      } on ChatInputError {
+        // Keep text-only restore when an image no longer fits.
+      }
+    }
+    setState(() {});
+  }
+
   Future<void> _send() async {
     final chat = _chat!;
     final text = _text.text;
@@ -408,6 +422,7 @@ class _ChatPageState extends State<ChatPage> {
         final name = agent == null ? 'Agent' : agentLabel(agent);
         final live = chat.liveReply;
         final items = <ChatMessage>[?live, ...chat.messages.reversed];
+        final surfaceLocked = chat.phase != ChatPhase.idle || chat.isPolling;
         return PopScope(
           onPopInvokedWithResult: (didPop, _) {
             if (didPop && chat.threadId == _thread) chat.leave();
@@ -432,20 +447,31 @@ class _ChatPageState extends State<ChatPage> {
                             child: ListView.builder(
                               reverse: true,
                               padding: const EdgeInsets.all(12),
-                              itemCount: items.length,
-                              itemBuilder: (context, index) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                child: MessageView(
-                                  message: items[index],
-                                  agentName: name,
-                                ),
-                              ),
+                              itemCount: items.length + 1,
+                              itemBuilder: (context, index) {
+                                if (index == items.length) {
+                                  return OrphanSurfacesBlock(
+                                    chat: chat,
+                                    locked: surfaceLocked,
+                                  );
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: ChatMessageBlock(
+                                    chat: chat,
+                                    message: items[index],
+                                    agentName: name,
+                                    locked: surfaceLocked,
+                                  ),
+                                );
+                              },
                             ),
                           ),
                   ),
-                  if (chat.notice != null) _NoticeBanner(chat: chat),
+                  if (chat.notice != null)
+                    _NoticeBanner(chat: chat, onRestore: _applyRestorable),
                   if (agent == null && chat.threadId != null && !chat.opening)
                     const Padding(
                       padding: EdgeInsets.all(12),
@@ -472,6 +498,8 @@ class _ChatPageState extends State<ChatPage> {
         children: [
           if (chat.sendError != null)
             _ErrorRow(text: chat.sendError!, action: ''),
+          if (chat.stopError != null)
+            _ErrorRow(text: chat.stopError!, action: ''),
           if (_attachProblem != null)
             _ErrorRow(text: _attachProblem!, action: ''),
           if (_tray.images.isNotEmpty)
@@ -525,7 +553,7 @@ class _ChatPageState extends State<ChatPage> {
                 child: TextField(
                   key: const Key('composer'),
                   controller: _text,
-                  enabled: chat.agent != null,
+                  enabled: chat.agent != null && !chat.isPolling,
                   minLines: 1,
                   maxLines: 6,
                   keyboardType: TextInputType.multiline,
@@ -538,10 +566,11 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
               if (working)
-                const IconButton(
-                  tooltip: 'Stop is not available in this app yet',
-                  icon: Icon(Icons.stop_circle_outlined),
-                  onPressed: null,
+                IconButton(
+                  key: const Key('stop-run'),
+                  tooltip: 'Stop run',
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  onPressed: chat.canStop ? () => chat.stopRun() : null,
                 )
               else
                 IconButton(
@@ -559,8 +588,9 @@ class _ChatPageState extends State<ChatPage> {
 }
 
 class _NoticeBanner extends StatelessWidget {
-  const _NoticeBanner({required this.chat});
+  const _NoticeBanner({required this.chat, required this.onRestore});
   final ChatController chat;
+  final void Function(RestorableTurn turn) onRestore;
 
   @override
   Widget build(BuildContext context) {
@@ -570,10 +600,14 @@ class _NoticeBanner extends StatelessWidget {
     final canRefresh = switch (notice.kind) {
       NoticeKind.connectionLost ||
       NoticeKind.unconfirmed ||
-      NoticeKind.fallback ||
-      NoticeKind.running => true,
+      NoticeKind.fallback => true,
       _ => false,
     };
+    final restorable = chat.restorableInput;
+    final canRestore =
+        restorable != null &&
+        !restorable.isEmpty &&
+        (notice.kind == NoticeKind.failed || notice.kind == NoticeKind.stopped);
     return Semantics(
       liveRegion: true,
       child: Material(
@@ -590,12 +624,27 @@ class _NoticeBanner extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text('“${interrupt.message}”'),
                   ),
-              if (canRefresh) ...[
+              if (canRestore) ...[
                 const SizedBox(height: 4),
                 Text(
-                  'Reconnecting to a live run is not available in this app yet.',
+                  'Sending again starts a new run and may repeat side effects '
+                  'on external systems.',
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    key: const Key('restore-input'),
+                    onPressed: () {
+                      onRestore(restorable);
+                      chat.clearRestorable();
+                    },
+                    child: const Text('Restore input'),
+                  ),
+                ),
+              ],
+              if (canRefresh) ...[
+                const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(

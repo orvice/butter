@@ -444,3 +444,10 @@ func (f *daemonFixture) control() http.Handler {
 	handle("/task/fail", report(agentsv1.DaemonTaskStatus_DAEMON_TASK_STATUS_FAILED))
 	return mux
 }
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: daemonWorkspace, Owner: true, NoSeedAgent: true},
+		fixtureWorkspace{ID: daemonPeerWorkspace, NoSeedAgent: true},
+	)
+}

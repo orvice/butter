@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/box_errors.dart';
 import '../../core/butter_api.dart';
+import '../../core/config_resource_controller.dart';
 import '../../gen/agents/v1/butterbox.pb.dart';
 
 enum BoxLoad { idle, loading, ready, failed }
@@ -29,9 +30,6 @@ class BoxCatalog<T> {
   final List<T> models;
   final String? error;
 }
-
-const _unconfirmed =
-    'Change not confirmed; it may already have been applied. Refresh before retrying.';
 
 /// ButterBoxes of one server, signed-in user and Workspace.
 ///
@@ -285,7 +283,7 @@ class ButterBoxController extends ChangeNotifier {
   /// Another write is refused until reads reconcile them all.
   final List<({int tick, String? id})> _unknown = [];
   bool get unconfirmed => _unknown.isNotEmpty;
-  String? get writeNotice => unconfirmed ? _unconfirmed : null;
+  String? get writeNotice => unconfirmed ? configUnconfirmed : null;
 
   /// The write in flight, so suspending can mark exactly it unknown.
   String? _inFlightId;

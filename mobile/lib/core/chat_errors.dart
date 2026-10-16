@@ -41,3 +41,14 @@ String describeAguiRefusal(AguiHttpError error) => switch ((
   (503, _) => 'The server is not ready. Try again in a moment.',
   _ => 'The request failed. Retry explicitly.',
 };
+
+/// Whether a thread read failure should be retried with backoff (502/503/504).
+bool transientAguiRead(Object failure) {
+  if (failure is AguiHttpError) {
+    return failure.status == 502 ||
+        failure.status == 503 ||
+        failure.status == 504;
+  }
+  if (failure is AguiNotSent) return true;
+  return false;
+}

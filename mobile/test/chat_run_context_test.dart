@@ -69,6 +69,10 @@ void main() {
         expect(post.threadId, threadId);
         expect(post.body['forwardedProps'], {
           'butterRun': {'detach': true},
+          'butterA2UI': {
+            'version': 'v0.9.1',
+            'catalogs': ['butter-basic-v1'],
+          },
         });
         expect(post.content, 'hi');
         expect(texts(chat), ['user: hi', 'assistant: ok']);
@@ -206,9 +210,14 @@ void main() {
       'refresh reads the thread once and shows what the server kept',
       () async {
         final (r, chat) = await draft();
-        r.chat.script = (post, res) async => res.drop();
+        r.chat.script = (post, res) async {
+          await res.event(runStarted(post.threadId, post.runId));
+          await res.event(textStart('m1'));
+          await res.drop();
+        };
         await chat.send('hi');
         await idle(chat);
+        expect(chat.notice?.kind, NoticeKind.connectionLost);
         r.chat.histories['shared/${chat.threadId}'] = jsonEncode({
           'threadId': chat.threadId,
           'messages': [
@@ -227,6 +236,7 @@ void main() {
 
     for (final (status, body, text) in [
       (409, {'code': 'busy'}, 'busy'),
+      (409, {'code': 'run_exists'}, 'already sent'),
       (400, {'code': 'thread_unbound'}, 'new thread'),
       (403, {'error': 'x'}, 'agent'),
       (413, {'error': 'x'}, 'too large'),
@@ -450,11 +460,20 @@ void main() {
           ],
           'running': {'runId': 'r1', 'invocationId': 'i1'},
         });
+        r.chat.attachScript = (agent, thread, res) async {
+          await res.event(runStarted(thread, 'r1'));
+          await res.event(textStart('m1'));
+          await res.event(textDelta('m1', 'live'));
+          await res.event(runFinished(thread, 'r1'));
+          await res.finish();
+        };
         final chat = r.client.chat!;
         await chat.loadThreads();
         await chat.openThread(chat.threads.single);
 
-        expect(chat.notice?.kind, NoticeKind.running);
+        await until(() => chat.phase == ChatPhase.idle);
+        expect(texts(chat), ['user: hi', 'assistant: live']);
+        expect(r.chat.attaches, hasLength(1));
         expect(chat.canSend, isFalse);
         expect(r.chat.posts, isEmpty);
       },

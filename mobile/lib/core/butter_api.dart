@@ -10,9 +10,13 @@ import 'package:connectrpc/protocol/connect.dart' as protocol;
 import 'package:fixnum/fixnum.dart';
 import 'package:protobuf/well_known_types/google/protobuf/duration.pb.dart'
     as pbd;
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 
 import '../gen/agents/v1/agent.pb.dart';
+import '../gen/agents/v1/agent_file.connect.client.dart';
+import '../gen/agents/v1/agent_file.pb.dart';
 import '../gen/agents/v1/agent_service.connect.client.dart';
+import '../gen/agents/v1/agent_operation.pb.dart';
 import '../gen/agents/v1/agent_service.pb.dart';
 import '../gen/agents/v1/api_token.connect.client.dart';
 import '../gen/agents/v1/api_token.pb.dart';
@@ -20,14 +24,26 @@ import '../gen/agents/v1/auth.connect.client.dart';
 import '../gen/agents/v1/auth.pb.dart';
 import '../gen/agents/v1/butterbox.connect.client.dart';
 import '../gen/agents/v1/butterbox.pb.dart';
+import '../gen/agents/v1/automation.connect.client.dart';
+import '../gen/agents/v1/automation.pb.dart';
+import '../gen/agents/v1/cron.connect.client.dart';
+import '../gen/agents/v1/cron.pb.dart';
 import '../gen/agents/v1/dashboard.connect.client.dart';
 import '../gen/agents/v1/dashboard.pb.dart';
+import '../gen/agents/v1/telegram.connect.client.dart';
+import '../gen/agents/v1/telegram.pb.dart';
+import '../gen/agents/v1/githost.connect.client.dart';
+import '../gen/agents/v1/githost.pb.dart';
 import '../gen/agents/v1/repobinding.connect.client.dart';
 import '../gen/agents/v1/repobinding.pb.dart';
 import '../gen/agents/v1/skill.connect.client.dart';
 import '../gen/agents/v1/skill.pb.dart';
 import '../gen/agents/v1/workspace.connect.client.dart';
 import '../gen/agents/v1/workspace.pb.dart';
+import '../gen/agents/v1/workspace_memory.connect.client.dart';
+import '../gen/agents/v1/workspace_memory.pb.dart';
+import '../gen/agents/v1/linear.connect.client.dart';
+import '../gen/agents/v1/linear.pb.dart';
 import 'server_address.dart';
 import 'avatar.dart';
 
@@ -43,7 +59,9 @@ final class ButterApi {
     _auth = AuthServiceClient(transport);
     _workspaces = WorkspaceServiceClient(transport);
     _agents = AgentServiceClient(transport);
+    _files = AgentFileServiceClient(transport);
     _repoBindings = WorkspaceRepoBindingServiceClient(transport);
+    _gitHosts = GitHostServiceClient(transport);
     _skills = SkillServiceClient(transport);
     _modelProviders = ModelProviderServiceClient(transport);
     _sessions = SessionServiceClient(transport);
@@ -53,6 +71,19 @@ final class ButterApi {
     _remoteAgents = RemoteAgentServiceClient(transport);
     _daemons = DaemonServiceClient(transport);
     _apiTokens = APITokenServiceClient(transport);
+    _cron = CronJobServiceClient(transport);
+    _automations = AutomationServiceClient(transport);
+    _notifyGroups = NotifyGroupServiceClient(transport);
+    _telegramDestinations = TelegramDestinationServiceClient(transport);
+    _telegramChannels = TelegramChannelServiceClient(transport);
+    _telegramProcessing = TelegramProcessingServiceClient(transport);
+    _telegramAdmin = TelegramAdminServiceClient(transport);
+    _memoryConfig = WorkspaceMemoryConfigServiceClient(transport);
+    _memories = WorkspaceMemoryServiceClient(transport);
+    _dashboard = DashboardServiceClient(transport);
+    _linearApp = LinearAppServiceClient(transport);
+    _linearAdmin = LinearAdminServiceClient(transport);
+    _linearProcessing = LinearProcessingServiceClient(transport);
   }
 
   final ServerAddress address;
@@ -60,7 +91,9 @@ final class ButterApi {
   late final AuthServiceClient _auth;
   late final WorkspaceServiceClient _workspaces;
   late final AgentServiceClient _agents;
+  late final AgentFileServiceClient _files;
   late final WorkspaceRepoBindingServiceClient _repoBindings;
+  late final GitHostServiceClient _gitHosts;
   late final SkillServiceClient _skills;
   late final ModelProviderServiceClient _modelProviders;
   late final SessionServiceClient _sessions;
@@ -70,6 +103,19 @@ final class ButterApi {
   late final RemoteAgentServiceClient _remoteAgents;
   late final DaemonServiceClient _daemons;
   late final APITokenServiceClient _apiTokens;
+  late final CronJobServiceClient _cron;
+  late final AutomationServiceClient _automations;
+  late final NotifyGroupServiceClient _notifyGroups;
+  late final TelegramDestinationServiceClient _telegramDestinations;
+  late final TelegramChannelServiceClient _telegramChannels;
+  late final TelegramProcessingServiceClient _telegramProcessing;
+  late final TelegramAdminServiceClient _telegramAdmin;
+  late final WorkspaceMemoryConfigServiceClient _memoryConfig;
+  late final WorkspaceMemoryServiceClient _memories;
+  late final DashboardServiceClient _dashboard;
+  late final LinearAppServiceClient _linearApp;
+  late final LinearAdminServiceClient _linearAdmin;
+  late final LinearProcessingServiceClient _linearProcessing;
 
   connect.AbortSignal get _deadline =>
       connect.TimeoutSignal(const Duration(seconds: 20));
@@ -196,12 +242,178 @@ final class ButterApi {
     String token,
     String workspace,
   ) async {
+    final snap = await workspaceRepoBinding(token, workspace);
+    return snap.binding;
+  }
+
+  Future<({WorkspaceRepoBinding? binding, List<RepoBindingOverlap> overlaps})>
+  workspaceRepoBinding(String token, String workspace) async {
     final reply = await _repoBindings.getWorkspaceRepoBinding(
       GetWorkspaceRepoBindingRequest(),
       headers: _headers(token, workspace),
       signal: _deadline,
     );
-    return reply.hasBinding() ? reply.binding : null;
+    return (
+      binding: reply.hasBinding() ? reply.binding : null,
+      overlaps: reply.overlaps,
+    );
+  }
+
+  Future<List<GitHost>> gitHosts(String token) async {
+    final reply = await _gitHosts.listGitHosts(
+      ListGitHostsRequest(),
+      headers: _headers(token),
+      signal: _deadline,
+    );
+    return reply.hosts;
+  }
+
+  Future<WorkspaceRepoBinding> putWorkspaceRepoBinding(
+    String token,
+    String workspace,
+    WorkspaceRepoBinding binding,
+  ) async {
+    final reply = await _repoBindings.putWorkspaceRepoBinding(
+      PutWorkspaceRepoBindingRequest(binding: binding),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<WorkspaceRepoBinding> setRepoBindingCredential(
+    String token,
+    String workspace,
+    String pat,
+  ) async {
+    final reply = await _repoBindings.setWorkspaceRepoBindingCredential(
+      SetWorkspaceRepoBindingCredentialRequest(pat: pat),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<WorkspaceRepoBinding> validateRepoBinding(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _repoBindings.validateWorkspaceRepoBinding(
+      ValidateWorkspaceRepoBindingRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<OnboardWorkspaceRepositoryResponse> onboardWorkspaceRepository(
+    String token,
+    String workspace,
+    RepoBindingOnboardingMode mode,
+  ) async {
+    return _repoBindings.onboardWorkspaceRepository(
+      OnboardWorkspaceRepositoryRequest(mode: mode),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<SyncWorkspaceRepositoryResponse> syncWorkspaceRepository(
+    String token,
+    String workspace,
+  ) async {
+    return _repoBindings.syncWorkspaceRepository(
+      SyncWorkspaceRepositoryRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<WorkspaceRepoBinding> publishWorkspaceRepository(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _repoBindings.publishWorkspaceRepository(
+      PublishWorkspaceRepositoryRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<int> deleteWorkspaceRepoBinding(
+    String token,
+    String workspace,
+    RepoBindingDetachRecovery recovery,
+  ) async {
+    final reply = await _repoBindings.deleteWorkspaceRepoBinding(
+      DeleteWorkspaceRepoBindingRequest(recovery: recovery),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.agentsMaterialized;
+  }
+
+  Future<ConfigureWebhookSecretResponse> configureRepoWebhookSecret(
+    String token,
+    String workspace,
+  ) async {
+    return _repoBindings.configureWebhookSecret(
+      ConfigureWebhookSecretRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<WorkspaceRepoBinding> acceptRepositoryBaseline(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _repoBindings.acceptRepositoryBaseline(
+      AcceptRepositoryBaselineRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasBinding()) {
+      throw connect.ConnectException(connect.Code.internal, 'Binding missing.');
+    }
+    return reply.binding;
+  }
+
+  Future<ListRepositoryEntriesResponse> listRepositoryEntries(
+    String token,
+    String workspace,
+    String path,
+  ) async {
+    return _repoBindings.listRepositoryEntries(
+      ListRepositoryEntriesRequest(path: path),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<GetRepositoryFileResponse> getRepositoryFile(
+    String token,
+    String workspace,
+    String path,
+  ) async {
+    return _repoBindings.getRepositoryFile(
+      GetRepositoryFileRequest(path: path),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
   }
 
   /// Read-only catalog for Agent associations, not standalone Skill management.
@@ -306,6 +518,270 @@ final class ButterApi {
     }
     return saved;
   }
+
+  Future<DeleteAgentResponse> deleteAgent(
+    String token,
+    String workspace,
+    String agentId, {
+    String operationId = '',
+  }) => _agents.deleteAgent(
+    DeleteAgentRequest(agentId: agentId, operationId: operationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<RestoreAgentResponse> restoreAgent(
+    String token,
+    String workspace,
+    String agentId, {
+    String operationId = '',
+  }) => _agents.restoreAgent(
+    RestoreAgentRequest(agentId: agentId, operationId: operationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<AgentOperation> getAgentOperation(
+    String token,
+    String workspace,
+    String operationId,
+  ) async {
+    final reply = await _agents.getAgentOperation(
+      GetAgentOperationRequest(operationId: operationId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasOperation()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Operation missing.',
+      );
+    }
+    return reply.operation;
+  }
+
+  Future<ListAgentOperationsResponse> listAgentOperations(
+    String token,
+    String workspace, {
+    AgentOperationStatus status =
+        AgentOperationStatus.AGENT_OPERATION_STATUS_UNSPECIFIED,
+    String pageToken = '',
+  }) => _agents.listAgentOperations(
+    ListAgentOperationsRequest(status: status, pageToken: pageToken),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<RetryAgentOperationResponse> retryAgentOperation(
+    String token,
+    String workspace,
+    String operationId,
+  ) => _agents.retryAgentOperation(
+    RetryAgentOperationRequest(operationId: operationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<CommitAgentContentResponse> commitAgentContent(
+    String token,
+    String workspace, {
+    required List<ContentFileAction> actions,
+    String message = '',
+    String baseRevision = '',
+  }) => _repoBindings.commitAgentContent(
+    CommitAgentContentRequest(
+      actions: actions,
+      message: message,
+      baseRevision: baseRevision,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<RollbackAgentContentResponse> rollbackAgentContent(
+    String token,
+    String workspace,
+    String targetCommitSha,
+  ) => _repoBindings.rollbackAgentContent(
+    RollbackAgentContentRequest(targetCommitSha: targetCommitSha),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<PurgeAgentContentResponse> purgeAgentContent(
+    String token,
+    String workspace,
+    String agentId,
+  ) => _repoBindings.purgeAgentContent(
+    PurgeAgentContentRequest(agentId: agentId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  // ---- File spaces (AgentFileService). Content travels as the UTF-8 text of
+  // WriteAgentFile / GetAgentFile, never through the avatar upload. Every call
+  // carries the selected Workspace. ----
+
+  Future<List<AgentFileSpace>> fileSpaces(
+    String token,
+    String workspace,
+  ) async => (await _files.listAgentFileSpaces(
+    ListAgentFileSpacesRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).spaces;
+
+  Future<AgentFileSpace> fileSpace(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _files.getAgentFileSpace(
+      GetAgentFileSpaceRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasSpace()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'File space missing.',
+      );
+    }
+    return reply.space;
+  }
+
+  Future<AgentFileSpace> createFileSpace(
+    String token,
+    String workspace,
+    AgentFileSpace space,
+  ) async {
+    final reply = await _files.createAgentFileSpace(
+      CreateAgentFileSpaceRequest(space: space),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _spaceReply(reply.hasSpace(), () => reply.space);
+  }
+
+  /// Replaces the whole stored record: [space] must start from a fresh read.
+  Future<AgentFileSpace> updateFileSpace(
+    String token,
+    String workspace,
+    AgentFileSpace space,
+  ) async {
+    final reply = await _files.updateAgentFileSpace(
+      UpdateAgentFileSpaceRequest(space: space),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return _spaceReply(reply.hasSpace(), () => reply.space);
+  }
+
+  AgentFileSpace _spaceReply(bool has, AgentFileSpace Function() read) {
+    if (!has) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'File space reply missing.',
+      );
+    }
+    return read();
+  }
+
+  /// Deletes the space and every file and version in it.
+  Future<void> deleteFileSpace(String token, String workspace, String id) =>
+      _files.deleteAgentFileSpace(
+        DeleteAgentFileSpaceRequest(id: id),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  Future<List<AgentFile>> agentFiles(
+    String token,
+    String workspace,
+    String spaceId, {
+    String pathPrefix = '',
+  }) async => (await _files.listAgentFiles(
+    ListAgentFilesRequest(spaceId: spaceId, pathPrefix: pathPrefix),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).files;
+
+  /// The latest version, or [version] when it is above zero.
+  Future<GetAgentFileResponse> readAgentFile(
+    String token,
+    String workspace,
+    String spaceId,
+    String path, {
+    int version = 0,
+  }) async {
+    final reply = await _files.getAgentFile(
+      GetAgentFileRequest(
+        spaceId: spaceId,
+        path: path,
+        version: Int64(version),
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasFile()) {
+      throw connect.ConnectException(connect.Code.notFound, 'File missing.');
+    }
+    return reply;
+  }
+
+  /// Always stores a new version. The server has no compare-and-swap, and a
+  /// write replaces the file's metadata, so [metadata] is the whole map.
+  Future<AgentFile> writeAgentFile(
+    String token,
+    String workspace,
+    String spaceId,
+    String path,
+    String content, {
+    required String contentType,
+    Map<String, String> metadata = const {},
+  }) async {
+    final reply = await _files.writeAgentFile(
+      WriteAgentFileRequest(
+        spaceId: spaceId,
+        path: path,
+        content: content,
+        contentType: contentType,
+        metadata: metadata.entries,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasFile()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'File reply missing.',
+      );
+    }
+    return reply.file;
+  }
+
+  Future<void> deleteAgentFile(
+    String token,
+    String workspace,
+    String spaceId,
+    String path,
+  ) => _files.deleteAgentFile(
+    DeleteAgentFileRequest(spaceId: spaceId, path: path),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<List<AgentFileSearchResult>> searchAgentFiles(
+    String token,
+    String workspace,
+    String spaceId,
+    String query, {
+    int limit = 50,
+  }) async => (await _files.searchAgentFiles(
+    SearchAgentFilesRequest(spaceId: spaceId, query: query, limit: limit),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).results;
 
   Future<List<ModelProvider>> modelProviders(
     String token,
@@ -989,6 +1465,197 @@ final class ButterApi {
         signal: _deadline,
       );
 
+  Future<CreateAPITokenResponse> createApiToken(
+    String token,
+    String workspace,
+    String name,
+  ) => _apiTokens.createAPIToken(
+    CreateAPITokenRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// Server-wide dashboard metrics (global admin only; no workspace header).
+  Future<GetOverviewResponse> getDashboardOverview(String token) =>
+      _dashboard.getOverview(
+        GetOverviewRequest(),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+
+  Future<GetActivityFeedResponse> getActivityFeed(
+    String token, {
+    int limit = 20,
+    String pageToken = '',
+  }) => _dashboard.getActivityFeed(
+    GetActivityFeedRequest(limit: limit, pageToken: pageToken),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+
+  Future<GetActivityMetricsResponse> getActivityMetrics(
+    String token,
+    GetActivityMetricsRequest_Range range,
+  ) => _dashboard.getActivityMetrics(
+    GetActivityMetricsRequest(range: range),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+
+  Future<GetCronExecutionTimeseriesResponse> getCronExecutionTimeseries(
+    String token,
+    GetCronExecutionTimeseriesRequest_Range range, {
+    String jobName = '',
+  }) => _dashboard.getCronExecutionTimeseries(
+    GetCronExecutionTimeseriesRequest(range: range, jobName: jobName),
+    headers: _headers(token),
+    signal: _deadline,
+  );
+
+  Future<ListAgentInvocationsResponse> listAgentInvocations(
+    String token,
+    String workspace, {
+    String agentId = '',
+    String sessionId = '',
+    int pageSize = 20,
+    String pageToken = '',
+  }) => _agents.listAgentInvocations(
+    ListAgentInvocationsRequest(
+      agentId: agentId,
+      sessionId: sessionId,
+      pageSize: pageSize,
+      pageToken: pageToken,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<Invocation> getAgentInvocation(
+    String token,
+    String workspace,
+    String invocationId,
+  ) async {
+    final reply = await _agents.getAgentInvocation(
+      GetAgentInvocationRequest(invocationId: invocationId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasInvocation()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Invocation not found.',
+      );
+    }
+    return reply.invocation;
+  }
+
+  Future<CancelAgentInvocationResponse> cancelAgentInvocation(
+    String token,
+    String workspace,
+    String invocationId,
+  ) => _agents.cancelAgentInvocation(
+    CancelAgentInvocationRequest(invocationId: invocationId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// Lists ADK sessions visible under the session access policy. Pass
+  /// [workspaceScoped] true only for the caller's own AG-UI threads in
+  /// [workspace] (Chat). The Session explorer uses the default false.
+  Future<ListSessionsResponse> listSessions(
+    String token,
+    String workspace, {
+    String appName = '',
+    String userId = '',
+    DateTime? startTime,
+    DateTime? endTime,
+    int pageSize = 20,
+    String pageToken = '',
+    bool workspaceScoped = false,
+  }) => _sessions.listSessions(
+    ListSessionsRequest(
+      appName: appName,
+      userId: userId,
+      startTime: startTime == null ? null : _timestamp(startTime),
+      endTime: endTime == null ? null : _timestamp(endTime),
+      pageSize: pageSize,
+      pageToken: pageToken,
+      workspaceScoped: workspaceScoped,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<SessionDetail> getSession(
+    String token,
+    String workspace, {
+    required String appName,
+    required String userId,
+    required String sessionId,
+    required int numRecentEvents,
+  }) async {
+    final reply = await _sessions.getSession(
+      GetSessionRequest(
+        appName: appName,
+        userId: userId,
+        sessionId: sessionId,
+        numRecentEvents: numRecentEvents,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasSessionDetail()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Session not found.',
+      );
+    }
+    return reply.sessionDetail;
+  }
+
+  Future<void> deleteSession(
+    String token,
+    String workspace, {
+    required String appName,
+    required String userId,
+    required String sessionId,
+  }) => _sessions.deleteSession(
+    DeleteSessionRequest(
+      appName: appName,
+      userId: userId,
+      sessionId: sessionId,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// One turn through [ReplySession]. Requires [agentId] and
+  /// [X-Workspace-ID]. Never retried by the client.
+  Future<String> replySession(
+    String token,
+    String workspace, {
+    required String appName,
+    required String userId,
+    required String sessionId,
+    required String agentId,
+    required String message,
+    String modelOverride = '',
+  }) async {
+    final reply = await _sessions.replySession(
+      ReplySessionRequest(
+        appName: appName,
+        userId: userId,
+        sessionId: sessionId,
+        agentId: agentId,
+        message: message,
+        modelOverride: modelOverride,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.response;
+  }
+
   /// One page of the caller's AG-UI thread sessions in [workspace]. The server
   /// scopes the list to that Workspace; which sessions are bound threads is
   /// decided by the caller from the session state.
@@ -998,17 +1665,23 @@ final class ButterApi {
     required String userId,
     required int pageSize,
     String pageToken = '',
-  }) => _sessions.listSessions(
-    ListSessionsRequest(
-      appName: 'agui',
-      userId: userId,
-      workspaceScoped: true,
-      pageSize: pageSize,
-      pageToken: pageToken,
-    ),
-    headers: _headers(token, workspace),
-    signal: _deadline,
+  }) => listSessions(
+    token,
+    workspace,
+    appName: 'agui',
+    userId: userId,
+    workspaceScoped: true,
+    pageSize: pageSize,
+    pageToken: pageToken,
   );
+
+  static Timestamp _timestamp(DateTime time) {
+    final utc = time.toUtc();
+    return Timestamp(
+      seconds: Int64(utc.millisecondsSinceEpoch ~/ 1000),
+      nanos: (utc.millisecondsSinceEpoch % 1000) * 1000000,
+    );
+  }
 
   /// Sets a session's title. Never repeated on its own.
   Future<SessionInfo> renameSession(
@@ -1123,6 +1796,94 @@ final class ButterApi {
     signal: _deadline,
   );
 
+  // ---- Workspace memory (mem0 via Butter; never call mem0 directly). ----
+
+  Future<WorkspaceMemoryConfig?> workspaceMemoryConfig(
+    String token,
+    String workspace,
+  ) async {
+    final reply = await _memoryConfig.getWorkspaceMemoryConfig(
+      GetWorkspaceMemoryConfigRequest(),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.hasConfig() ? reply.config : null;
+  }
+
+  Future<({WorkspaceMemoryConfig config, String warning})>
+  putWorkspaceMemoryConfig(
+    String token,
+    String workspace,
+    PutWorkspaceMemoryConfigRequest request,
+  ) async {
+    final reply = await _memoryConfig.putWorkspaceMemoryConfig(
+      request,
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasConfig()) {
+      throw StateError('PutWorkspaceMemoryConfig returned no config');
+    }
+    return (config: reply.config, warning: reply.warning);
+  }
+
+  Future<void> deleteWorkspaceMemoryConfig(String token, String workspace) =>
+      _memoryConfig.deleteWorkspaceMemoryConfig(
+        DeleteWorkspaceMemoryConfigRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      );
+
+  Future<TestWorkspaceMemoryConnectionResponse> testWorkspaceMemoryConnection(
+    String token,
+    String workspace,
+  ) => _memoryConfig.testWorkspaceMemoryConnection(
+    TestWorkspaceMemoryConnectionRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<ListWorkspaceMemoriesResponse> listWorkspaceMemories(
+    String token,
+    String workspace, {
+    WorkspaceMemoryScope scope =
+        WorkspaceMemoryScope.WORKSPACE_MEMORY_SCOPE_WORKSPACE,
+    String agentId = '',
+  }) => _memories.listWorkspaceMemories(
+    ListWorkspaceMemoriesRequest(scope: scope, agentId: agentId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<SearchWorkspaceMemoriesResponse> searchWorkspaceMemories(
+    String token,
+    String workspace, {
+    required String query,
+    WorkspaceMemoryScope scope =
+        WorkspaceMemoryScope.WORKSPACE_MEMORY_SCOPE_WORKSPACE,
+    String agentId = '',
+    int topK = 0,
+  }) => _memories.searchWorkspaceMemories(
+    SearchWorkspaceMemoriesRequest(
+      query: query,
+      scope: scope,
+      agentId: agentId,
+      topK: topK,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<void> deleteWorkspaceMemory(
+    String token,
+    String workspace,
+    String memoryId,
+  ) => _memories.deleteWorkspaceMemory(
+    DeleteWorkspaceMemoryRequest(memoryId: memoryId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
   Future<String> uploadAvatar(String token, Uint8List bytes) async {
     final type = avatarContentType(bytes);
     final suffix = type.split('/').last == 'jpeg'
@@ -1227,5 +1988,788 @@ final class ButterApi {
     );
   }
 
+  // ---- Cron jobs (#464) ----
+
+  Future<List<CronJob>> listCronJobs(String token, String workspace) async =>
+      (await _cron.listCronJobs(
+        ListCronJobsRequest(),
+        headers: _headers(token, workspace),
+        signal: _deadline,
+      )).cronJobs;
+
+  Future<CronJob> getCronJob(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _cron.getCronJob(
+      GetCronJobRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasCronJob()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Cron job missing.',
+      );
+    }
+    return reply.cronJob;
+  }
+
+  Future<CronJob> createCronJob(
+    String token,
+    String workspace,
+    CronJob job,
+  ) async => (await _cron.createCronJob(
+    CreateCronJobRequest(cronJob: job),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).cronJob;
+
+  Future<CronJob> updateCronJob(
+    String token,
+    String workspace,
+    CronJob job,
+  ) async => (await _cron.updateCronJob(
+    UpdateCronJobRequest(cronJob: job),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).cronJob;
+
+  Future<CronJob> deleteCronJob(
+    String token,
+    String workspace,
+    String name,
+  ) async => (await _cron.deleteCronJob(
+    DeleteCronJobRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).cronJob;
+
+  Future<CronExecution> runCronJobNow(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _cron.runCronJobNow(
+      RunCronJobNowRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasExecution()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'Run response missing execution.',
+      );
+    }
+    return reply.execution;
+  }
+
+  Future<({List<CronExecution> executions, String nextPageToken})>
+  listCronExecutions(
+    String token,
+    String workspace, {
+    String jobName = '',
+    int pageSize = 20,
+    String pageToken = '',
+  }) async {
+    final reply = await _cron.listCronExecutions(
+      ListCronExecutionsRequest(
+        jobName: jobName,
+        pageSize: pageSize,
+        pageToken: pageToken,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return (executions: reply.executions, nextPageToken: reply.nextPageToken);
+  }
+
+  Future<List<NotifyGroup>> listNotifyGroups(
+    String token,
+    String workspace,
+  ) async => (await _notifyGroups.listNotifyGroups(
+    ListNotifyGroupsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).notifyGroups;
+
+  Future<NotifyGroup> getNotifyGroup(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _notifyGroups.getNotifyGroup(
+      GetNotifyGroupRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasNotifyGroup()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Notify Group missing.',
+      );
+    }
+    return reply.notifyGroup;
+  }
+
+  Future<NotifyGroup> createNotifyGroup(
+    String token,
+    String workspace,
+    NotifyGroup group,
+  ) async => (await _notifyGroups.createNotifyGroup(
+    CreateNotifyGroupRequest(notifyGroup: group),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).notifyGroup;
+
+  Future<NotifyGroup> updateNotifyGroup(
+    String token,
+    String workspace,
+    NotifyGroup group,
+  ) async => (await _notifyGroups.updateNotifyGroup(
+    UpdateNotifyGroupRequest(notifyGroup: group),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).notifyGroup;
+
+  Future<void> deleteNotifyGroup(
+    String token,
+    String workspace,
+    String name,
+  ) async => _notifyGroups.deleteNotifyGroup(
+    DeleteNotifyGroupRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  // ---- Automations (#467) ----
+
+  Future<List<Automation>> listAutomations(
+    String token,
+    String workspace,
+  ) async => (await _automations.listAutomations(
+    ListAutomationsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automations;
+
+  Future<Automation> getAutomation(
+    String token,
+    String workspace,
+    String name,
+  ) async {
+    final reply = await _automations.getAutomation(
+      GetAutomationRequest(name: name),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasAutomation()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Automation missing.',
+      );
+    }
+    return reply.automation;
+  }
+
+  Future<Automation> createAutomation(
+    String token,
+    String workspace,
+    Automation automation,
+  ) async => (await _automations.createAutomation(
+    CreateAutomationRequest(automation: automation),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automation;
+
+  Future<Automation> updateAutomation(
+    String token,
+    String workspace,
+    Automation automation,
+  ) async => (await _automations.updateAutomation(
+    UpdateAutomationRequest(automation: automation),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automation;
+
+  Future<Automation> deleteAutomation(
+    String token,
+    String workspace,
+    String name,
+  ) async => (await _automations.deleteAutomation(
+    DeleteAutomationRequest(name: name),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).automation;
+
+  Future<AutomationRun> runAutomationNow(
+    String token,
+    String workspace,
+    String name, {
+    String triggerPayloadJson = '{}',
+  }) async {
+    final reply = await _automations.runAutomationNow(
+      RunAutomationNowRequest(
+        name: name,
+        triggerPayloadJson: triggerPayloadJson,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRun()) {
+      throw connect.ConnectException(connect.Code.internal, 'Run missing.');
+    }
+    return reply.run;
+  }
+
+  Future<({List<AutomationRun> runs, String nextPageToken})> listAutomationRuns(
+    String token,
+    String workspace, {
+    String automationName = '',
+    int pageSize = 20,
+    String pageToken = '',
+  }) async {
+    final reply = await _automations.listAutomationRuns(
+      ListAutomationRunsRequest(
+        automationName: automationName,
+        pageSize: pageSize,
+        pageToken: pageToken,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return (runs: reply.runs, nextPageToken: reply.nextPageToken);
+  }
+
+  Future<AutomationRun> getAutomationRun(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _automations.getAutomationRun(
+      GetAutomationRunRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRun()) {
+      throw connect.ConnectException(connect.Code.notFound, 'Run missing.');
+    }
+    return reply.run;
+  }
+
+  Future<List<AutomationStepRun>> listAutomationStepRuns(
+    String token,
+    String workspace,
+    String runId,
+  ) async => (await _automations.listAutomationStepRuns(
+    ListAutomationStepRunsRequest(runId: runId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).stepRuns;
+
+  Future<List<TelegramDestination>> listTelegramDestinations(
+    String token,
+    String workspace, {
+    String channelId = '',
+  }) async => (await _telegramDestinations.listTelegramDestinations(
+    ListTelegramDestinationsRequest(channelId: channelId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).destinations;
+
+  Future<TelegramDestination> getTelegramDestination(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _telegramDestinations.getTelegramDestination(
+      GetTelegramDestinationRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasDestination()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Destination not found.',
+      );
+    }
+    return reply.destination;
+  }
+
+  Future<TelegramDestination> createTelegramDestination(
+    String token,
+    String workspace,
+    TelegramDestination destination,
+  ) async {
+    final reply = await _telegramDestinations.createTelegramDestination(
+      CreateTelegramDestinationRequest(destination: destination),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasDestination()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Create returned no destination.',
+      );
+    }
+    return reply.destination;
+  }
+
+  Future<TelegramDestination> updateTelegramDestination(
+    String token,
+    String workspace,
+    TelegramDestination destination,
+  ) async {
+    final reply = await _telegramDestinations.updateTelegramDestination(
+      UpdateTelegramDestinationRequest(destination: destination),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasDestination()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Update returned no destination.',
+      );
+    }
+    return reply.destination;
+  }
+
+  Future<void> deleteTelegramDestination(
+    String token,
+    String workspace,
+    String id,
+  ) => _telegramDestinations.deleteTelegramDestination(
+    DeleteTelegramDestinationRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<SendTelegramTestMessageResponse> sendTelegramTestMessage(
+    String token,
+    String workspace,
+    String destinationId, {
+    String text = '',
+  }) => _telegramDestinations.sendTelegramTestMessage(
+    SendTelegramTestMessageRequest(destinationId: destinationId, text: text),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<List<TelegramChannel>> listTelegramChannels(
+    String token,
+    String workspace,
+  ) async => (await _telegramChannels.listTelegramChannels(
+    ListTelegramChannelsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).channels;
+
+  Future<TelegramChannel> getTelegramChannel(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _telegramChannels.getTelegramChannel(
+      GetTelegramChannelRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Channel not found.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<TelegramChannel> createTelegramChannel(
+    String token,
+    String workspace, {
+    required TelegramChannel channel,
+    required String botToken,
+  }) async {
+    final reply = await _telegramChannels.createTelegramChannel(
+      CreateTelegramChannelRequest(channel: channel, botToken: botToken),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Create returned no channel.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<TelegramChannel> updateTelegramChannel(
+    String token,
+    String workspace,
+    TelegramChannel channel,
+  ) async {
+    final reply = await _telegramChannels.updateTelegramChannel(
+      UpdateTelegramChannelRequest(channel: channel),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Update returned no channel.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<TelegramChannel> rotateTelegramChannelCredential(
+    String token,
+    String workspace,
+    String channelId,
+    String botToken,
+  ) async {
+    final reply = await _telegramChannels.rotateTelegramChannelCredential(
+      RotateTelegramChannelCredentialRequest(
+        channelId: channelId,
+        botToken: botToken,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Rotation returned no channel.',
+      );
+    }
+    return reply.channel;
+  }
+
+  Future<({TelegramChannel channel, List<String> warnings})>
+  setTelegramChannelEnabled(
+    String token,
+    String workspace, {
+    required String channelId,
+    required Int64 revision,
+    required bool inboundEnabled,
+    required bool outboundEnabled,
+  }) async {
+    final reply = await _telegramChannels.setTelegramChannelEnabled(
+      SetTelegramChannelEnabledRequest(
+        channelId: channelId,
+        revision: revision,
+        inboundEnabled: inboundEnabled,
+        outboundEnabled: outboundEnabled,
+      ),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasChannel()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Enablement returned no channel.',
+      );
+    }
+    return (channel: reply.channel, warnings: reply.warnings);
+  }
+
+  Future<void> deleteTelegramChannel(
+    String token,
+    String workspace,
+    String id,
+  ) => _telegramChannels.deleteTelegramChannel(
+    DeleteTelegramChannelRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  Future<TelegramChannelStatus> getTelegramChannelStatus(
+    String token,
+    String workspace,
+    String channelId,
+  ) async {
+    final reply = await _telegramChannels.getTelegramChannelStatus(
+      GetTelegramChannelStatusRequest(channelId: channelId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasStatus()) {
+      throw connect.ConnectException(
+        connect.Code.unknown,
+        'Status unavailable.',
+      );
+    }
+    return reply.status;
+  }
+
+  Future<List<TelegramProcessingRecord>> listTelegramProcessingRecords(
+    String token,
+    String workspace, {
+    String channelId = '',
+    String destinationId = '',
+    TelegramProcessingStatus status =
+        TelegramProcessingStatus.TELEGRAM_PROCESSING_STATUS_UNSPECIFIED,
+    int pageSize = 50,
+  }) async => (await _telegramProcessing.listTelegramProcessingRecords(
+    ListTelegramProcessingRecordsRequest(
+      channelId: channelId,
+      destinationId: destinationId,
+      status: status,
+      pageSize: pageSize,
+    ),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).records;
+
+  Future<TelegramProcessingRecord> getTelegramProcessingRecord(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _telegramProcessing.getTelegramProcessingRecord(
+      GetTelegramProcessingRecordRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRecord()) {
+      throw connect.ConnectException(
+        connect.Code.notFound,
+        'Processing record not found.',
+      );
+    }
+    return reply.record;
+  }
+
+  Future<ResendTelegramReplyResponse> resendTelegramReply(
+    String token,
+    String workspace,
+    String id,
+  ) => _telegramProcessing.resendTelegramReply(
+    ResendTelegramReplyRequest(id: id),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  );
+
+  /// Platform Telegram settings (global admin only). Members use channel
+  /// status blockers instead; a permission error is expected for them.
+  Future<TelegramSettings?> getTelegramSettings(String token) async {
+    try {
+      final reply = await _telegramAdmin.getTelegramSettings(
+        GetTelegramSettingsRequest(),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+      return reply.hasSettings() ? reply.settings : null;
+    } on connect.ConnectException catch (e) {
+      if (e.code == connect.Code.permissionDenied) return null;
+      rethrow;
+    }
+  }
+
   void close() => _client.close(force: true);
+  Future<List<LinearApp>> listLinearApps(
+    String token,
+    String workspace,
+  ) async => (await _linearApp.listLinearApps(
+    ListLinearAppsRequest(),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).apps;
+
+  Future<LinearApp> getLinearApp(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _linearApp.getLinearApp(
+      GetLinearAppRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(connect.Code.notFound, 'missing app');
+    }
+    return reply.app;
+  }
+
+  Future<LinearApp> createLinearApp(
+    String token,
+    String workspace,
+    LinearApp app, {
+    String? clientSecret,
+    String? webhookSecret,
+  }) async {
+    final req = CreateLinearAppRequest(app: app);
+    if (clientSecret != null) req.clientSecret = clientSecret;
+    if (webhookSecret != null) req.webhookSecret = webhookSecret;
+    final reply = await _linearApp.createLinearApp(
+      req,
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'create returned no app',
+      );
+    }
+    return reply.app;
+  }
+
+  Future<LinearApp> updateLinearApp(
+    String token,
+    String workspace,
+    LinearApp app,
+  ) async {
+    final reply = await _linearApp.updateLinearApp(
+      UpdateLinearAppRequest(app: app),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'update returned no app',
+      );
+    }
+    return reply.app;
+  }
+
+  /// Absent [clientSecret] / [webhookSecret] keeps the stored value; empty
+  /// clears it.
+  Future<LinearApp> putLinearAppCredentials(
+    String token,
+    String workspace,
+    String appId, {
+    String? clientSecret,
+    String? webhookSecret,
+  }) async {
+    final req = PutLinearAppCredentialsRequest(appId: appId);
+    if (clientSecret != null) req.clientSecret = clientSecret;
+    if (webhookSecret != null) req.webhookSecret = webhookSecret;
+    final reply = await _linearApp.putLinearAppCredentials(
+      req,
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasApp()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'credential update returned no app',
+      );
+    }
+    return reply.app;
+  }
+
+  Future<void> deleteLinearApp(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    await _linearApp.deleteLinearApp(
+      DeleteLinearAppRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  Future<String> beginLinearInstall(
+    String token,
+    String workspace,
+    String appId, {
+    required String returnUrl,
+  }) async {
+    final reply = await _linearApp.beginLinearInstall(
+      BeginLinearInstallRequest(appId: appId, returnUrl: returnUrl),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    return reply.authorizeUrl;
+  }
+
+  Future<List<LinearInstallation>> listLinearInstallations(
+    String token,
+    String workspace,
+    String appId,
+  ) async => (await _linearApp.listLinearInstallations(
+    ListLinearInstallationsRequest(appId: appId),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).installations;
+
+  Future<void> deleteLinearInstallation(
+    String token,
+    String workspace,
+    String appId,
+    String installationId,
+  ) async {
+    await _linearApp.deleteLinearInstallation(
+      DeleteLinearInstallationRequest(appId: appId, id: installationId),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+  }
+
+  /// Global-admin only; members receive permission denied.
+  Future<LinearSettings?> getLinearSettings(String token) async {
+    try {
+      final reply = await _linearAdmin.getLinearSettings(
+        GetLinearSettingsRequest(),
+        headers: _headers(token),
+        signal: _deadline,
+      );
+      return reply.hasSettings() ? reply.settings : null;
+    } on connect.ConnectException catch (e) {
+      if (e.code == connect.Code.permissionDenied) rethrow;
+      return null;
+    }
+  }
+
+  Future<List<LinearProcessingRecord>> listLinearProcessingRecords(
+    String token,
+    String workspace, {
+    String appId = '',
+    LinearProcessingStatus status =
+        LinearProcessingStatus.LINEAR_PROCESSING_STATUS_UNSPECIFIED,
+  }) async => (await _linearProcessing.listLinearProcessingRecords(
+    ListLinearProcessingRecordsRequest(appId: appId, status: status),
+    headers: _headers(token, workspace),
+    signal: _deadline,
+  )).records;
+
+  Future<LinearProcessingRecord> getLinearProcessingRecord(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _linearProcessing.getLinearProcessingRecord(
+      GetLinearProcessingRecordRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRecord()) {
+      throw connect.ConnectException(connect.Code.notFound, 'missing record');
+    }
+    return reply.record;
+  }
+
+  Future<LinearProcessingRecord> resendLinearReply(
+    String token,
+    String workspace,
+    String id,
+  ) async {
+    final reply = await _linearProcessing.resendLinearReply(
+      ResendLinearReplyRequest(id: id),
+      headers: _headers(token, workspace),
+      signal: _deadline,
+    );
+    if (!reply.hasRecord()) {
+      throw connect.ConnectException(
+        connect.Code.internal,
+        'resend returned no record',
+      );
+    }
+    return reply.record;
+  }
 }

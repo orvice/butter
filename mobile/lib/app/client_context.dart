@@ -6,10 +6,23 @@ import 'package:uuid/uuid.dart';
 
 import '../core/butter_api.dart';
 import '../core/agent_errors.dart';
+import '../core/config_resource_controller.dart';
 import '../core/client_storage.dart';
 import '../core/model_provider_errors.dart';
 import '../core/native_oauth.dart';
+import '../features/agents/agent_lifecycle_controller.dart';
+import '../features/agents/associations.dart';
 import '../features/daemons/daemon_controller.dart';
+import '../features/files/file_controller.dart';
+import '../features/memory/memory_controller.dart';
+import '../features/repo_binding/repo_binding_controller.dart';
+import '../features/automation/automation_controller.dart';
+import '../features/cron/cron_controller.dart';
+import '../features/ops/workspace_ops_controller.dart';
+import '../features/notify_groups/notify_group_controller.dart';
+import '../features/linear/linear_controller.dart';
+import '../features/telegram/telegram_controller.dart';
+import '../features/sessions/session_controller.dart';
 import '../features/mcp/mcp_controller.dart';
 import '../features/remote_agents/remote_agent_controller.dart';
 import '../core/server_address.dart';
@@ -111,7 +124,10 @@ final class ClientContext extends ChangeNotifier {
   String? _agentId;
   List<Agent> agentChoices = const [];
   List<String> agentModelChoices = const [];
-  List<String> agentSkillChoices = const [];
+  ChoiceSet agentSkills = const ChoiceSet.unloaded();
+  ChoiceSet agentMcp = const ChoiceSet.unloaded();
+  ChoiceSet agentRemote = const ChoiceSet.unloaded();
+  ChoiceSet agentSpaces = const ChoiceSet.unloaded();
   bool agentContentGitOwned = false;
   bool agentEditorReady = false;
   bool agentRepositoryBound = false;
@@ -123,7 +139,10 @@ final class ClientContext extends ChangeNotifier {
     agentEditorReady = false;
     agentRepositoryBound = false;
     agentContentGitOwned = false;
-    agentSkillChoices = const [];
+    agentSkills = const ChoiceSet.unloaded();
+    agentMcp = const ChoiceSet.unloaded();
+    agentRemote = const ChoiceSet.unloaded();
+    agentSpaces = const ChoiceSet.unloaded();
     _agentEditorShown = false;
   }
 
@@ -271,6 +290,262 @@ final class ClientContext extends ChangeNotifier {
     );
   }
 
+  FileSpaceController? _fileSpaces;
+  SessionController? _sessions;
+  CronController? _cron;
+  WorkspaceOpsController? _ops;
+
+  /// Overview, invocations and personal API tokens for the current scope.
+  WorkspaceOpsController? get ops {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _ops ??= WorkspaceOpsController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      isGlobalAdmin: () => user?.role == 'admin',
+      agentCount: () => agents.length,
+      onUnauthenticated: () {
+        final self = _ops;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  NotifyGroupController? _notifyGroups;
+  AutomationController? _automations;
+
+  /// Notify Groups for outbound delivery targets.
+  NotifyGroupController? get notifyGroups {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _notifyGroups ??= NotifyGroupController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _notifyGroups;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  /// Workspace automations, runs and manual execution.
+  AutomationController? get automations {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _automations ??= AutomationController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _automations;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      agents: () => agents,
+    );
+  }
+
+  LinearController? _linear;
+
+  /// Linear Apps, installations and processing deliveries (#466).
+  LinearController? get linear {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _linear ??= LinearController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      canManage: () => canManageWorkspaceResources,
+      onUnauthenticated: () {
+        final self = _linear;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  TelegramController? _telegram;
+
+  /// Telegram Channels, Destinations and processing records (#465).
+  TelegramController? get telegram {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _telegram ??= TelegramController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _telegram;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      agents: () => agents,
+      modelAliases: () => agentModelChoices,
+    );
+  }
+
+  /// Cron jobs, executions, run-now and WAITING_INPUT reply.
+  CronController? get cron {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _cron ??= CronController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _cron;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      sessions: () => sessions!,
+      agents: () => agents,
+    );
+  }
+
+  /// ADK session list, detail, rename, delete and ReplySession.
+  SessionController? get sessions {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _sessions ??= SessionController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _sessions;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  RepoBindingController? _repoBinding;
+  AgentLifecycleController? _agentLifecycle;
+
+  /// Agent lifecycle operations and Git content commits (#459).
+  AgentLifecycleController? get agentLifecycle {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _agentLifecycle ??= AgentLifecycleController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      canManage: () => canManageWorkspaceResources,
+      onUnauthenticated: () {
+        final self = _agentLifecycle;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      onAgentsChanged: () => unawaited(refreshAgents()),
+      onBindingChanged: () => unawaited(refreshAgentBindingFlags()),
+    );
+  }
+
+  MemoryController? _memory;
+
+  /// Workspace mem0 connection and stored memories (#457).
+  MemoryController? get memory {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _memory ??= MemoryController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      canManage: () => canManageWorkspaceResources,
+      onUnauthenticated: () {
+        final self = _memory;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
+  /// Git repository binding and cache browser (#458). [RepoBindingController]
+  /// exposes [RepoBindingController.agentContentGitOwned] for Agent Content (#459).
+  RepoBindingController? get repoBinding {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _repoBinding ??= RepoBindingController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      canManage: () => canManageWorkspaceResources,
+      onUnauthenticated: () {
+        final self = _repoBinding;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+      onBindingChanged: () => unawaited(refreshAgentBindingFlags()),
+    );
+  }
+
+  /// Re-read binding flags used by the Agent editor after Git operations.
+  Future<void> refreshAgentBindingFlags() async {
+    if (_token == null || workspace == null) return;
+    final generation = scope;
+    try {
+      final binding = await _api!.repositoryBinding(_token!, workspace!.id);
+      if (scope != generation) return;
+      agentRepositoryBound = binding != null;
+      agentContentGitOwned = binding?.activeCommitSha.isNotEmpty ?? false;
+      notifyListeners();
+    } catch (_) {
+      // Reads fail closed; Agent saves re-read binding themselves.
+    }
+  }
+
+  /// File spaces and their files for the current server, user and Workspace.
+  FileSpaceController? get fileSpaces {
+    final api = address;
+    final token = _token;
+    final id = workspace?.id;
+    if (_disposed || api == null || token == null || id == null) return null;
+    return _fileSpaces ??= FileSpaceController(
+      newApi: () => ButterApi(api),
+      token: token,
+      workspaceId: id,
+      onUnauthenticated: () {
+        final self = _fileSpaces;
+        if (self != null && !self.disposed && _token == token) {
+          unawaited(_expire());
+        }
+      },
+    );
+  }
+
   void _disposeChat() {
     final old = _chat;
     _chat = null;
@@ -284,6 +559,39 @@ final class ClientContext extends ChangeNotifier {
     final oldDaemons = _daemons;
     _daemons = null;
     oldDaemons?.dispose();
+    final oldFiles = _fileSpaces;
+    _fileSpaces = null;
+    oldFiles?.dispose();
+    final oldRepo = _repoBinding;
+    _repoBinding = null;
+    oldRepo?.dispose();
+    final oldLifecycle = _agentLifecycle;
+    _agentLifecycle = null;
+    oldLifecycle?.dispose();
+    final oldMemory = _memory;
+    _memory = null;
+    oldMemory?.dispose();
+    final oldSessions = _sessions;
+    _sessions = null;
+    oldSessions?.dispose();
+    final oldCron = _cron;
+    _cron = null;
+    oldCron?.dispose();
+    final oldOps = _ops;
+    _ops = null;
+    oldOps?.dispose();
+    final oldNotify = _notifyGroups;
+    _notifyGroups = null;
+    oldNotify?.dispose();
+    final oldAuto = _automations;
+    _automations = null;
+    oldAuto?.dispose();
+    final oldLinear = _linear;
+    _linear = null;
+    oldLinear?.dispose();
+    final oldTelegram = _telegram;
+    _telegram = null;
+    oldTelegram?.dispose();
     final oldBoxes = _boxes;
     _boxes = null;
     oldBoxes?.dispose();
@@ -293,6 +601,16 @@ final class ClientContext extends ChangeNotifier {
       managedWorkspace != null &&
       (user?.role == 'admin' ||
           members.any((m) => m.userId == user?.id && m.role == 'owner'));
+
+  /// Owner, workspace admin, or global admin — matches repo-binding and similar RPC gates.
+  bool get canManageWorkspaceResources =>
+      managedWorkspace != null &&
+      (user?.role == 'admin' ||
+          members.any(
+            (m) =>
+                m.userId == user?.id &&
+                (m.role == 'owner' || m.role == 'admin'),
+          ));
 
   void _clearManagement() {
     _clearAgentDetail();
@@ -313,8 +631,6 @@ final class ClientContext extends ChangeNotifier {
   String? error;
   String? writeNotice;
   int? _writingGeneration;
-  static const _unconfirmedWrite =
-      'Change not confirmed; it may already have been applied. Refresh before retrying.';
 
   /// OAuth providers the server offers for sign-in.
   List<OAuthProvider> oauthProviders = const [];
@@ -354,7 +670,7 @@ final class ClientContext extends ChangeNotifier {
   }
 
   int _begin({bool clearIdentity = false}) {
-    if (_writingGeneration == _generation) writeNotice = _unconfirmedWrite;
+    if (_writingGeneration == _generation) writeNotice = configUnconfirmed;
     _generation++;
     _api?.close();
     _api = address == null ? null : ButterApi(address!);
@@ -759,7 +1075,18 @@ final class ClientContext extends ChangeNotifier {
     _mcp?.suspend();
     _remoteAgents?.suspend();
     _daemons?.suspend();
-    if (_writingGeneration != null) writeNotice = _unconfirmedWrite;
+    _fileSpaces?.suspend();
+    _repoBinding?.suspend();
+    _agentLifecycle?.suspend();
+    _memory?.suspend();
+    _sessions?.suspend();
+    _cron?.suspend();
+    _ops?.suspend();
+    _notifyGroups?.suspend();
+    _automations?.suspend();
+    _linear?.suspend();
+    _telegram?.suspend();
+    if (_writingGeneration != null) writeNotice = configUnconfirmed;
     _generation++;
     _api?.close();
     busy = false;
@@ -769,7 +1096,10 @@ final class ClientContext extends ChangeNotifier {
     agentChoices = const [];
     agentModelChoices = const [];
     agentEditorReady = false;
-    agentSkillChoices = const [];
+    agentSkills = const ChoiceSet.unloaded();
+    agentMcp = const ChoiceSet.unloaded();
+    agentRemote = const ChoiceSet.unloaded();
+    agentSpaces = const ChoiceSet.unloaded();
     // Keys must not wait in memory while the app is in the background; the
     // read-only foreground recovery reloads what was open.
     modelProviders = const [];
@@ -829,6 +1159,16 @@ final class ClientContext extends ChangeNotifier {
     unawaited(_mcp?.recover());
     unawaited(_remoteAgents?.recover());
     unawaited(_daemons?.recover());
+    unawaited(_fileSpaces?.recover());
+    unawaited(_repoBinding?.recover());
+    unawaited(_memory?.recover());
+    unawaited(_sessions?.recover());
+    unawaited(_cron?.recover());
+    unawaited(_ops?.recover());
+    unawaited(_notifyGroups?.recover());
+    unawaited(_automations?.recover());
+    unawaited(_linear?.recover());
+    unawaited(_telegram?.recover());
   }
 
   Future<void> refreshWorkspaces() async {
@@ -891,6 +1231,33 @@ final class ClientContext extends ChangeNotifier {
     await _run(generation, () => _loadAgentEditor(generation));
   }
 
+  /// One association list. A failure here must not block editing the Agent:
+  /// the list is reported as denied or unavailable and the selection is kept.
+  /// A sign-in that lapsed still ends the session, and server text is never
+  /// shown.
+  Future<ChoiceSet> _associationChoices(
+    int generation,
+    Future<List<Choice>> Function() read,
+  ) async {
+    try {
+      final items = await read();
+      final seen = <String>{};
+      return ChoiceSet(ChoiceStatus.loaded, [
+        for (final c in items)
+          if (seen.add(c.id)) c,
+      ]);
+    } catch (failure) {
+      if (failure is ConnectException && failure.code == Code.unauthenticated) {
+        rethrow;
+      }
+      return ChoiceSet(
+        failure is ConnectException && failure.code == Code.permissionDenied
+            ? ChoiceStatus.denied
+            : ChoiceStatus.unavailable,
+      );
+    }
+  }
+
   Future<void> _loadAgentEditor(int generation) async {
     final api = _api!;
     final token = _token!;
@@ -913,7 +1280,36 @@ final class ClientContext extends ChangeNotifier {
     if (!_current(generation)) return;
     final binding = await api.repositoryBinding(token, ws);
     if (!_current(generation)) return;
-    final skills = await api.skillNames(token, ws);
+    final skills = await _associationChoices(
+      generation,
+      () async => [
+        for (final n in await api.skillNames(token, ws)) Choice(n, n),
+      ],
+    );
+    if (!_current(generation)) return;
+    final mcp = await _associationChoices(
+      generation,
+      () async => [
+        for (final m in await api.mcpServers(token, ws))
+          if (m.id.isNotEmpty) Choice(m.id, m.name.isEmpty ? m.id : m.name),
+      ],
+    );
+    if (!_current(generation)) return;
+    final remote = await _associationChoices(
+      generation,
+      () async => [
+        for (final r in await api.remoteAgents(token, ws))
+          if (r.id.isNotEmpty) Choice(r.id, r.name.isEmpty ? r.id : r.name),
+      ],
+    );
+    if (!_current(generation)) return;
+    final spaces = await _associationChoices(
+      generation,
+      () async => [
+        for (final s in await api.fileSpaces(token, ws))
+          if (s.id.isNotEmpty) Choice(s.id, s.name.isEmpty ? s.id : s.name),
+      ],
+    );
     if (!_current(generation)) return;
     agentChoices = List.unmodifiable(choices);
     agentModelChoices = List.unmodifiable({
@@ -923,7 +1319,10 @@ final class ClientContext extends ChangeNotifier {
     });
     agentRepositoryBound = binding != null;
     agentContentGitOwned = binding?.activeCommitSha.isNotEmpty ?? false;
-    agentSkillChoices = List.unmodifiable(skills);
+    agentSkills = skills;
+    agentMcp = mcp;
+    agentRemote = remote;
+    agentSpaces = spaces;
     agentEditorReady = true;
   }
 
@@ -1054,7 +1453,7 @@ final class ClientContext extends ChangeNotifier {
     }, describe: describe);
     if (_writingGeneration == generation) _writingGeneration = null;
     if (!succeeded && ambiguous && _current(generation) && user != null) {
-      writeNotice = _unconfirmedWrite;
+      writeNotice = configUnconfirmed;
       _emit();
     }
     return succeeded && _current(generation);

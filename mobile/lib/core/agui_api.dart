@@ -9,11 +9,18 @@ import 'sse.dart';
 /// A refused AG-UI request: the server answered with an HTTP status before any
 /// stream opened, so the run did not start.
 final class AguiHttpError implements Exception {
-  const AguiHttpError(this.status, [this.code]);
+  const AguiHttpError(
+    this.status, {
+    this.code,
+    this.message,
+    this.fieldErrors = const {},
+  });
   final int status;
 
   /// The `code` of the server's JSON error body, when it sent one.
   final String? code;
+  final String? message;
+  final Map<String, String> fieldErrors;
   @override
   String toString() => 'AguiHttpError($status${code == null ? '' : ', $code'})';
 }
@@ -50,6 +57,18 @@ final class AguiRun {
   final void Function() abort;
 }
 
+/// The run a Stop reached (202). It ends shortly after on the server.
+final class AguiStoppedRun {
+  const AguiStoppedRun({
+    required this.threadId,
+    required this.runId,
+    required this.invocationId,
+  });
+  final String threadId;
+  final String runId;
+  final String invocationId;
+}
+
 /// Plain `dart:io` HTTP for the AG-UI endpoints. Redirects are never
 /// followed (a redirect would carry the credential elsewhere), nothing is
 /// retried, and a response body is only ever read within a bound.
@@ -71,14 +90,19 @@ final class AguiApi {
   static const _headerTimeout = Duration(seconds: 30);
   static const _errorBodyLimit = 64 * 1024;
   static const _historyLimit = 64 * 1024 * 1024;
+  static const _uiSnapshotLimit = 8 * 1024 * 1024;
 
   Uri _run(String agentId) =>
       address.endpoint('api/agui/${Uri.encodeComponent(agentId)}');
 
-  Uri _messages(String agentId, String threadId) => address.endpoint(
-    'api/agui/${Uri.encodeComponent(agentId)}/threads/'
-    '${Uri.encodeComponent(threadId)}/messages',
-  );
+  Uri _threadResource(String agentId, String threadId, String resource) =>
+      address.endpoint(
+        'api/agui/${Uri.encodeComponent(agentId)}/threads/'
+        '${Uri.encodeComponent(threadId)}/$resource',
+      );
+
+  Uri _messages(String agentId, String threadId) =>
+      _threadResource(agentId, threadId, 'messages');
 
   // The abort of every run still open, so a suspend can end them all.
   final _live = <void Function()>{};
@@ -152,19 +176,35 @@ final class AguiApi {
 
   Future<AguiHttpError> _refusal(HttpClientResponse response) async {
     String? code;
+    String? message;
+    var fieldErrors = const <String, String>{};
     try {
       final bytes = await _readBounded(
         response,
         _errorBodyLimit,
       ).timeout(const Duration(seconds: 10));
       final decoded = jsonDecode(utf8.decode(bytes));
-      if (decoded is Map && decoded['code'] is String) {
-        code = decoded['code'] as String;
+      if (decoded is Map) {
+        if (decoded['code'] is String) code = decoded['code'] as String;
+        if (decoded['error'] is String) message = decoded['error'] as String;
+        final fe = decoded['fieldErrors'];
+        if (fe is Map) {
+          fieldErrors = {
+            for (final e in fe.entries)
+              if (e.key is String && e.value is String)
+                e.key as String: e.value as String,
+          };
+        }
       }
     } catch (_) {
       // The status alone decides what the person is told.
     }
-    return AguiHttpError(response.statusCode, code);
+    return AguiHttpError(
+      response.statusCode,
+      code: code,
+      message: message,
+      fieldErrors: fieldErrors,
+    );
   }
 
   /// Reads at most [limit] bytes; throws when the body is larger.
@@ -177,6 +217,130 @@ final class AguiApi {
       }
     }
     return out.takeBytes();
+  }
+
+  /// Follows the thread's detached run log (GET …/run). Null on 204.
+  Future<AguiRun?> attach({
+    required String token,
+    required String workspace,
+    required String agentId,
+    required String threadId,
+  }) async {
+    if (_closed) throw const AguiNotSent();
+    final client = _newClient();
+    var aborted = false;
+    late final void Function() abort;
+    abort = () {
+      aborted = true;
+      _live.remove(abort);
+      client.close(force: true);
+    };
+    _live.add(abort);
+    final HttpClientRequest request;
+    try {
+      request = await client.getUrl(_threadResource(agentId, threadId, 'run'));
+    } catch (_) {
+      abort();
+      throw const AguiNotSent();
+    }
+    final HttpClientResponse response;
+    try {
+      request.followRedirects = false;
+      request.headers
+        ..set('Authorization', 'Bearer $token')
+        ..set('X-Workspace-ID', workspace)
+        ..set('Accept', 'text/event-stream');
+      response = await request.close().timeout(_headerTimeout);
+    } catch (_) {
+      abort();
+      throw const AguiAmbiguous();
+    }
+    if (response.statusCode == 204) {
+      abort();
+      return null;
+    }
+    if (response.statusCode != 200) {
+      final refusal = await _refusal(response);
+      abort();
+      throw refusal;
+    }
+    if (response.headers.contentType?.mimeType != 'text/event-stream') {
+      abort();
+      throw const AguiAmbiguous();
+    }
+    final bytes = response
+        .timeout(
+          idleTimeout,
+          onTimeout: (sink) {
+            sink.addError(const AguiIdle());
+            sink.close();
+          },
+        )
+        .handleError((Object _) {}, test: (_) => aborted);
+    return AguiRun(parseSse(bytes), abort);
+  }
+
+  /// Stops the thread's detached run. Null on 204 (nothing to stop).
+  Future<AguiStoppedRun?> stop({
+    required String token,
+    required String workspace,
+    required String agentId,
+    required String threadId,
+  }) async {
+    if (_closed) throw const AguiNotSent();
+    final request = await _client
+        .postUrl(_threadResource(agentId, threadId, 'stop'))
+        .timeout(const Duration(seconds: 20));
+    request.followRedirects = false;
+    request.headers
+      ..set('Authorization', 'Bearer $token')
+      ..set('X-Workspace-ID', workspace)
+      ..contentLength = 0;
+    final response = await request.close().timeout(const Duration(seconds: 20));
+    if (response.statusCode == 204) return null;
+    if (response.statusCode != 202) throw await _refusal(response);
+    final bytes = await _readBounded(
+      response,
+      _errorBodyLimit,
+    ).timeout(const Duration(seconds: 10));
+    final decoded = jsonDecode(utf8.decode(bytes));
+    if (decoded is! Map) throw const FormatException('Unreadable stop answer.');
+    final runId = decoded['runId'];
+    final invocationId = decoded['invocationId'];
+    final tid = decoded['threadId'];
+    if (runId is! String || invocationId is! String || tid is! String) {
+      throw const FormatException('Unreadable stop answer.');
+    }
+    return AguiStoppedRun(
+      threadId: tid,
+      runId: runId,
+      invocationId: invocationId,
+    );
+  }
+
+  /// A thread's UI snapshot as JSON text (`GET …/ui`).
+  Future<String> uiSnapshot({
+    required String token,
+    required String workspace,
+    required String agentId,
+    required String threadId,
+  }) async {
+    if (_closed) throw const AguiNotSent();
+    final request = await _client
+        .getUrl(_threadResource(agentId, threadId, 'ui'))
+        .timeout(const Duration(seconds: 20));
+    request.followRedirects = false;
+    request.headers
+      ..set('Authorization', 'Bearer $token')
+      ..set('X-Workspace-ID', workspace)
+      ..set('Accept', 'application/json');
+    final response = await request.close().timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) throw await _refusal(response);
+    final bytes = await _readBounded(
+      response,
+      _uiSnapshotLimit,
+    ).timeout(const Duration(seconds: 30));
+    return utf8.decode(bytes);
   }
 
   /// A thread's history as the server's JSON text.

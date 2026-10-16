@@ -22,6 +22,8 @@ import (
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
 	invocationmemory "go.orx.me/apps/butter/internal/repo/invocation/memory"
+	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
+	"go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
@@ -126,6 +128,33 @@ func (s *chatSessions) Get(ctx context.Context, req *adksession.GetRequest) (*ad
 }
 
 func (s *chatSessions) List(ctx context.Context, req *adksession.ListRequest) (*adksession.ListResponse, error) {
+	// Production Mongo lists with empty app/user; ADK memory List does not. The
+	// session explorer owner path lists all users then filters by workspace.
+	if req.UserID == "" && req.AppName == "" {
+		s.mu.Lock()
+		type ref struct{ app, user, id string }
+		var refs []ref
+		for key := range s.metas {
+			parts := strings.SplitN(key, "|", 3)
+			if len(parts) != 3 {
+				continue
+			}
+			refs = append(refs, ref{parts[0], parts[1], parts[2]})
+		}
+		s.mu.Unlock()
+		out := make([]adksession.Session, 0, len(refs))
+		for _, r := range refs {
+			resp, err := s.Service.Get(ctx, &adksession.GetRequest{AppName: r.app, UserID: r.user, SessionID: r.id})
+			if err != nil {
+				continue
+			}
+			out = append(out, s.view(resp.Session))
+		}
+		sort.SliceStable(out, func(i, j int) bool {
+			return out[i].LastUpdateTime().After(out[j].LastUpdateTime())
+		})
+		return &adksession.ListResponse{Sessions: out}, nil
+	}
 	resp, err := s.Service.List(ctx, req)
 	if err != nil {
 		return nil, err
@@ -246,6 +275,9 @@ func fakeModel(ctx context.Context) (string, error) {
 			return
 		}
 		text := lastUserText(req.Messages)
+		if toolCommand(w, req, text) {
+			return
+		}
 		reply := fmt.Sprintf("fixture(%s)", text)
 		if strings.Contains(text, "markdown") {
 			reply = chatMarkdownReply
@@ -291,12 +323,11 @@ func lastUserText(messages []openaifake.ChatCompletionMessage) string {
 }
 
 // registerChat wires the chat fixture's routes onto r.
-func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, opts []connect.HandlerOption, bx *boxFixture) (*runner.Service, []agentsv1.ModelProvider, error) {
+func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.Store, wsRepo workspace.Repository, opts []connect.HandlerOption, bx *boxFixture, backends *fileBackends, skills skillrepo.Repository) (*runner.Service, *chatSessions, []agentsv1.ModelProvider, error) {
 	modelURL, err := fakeModel(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	sessions := newChatSessions()
 	agents := []agentsv1.Agent{{
 		Name: "chat-talker", AgentId: chatAgentID, WorkspaceId: chatWorkspace,
 		Config: &agentsv1.AgentConfig{Model: chatModel},
@@ -304,13 +335,27 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	if _, err := agentRepo.CreateAgent(ctx, chatWorkspace, &agentsv1.Agent{
 		Name: agents[0].Name, AgentId: agents[0].AgentId, Config: agents[0].Config,
 	}); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	sessions := newChatSessions()
+	if err := seedExplorerSessions(ctx, sessions); err != nil {
+		return nil, nil, nil, err
+	}
+	if _, err := agentRepo.CreateAgent(ctx, sessionsWorkspace, &agentsv1.Agent{
+		Name: "sessions-helper", AgentId: sessionsAgentID, WorkspaceId: sessionsWorkspace,
+		Config: &agentsv1.AgentConfig{Model: chatModel},
+	}); err != nil {
+		return nil, nil, nil, err
+	}
+	agents = append(agents, agentsv1.Agent{
+		Name: "sessions-helper", AgentId: sessionsAgentID, WorkspaceId: sessionsWorkspace,
+		Config: &agentsv1.AgentConfig{Model: chatModel},
+	})
 	providers := chatProviders(modelURL)
 	svc, err := runner.NewServiceWithMCPHTTPClientFactory(ctx, agents, providers,
-		nil, nil, nil, sessions, nil, nil, nil, 0, nil, adkrunner.PluginConfig{}, nil, bx.builders)
+		nil, nil, nil, sessions, nil, nil, backends.files, 0, skills, adkrunner.PluginConfig{}, nil, bx.builders)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	invocations := invocationmemory.New().WithOwner("contract-fixture")
 	svc.SetInvocationRecorder(invocations)
@@ -329,22 +374,28 @@ func registerChat(ctx context.Context, r *gin.Engine, agentRepo *configmemory.St
 	if _, err := sessions.Create(legacyCtx, &adksession.CreateRequest{
 		AppName: "agui", UserID: chatUserID, SessionID: "agui-" + legacyThread,
 	}); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	sessionSvc := application.NewSessionServiceServer()
 	sessionSvc.SetSessionService(sessions)
 	sessionSvc.SetTitleStore(sessions)
 	sessionSvc.SetWorkspaceSessionStore(sessions)
+	sessionSvc.SetWorkspaceRepo(wsRepo)
+	sessionSvc.SetRunnerService(svc)
 	sessionSvc.SetAGUIThreads(agui)
 	_, handler := agentsv1connect.NewSessionServiceHandler(sessionSvc, opts...)
 	for _, procedure := range []string{
+		agentsv1connect.SessionServiceCreateSessionProcedure,
+		agentsv1connect.SessionServiceGetSessionProcedure,
 		agentsv1connect.SessionServiceListSessionsProcedure,
+		agentsv1connect.SessionServiceDeleteSessionProcedure,
+		agentsv1connect.SessionServiceReplySessionProcedure,
 		agentsv1connect.SessionServiceUpdateSessionTitleProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", handler)))
 	}
-	return svc, providers, nil
+	return svc, sessions, providers, nil
 }
 
 // chatProviders is the one provider the fixture's runner serves, pointed at
@@ -354,4 +405,10 @@ func chatProviders(modelURL string) []agentsv1.ModelProvider {
 		Name: "fake", Type: "openai", BaseUrl: modelURL,
 		Models: []*agentsv1.ModelConfig{{Name: chatModel}},
 	}}
+}
+
+func init() {
+	registerFixtureWorkspaces(
+		fixtureWorkspace{ID: chatWorkspace, NoSeedAgent: true},
+	)
 }

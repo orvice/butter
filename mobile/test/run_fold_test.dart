@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:butter_mobile/features/chat/chat_model.dart';
+import 'package:butter_mobile/features/chat/run_effects.dart';
 import 'package:butter_mobile/features/chat/run_fold.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -191,21 +192,108 @@ void main() {
     expect((f.reply.parts.single as TextPart).text, 'partial');
   });
 
-  test('other CUSTOM events, state events and unknown types are ignored', () {
+  test('malformed A2UI custom events do not break the run fold', () {
+    final effects = _RecordingEffects();
+    final f = RunFold(effects);
+    f.addData(jsonEncode(started()));
+    f.addData(
+      jsonEncode({
+        'type': 'CUSTOM',
+        'name': 'butter.a2ui',
+        'value': {'x': 1},
+      }),
+    );
+    f.addData(jsonEncode(textStart('m1')));
+    f.addData(jsonEncode(text('m1', 'ok')));
+    expect(effects.a2uiEvents, isEmpty);
+    expect(f.reply.parts, hasLength(1));
+    expect(f.outcome, isNull);
+  });
+
+  test('A2UI custom events reach RunEffects', () {
+    final effects = _RecordingEffects();
+    final f = RunFold(effects);
+    f.addData(jsonEncode(started()));
+    f.addData(
+      jsonEncode({
+        'type': 'CUSTOM',
+        'name': 'butter.a2ui',
+        'value': {
+          'surfaceId': 'c1',
+          'revision': 1,
+          'seq': 0,
+          'envelope': {'version': 'v0.9.1', 'createSurface': {}},
+        },
+      }),
+    );
+    f.addData(jsonEncode(textStart('m1')));
+    f.addData(jsonEncode(text('m1', 'ok')));
+    expect(effects.a2uiEvents, hasLength(1));
+  });
+
+  test('other custom events are ignored', () {
     final f = fold([
       started(),
       {
         'type': 'CUSTOM',
-        'name': 'butter.a2ui',
+        'name': 'other.event',
         'value': {'x': 1},
       },
-      {'type': 'STATE_DELTA', 'delta': []},
       {'type': 'SOMETHING_NEW', 'extra': true},
       textStart('m1'),
       text('m1', 'ok'),
     ]);
     expect(f.reply.parts, hasLength(1));
     expect(f.outcome, isNull);
+  });
+
+  test('RUN_STARTED resets the fold for attach replay', () {
+    final f = RunFold();
+    f.addData(jsonEncode(started('run-1')));
+    f.addData(jsonEncode(textStart('m1')));
+    f.addData(jsonEncode(text('m1', 'stale')));
+    f.addData(jsonEncode(started('run-1')));
+    f.addData(jsonEncode(textStart('m2')));
+    f.addData(jsonEncode(text('m2', 'fresh')));
+    expect((f.reply.parts.single as TextPart).text, 'fresh');
+  });
+
+  test('state snapshot and delta update the mirror', () {
+    final f = RunFold();
+    f.addData(jsonEncode(started()));
+    f.addData(
+      jsonEncode({
+        'type': 'STATE_SNAPSHOT',
+        'snapshot': {'a': 1},
+      }),
+    );
+    f.addData(
+      jsonEncode({
+        'type': 'STATE_DELTA',
+        'delta': [
+          {'op': 'replace', 'path': '/a', 'value': 2},
+        ],
+      }),
+    );
+    expect(f.sharedState, {'a': 2});
+  });
+
+  test('unsupported state delta is an error', () {
+    final f = fold([
+      started(),
+      {'type': 'STATE_SNAPSHOT', 'snapshot': {}},
+    ]);
+    expect(
+      () => f.addData(
+        jsonEncode({
+          'type': 'STATE_DELTA',
+          'delta': [
+            {'op': 'move', 'path': '/a', 'from': '/b'},
+          ],
+        }),
+      ),
+      throwsFormatException,
+    );
   });
 
   test('nothing after the end of the run changes the result', () {
@@ -233,4 +321,12 @@ void main() {
       throwsFormatException,
     );
   });
+}
+
+final class _RecordingEffects extends RunEffects {
+  final a2uiEvents = <Object?>[];
+  @override
+  void a2ui(Object? value) => a2uiEvents.add(value);
+  @override
+  void state(Map<String, dynamic>? next) {}
 }

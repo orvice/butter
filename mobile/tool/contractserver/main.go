@@ -27,13 +27,12 @@ import (
 	"go.orx.me/apps/butter/internal/config"
 	httpHandler "go.orx.me/apps/butter/internal/handler/http"
 	"go.orx.me/apps/butter/internal/repo"
+	agentopmemory "go.orx.me/apps/butter/internal/repo/agentop/memory"
 	"go.orx.me/apps/butter/internal/repo/apitoken"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
-	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	oauthhandoffmemory "go.orx.me/apps/butter/internal/repo/oauthhandoff/memory"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
-	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	skillmemory "go.orx.me/apps/butter/internal/repo/skill/memory"
 	telegramrepo "go.orx.me/apps/butter/internal/repo/telegram"
 	telegrammemory "go.orx.me/apps/butter/internal/repo/telegram/memory"
@@ -217,27 +216,22 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	}
 	wsRepo := workspacememory.New()
 	agentRepo := configmemory.New()
-	for _, id := range []string{"alpha", "beta", chatWorkspace, boxWorkspace, mcpWorkspace, daemonWorkspace, daemonPeerWorkspace} {
-		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: id, Name: id, Slug: id}); err != nil {
+	for _, w := range fixtureWorkspaces {
+		if _, err := wsRepo.CreateWorkspace(ctx, &agentsv1.Workspace{Id: w.ID, Name: w.ID, Slug: w.ID}); err != nil {
 			return nil, nil, err
 		}
 		role := "member"
-		if id == daemonWorkspace {
-			// The Daemon Workspace is the one the account owns, so token
-			// revocation is allowed there; every other Workspace shows the
-			// member's refusal.
+		if w.Owner {
 			role = "owner"
 		}
-		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: id, UserId: authRepo.user.GetId(), Role: role}); err != nil {
+		if _, err := wsRepo.AddMember(ctx, &agentsv1.WorkspaceMember{WorkspaceId: w.ID, UserId: authRepo.user.GetId(), Role: role}); err != nil {
 			return nil, nil, err
 		}
-		if id == chatWorkspace || id == boxWorkspace || id == mcpWorkspace || id == daemonWorkspace || id == daemonPeerWorkspace {
-			// Chat's agent is the runnable one the chat fixture registers;
-			// the box, MCP and Daemon Workspaces start with none, their
-			// resources are created by the contract tests.
+		if w.NoSeedAgent {
+			// Each such fixture registers the Agents and resources it needs.
 			continue
 		}
-		if _, err := agentRepo.CreateAgent(ctx, id, &agentsv1.Agent{AgentId: "shared", Name: id + "-agent"}); err != nil {
+		if _, err := agentRepo.CreateAgent(ctx, w.ID, &agentsv1.Agent{AgentId: "shared", Name: w.ID + "-agent"}); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -277,25 +271,31 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	opts := connectx.HandlerOptions()
 	_, authHandler := agentsv1connect.NewAuthServiceHandler(authSvc, opts...)
 	_, wsHandler := agentsv1connect.NewWorkspaceServiceHandler(application.NewWorkspaceServiceServer(wsRepo), opts...)
-	bindingRepo := repobindingmemory.New()
+	repoFx, err := newRepoBindingFixture(ctx, wsRepo, agentRepo)
+	if err != nil {
+		return nil, nil, err
+	}
 	// beta is bound but has no Active Revision: Agent Content remains
 	// database-owned for existing Agent edits, including member writes.
-	if _, err := bindingRepo.Put(ctx, "beta", &agentsv1.WorkspaceRepoBinding{
-		GitHostId: "contract-host", Repository: "owner/repo", Branch: "main",
+	if _, err := repoFx.binding.Put(ctx, "beta", &agentsv1.WorkspaceRepoBinding{
+		GitHostId: repoBindingGitHostID, Repository: "owner/repo", Branch: "main",
 	}); err != nil {
 		return nil, nil, err
 	}
-	bindingSvc := application.NewRepoBindingServiceServer(bindingRepo, githostmemory.New())
-	bindingSvc.SetWorkspaceRepo(wsRepo)
-	_, bindingHandler := agentsv1connect.NewWorkspaceRepoBindingServiceHandler(bindingSvc, opts...)
 	agentSvc := application.NewAgentServiceServer(agentRepo)
 	agentSvc.SetWorkspaceRepo(wsRepo)
-	agentSvc.SetContentCoordinator(bindingSvc)
+	agentSvc.SetOperationRepo(agentopmemory.New())
+	agentSvc.SetContentCoordinator(repoFx.svc)
+	agentSvc.SetTelegramGuard(application.NewTelegramReferenceGuard(telegramRepo))
 	bx := newBoxFixture(agentRepo)
 	agentSvc.SetButterBoxRepo(bx.repo)
 	_, agentHandler := agentsv1connect.NewAgentServiceHandler(agentSvc, opts...)
 	skillRepo := skillmemory.New()
 	if _, err := skillRepo.Create(ctx, "alpha", &agentsv1.Skill{Name: "existing-skill"}, "fixture content"); err != nil {
+		return nil, nil, err
+	}
+	if _, err := skillRepo.Create(ctx, filesWorkspace, &agentsv1.Skill{Name: filesSkill, Description: "Summarise a document"},
+		"---\nname: "+filesSkill+"\ndescription: Summarise a document\n---\nKeep it short.\n"); err != nil {
 		return nil, nil, err
 	}
 	_, skillHandler := agentsv1connect.NewSkillServiceHandler(application.NewSkillServiceServer(skillRepo), opts...)
@@ -351,16 +351,23 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 		agentsv1connect.AgentServiceGetAgentProcedure,
 		agentsv1connect.AgentServiceCreateAgentProcedure,
 		agentsv1connect.AgentServiceUpdateAgentProcedure,
+		agentsv1connect.AgentServiceUpdateAgentConfigurationProcedure,
+		agentsv1connect.AgentServiceDeleteAgentProcedure,
+		agentsv1connect.AgentServiceRestoreAgentProcedure,
+		agentsv1connect.AgentServiceGetAgentOperationProcedure,
+		agentsv1connect.AgentServiceListAgentOperationsProcedure,
+		agentsv1connect.AgentServiceRetryAgentOperationProcedure,
 		agentsv1connect.AgentServiceGetAgentRuntimeStatusProcedure,
+		agentsv1connect.AgentServiceListAgentInvocationsProcedure,
+		agentsv1connect.AgentServiceGetAgentInvocationProcedure,
+		agentsv1connect.AgentServiceCancelAgentInvocationProcedure,
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", agentHandler)))
 	}
 	// Skill selection is read-only; no standalone CRUD or content/resource API.
 	r.POST("/api"+agentsv1connect.SkillServiceListSkillsProcedure,
 		gin.WrapH(http.StripPrefix("/api", skillHandler)))
-	// Read-only binding discovery, not repository onboarding or Git writes.
-	r.POST("/api"+agentsv1connect.WorkspaceRepoBindingServiceGetWorkspaceRepoBindingProcedure,
-		gin.WrapH(http.StripPrefix("/api", bindingHandler)))
+	repoFx.register(r, opts)
 	for _, procedure := range []string{
 		agentsv1connect.ModelProviderServiceListModelProvidersProcedure,
 		agentsv1connect.ModelProviderServiceGetModelProviderProcedure,
@@ -370,15 +377,31 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", modelProviderHandler)))
 	}
-	boxRunner, runnerProviders, err := registerChat(ctx, r, agentRepo, opts, bx)
+	backends := newFileBackends()
+	backends.register(r, opts)
+	boxRunner, chatSessions, runnerProviders, err := registerChat(ctx, r, agentRepo, wsRepo, opts, bx, backends, skillRepo)
 	if err != nil {
 		return nil, nil, err
 	}
-	agentSvc.SetRuntime(reloader{
+	rt := reloader{
 		runner: boxRunner, agents: agentRepo,
-		workspaces: []string{chatWorkspace, boxWorkspace},
+		workspaces: []string{chatWorkspace, boxWorkspace, filesWorkspace, sessionsWorkspace, cronWorkspace},
 		providers:  runnerProviders,
-	})
+	}
+	agentSvc.SetRuntime(rt)
+	agentSvc.SetRunnerService(boxRunner)
+	if err := registerCronFixture(ctx, r, opts, agentRepo, boxRunner, chatSessions, telegramRepo); err != nil {
+		return nil, nil, err
+	}
+	if err := registerAutomationFixture(ctx, r, opts, agentRepo, boxRunner, telegramRepo); err != nil {
+		return nil, nil, err
+	}
+	if err := registerTelegramFixture(ctx, r, opts, wsRepo, agentRepo, telegramRepo); err != nil {
+		return nil, nil, err
+	}
+	if err := rt.ReloadRunner(ctx); err != nil {
+		return nil, nil, err
+	}
 	_, boxHandler := agentsv1connect.NewButterBoxServiceHandler(bx.svc, opts...)
 	for _, procedure := range []string{
 		agentsv1connect.ButterBoxServiceListButterBoxesProcedure,
@@ -393,11 +416,21 @@ func newFixture(ctx context.Context) (http.Handler, *daemonFixture, error) {
 	} {
 		r.POST("/api"+procedure, gin.WrapH(http.StripPrefix("/api", boxHandler)))
 	}
+	memFx := newMemoryFixture(wsRepo)
+	memFx.register(r, opts)
+	linearFx, err := registerLinearFixture(ctx, r, opts, agentRepo, wsRepo)
+	if err != nil {
+		return nil, nil, err
+	}
+	agentSvc.SetLinearGuard(application.NewLinearReferenceGuard(linearFx.repo))
 	mcpFx := newMCPFixture(agentRepo)
 	mux := http.NewServeMux()
 	mcpFx.register(r, mux, opts)
 	mcpFx.remoteSvc.SetDaemonRegistry(dfx.registry)
 	dfx.register(r, mux, opts, wsRepo)
+	if err := registerOpsFixture(ctx, r, opts, agentSvc, agentRepo, wsRepo, dfx.tokens, dfx.registry, func() bool { return boxRunner != nil }, authRepo.user.GetId()); err != nil {
+		return nil, nil, err
+	}
 	mux.Handle("/fake-box/", boxDouble())
 	mux.Handle("/butter/", http.StripPrefix("/butter", r))
 	mux.Handle(legacyPrefix+"/", legacyMCPServer(r))

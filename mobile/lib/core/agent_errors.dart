@@ -10,6 +10,27 @@ String? describeAgentFailure(Object failure) {
   if (failure.code == Code.alreadyExists) {
     return 'This Agent ID or runtime name is already reserved in this Workspace. Choose another ID or name.';
   }
+  if (failure.code == Code.internal) {
+    // The server rebuilds the runtime after a save and rolls the save back when
+    // a reference does not resolve; it reports that as an internal error.
+    final message = failure.message;
+    if (message.contains('unknown mcp_server_id')) {
+      return 'Nothing was saved: an MCP server this Agent references no longer exists in this Workspace. Reload the choices and remove or replace it.';
+    }
+    if (message.contains('unknown remote_agent_id')) {
+      return 'Nothing was saved: a Remote Agent this Agent references no longer exists in this Workspace. Reload the choices and remove or replace it.';
+    }
+    return null;
+  }
+  if (failure.code == Code.failedPrecondition) {
+    final message = failure.message;
+    if (message.contains('Telegram') || message.contains('Destination')) {
+      return 'This Agent is routed from Telegram and cannot be deleted until those Destinations are updated.';
+    }
+    if (message.contains('Linear')) {
+      return 'This Agent is routed from Linear and cannot be deleted until that App is updated.';
+    }
+  }
   if (failure.code == Code.invalidArgument) {
     final message = failure.message;
     const guardErrors = {

@@ -1,6 +1,6 @@
 # Butter mobile — development client (#447–#451)
 
-Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Workspace/member management, self-service profile/avatar/password, appearance settings, Model Providers and LLM/Loop/Sequential/Parallel/Workflow Agent configuration are available too. This is not the complete Flutter product. There are no global administration, chat, Skills management or server-list screens.
+Independent Android/iOS Flutter app: configure **one** Butter address → password or OAuth sign-in → choose Workspace → paginated authorized Agent list. Release audit artifacts for #469 live in [`docs/parity-matrix.md`](docs/parity-matrix.md) and [`docs/release.md`](docs/release.md). Workspace/member management, self-service profile/avatar/password, appearance settings, Model Providers and LLM/Loop/Sequential/Parallel/Workflow Agent configuration are available too. This is not the complete Flutter product. There are no global administration, Skills management or server-list screens.
 
 ## Develop
 
@@ -103,7 +103,21 @@ Limits: key rotation policies and a live connection test do not exist in this ti
 | Ordered independent child references / labels / metadata / API exposure | child_agent_ids, map rows, interface switches | Structured rows, ID picker, reorder/remove controls | widget and real contract relationship validation |
 | Associate/remove existing Skills | SkillService.ListSkills + AgentConfig.skills | Agent editor checkboxes (no Skill CRUD/content/resource management) | widget and real contract catalog/round-trip tests |
 
-Unbound Agent configuration writes are available to Workspace members under the existing backend rules. The App does not invent an owner-only restriction. The immutable ID is the only lookup/reference key; the display name is never resolved. Runtime name is supplied on create and server-controlled thereafter. Existing type is retained by this editor (type selection is offered on create); changing existing type stays with Web to avoid discarding future type-specific fields. Blocked lifecycle states, unknown types, historical embedded-child configurations and a Pi/Cursor leaf that holds children or Butter-side behavior fields (the server refuses them on write, so a record that has them is legacy) are read-only (composite saves would discard embedded children). Pi and Cursor leaves and ButterBoxes were added by #453 (next section). No deletion, restore, purge or operation-management action is provided for Agents.
+Unbound Agent configuration writes are available to Workspace members under the existing backend rules. The App does not invent an owner-only restriction. The immutable ID is the only lookup/reference key; the display name is never resolved. Runtime name is supplied on create and server-controlled thereafter. Existing type is retained by this editor (type selection is offered on create); changing existing type stays with Web to avoid discarding future type-specific fields. Blocked lifecycle states, unknown types, historical embedded-child configurations and a Pi/Cursor leaf that holds children or Butter-side behavior fields (the server refuses them on write, so a record that has them is legacy) are read-only (composite saves would discard embedded children). Pi and Cursor leaves and ButterBoxes were added by #453 (next section). Tombstone, restore, purge, Git content and lifecycle operations are #459 (next section).
+
+## Agent Content and lifecycle (#459)
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Tombstone Agent (soft delete) | `DeleteAgent` | Agent detail → Tombstone (confirms ID; distinct from purge) | `agent_lifecycle_controller_test`, `agent_lifecycle_contract_test`, `agent_lifecycle_widget_test` |
+| Restore tombstoned Agent | `RestoreAgent` (owner/admin when Git-bound) | Agent detail → Restore | same |
+| Purge Git content files | `PurgeAgentContent` (owner/admin) | Agent detail → Purge Git content | same + reference-blocked delete in `agent_lifecycle_contract_test` |
+| List / view lifecycle operations | `ListAgentOperations`, `GetAgentOperation` | Agents → Agent operations | same |
+| Retry failed lifecycle Saga | `RetryAgentOperation` (not Invocations or chat runs) | Operation detail → Retry | same |
+| Edit / commit Git Agent Content | `CommitAgentContent`, `RollbackAgentContent` | Agent detail → Edit Git content | `agent_content_draft_test`, `agent_lifecycle_contract_test` |
+| Composite save with version CAS | `UpdateAgentConfiguration` (existing Agent editor when Git-owned) | Edit Agent → Save | existing `agent_contract_test` |
+
+Tombstone keeps the Agent ID and Git files until an owner purges content. Writes are never auto-retried; ambiguous outcomes stay unconfirmed until a reload reconciles. Validation errors from commits are shown and require reload — no force overwrite. `tool/contractserver/agent_lifecycle_runtime_test.go` covers delete + operation list on production handlers; Dart contract tests tombstone, restore and list on the `daemon` workspace (owner, no Git binding — restore on `alpha` needs owner/admin and Git-bound workspaces need a working remote).
 
 Model choices include every configured provider's alias (model ID when no alias is set), keep custom/current values, and never cache or display provider keys. Child choices load every Agent page; choosing an ID does not embed or modify that resource. The server enforces existence, Workspace scope, cycles and single-parent ownership. Existing unavailable references remain visible and can be removed, not silently dropped.
 
@@ -229,7 +243,192 @@ Delivery rules: the SSE parser accepts arbitrary UTF-8 chunking, LF/CRLF/CR, mul
 
 Scope notes: tool-role results only answer client-declared frontend tools, and this App declares none, so a run request carries exactly one user message. An Agent shows its name and an initial, not its configured avatar image, so chat fetches no remote image.
 
-Not provided yet (labelled in the UI): reconnecting to a live run after leaving or a dropped stream, **Stop**, and A2UI forms/cards (an Interrupt shows a "waiting for input" notice only). Workflow Human Input cannot be answered in the App.
+## A2UI result cards and Human Input (#462)
+
+Native **butter-basic-v1** / A2UI v0.9.1: read-only Result Cards and server-built Human Input forms. Negotiation is declared only after client validation (`forwardedProps.butterA2UI`). Cards are not links or HTML; form buttons only submit through `butter.submitForm`.
+
+| Operation | Protocol | App entry | Tests |
+| --- | --- | --- | --- |
+| Live surfaces | `CUSTOM butter.a2ui` (revision + seq) | `RunFold` → `A2uiSurfaceStore.apply` | `run_fold_test`, `a2ui_store_test` |
+| UI snapshot restore | `GET …/threads/:thread_id/ui` + history `surfaces` placement | Open thread, fallback poll (with history) | `a2ui_contract_test`, `chat_controller` refresh |
+| Form submit (one resolved resume) | `POST /api/agui/:agent_id` + `resume[].payload.butterForm` | Form Submit button | `a2ui_form_test`, `a2ui_form_widget_test`, `a2ui_widget_test` |
+| Composer FIFO text answer | Same POST, no `resume` | Send message while Interrupts open | `run_request_test` |
+| Form errors 400/409/422 | Refusal before stream | Locked form + field errors; draft kept | `a2ui_form_test`, `a2ui_form_widget_test`, `AguiHttpError.fieldErrors` |
+
+Fallback polling and thread refresh load **both** history and the UI snapshot so cards survive a dropped attach stream.
+
+## Chat reconnect, Stop and recovery (#461)
+
+| Operation | Protocol | App entry | Tests |
+| --- | --- | --- | --- |
+| Live re-attach after open/background/dropped stream | `GET …/threads/:thread_id/run` (Run Log replay from `RUN_STARTED`) | Open thread while `running`; foreground `recover()` | `chat_reconnect_test`, `chat_run_context_test`, `chat_reconnect_contract_test` |
+| Fallback when attach 204/truncated/wrong runId/`butter.fallback` | Thread history poll 1s→5s backoff until not `running` | Automatic; composer disabled while waiting | `chat_reconnect_test`, `backoff`/`run_fold_test` |
+| Stop | `POST …/threads/:thread_id/stop` (202 accept, 204 idle) | Stop while streaming or fallback wait | `chat_reconnect_test`, `chat_reconnect_contract_test` |
+| `lastRun` notice + Restore input | History `lastRun` + cut messages | Notice banner | `last_run_input`, widget tests |
+| Shared state mirror | `STATE_SNAPSHOT` / RFC 6902 `STATE_DELTA` | Held on controller (`sharedState`) | `state_patch_test`, `run_fold_test` |
+
+Detach only on leave/background/switch context — never Stop. POST runs are never retried; ambiguous sends read once to reconcile. `RunFold` resets on each `RUN_STARTED` so attach replay does not append stale partial text. Generation fencing uses conversation scope (`_conv`).
+
+## Session explorer (#463)
+
+Agents → **Sessions** lists ADK sessions the caller may access in the active Workspace, with filters, pagination, detail (events, duration, trace links, session state), title rename, delete and **ReplySession**. Chat threads stay on the separate Chat entry; this screen never opens cron, Linear or other entry-point sessions as AG-UI threads.
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Filter / paginate list | `SessionService.ListSessions` + `X-Workspace-ID` (not `workspace_scoped`; that flag is for Chat thread listing only) | Sessions → filters → Apply | `session_controller_test`, `session_widget_test`, `session_contract_test` |
+| Detail, duration, events, trace | `GetSession` (`num_recent_events` 50 or 0) | row → detail | same |
+| Rename title | `UpdateSessionTitle` | detail → rename | same |
+| Delete (AG-UI: server stop-and-hold first) | `DeleteSession` | list/detail → delete with confirmation | same |
+| Reply (Cron / authorized resume) | `ReplySession` with `agent_id`, app/user/session and Workspace header | detail → Reply | same; `SessionController.reply` for #464 |
+
+**Access policy (server).** Members see their own sessions in the Workspace header; workspace owners and admins may list or read other users' sessions in that Workspace and filter by `user_id`. A denied read answers `not_found`. Automation apps (`cron:…`) are visible to members for reply/resume (ADR-0003). The App never echoes raw server errors.
+
+**Writes.** Rename, delete and reply are explicit, never auto-retried, and blocked after an ambiguous outcome until a read that began afterward reconciles the same object. Context generation fencing matches other management screens (`suspend` / `recover`).
+
+**Evidence and limits.** `tool/contractserver/sessions.go` seeds explorer fixtures; `chat.go` registers the full production `SessionServiceServer` (including `ReplySession` with the chat runner). `session_contract_test` (root and `/butter`) covers owner list/filter, detail, rename, reply, delete, Workspace isolation and missing Agent refusal. Widget tests use `test/support/session_server.dart`. Member-only denial of another user's private session is enforced by the production Go tests in `session_access_test.go`; the contract fixture uses an owner account. No Android/iOS device run.
+
+## Cron jobs (#464)
+
+Agents → **Cron jobs** lists Workspace cron jobs, supports CRUD, enable/disable, structured schedule/timezone/reliability/delivery editing, run-now (confirmed, never auto-retried), execution list/detail, and **WAITING_INPUT** reply through `SessionController.reply` (not Chat or Telegram).
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / CRUD / enable | `CronJobService` | Cron list, editor, detail switch | `cron_contract_test`, `cron_draft_test`, `cron_widget_test` |
+| Run now | `RunCronJobNow` | Detail → confirm → Run | `cron_contract_test`, `cron_controller_test` |
+| Executions | `ListCronExecutions` | Detail → execution rows | `cron_contract_test` |
+| Delivery pickers | `NotifyGroupService.ListNotifyGroups`, `TelegramDestinationService.ListTelegramDestinations` | Editor delivery fields | `cron_contract_test` |
+| WAITING_INPUT reply | `SessionService.ReplySession` via `CronController.replyToExecution` | Execution detail → Send reply | `cron_contract_test`, `cron_runtime_test.go` (session seeded in `tool/contractserver/cron.go`) |
+
+Legacy `CHANNEL` delivery is rejected on create/update (client validation and server `CronJobService`). Telegram delivery references a Destination ID only. Context generation fencing matches other management screens.
+
+## Overview, Operations, API tokens, Integrations (#468)
+
+Agents → **Overview** shows Workspace-scoped counts, recent invocation activity, cron execution history, and server bridge diagnostics for ordinary members. Global admins additionally see `DashboardService` aggregates labeled as server-wide (all Workspaces). **Operations** lists `ListAgentInvocations` for the current Workspace and offers `CancelAgentInvocation` with source-specific messaging (runner vs detached AG-UI Stop). **API tokens** lists only `API_TOKEN_KIND_USER` tokens, with create/revoke for owners/admins and a one-time secret screen (never persisted). **Integrations** copies Connect/OpenAI-compatible base URLs and deep-links to MCP, Remote Agents, Daemon execution (#455), Cron (#464), tokens and Operations. Daemon worker tokens stay on Daemon execution only.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Server-wide overview (admin) | `DashboardService` GetOverview / GetActivityFeed / GetActivityMetrics / GetCronExecutionTimeseries | Overview (admin account) | `ops_contract_test` (permission denied for member) |
+| Workspace overview (member) | List agents/MCP/remote/cron/daemon + `ListAgentInvocations` + `ListCronExecutions` + `GetBridgeDiagnostics` | Overview | `overview_controller_test`, `ops_widget_test` |
+| Invocations list/detail/cancel | `ListAgentInvocations`, `GetAgentInvocation`, `CancelAgentInvocation` | Operations | `ops_contract_test`, `ops_widget_test`, `overview_controller_test` |
+| Personal API tokens | `APITokenService` List / Create / Revoke (`USER` kind only in UI) | API tokens | `ops_contract_test`, `ops_widget_test` |
+| Integration URLs / hub | (copy-only bases + navigation) | Integrations | `ops_pages` smoke via navigation keys |
+
+Fixture: `tool/contractserver/dashboard_ops.go` (workspace `ops468`). Contract: `ops_contract_test.dart`.
+
+## Notify Groups and Automations (#467)
+
+Agents → **Notify Groups** lists outbound groups and supports CRUD with structured targets (Telegram Destination ID, Lark webhook, Discord webhook). Legacy raw Telegram fields (`bot_token`, `chat_id`, …) are refused on write.
+
+Agents → **Automations** lists workspace automations with structured conditions, ordered steps, trigger/policy fields, manual run (confirmed, never auto-retried), run list and step-run detail. Only **Manual** and **Schedule** triggers are selectable; webhook/forum/channel/daemon triggers appear disabled because the server does not execute them yet.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| Notify Group list / CRUD | `NotifyGroupService` | Notify Groups list, editor | `notify_group_contract_test`, `notify_group_draft_test`, `notify_group_widget_test` |
+| Telegram Destination picker | `ListTelegramDestinations` | Notify Group target editor | `notify_group_contract_test` (`tool/contractserver/automation_fixture.go`) |
+| Automation list / CRUD | `AutomationService` | Automations list, editor | `automation_contract_test`, `automation_draft_test`, `automation_widget_test` |
+| Manual run | `RunAutomationNow` | Detail → confirm → Run now | `automation_contract_test`, `automation_runtime_test.go` (multi-step webhook + notify, condition skip, step failure) |
+| Runs / step runs | `ListAutomationRuns`, `ListAutomationStepRuns`, `GetAutomationRun` | Detail runs, run detail dialog | `automation_contract_test` |
+| Step / notify pickers | `ListNotifyGroups`, agents list | Automation step editor | `automation_contract_test` |
+
+Contract workspace: `automation` (owner role). Fixture seeds `seeded-manual`, `cond-fail`, and `webhook-fail` automations plus group `alerts`.
+
+## Linear Agent Sessions (#466)
+
+Agents → **Linear** manages workspace Linear Apps (OAuth app registration routed to one Agent), browser installation into a Linear organization, processing deliveries and resend-only recovery. Linear install OAuth is separate from user login and MCP OAuth: the App opens the system browser, the server callback exchanges the code, and the App re-reads `ListLinearInstallations` (poll while waiting, refresh on return). Secrets never appear in responses or URLs.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / view / create / edit / delete App | `LinearAppService` | Linear list, editor, detail | `linear_contract_test`, `linear_draft_test`, `linear_widget_test` |
+| Write-only client / webhook secrets (keep / replace / clear) | `CreateLinearApp`, `PutLinearAppCredentials` | Create form; edit via credentials update | `linear_contract_test` |
+| Install / list / remove Installation | `BeginLinearInstall`, `ListLinearInstallations`, `DeleteLinearInstallation` | Detail → Install; installation rows | `linear_contract_test` (OAuth callback via `tool/contractserver/linear.go` + lineartest fake) |
+| Inbound toggle and preflight | `UpdateLinearApp` | Editor inbound switch | `linear_contract_test` |
+| Processing list / detail / resend | `LinearProcessingService` | Deliveries list and detail | `linear_contract_test` |
+| Public base URL (read-only) | `LinearAdminService.GetLinearSettings` (global admin); derived URLs on each App for members | List banner; App callback/webhook fields | `linear_contract_test`, `linear_widget_test` |
+
+Members read Apps, installations and processing records; owners and admins mutate. Resend posts a persisted `FAILED` reply only (`ResendLinearReply`); there is no rerun. `NEEDS_REINSTALL` installations are shown with the server’s sanitized reason. Platform endpoint editing stays in the Web global-admin console.
+
+## Telegram (#465)
+
+Agents → **Telegram** manages Channels (Bot transport), Destinations (exact chat/topic addresses), inbound processing records and delivery recovery. Members read; workspace owner/admin write. Bot tokens are write-only (create and rotate). Test messages and resend require explicit confirmation. The App does not register webhooks or run the inbound worker — it configures resources and reads derived status. Platform webhook base URL is read-only via `TelegramAdminService` for global admins; other users see channel status blockers and an administrator hint.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / create / edit Channel | `TelegramChannelService` | Hub → Channels | `telegram_contract_test`, `telegram_draft_test`, `telegram_widget_test` |
+| Rotate token / enable inbound-outbound | `RotateTelegramChannelCredential`, `SetTelegramChannelEnabled` | Channel detail | `telegram_contract_test` |
+| Receive mode, preflight status | `UpdateTelegramChannel`, `GetTelegramChannelStatus` | Channel detail | `telegram_contract_test` |
+| List / CRUD Destination | `TelegramDestinationService` | Channel → Destinations | `telegram_contract_test`, `telegram_draft_test` |
+| Test send (side effect) | `SendTelegramTestMessage` | Destination detail → confirm | `telegram_contract_test` |
+| Processing list / detail | `TelegramProcessingService` | Hub → Processing records | `telegram_contract_test` |
+| Resend unsent segments only | `ResendTelegramReply` | Record detail → confirm | `telegram_contract_test`, `telegram_controller_test` |
+| Platform webhook base (read-only) | `TelegramAdminService.GetTelegramSettings` | Channel list hint | `telegram_contract_test` |
+
+Contract fixture: `tool/contractserver/telegram.go` (`telegram` workspace, fake Bot API, seeded channel/destination/resend record). Chat and topic IDs stay decimal strings; addresses are immutable after create.
+
+## File spaces and Agent associations (#456)
+
+Workspace → **File spaces** manages `AgentFileService`: spaces, the text files in them, their versions and search. The Agent editor (LLM, Loop, Sequential, Parallel and Workflow Agents; Pi and Cursor leaves are unchanged) selects the existing MCP servers, Remote Agents, file spaces (mounts) and Skills an Agent references. Skill creation, `SKILL.md` editing and Skill Resource management stay in Web: the Skill list is read for selection only. File content travels as the UTF-8 text of `WriteAgentFile` / `GetAgentFile`, never through the avatar upload.
+
+| Operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List / view / create / edit / delete a space | `ListAgentFileSpaces`, `GetAgentFileSpace`, `CreateAgentFileSpace`, `UpdateAgentFileSpace` (whole record; the edit starts from a fresh read), `DeleteAgentFileSpace` (confirmation names the space, the number of files it holds and the Agents that mount it, or says the check failed) | File spaces → row, Add, Edit, Delete | `file_controller_test`, `file_widget_test`, real `files_contract_test` |
+| List files, filter by path prefix, search text | `ListAgentFiles` (`path_prefix`), `SearchAgentFiles` | space → prefix field, Search | same |
+| Open / create / edit / save a file | `GetAgentFile`, `WriteAgentFile` (UTF-8 text, content type and metadata carried over because a write replaces them); path normalized as the server does (trim, leading `/`, clean; empty and `/` refused) and shown before saving | space → file → Edit, New file | `file_rules_test`, `file_controller_test`, `file_widget_test`, contract (a table of paths against the real server) |
+| Versions | `GetAgentFile(version)`; older versions show text and content type only (metadata is not versioned); **Restore** writes the old text as a new latest version and says so | file → Older / Newer / Jump | same |
+| Delete a file | `DeleteAgentFile` (confirmation names the path and space; all versions go) | file → Delete | same |
+| Pick MCP servers, Remote Agents, Skills | `ListMCPServers`, `ListRemoteAgents`, `ListSkills` (read only), saved on the Agent by `AgentService` | Agent editor → MCP servers / Remote Agents / Existing Skills | `agent_association_test`, `agent_draft_test`, contract |
+| Mount file spaces | `ListAgentFileSpaces`, saved as `AgentConfig.file_mounts` | Agent editor → File mounts (space, virtual path, permission) | `agent_association_test`, contract |
+
+**What the server does, and so what the App says.** There is no compare-and-swap and no history-list RPC: every write makes a new version, so a concurrent edit cannot be refused by the server. The App reads the file just before saving and refuses a save over a version it did not open (`exists`, `changed`, `deleted`), and the dialog says this narrows the window and does not close it; only an explicit **Overwrite** replaces it. Version numbers come from the latest read; the App never invents a history listing, and versions are reached by number. The size limit is the server's (256 KiB by default, counted in UTF-8 bytes; the App reads it from the refusal text and shows digits only), a file over 1 MiB is not opened on the phone, and content is text only. A write whose reply is lost is never repeated: it is *unconfirmed* until a read of the same file settles it (**Check whether it was saved**). A read that began before a write, or about another object, cannot settle it. Spaces never cross Workspaces; a Workspace the person does not belong to answers *permission denied*; `FailedPrecondition` "agent file repository not available" is shown as storage not configured.
+
+**Associations by Agent type** (what the runtime uses, proven by `TestSavedAssociationsDecideWhatARealRunCanDo`):
+
+| Agent type | MCP servers | Remote Agents | File mounts | Skills |
+| --- | --- | --- | --- | --- |
+| LLM | yes | yes | yes | yes |
+| Loop / Sequential / Parallel | ignored: retained, remove only | yes | ignored: retained, remove only | ignored: retained, remove only |
+| Workflow | ignored: retained, remove only | ignored: retained, remove only | ignored: retained, remove only | ignored: retained, remove only |
+| Pi / Cursor leaf | not offered (the server refuses them) | not offered | not offered | not offered |
+
+On a new Agent the draft keeps what was chosen if the type is switched back, but `buildForCreate` does not send associations the final type ignores. On an existing Agent, ignored legacy entries are shown with removal only, because a reference to a missing server still makes the server refuse the save.
+
+**Mounts.** Each mount has a virtual path, a permission and its space. A new mount defaults to a slug of the space name and an explicit `READ`. Paths are normalized as the runtime does (empty → `/`); **two mounts that normalize to the same path are blocked in the editor**, because the runtime silently drops the later one. The longest path wins. The runtime offers the file tools whatever the permission and refuses a write or delete the permission does not allow when it runs (the editor says so, and names the space when it grants write or delete). `UNSPECIFIED` behaves as read-only. A permission the App does not know (a newer server) and any unknown field on a mount are kept byte for byte until the person picks a permission. A mount of a space that is not in the Workspace is flagged: the server accepts it and every file call through it fails.
+
+**Honest lists.** Each association list loads on its own. A refused or failed list (permission denied, unavailable) never blocks editing: the current selection stays, the editor says why nothing can be added, and server text is never shown. A selected reference missing from a loaded list stays selected and flagged until removed. A save refused because a reference no longer resolves (the server rebuilds the runtime and rolls the save back, answering `internal`) reads *Nothing was saved: an MCP server / a Remote Agent this Agent references no longer exists*; it is not retried.
+
+**Evidence and its limits.** `tool/contractserver/files.go` serves the production `AgentFileService` (in-memory repositories) and wires the production runner with the file store, the Skill repository and the MCP and Remote Agent registries; `go test ./mobile/tool/contractserver` (`files_runtime_test.go`) exercises the service semantics and real runner turns, and `files_contract_test` (root and `/butter`) saves an Agent from the App, reads it back, then runs it through the production AG-UI route: the mount's tool reads the stored content, a `READ` mount refuses a write and leaves the space unchanged, the saved MCP server's tool runs, the Skill is listed, and raising the permission and saving lets the next run write (a new version) but not delete. The **doubles** are the scripted OpenAI-compatible model (`tools?` and `tool:<name> <json>` commands) and the in-process MCP server; storage is in memory, not S3 or Mongo, and no real model provider or device was involved. Dart widget tests use a controllable HTTP boundary (`test/support/file_server.dart`) for late, refused and lost replies.
+
+## Git repository binding (#458)
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| List Git hosts (read only) | `GitHostService` List/Get | Binding form host picker | `repo_binding_contract_test` |
+| View binding, overlaps | `GetWorkspaceRepoBinding` | Git repository page | `repo_binding_controller_test`, contract |
+| Save binding config | `PutWorkspaceRepoBinding` | Save binding | `repo_binding_draft_test`, contract |
+| PAT keep / replace | `SetWorkspaceRepoBindingCredential` (write-only) | Token dialog; changing Git host clears on save | contract |
+| Validate | `ValidateWorkspaceRepoBinding` | Validate connection | contract |
+| Onboard EXPORT / IMPORT | `OnboardWorkspaceRepository` | Activate Agent Content (confirmed) | contract |
+| Sync / publish / webhook / baseline | Sync, Publish, ConfigureWebhookSecret, AcceptRepositoryBaseline | Operations card | contract |
+| Browse cached tree | `ListRepositoryEntries`, `GetRepositoryFile` | Cached repository tree | contract |
+| Safe detach | `DeleteWorkspaceRepoBinding` + recovery | Remove binding (materialize or keep DB) | contract |
+
+Members read; owner/admin (or global admin) write. The phone never calls Git providers: every operation goes through Butter, which holds the encrypted PAT. [RepoBindingController](lib/features/repo_binding/repo_binding_controller.dart) exposes `agentContentGitOwned` and `hasActiveRevision` for Agent Content (#459). Writes are never auto-retried; ambiguous outcomes stay unconfirmed until a later read reconciles them.
+
+Evidence: `mobile/tool/contractserver/repo_binding.go` serves production `WorkspaceRepoBindingService` and read-only `GitHostService` with an in-memory fake git provider (`repo_binding_fake.go`). Not a real Git host, Mongo, or device run.
+
+## Workspace memory and Agent policy (#457)
+
+| Web operation | API | App entry | Tests |
+| --- | --- | --- | --- |
+| View / save mem0 connection (URL, enabled, write-only API key keep/replace/clear) | `WorkspaceMemoryConfigService` Get/Put/Delete | Agents → Memory | `memory_draft_test`, `memory_controller_test`, `memory_widget_test`, `memory_contract_test` |
+| Test connection / save warning when mem0 unreachable | `TestWorkspaceMemoryConnection`; Put warning | Memory settings | `memory_draft_test`, `memory_contract_test`, `memory_runtime_test.go` |
+| List / search Workspace or Agent memories, truncation notice | `WorkspaceMemoryService` List/Search | Memory settings (when enabled) | `memory_contract_test` |
+| Delete memory (owner/admin); principal hidden from members | `DeleteWorkspaceMemory` | Memory row delete | `memory_contract_test` |
+| Agent memory recall/capture/tools/scopes | `Agent.config.memory` | Agent editor → Memory | `memory_draft_test`, `agent_contract_test`, `memory_contract_test` |
+| Result Card generation/presentation (inheritance) | `Agent.config.result_cards` | Agent editor → Result cards | `memory_draft_test`, `memory_contract_test` |
+
+Members read settings and memories; owners, workspace admins and global admins write connection settings and delete memories. The phone never calls mem0: every operation goes through Butter, which holds the encrypted API key. Probe and warning text from the server is classified for display, not echoed verbatim. Typed API keys are cleared after every save attempt. Removing the connection does not delete data on the mem0 server.
+
+Evidence: `tool/contractserver/memory.go` serves production `WorkspaceMemoryConfigService` and `WorkspaceMemoryService` over in-memory config storage and an in-process mem0 OSS double (`memory_fake.go`). Not a real mem0 deployment, Mongo, or device run.
 
 ## Tests and device acceptance
 
@@ -258,6 +457,6 @@ This Linux environment cannot run Xcode/iOS builds or native device acceptance. 
 
 ## Known gaps for later tickets
 
-- Connect streaming and A2UI are not implemented. AG-UI chat (#460) covers detached runs, history, images and threads, but not live re-attach, Stop or A2UI (see Chat and threads). Agent lifecycle (delete/restore/purge) and the remaining association editors (the Agent form's MCP and Remote Agent references, files, Memory, Card Policy) are separate tickets; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
+- Connect streaming is not implemented. AG-UI chat covers detached runs, history, images, threads, re-attach, Stop and A2UI (see Chat and threads). Agent lifecycle is covered by #459; Workspace memory connection, memory browsing and Agent memory/Card Policy by #457. File spaces and the MCP, Remote Agent, mount and Skill selections are covered by #456; ButterBoxes and Pi/Cursor leaves are covered by #453. Avatar multipart success is covered at a controllable HTTP boundary, not a production S3 deployment.
 - No refresh mechanism exists on the server. Reauthentication uses password or OAuth sign-in; there is no refresh-token rotation.
 - Product identifiers, production OS support, distribution/signing, languages and real-device acceptance are still open. The proposed ADR/spec remain untouched and Proposed/Draft.

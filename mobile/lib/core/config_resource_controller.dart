@@ -242,6 +242,13 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
   final List<({int tick, String? id, String scope})> _unknown = [];
   bool get unconfirmed => _unknown.isNotEmpty;
 
+  /// The objects the unknown writes of [scope] aimed at.
+  @protected
+  List<String?> unconfirmedIds(String scope) => [
+    for (final w in _unknown)
+      if (w.scope == scope) w.id,
+  ];
+
   /// What kinds of read can settle the unknown writes (see [reconcile]).
   Set<String> get unconfirmedScopes => {for (final w in _unknown) w.scope};
   String? get writeNotice => unconfirmed ? configUnconfirmed : null;
@@ -293,7 +300,7 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
       ok = live(epoch);
     } catch (failure) {
       if (!live(epoch) || expired(failure)) return false;
-      writeError = configFailureMessage(failure, kind, operation);
+      writeError = writeFailureMessage(failure, operation, scope);
       if (configWriteOutcomeUnknown(failure)) {
         _unknown.add((tick: ++_clock, id: id, scope: scope));
       }
@@ -308,6 +315,15 @@ abstract class ConfigResourceController<T extends GeneratedMessage>
     }
     return ok;
   }
+
+  /// The wording of a failed write; a resource with sub-objects words theirs
+  /// by [scope].
+  @protected
+  String writeFailureMessage(
+    Object failure,
+    ConfigOperation operation,
+    String scope,
+  ) => configFailureMessage(failure, kind, operation);
 
   @protected
   void stored(T saved) {

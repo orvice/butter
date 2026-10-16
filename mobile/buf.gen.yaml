@@ -15,3 +15,11 @@ inputs:
       - ../proto/agents/v1/agent_service.proto
       - ../proto/agents/v1/skill.proto
       - ../proto/agents/v1/butterbox.proto
+      - ../proto/agents/v1/githost.proto
+      - ../proto/agents/v1/repobinding.proto
+      - ../proto/agents/v1/agent_file.proto
+      - ../proto/agents/v1/cron.proto
+      - ../proto/agents/v1/telegram.proto
+      - ../proto/agents/v1/workspace_memory.proto
+      - ../proto/agents/v1/automation.proto
+      - ../proto/agents/v1/linear.proto

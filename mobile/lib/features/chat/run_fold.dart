@@ -1,8 +1,13 @@
 import 'dart:convert';
 
+import '../../core/state_patch.dart';
+import '../a2ui/protocol.dart';
 import 'chat_model.dart';
+import 'run_effects.dart';
 
 const _maxMessage = 2000;
+const _a2uiEvent = 'butter.a2ui';
+const _fallbackEvent = 'butter.fallback';
 
 String _bounded(String text) => boundText(text, _maxMessage);
 
@@ -17,15 +22,15 @@ class _Tool {
 
 /// Folds one run's AG-UI events into a snapshot of the assistant's reply.
 ///
-/// Only what the App shows is kept: text, tool calls with their arguments and
-/// results, and how the run ended. State and A2UI events are not interpreted
-/// (the App does not negotiate A2UI); unknown event types are ignored so a
-/// newer server does not break an older App. Nothing after the run's end
-/// changes the result.
+/// [RunEffects] receives state and A2UI side channels for #462. Attach replay
+/// resets the fold on `RUN_STARTED`, never appending to a stale partial reply.
 class RunFold {
+  RunFold([this._effects = const NullRunEffects()]);
+
+  final RunEffects _effects;
   String? _runId;
   RunOutcome? _outcome;
-  // One entry per part, in arrival order: a StringBuffer for text or a _Tool.
+  Map<String, dynamic>? _state;
   final _parts = <Object>[];
   final _text = <String, StringBuffer>{};
   final _tools = <String, _Tool>{};
@@ -33,9 +38,9 @@ class RunFold {
 
   String? get runId => _runId;
   RunOutcome? get outcome => _outcome;
+  Map<String, dynamic>? get sharedState =>
+      _state == null ? null : Map<String, dynamic>.from(_state!);
 
-  /// The reply as it stands now. A new object for every call, so a snapshot
-  /// already handed to the UI never changes under it.
   ChatMessage get reply => ChatMessage(
     id: _firstMessageId ?? 'run:${_runId ?? 'pending'}',
     role: ChatRole.assistant,
@@ -55,8 +60,6 @@ class RunFold {
     ],
   );
 
-  /// Applies one SSE `data` payload. Throws a [FormatException] for something
-  /// that is not an AG-UI event, or for a second run's start.
   void addData(String data) {
     final Object? decoded;
     try {
@@ -74,10 +77,11 @@ class RunFold {
     final type = event['type'];
     if (type == 'RUN_STARTED') {
       final run = event['runId'];
+      if (run is! String) return;
       if (_runId != null && run != _runId) {
         throw const FormatException('The stream switched to another run.');
       }
-      if (run is String) _runId = run;
+      _resetForRun(run);
       return;
     }
     if (_outcome != null) return;
@@ -117,14 +121,35 @@ class RunFold {
           tool.result = content is String ? content : '';
           tool.status = ToolStatus.done;
         }
+      case 'STATE_SNAPSHOT':
+        final snapshot = event['snapshot'];
+        if (snapshot is Map) {
+          _state = Map<String, dynamic>.from(snapshot);
+          _effects.state(_state);
+        }
+      case 'STATE_DELTA':
+        final delta = event['delta'];
+        if (delta is List && _state != null) {
+          final next = applyAguiStateDelta(_state!, delta);
+          if (next == null) {
+            throw const FormatException('Unsupported state delta.');
+          }
+          _state = next;
+          _effects.state(_state);
+        } else if (delta is List && _state == null) {
+          throw const FormatException('State delta before snapshot.');
+        }
       case 'CUSTOM':
-        if (event['name'] == 'butter.fallback') {
+        final name = event['name'];
+        if (name == _fallbackEvent) {
           final value = event['value'];
           final reason = value is Map ? value['reason'] : null;
           _outcome = RunOutcome(
             RunEnd.fallback,
             fallbackReason: reason is String ? reason : null,
           );
+        } else if (name == _a2uiEvent && isA2uiEventValue(event['value'])) {
+          _effects.a2ui(event['value']);
         }
       case 'RUN_FINISHED':
         _outcome = _finished(event['outcome']);
@@ -135,6 +160,16 @@ class RunFold {
           message: message is String ? _bounded(message) : null,
         );
     }
+  }
+
+  void _resetForRun(String runId) {
+    _runId = runId;
+    _outcome = null;
+    _parts.clear();
+    _text.clear();
+    _tools.clear();
+    _firstMessageId = null;
+    _state = null;
   }
 
   StringBuffer _openText(String id) {

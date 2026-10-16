@@ -8,10 +8,21 @@ import '../core/management_page.dart';
 import '../features/butterboxes/box_pages.dart';
 import '../features/mcp/mcp_pages.dart';
 import '../features/daemons/daemon_pages.dart';
+import '../features/files/file_pages.dart';
+import '../features/repo_binding/repo_binding_pages.dart';
 import '../features/remote_agents/remote_agent_pages.dart';
+import '../features/memory/memory_pages.dart';
 import '../features/model_providers/model_provider_pages.dart';
+import '../features/agents/agent_lifecycle_pages.dart';
 import '../features/agents/agent_pages.dart';
 import '../features/chat/chat_pages.dart';
+import '../features/automation/automation_pages.dart';
+import '../features/cron/cron_pages.dart';
+import '../features/ops/ops_pages.dart';
+import '../features/notify_groups/notify_group_pages.dart';
+import '../features/linear/linear_pages.dart';
+import '../features/telegram/telegram_pages.dart';
+import '../features/sessions/session_pages.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/workspaces/workspace_pages.dart';
@@ -513,6 +524,36 @@ class _Agents extends StatelessWidget {
       Wrap(
         spacing: 12,
         children: [
+          TextButton.icon(
+            key: const Key('open-overview'),
+            onPressed: client.busy ? null : () => openOverview(context, client),
+            icon: const Icon(Icons.dashboard_outlined),
+            label: const Text('Overview'),
+          ),
+          TextButton.icon(
+            key: const Key('open-operations'),
+            onPressed: client.busy
+                ? null
+                : () => openInvocations(context, client),
+            icon: const Icon(Icons.playlist_play),
+            label: const Text('Operations'),
+          ),
+          TextButton.icon(
+            key: const Key('open-api-tokens'),
+            onPressed: client.busy
+                ? null
+                : () => openApiTokens(context, client),
+            icon: const Icon(Icons.key_outlined),
+            label: const Text('API tokens'),
+          ),
+          TextButton.icon(
+            key: const Key('open-integrations'),
+            onPressed: client.busy
+                ? null
+                : () => openIntegrationsHub(context, client),
+            icon: const Icon(Icons.hub),
+            label: const Text('Integrations'),
+          ),
           FilledButton.tonalIcon(
             key: const Key('open-chat'),
             onPressed: client.busy
@@ -537,6 +578,14 @@ class _Agents extends StatelessWidget {
             label: const Text('Manage Workspace'),
           ),
           TextButton.icon(
+            key: const Key('open-memory'),
+            onPressed: client.busy
+                ? null
+                : () => openMemorySettings(context, client),
+            icon: const Icon(Icons.psychology_outlined),
+            label: const Text('Memory'),
+          ),
+          TextButton.icon(
             onPressed: client.busy
                 ? null
                 : () => openModelProviders(context, client),
@@ -558,6 +607,64 @@ class _Agents extends StatelessWidget {
                 : () => openMcpServers(context, client),
             icon: const Icon(Icons.extension_outlined),
             label: const Text('MCP servers'),
+          ),
+          TextButton.icon(
+            key: const Key('open-files'),
+            onPressed: client.busy
+                ? null
+                : () => openFileSpaces(context, client),
+            icon: const Icon(Icons.folder_outlined),
+            label: const Text('File spaces'),
+          ),
+          TextButton.icon(
+            key: const Key('open-repo-binding'),
+            onPressed: client.busy
+                ? null
+                : () => openRepoBinding(context, client),
+            icon: const Icon(Icons.account_tree_outlined),
+            label: const Text('Git repository'),
+          ),
+          TextButton.icon(
+            key: const Key('open-sessions'),
+            onPressed: client.busy ? null : () => openSessions(context, client),
+            icon: const Icon(Icons.history),
+            label: const Text('Sessions'),
+          ),
+          TextButton.icon(
+            key: const Key('open-cron'),
+            onPressed: client.busy ? null : () => openCronJobs(context, client),
+            icon: const Icon(Icons.schedule),
+            label: const Text('Cron jobs'),
+          ),
+          TextButton.icon(
+            key: const Key('open-notify-groups'),
+            onPressed: client.busy
+                ? null
+                : () => openNotifyGroups(context, client),
+            icon: const Icon(Icons.notifications_outlined),
+            label: const Text('Notify Groups'),
+          ),
+          TextButton.icon(
+            key: const Key('open-automations'),
+            onPressed: client.busy
+                ? null
+                : () => openAutomations(context, client),
+            icon: const Icon(Icons.account_tree_outlined),
+            label: const Text('Automations'),
+          ),
+          TextButton.icon(
+            key: const Key('open-linear'),
+            onPressed: client.busy
+                ? null
+                : () => openLinearApps(context, client),
+            icon: const Icon(Icons.bolt_outlined),
+            label: const Text('Linear'),
+          ),
+          TextButton.icon(
+            key: const Key('open-telegram'),
+            onPressed: client.busy ? null : () => openTelegram(context, client),
+            icon: const Icon(Icons.send_outlined),
+            label: const Text('Telegram'),
           ),
           TextButton.icon(
             key: const Key('open-remote-agents'),
@@ -589,6 +696,13 @@ class _Agents extends StatelessWidget {
             onPressed: client.busy ? null : client.refreshAgents,
             icon: const Icon(Icons.refresh),
             label: const Text('Refresh Agents'),
+          ),
+          TextButton.icon(
+            onPressed: client.busy
+                ? null
+                : () => openAgentOperations(context, client),
+            icon: const Icon(Icons.history_toggle_off),
+            label: const Text('Agent operations'),
           ),
         ],
       ),
