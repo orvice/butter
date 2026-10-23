@@ -23,12 +23,14 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"go.orx.me/apps/butter/internal/a2ui"
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/agentfiletool"
 	"go.orx.me/apps/butter/internal/memorytool"
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
+	"go.orx.me/apps/butter/internal/runtime/eventcommit"
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
@@ -943,7 +945,7 @@ func (s *Service) getOrCreateRunner(ctx context.Context, channelName, agentName,
 	r, err := adkrunner.New(adkrunner.Config{
 		AppName:         channelName,
 		Agent:           ag,
-		SessionService:  sessionSvc,
+		SessionService:  eventcommit.Service(a2ui.PersistCards(sessionSvc)),
 		MemoryService:   memorySvc,
 		ArtifactService: artifactSvc,
 		PluginConfig:    pluginConfig,
@@ -1221,6 +1223,9 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	ctx, memTurn := s.memoryHooks.Begin(ctx, agentProto, ctxInfo, priorSession, userParts)
 
 	msg := &genai.Content{Parts: parts, Role: genai.RoleUser}
+
+	ctx, stopTracking := eventcommit.Track(ctx)
+	defer stopTracking()
 
 	var result strings.Builder
 	var latestEventOutput any

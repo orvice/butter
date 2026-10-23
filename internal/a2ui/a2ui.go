@@ -18,6 +18,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -92,6 +93,12 @@ type Run struct {
 
 	// renderFailures counts the render_ui calls in a row that failed.
 	renderFailures atomic.Int32
+
+	// All card-producing leaves share one in-run view, including parallel
+	// branches whose ADK state snapshots have not caught up with one another.
+	cardsMu   sync.Mutex
+	cards     map[string]*Card
+	persisted persistedCards
 }
 
 // RenderFailures reports how many render_ui calls in a row have failed in

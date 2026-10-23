@@ -17,6 +17,7 @@ import (
 	adksession "google.golang.org/adk/v2/session"
 
 	"go.orx.me/apps/butter/internal/a2uitool"
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	"go.orx.me/apps/butter/internal/repo/auth"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -56,9 +57,10 @@ type a2uiHarness struct {
 	guard    *fakeSessionGuard
 	// runner, repo and providers are what the last build wired, kept so a
 	// reload can apply a new config to them.
-	runner    *runner.Service
-	repo      *wsAgentRepo
-	providers []agentsv1.ModelProvider
+	runner      *runner.Service
+	repo        *wsAgentRepo
+	providers   []agentsv1.ModelProvider
+	boxBuilders *internalagent.BoxAgentBuilders
 	// titler, when set before build, titles threads after successful runs.
 	titler AGUISessionTitler
 	// recorder, when set before build, records the runner's Invocations.
@@ -104,8 +106,8 @@ func (h *a2uiHarness) build(agents []agentsv1.Agent, models []string) *gin.Engin
 		modelCfgs = append(modelCfgs, &agentsv1.ModelConfig{Name: m})
 	}
 	providers := []agentsv1.ModelProvider{{Name: "fake", Type: "openai", BaseUrl: h.backend.URL(), Models: modelCfgs}}
-	svc, err := runner.NewService(context.Background(), agents, providers,
-		nil, nil, nil, h.sessions, nil, nil, adkrunner.PluginConfig{})
+	svc, err := runner.NewServiceWithMCPHTTPClientFactory(context.Background(), agents, providers,
+		nil, nil, nil, h.sessions, nil, nil, nil, 0, nil, adkrunner.PluginConfig{}, nil, h.boxBuilders)
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}

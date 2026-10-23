@@ -14,52 +14,20 @@ import (
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 
-	internalagent "go.orx.me/apps/butter/internal/agent"
+	"go.orx.me/apps/butter/internal/a2ui"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 const (
-	// defaultMaxRunSeconds bounds a turn whose config leaves max_run_seconds
-	// unset. The bound exists to stop runaway loops from holding a session
-	// lease and a box process slot forever; long legitimate runs raise it.
-	defaultMaxRunSeconds = 1800
-
-	// defaultPollWaitSeconds is the long-poll window passed to GetTurn
-	// (capped at 30 by the box).
-	defaultPollWaitSeconds = 30
-
-	// controlCallTimeout bounds the short control RPCs (CreateSession,
-	// SubmitMessage). Only GetTurn is long.
-	controlCallTimeout = 60 * time.Second
-
-	// abortTimeout bounds the best-effort AbortSession call issued after the
-	// turn's own context is already dead.
-	abortTimeout = 5 * time.Second
-
-	// maxConsecutivePollFailures is how many GetTurn transport errors in a
-	// row the bridge tolerates before declaring the box unreachable. A single
-	// dropped poll must not kill a 20-minute run — the cursor makes retrying
-	// safe — but a box that stays silent gets an honest error.
+	defaultMaxRunSeconds       = 1800
+	defaultPollWaitSeconds     = 30
+	controlCallTimeout         = 60 * time.Second
+	abortTimeout               = 5 * time.Second
 	maxConsecutivePollFailures = 3
 )
 
-// AgentBuilder adapts a ClientFactory into the internal/agent PI construction
-// seam: one Bridge (and one ADK agent) per AGENT_TYPE_PI proto.
-func AgentBuilder(factory ClientFactory) internalagent.PiAgentBuilder {
-	return func(pb *agentsv1.Agent) (agent.Agent, error) {
-		b := NewBridge(pb, factory)
-		description := pb.GetDescription()
-		if description == "" {
-			description = fmt.Sprintf("Pi agent on ButterBox %s", b.butterboxID)
-		}
-		return b.BuildAgent(pb.GetName(), description)
-	}
-}
-
-// Bridge holds one PI agent's binding settings. It is stateless across
-// turns: the pi session mapping lives in ADK session state, and the
-// PiService client is resolved per turn so box edits take effect
-// immediately.
+// Bridge is immutable across turns. Pi session bindings live in ADK session
+// state; clients and credentials are resolved afresh for every turn.
 type Bridge struct {
 	factory     ClientFactory
 	workspaceID string
@@ -70,14 +38,15 @@ type Bridge struct {
 	model       string
 	thinking    string
 	maxRun      time.Duration // 0 = unlimited
+	cardPolicy  a2ui.CardPolicy
 
-	// Tuning knobs, overridden by tests.
+	// Tuning knobs overridden by tests.
 	pollWaitSeconds int32
 	pollRetryDelay  time.Duration
 }
 
-// NewBridge constructs a Bridge from a PI agent proto. The caller is
-// expected to have validated the config (ValidatePiAgent).
+// NewBridge constructs a bridge from a validated Pi agent proto. Factories
+// supply inherited Card Policy through AgentBuilder.
 func NewBridge(pb *agentsv1.Agent, factory ClientFactory) *Bridge {
 	pi := pb.GetConfig().GetPi()
 	maxRun := time.Duration(defaultMaxRunSeconds) * time.Second
@@ -94,62 +63,47 @@ func NewBridge(pb *agentsv1.Agent, factory ClientFactory) *Bridge {
 		model:           strings.TrimSpace(pi.GetModel()),
 		thinking:        strings.TrimSpace(pi.GetThinkingLevel()),
 		maxRun:          maxRun,
+		cardPolicy:      a2ui.CardPolicy{}.Narrow(pb.GetConfig().GetResultCards()),
 		pollWaitSeconds: defaultPollWaitSeconds,
 		pollRetryDelay:  2 * time.Second,
 	}
 }
 
-// BuildAgent produces the ADK agent that delegates each run to the box.
+// BuildAgent produces the ADK custom agent that delegates each run to the box.
 func (b *Bridge) BuildAgent(name, description string) (agent.Agent, error) {
-	return agent.New(agent.Config{
-		Name:        name,
-		Description: description,
-		Run:         b.run,
-	})
+	return agent.New(agent.Config{Name: name, Description: description, Run: b.run})
 }
 
-// run executes one turn: ensure a pi session, submit the prompt, long-poll
-// the cursor until the run settles, and yield the assistant text.
 func (b *Bridge) run(ictx agent.InvocationContext) iter.Seq2[*session.Event, error] {
 	return func(yield func(*session.Event, error) bool) {
-		input := extractText(ictx.UserContent())
-		images := extractImages(ictx.UserContent())
+		input, images := extractText(ictx.UserContent()), extractImages(ictx.UserContent())
 		if input == "" && len(images) == 0 {
 			yield(nil, fmt.Errorf("pibox: empty user input"))
 			return
 		}
-
 		client, err := b.factory.ClientFor(ictx, b.workspaceID, b.butterboxID)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-
-		// One deadline bounds the whole turn — session activation, submit,
-		// and the poll loop — and ctx cancellation flows through the same
-		// path (workflow node timeouts compose here too).
 		runCtx := context.Context(ictx)
 		if b.maxRun > 0 {
 			var cancel context.CancelFunc
 			runCtx, cancel = context.WithTimeout(runCtx, b.maxRun)
 			defer cancel()
 		}
-
 		bnd, created, err := b.ensureSession(runCtx, ictx, client)
 		if err != nil {
 			yield(nil, b.classifyInterruption(ictx, runCtx, err))
 			return
 		}
-		if created {
-			if !b.yieldBinding(ictx, bnd, yield) {
-				return
-			}
+		if created && !b.yieldBinding(ictx, bnd, yield) {
+			return
 		}
 
-		cursor, err := b.submit(runCtx, client, bnd.PiSessionID, input, images)
+		submitted, err := b.submit(runCtx, client, bnd.PiSessionID, input, images, ictx)
 		if err != nil && connect.CodeOf(err) == connect.CodeNotFound && !created {
-			// The box lost the session we were reusing (restart, box-side
-			// cleanup). Abandon the stale binding and recreate once.
+			// Recreate once when a previously bound Pi session disappeared.
 			bnd, err = b.createSession(runCtx, ictx, client)
 			if err != nil {
 				yield(nil, b.classifyInterruption(ictx, runCtx, err))
@@ -158,33 +112,50 @@ func (b *Bridge) run(ictx agent.InvocationContext) iter.Seq2[*session.Event, err
 			if !b.yieldBinding(ictx, bnd, yield) {
 				return
 			}
-			cursor, err = b.submit(runCtx, client, bnd.PiSessionID, input, images)
+			submitted, err = b.submit(runCtx, client, bnd.PiSessionID, input, images, ictx)
 		}
 		if err != nil {
-			// The submit may have reached the box even though the response
-			// did not reach us; when our side gave up, abort defensively.
+			// Submission is never retried after an uncertain acceptance. A
+			// cancelled submission is aborted defensively on the exact session.
 			if runCtx.Err() != nil {
 				b.abort(client, bnd.PiSessionID)
 			}
 			if connect.CodeOf(err) == connect.CodeNotFound {
-				// The session vanished right after we created (or recreated)
-				// it — recreating again would loop, so report the box state.
 				err = fmt.Errorf("pibox: the box lost a freshly created pi session; the box looks unhealthy — check it before retrying: %w", err)
 			}
 			yield(nil, b.classifyInterruption(ictx, runCtx, err))
 			return
 		}
 
-		result, err := b.await(runCtx, client, bnd.PiSessionID, cursor)
+		settled := false
+		defer func() {
+			// Also covers consumer/persistence failure while a Pi tool awaits
+			// its receipt. A disconnected browser does not end a detached run.
+			if !settled {
+				b.abort(client, bnd.PiSessionID)
+			}
+		}()
+		var result *piv1.TurnResult
+		if submitted.host {
+			result, err = b.awaitHost(runCtx, client, bnd.PiSessionID, submitted, ictx, yield)
+		} else {
+			result, err = b.await(runCtx, client, bnd.PiSessionID, submitted.cursor)
+		}
 		if err != nil {
 			yield(nil, b.classifyInterruption(ictx, runCtx, err))
 			return
 		}
-		if result.GetStopReason() == "aborted" {
+		settled = true
+		switch result.GetStopReason() {
+		case "aborted":
 			yield(nil, fmt.Errorf("pibox: the run was aborted on the box before it produced an answer"))
 			return
+		case "toolUse", "error":
+			// A Box restart may leave only the assistant's tool request in
+			// the transcript. That is not a completed answer.
+			yield(nil, fmt.Errorf("pibox: the run did not finish on the box (stop reason %s)", result.GetStopReason()))
+			return
 		}
-
 		evt := session.NewEvent(ictx, ictx.InvocationID())
 		evt.Author = ictx.Agent().Name()
 		evt.Content = genai.NewContentFromText(result.GetText(), genai.RoleModel)
@@ -192,29 +163,20 @@ func (b *Bridge) run(ictx agent.InvocationContext) iter.Seq2[*session.Event, err
 	}
 }
 
-// ensureSession returns the pi session this turn runs in: the bound session
-// when it still matches the agent's box and working directory, otherwise a
-// fresh one. A stale binding (repointed agent) is abandoned, never migrated.
-func (b *Bridge) ensureSession(runCtx context.Context, ictx agent.InvocationContext, client piv1connect.PiServiceClient) (binding, bool, error) {
+func (b *Bridge) ensureSession(ctx context.Context, ictx agent.InvocationContext, client piv1connect.PiServiceClient) (binding, bool, error) {
 	if bnd, ok := readBinding(ictx.Session().State(), b.agentID); ok && bnd.matches(b.butterboxID, b.workingDir) {
 		return bnd, false, nil
 	}
-	bnd, err := b.createSession(runCtx, ictx, client)
-	if err != nil {
-		return binding{}, false, err
-	}
-	return bnd, true, nil
+	bnd, err := b.createSession(ctx, ictx, client)
+	return bnd, true, err
 }
 
-func (b *Bridge) createSession(runCtx context.Context, ictx agent.InvocationContext, client piv1connect.PiServiceClient) (binding, error) {
-	callCtx, cancel := context.WithTimeout(runCtx, controlCallTimeout)
+func (b *Bridge) createSession(ctx context.Context, ictx agent.InvocationContext, client piv1connect.PiServiceClient) (binding, error) {
+	callCtx, cancel := context.WithTimeout(ctx, controlCallTimeout)
 	defer cancel()
 	resp, err := client.CreateSession(callCtx, connect.NewRequest(&piv1.CreateSessionRequest{
-		Name:          fmt.Sprintf("butter:%s:%s", b.agentID, ictx.Session().ID()),
-		Provider:      b.provider,
-		Model:         b.model,
-		ThinkingLevel: b.thinking,
-		Cwd:           b.workingDir,
+		Name:     fmt.Sprintf("butter:%s:%s", b.agentID, ictx.Session().ID()),
+		Provider: b.provider, Model: b.model, ThinkingLevel: b.thinking, Cwd: b.workingDir,
 	}))
 	if err != nil {
 		return binding{}, b.actionable("create pi session", err)
@@ -226,9 +188,7 @@ func (b *Bridge) createSession(runCtx context.Context, ictx agent.InvocationCont
 	return binding{PiSessionID: id, ButterboxID: b.butterboxID, WorkingDir: b.workingDir}, nil
 }
 
-// yieldBinding persists a freshly created session binding through an event's
-// StateDelta before the turn's outcome is known, so continuity survives a
-// turn that later fails. Returns false when the consumer stopped the run.
+// The binding is written before the turn's outcome, so it survives failure.
 func (b *Bridge) yieldBinding(ictx agent.InvocationContext, bnd binding, yield func(*session.Event, error) bool) bool {
 	evt := session.NewEvent(ictx, ictx.InvocationID())
 	evt.Author = ictx.Agent().Name()
@@ -236,99 +196,105 @@ func (b *Bridge) yieldBinding(ictx agent.InvocationContext, bnd binding, yield f
 	return yield(evt, nil)
 }
 
-func (b *Bridge) submit(runCtx context.Context, client piv1connect.PiServiceClient, sessionID, input string, images []*piv1.ImageContent) (string, error) {
-	callCtx, cancel := context.WithTimeout(runCtx, controlCallTimeout)
+type submission struct {
+	cursor string
+	turnID string
+	host   bool
+}
+
+func (b *Bridge) submit(ctx context.Context, client piv1connect.PiServiceClient, sessionID, input string, images []*piv1.ImageContent, ictx agent.InvocationContext) (submission, error) {
+	host, err := b.hostToolsConfig(ctx, client, sessionID, ictx)
+	if err != nil {
+		return submission{}, err
+	}
+	callCtx, cancel := context.WithTimeout(ctx, controlCallTimeout)
 	defer cancel()
 	resp, err := client.SubmitMessage(callCtx, connect.NewRequest(&piv1.SubmitMessageRequest{
-		SessionId: sessionID,
-		Message:   input,
-		Images:    images,
+		SessionId: sessionID, Message: input, Images: images, HostTools: host,
 	}))
 	if err != nil {
 		if connect.CodeOf(err) == connect.CodeNotFound {
-			return "", err // recreate decision belongs to the caller
+			return submission{}, err
 		}
-		return "", b.actionable("submit message", err)
+		return submission{}, b.actionable("submit message", err)
 	}
-	return resp.Msg.GetTurnCursor(), nil
+	if host != nil && resp.Msg.GetTurnId() == "" {
+		b.abort(client, sessionID)
+		return submission{}, fmt.Errorf("pibox: the box accepted a host-tool run without a turn id")
+	}
+	return submission{cursor: resp.Msg.GetTurnCursor(), turnID: resp.Msg.GetTurnId(), host: host != nil}, nil
 }
 
-// await long-polls GetTurn until the run settles. The cursor is stable
-// across box restarts, so completion is judged honestly: running=false
-// without a result means the turn did not finish, never a stale answer.
-func (b *Bridge) await(runCtx context.Context, client piv1connect.PiServiceClient, sessionID, cursor string) (*piv1.TurnResult, error) {
-	failures := 0
+// await retains the legacy text-only path. The entries cursor remains stable
+// across restarts; a missing outcome never becomes a stale previous answer.
+func (b *Bridge) await(ctx context.Context, client piv1connect.PiServiceClient, sessionID, cursor string) (*piv1.TurnResult, error) {
 	for {
-		if err := runCtx.Err(); err != nil {
-			b.abort(client, sessionID)
+		resp, err := b.pollTurn(ctx, client, sessionID, cursor, b.pollWaitSeconds)
+		if err != nil {
 			return nil, err
 		}
-		callCtx, cancel := context.WithTimeout(runCtx, time.Duration(b.pollWaitSeconds)*time.Second+15*time.Second)
-		resp, err := client.GetTurn(callCtx, connect.NewRequest(&piv1.GetTurnRequest{
-			SessionId:   sessionID,
-			TurnCursor:  cursor,
-			WaitSeconds: b.pollWaitSeconds,
-		}))
-		cancel()
-		if err != nil {
-			if runCtx.Err() != nil {
-				b.abort(client, sessionID)
-				return nil, runCtx.Err()
-			}
-			if connect.CodeOf(err) == connect.CodeNotFound {
-				// The box no longer knows the session mid-run (restart plus a
-				// lost session file). The submitted turn can never settle for
-				// us, so this is a did-not-finish, not a transport blip.
-				return nil, fmt.Errorf("pibox: the box lost the pi session mid-run — the run did not finish and no answer was produced: %w", err)
-			}
-			failures++
-			if failures >= maxConsecutivePollFailures {
-				return nil, fmt.Errorf("pibox: lost contact with the box while awaiting the turn (the run may still be executing on the box; it stays visible in pi-web): %w", err)
-			}
-			select {
-			case <-runCtx.Done():
-			case <-time.After(b.pollRetryDelay):
-			}
-			continue
+		if !resp.GetRunning() {
+			return completedTurn(resp)
 		}
-		failures = 0
-		if resp.Msg.GetRunning() {
-			continue
-		}
-		if result := resp.Msg.GetResult(); result != nil {
-			return result, nil
-		}
-		return nil, fmt.Errorf("pibox: the run did not finish on the box — no answer was produced (the box may have restarted mid-run, or the run was aborted)")
 	}
 }
 
-// abort is the single cancellation path (ADR-0011 §4): ctx cancellation and
-// the max-run deadline both land here. Best-effort — the turn's own context
-// is already dead, so the call runs on a fresh bounded one.
+func (b *Bridge) pollTurn(ctx context.Context, client piv1connect.PiServiceClient, sessionID, cursor string, wait int32) (*piv1.GetTurnResponse, error) {
+	var err error
+	for attempt := range maxConsecutivePollFailures {
+		callCtx, cancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second+15*time.Second)
+		var resp *connect.Response[piv1.GetTurnResponse]
+		resp, err = client.GetTurn(callCtx, connect.NewRequest(&piv1.GetTurnRequest{SessionId: sessionID, TurnCursor: cursor, WaitSeconds: wait}))
+		cancel()
+		if err == nil {
+			return resp.Msg, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if connect.CodeOf(err) == connect.CodeNotFound {
+			return nil, fmt.Errorf("pibox: the box lost the pi session mid-run — the run did not finish and no answer was produced: %w", err)
+		}
+		if attempt+1 < maxConsecutivePollFailures && !b.retry(ctx) {
+			return nil, ctx.Err()
+		}
+	}
+	return nil, fmt.Errorf("pibox: lost contact with the box while awaiting the turn: %w", err)
+}
+
+func completedTurn(resp *piv1.GetTurnResponse) (*piv1.TurnResult, error) {
+	if result := resp.GetResult(); result != nil {
+		return result, nil
+	}
+	return nil, fmt.Errorf("pibox: the run did not finish on the box — no answer was produced (the box may have restarted mid-run, or the run was aborted)")
+}
+
+func (b *Bridge) retry(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(b.pollRetryDelay):
+		return true
+	}
+}
+
+// abort is the single best-effort cancellation path, on a fresh bounded context.
 func (b *Bridge) abort(client piv1connect.PiServiceClient, sessionID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), abortTimeout)
 	defer cancel()
 	_, _ = client.AbortSession(ctx, connect.NewRequest(&piv1.AbortSessionRequest{SessionId: sessionID}))
 }
 
-// classifyInterruption turns a turn-ending error into what the caller should
-// see: the caller's own cancellation, a raise-the-limit deadline message, or
-// the error as-is.
-func (b *Bridge) classifyInterruption(ictx agent.InvocationContext, runCtx context.Context, err error) error {
-	if cerr := ictx.Err(); cerr != nil {
-		// The invocation itself was cancelled (user cancel, workflow node
-		// timeout); report that, not a wrapped transport error.
-		return cerr
+func (b *Bridge) classifyInterruption(ictx agent.InvocationContext, ctx context.Context, err error) error {
+	if ictx.Err() != nil {
+		return ictx.Err()
 	}
-	if runCtx.Err() != nil {
-		// Only the bridge's own max-run deadline distinguishes runCtx from
-		// the invocation context.
+	if ctx.Err() != nil {
 		return fmt.Errorf("pibox: the run exceeded max_run_seconds=%d and was aborted on the box; raise max_run_seconds on the agent for long runs", int(b.maxRun/time.Second))
 	}
 	return err
 }
 
-// actionable maps box error codes onto errors that tell the user what to do.
 func (b *Bridge) actionable(op string, err error) error {
 	switch connect.CodeOf(err) {
 	case connect.CodeResourceExhausted:
@@ -342,39 +308,29 @@ func (b *Bridge) actionable(op string, err error) error {
 	}
 }
 
-// extractText flattens the user content's text parts (mirrors the opencode
-// bridge).
 func extractText(c *genai.Content) string {
 	if c == nil {
 		return ""
 	}
 	var parts []string
 	for _, p := range c.Parts {
-		if p.Text != "" {
+		if p != nil && p.Text != "" {
 			parts = append(parts, p.Text)
 		}
 	}
 	return strings.Join(parts, "\n")
 }
 
-// extractImages passes the user's inline images through to pi as raw bytes
-// (base64 on the JSON wire).
 func extractImages(c *genai.Content) []*piv1.ImageContent {
 	if c == nil {
 		return nil
 	}
 	var images []*piv1.ImageContent
 	for _, p := range c.Parts {
-		if p.InlineData == nil || len(p.InlineData.Data) == 0 {
+		if p == nil || p.InlineData == nil || len(p.InlineData.Data) == 0 || !strings.HasPrefix(p.InlineData.MIMEType, "image/") {
 			continue
 		}
-		if !strings.HasPrefix(p.InlineData.MIMEType, "image/") {
-			continue
-		}
-		images = append(images, &piv1.ImageContent{
-			MimeType: p.InlineData.MIMEType,
-			Data:     p.InlineData.Data,
-		})
+		images = append(images, &piv1.ImageContent{MimeType: p.InlineData.MIMEType, Data: p.InlineData.Data})
 	}
 	return images
 }

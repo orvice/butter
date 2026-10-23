@@ -140,7 +140,7 @@ func (b *treeBuilder) build(ctx context.Context, pb *agentsv1.Agent, parentCardP
 	case agentsv1.AgentType_AGENT_TYPE_WORKFLOW:
 		return newWorkflowAgent(pb, subAgents, b.pool)
 	case agentsv1.AgentType_AGENT_TYPE_PI:
-		return newPiAgent(pb, b.boxBuilders.pi())
+		return newPiAgent(pb, b.boxBuilders.pi(), cardPolicy)
 	case agentsv1.AgentType_AGENT_TYPE_CURSOR:
 		return newCursorAgent(pb, b.boxBuilders.cursor())
 	default:

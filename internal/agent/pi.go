@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/adk/v2/agent"
 
+	"go.orx.me/apps/butter/internal/a2ui"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -13,7 +14,7 @@ import (
 // implemented by the runtime layer (internal/runtime/pibox), which owns the
 // ButterBox resolution and the PiService bridge; nil means PI agents cannot
 // be built in this deployment.
-type PiAgentBuilder func(pb *agentsv1.Agent) (agent.Agent, error)
+type PiAgentBuilder func(pb *agentsv1.Agent, cardPolicy a2ui.CardPolicy) (agent.Agent, error)
 
 // ValidatePiAgent checks an AGENT_TYPE_PI config. It is pure proto
 // validation — no ButterBox lookup happens here — so the service layer can
@@ -83,12 +84,12 @@ func rejectBoxOwnedFields(cfg *agentsv1.AgentConfig, kind, hint string) error {
 
 // newPiAgent validates the PI config and delegates construction to the
 // runtime-provided builder.
-func newPiAgent(pb *agentsv1.Agent, builder PiAgentBuilder) (agent.Agent, error) {
+func newPiAgent(pb *agentsv1.Agent, builder PiAgentBuilder, cardPolicy a2ui.CardPolicy) (agent.Agent, error) {
 	if err := ValidatePiAgent(pb); err != nil {
 		return nil, err
 	}
 	if builder == nil {
 		return nil, fmt.Errorf("agent %q: pi agents are not available: no ButterBox bridge is wired", pb.GetName())
 	}
-	return builder(pb)
+	return builder(pb, cardPolicy)
 }

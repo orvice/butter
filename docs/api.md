@@ -1254,8 +1254,9 @@ surface's data model; function calls are not part of the catalog.
 ##### Result cards: `render_ui`
 
 In a negotiated, bound run every LLM agent is offered a `render_ui` tool,
-unless its [Card Policy](#agent-card-policy) turns cards off (Pi, Cursor,
-remote agents and every non-AG-UI entry point never see it):
+unless its [Card Policy](#agent-card-policy) turns cards off. Pi agents can
+also use the host-tool relay described below; Cursor, remote agents and
+non-AG-UI entry points do not get this tool:
 
 ```json
 {
@@ -1287,6 +1288,27 @@ remote agents and every non-AG-UI entry point never see it):
 - Cards live in a hidden namespace of the session's state (`butter:a2ui:*`),
   never in AG-UI shared state: `STATE_*` events do not carry them and a
   client's `state` cannot create or change them.
+
+**Pi Result Cards (ButterBox host-tools v1).** Deploy a Box containing
+[butter-box#30](https://github.com/orvice/butter-box/pull/30) first. Butter
+checks the live session's extension readiness, protocol version and pinned
+contract SHA-256 before enabling `render_ui` on that submission. An old Box,
+missing extension or incompatible contract stays text-only. The runner reads
+`ListHostCalls`, applies the same catalog/limits/failure guard as the ADK tool,
+records the call/result and card delta in the session, then returns the exact
+receipt via `RespondHostCall`. A lost receipt response retries that receipt,
+not the prompt or the card write. The existing `butter.a2ui`, UI Snapshot,
+Thread History and Run Log formats are unchanged.
+
+Pi keeps its box-owned behavior configuration: its own `config.result_cards`
+field is still rejected. A parent Agent's `DISABLED` policy suppresses the
+relay; Box v1 owns the tool description and does not support the parent's
+`PREFERRED` presentation hint. No instruction is injected to emulate it.
+Host authorization cannot renew in v1 and is bounded to 24 hours: a run with
+no finite deadline, or a deadline beyond the Box's advertised maximum, stays
+text-only rather than silently shortening execution. Ordinary text runs keep
+`max_run_seconds=0`'s unlimited behavior. Pi's native extension dialogs are
+not Human Input Forms; form/approval mapping remains deferred.
 
 ##### Human Input forms
 

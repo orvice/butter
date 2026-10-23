@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"google.golang.org/adk/v2/agent"
+
+	"go.orx.me/apps/butter/internal/a2ui"
 	"google.golang.org/protobuf/proto"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -154,7 +156,7 @@ func TestNewFromProto_PiWithoutBuilderFails(t *testing.T) {
 
 func TestNewFromProto_PiUsesBuilder(t *testing.T) {
 	var got *agentsv1.Agent
-	builder := PiAgentBuilder(func(pb *agentsv1.Agent) (agent.Agent, error) {
+	builder := PiAgentBuilder(func(pb *agentsv1.Agent, _ a2ui.CardPolicy) (agent.Agent, error) {
 		got = pb
 		return agent.New(agent.Config{Name: pb.GetName(), Description: pb.GetDescription()})
 	})
@@ -173,7 +175,7 @@ func TestNewFromProto_PiUsesBuilder(t *testing.T) {
 func TestNewFromProto_PiInvalidConfigFails(t *testing.T) {
 	pb := validPiAgent()
 	pb.Config.Instruction = "nope"
-	builder := PiAgentBuilder(func(pb *agentsv1.Agent) (agent.Agent, error) {
+	builder := PiAgentBuilder(func(pb *agentsv1.Agent, _ a2ui.CardPolicy) (agent.Agent, error) {
 		t.Fatal("builder must not be called for an invalid pi agent")
 		return nil, nil
 	})
