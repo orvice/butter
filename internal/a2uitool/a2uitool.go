@@ -5,7 +5,8 @@
 // LLM agent but offers render_ui only when the run's context carries an
 // a2ui.Run — an AG-UI run whose client negotiated A2UI and whose session is
 // bound to the caller. Every other entry point (Telegram, the classic chat,
-// cron, OpenAI-compatible, Pi/Cursor leaves) sees no tool and pays nothing.
+// cron, OpenAI-compatible, Cursor leaves) sees no tool and pays nothing.
+// Pi leaves use Prepare through their separate, negotiated host-tool relay.
 // Each Toolset is also built with the Card Policy of its agent's place in the
 // tree, and offers nothing where that policy turns cards off.
 //
@@ -15,12 +16,13 @@
 package a2uitool
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/functiontool"
 
@@ -68,17 +70,24 @@ func (t Toolset) Tools(ctx agent.ReadonlyContext) ([]tool.Tool, error) {
 	return []tool.Tool{t.tool}, nil
 }
 
-type renderArgs struct {
+// Args is the shared render_ui input contract for ADK tools and Pi host calls.
+type Args struct {
 	SurfaceID string           `json:"surface_id,omitempty" jsonschema:"Handle of a card you created earlier in this conversation, to update or delete it. Omit to create a new card; the server assigns the handle and returns it."`
 	Messages  []map[string]any `json:"messages" jsonschema:"A2UI v0.9.1 messages applied in order: {\"updateComponents\": {\"components\": [...]}}, {\"updateDataModel\": {\"path\": \"/\", \"value\": {...}}}, or {\"deleteSurface\": {}}."`
 	Fallback  string           `json:"fallback,omitempty" jsonschema:"Plain-text version of the card for clients that cannot render it. Required when creating."`
 }
 
-type renderResult struct {
+type renderArgs = Args
+
+// Result is returned only after the caller has staged a validated card write.
+// Remote adapters must additionally wait for persistence before replying.
+type Result struct {
 	SurfaceID string `json:"surface_id"`
 	Revision  int    `json:"revision"`
 	Status    string `json:"status"`
 }
+
+type renderResult = Result
 
 // maxConsecutiveFailures is how many render_ui calls in a row may fail in
 // one run before the tool refuses the rest. Every failure hands the model an
@@ -90,54 +99,51 @@ const maxConsecutiveFailures = 3
 var errRenderStopped = fmt.Errorf("render_ui has failed %d times in a row, so cards are off for the rest of this turn; answer in text", maxConsecutiveFailures)
 
 func render(ctx agent.Context, policy a2ui.CardPolicy, args renderArgs) (renderResult, error) {
-	run, ok := a2ui.RunFrom(ctx)
-	if !ok || !policy.Allowed() {
-		return renderResult{}, errors.New("cards cannot be shown in this conversation; answer in text instead")
-	}
-	if run.RenderFailures() >= maxConsecutiveFailures {
-		return renderResult{}, errRenderStopped
-	}
-	res, err := apply(ctx, run, args)
-	if err != nil {
-		if run.RenderFailed() >= maxConsecutiveFailures {
-			return renderResult{}, fmt.Errorf("%w; %w", err, errRenderStopped)
-		}
-		return renderResult{}, err
-	}
-	run.RenderSucceeded()
-	return res, nil
+	return Prepare(ctx, policy, ctx.State(), ctx.InvocationID(), args, func(card *a2ui.Card) error {
+		return ctx.State().Set(a2ui.CardKey(card.ID), card.StateValue())
+	})
 }
 
-// apply validates one batch against the session's cards and persists the
-// card it produces.
-func apply(ctx agent.Context, run *a2ui.Run, args renderArgs) (renderResult, error) {
-	cards := a2ui.Cards(ctx.State())
-	res, err := a2ui.Apply(cards, a2ui.Batch{
-		SurfaceID: strings.TrimSpace(args.SurfaceID),
-		Messages:  args.Messages,
-		Fallback:  args.Fallback,
-	}, a2ui.Anchor{
-		ThreadID:     run.ThreadID,
-		RunID:        run.RunID,
-		MessageID:    run.MessageID,
-		InvocationID: ctx.InvocationID(),
-		At:           time.Now().UTC(),
-	}, a2ui.DefaultLimits)
+// Prepare shares policy, failure limits and card validation between the ADK
+// tool and remote runtimes. write stages a delta, never publishes UI directly.
+func Prepare(ctx context.Context, policy a2ui.CardPolicy, state session.ReadonlyState, invocationID string, args Args, write func(*a2ui.Card) error) (Result, error) {
+	run, ok := a2ui.RunFrom(ctx)
+	if !ok || !policy.Allowed() {
+		return Result{}, errors.New("cards cannot be shown in this conversation; answer in text instead")
+	}
+	if run.RenderFailures() >= maxConsecutiveFailures {
+		return Result{}, errRenderStopped
+	}
+	res, err := run.Render(state, a2ui.Batch{
+		SurfaceID: strings.TrimSpace(args.SurfaceID), Messages: args.Messages, Fallback: args.Fallback,
+	}, invocationID, write)
 	if err != nil {
-		return renderResult{}, fmt.Errorf("card not rendered, nothing was changed: %w", err)
+		err = fmt.Errorf("card not rendered, nothing was changed: %w", err)
+		return Result{}, RecordFailure(ctx, err)
 	}
-	card := res.Card
-	if err := ctx.State().Set(a2ui.CardKey(card.ID), card.StateValue()); err != nil {
-		return renderResult{}, fmt.Errorf("card not rendered: %w", err)
-	}
+	run.RenderSucceeded()
 	status := "updated"
 	switch {
 	case res.Created:
 		status = "created"
-	case card.Deleted:
+	case res.Card.Deleted:
 		status = "deleted"
 	}
-	return renderResult{SurfaceID: card.ID, Revision: card.Revision, Status: status}, nil
+	return Result{SurfaceID: res.Card.ID, Revision: res.Card.Revision, Status: status}, nil
+}
+
+// RecordFailure accounts for adapter-level input errors before card validation,
+// so malformed remote requests cannot bypass the same per-run failure guard.
+func RecordFailure(ctx context.Context, err error) error {
+	if run, ok := a2ui.RunFrom(ctx); ok {
+		if run.RenderFailures() >= maxConsecutiveFailures {
+			return errRenderStopped
+		}
+		if run.RenderFailed() >= maxConsecutiveFailures {
+			return fmt.Errorf("%w; %w", err, errRenderStopped)
+		}
+	}
+	return err
 }
 
 // PreferredHint is the sentence a PREFERRED Card Policy adds to render_ui's

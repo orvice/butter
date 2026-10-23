@@ -126,3 +126,27 @@ mapping them onto butter's Interrupt system is explicitly deferred.
   one proto source of truth, at the cost of a cross-repo Go dependency.
 - Deferred, tracked separately: streaming partials into chat/AG-UI,
   extension-dialog → Interrupt mapping, a directory-picker RPC.
+
+## Amendment: Result Cards through ButterBox host tools (2026-10-23)
+
+ButterBox PR #30 provides a trusted Pi extension and a per-turn host-tool
+relay without replacing Go + RPC. For a negotiated, bound A2UI run, Butter
+checks the session's live readiness and pinned v1 contract hash, opts in to
+`render_ui` at submission, and polls `ListHostCalls` independently of final
+text. Butter remains the card authority: shared validation produces a session
+event containing the tool result and card delta; only successful persistence
+permits a `RespondHostCall` success. Receipts are retried identically, never
+by rerunning the prompt or reapplying the card. See ADR-0014's amendment.
+
+This is a presentation adapter, not general instruction/tool injection. Pi's
+own `result_cards` field remains rejected; the inherited generation policy
+can turn off the relay. The Box-owned v1 description cannot carry an inherited
+PREFERRED hint, so that hint is not applied to Pi. Missing capabilities or an
+incompatible extension fall back to text. v1 has a finite, non-renewable grant
+(maximum 24 hours); an unbounded or over-limit run also stays text-only, never
+silently changing the agent's execution deadline.
+
+A lost process can leave an assistant `toolUse` entry but no completed answer;
+this is reported as did-not-finish, not success. Consumer, persistence or relay
+failure aborts the submitted turn through the existing AbortSession path.
+Native Pi dialogs and resumable Human Input Forms remain separate concerns.

@@ -161,3 +161,26 @@ Policy:
   composite agents accept it to narrow their subtree.
 
 Pre-built card templates (#381) stay deferred.
+
+## Amendment: Pi Result Cards (2026-10-23)
+
+Pi leaves can render the same read-only Result Cards through ButterBox's
+host-tools v1 relay (butter-box#29 / PR #30). The client protocol, catalog,
+UI Binding, hidden state and restoration paths do not change. Cursor and
+remote agents have no such adapter. Pi form/approval mapping stays deferred.
+
+The tree factory passes its resolved Card Policy to the Pi builder; inherited
+DISABLED suppresses the relay. Pi's own `result_cards` field is still rejected,
+and the Box-managed v1 description has no per-turn PREFERRED override. These
+restrictions remain explicit rather than injecting persistent instructions.
+
+ADK tools and Pi use the same validation, failure guard and run-local card
+reservations. Parallel leaves share quotas and revisions even if their state
+snapshots lag; at persistence, an older full-card revision cannot overwrite a
+newer one. The Pi adapter records scoped function-call/result IDs and waits
+for the actual session AppendEvent result through `runtime/eventcommit`, not
+merely a local yield, before acknowledging the tool. The receipt's result is
+therefore also recorded in the session before the Box receives it. This does
+not make Mongo's separate event/state writes transactional or promise
+cross-system exactly-once: storage failure returns no success, stops the run,
+and never triggers automatic prompt replay.

@@ -21,6 +21,8 @@ import (
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/proto"
 
+	"go.orx.me/apps/butter/internal/a2ui"
+	"go.orx.me/apps/butter/internal/runtime/eventcommit"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -170,7 +172,7 @@ func newHarness(t *testing.T, b *Bridge) *harness {
 	r, err := adkrunner.New(adkrunner.Config{
 		AppName:        "test-app",
 		Agent:          ag,
-		SessionService: sessions,
+		SessionService: eventcommit.Service(a2ui.PersistCards(sessions)),
 	})
 	if err != nil {
 		t.Fatalf("runner.New: %v", err)
@@ -186,6 +188,8 @@ func newHarness(t *testing.T, b *Bridge) *harness {
 // turn sends one user content and returns the joined final text.
 func (h *harness) turn(ctx context.Context, content *genai.Content) (string, error) {
 	h.t.Helper()
+	ctx, cancel := eventcommit.Track(ctx)
+	defer cancel()
 	var out strings.Builder
 	for evt, err := range h.runner.Run(ctx, "u1", "s1", content, agent.RunConfig{}) {
 		if err != nil {

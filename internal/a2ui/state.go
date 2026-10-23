@@ -102,7 +102,7 @@ func DecodeCard(v any) (*Card, bool) {
 }
 
 // Cards reads every card record, tombstones included, from session state.
-func Cards(st session.State) map[string]*Card {
+func Cards(st session.ReadonlyState) map[string]*Card {
 	cards := map[string]*Card{}
 	if st == nil {
 		return cards
