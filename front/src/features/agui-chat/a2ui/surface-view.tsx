@@ -4,6 +4,7 @@ import { CheckCircle2, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FormStateContext, type FormState } from './catalog'
 import { useA2UIStore, type A2UIStore, type SurfaceEntry } from './store'
+import styles from './surface.module.css'
 
 // SurfaceBoundary confines a renderer failure to its own surface: the
 // surface shows its fallback text and the rest of the conversation keeps
@@ -115,7 +116,7 @@ export function A2UISurfaceView({
   if (entry.kind !== 'form') {
     return (
       <div
-        className={cn('max-w-[85%]', className)}
+        className={cn(styles.surface, 'max-w-[85%]', className)}
         data-a2ui-surface={entry.id}
       >
         {rendered}
@@ -134,7 +135,7 @@ export function A2UISurfaceView({
     <section
       ref={sectionRef}
       aria-label={entry.form?.title ?? 'Form'}
-      className={cn('max-w-[85%]', className)}
+      className={cn(styles.surface, 'max-w-[85%]', className)}
       data-a2ui-surface={entry.id}
       data-form-status={entry.formStatus}
     >
