@@ -380,8 +380,9 @@ webhook 注册——Telegram 在已注册 webhook 时对 `getUpdates` 返回 409
 匹配以 `(channel_id, chat_id, message_thread_id)` 精确进行；未配置的地址被忽略
 （`/where` 除外）。**缺省的 thread id 是一个地址，不是通配符**：群的普通会话与
 每个 Topic 是不同的 Destination，拥有各自的 session 与策略。所有出站消息——回复、
-处理中占位、命令回执、debug、分段的后续片段——都带上该 thread id，因此响应不会
-漏到群的 general。
+命令回执、debug、分段的后续片段——都带上该 thread id，因此响应不会漏到群的 general。
+Agent 执行前通过 `setMessageReaction` 给原消息加 👀，不再发送「处理中」占位；reaction
+以 chat id + 原消息 id 定位，无需 thread id。reaction 最多等待 3 秒，失败不阻止执行。
 
 ### 会话隔离
 
@@ -405,8 +406,10 @@ Topic 不能共享历史；切换 Agent 不能继承另一个 Agent 的上下文
 
 所有出站都经过 `internal/telegramsend`，入参是 Destination ID：Cron 投递、Notify
 Group、Dashboard 测试消息、Agent 回复。它统一做 Markdown → MarkdownV2 转换与纯文
-本回退、遵守 Telegram 的 `retry_after`、按 rune 边界分段（优先段落/换行/词边界）、
-把「处理中」占位编辑成第一段。唯一被允许的原始地址出口是
+本回退、遵守 Telegram 的 `retry_after`、按 rune 边界分段（优先段落/换行/词边界）。
+Agent 完成后以新消息发送回复（失败提示也是新消息），不再编辑占位，允许 Telegram
+正常通知；实际通知仍受用户的静音设置影响。旧处理记录的占位编辑仅保留用于恢复。
+唯一被允许的原始地址出口是
 `Sender.SendRaw`，只服务于传输层的 `/where` 命令。
 
 ### 遗留 Channel

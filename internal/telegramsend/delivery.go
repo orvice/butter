@@ -52,8 +52,9 @@ type Segment struct {
 // already produced.
 type Delivery struct {
 	Segments []Segment
-	// PlaceholderMessageID is a "processing" message to edit into the first
-	// segment rather than leaving it stranded above the answer.
+	// PlaceholderMessageID supports legacy deliveries persisted before
+	// reaction acknowledgements. New replies leave it empty and send fresh
+	// messages so Telegram can notify the user.
 	PlaceholderMessageID string
 	// ReplyToMessageID quotes the inbound message on the first segment only.
 	ReplyToMessageID string
@@ -232,27 +233,6 @@ func (s *Sender) editSegment(ctx context.Context, resolved *Resolved, delivery *
 	segment.MessageID = delivery.PlaceholderMessageID
 	segment.Error = ""
 	return nil
-}
-
-// SendProcessing posts a placeholder that a later DeliverSegments call edits
-// into the first segment. An empty return means no placeholder was created,
-// which the delivery path handles by sending normally.
-func (s *Sender) SendProcessing(ctx context.Context, workspaceID, destinationID, text, replyToMessageID string) (string, error) {
-	resolved, err := s.Resolve(ctx, workspaceID, destinationID)
-	if err != nil {
-		return "", err
-	}
-	sent, err := s.sendWithRetry(ctx, resolved.Client, telegramapi.SendMessageParams{
-		ChatID:           resolved.Destination.GetChatId(),
-		MessageThreadID:  resolved.Destination.GetMessageThreadId(),
-		Text:             text,
-		ParseMode:        telegramapi.ParseModeNone,
-		ReplyToMessageID: replyToMessageID,
-	})
-	if err != nil {
-		return "", fmt.Errorf("send telegram processing placeholder: %w", err)
-	}
-	return telegramapi.FormatMessageID(sent.ID), nil
 }
 
 // ErrNoSegments reports that there was nothing to deliver.
