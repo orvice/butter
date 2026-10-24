@@ -62,7 +62,7 @@ type Interaction struct {
 	Text string
 	// UserID is the Telegram sender.
 	UserID string
-	// MessageID is the inbound message, used when reply mode is REPLY.
+	// MessageID is the inbound message, used for reactions and quoted replies.
 	MessageID string
 	// ReplyToMessageID is set only when the Destination replies by quoting.
 	ReplyToMessageID string

@@ -25,6 +25,12 @@ type Sent struct {
 	Edit   *telegramapi.EditMessageParams
 }
 
+// Reaction records one reaction attempt with the credential that made it.
+type Reaction struct {
+	Token  string
+	Params telegramapi.ReactionParams
+}
+
 // SendHook lets a test fail or delay a specific send. Returning a non-nil
 // error makes the call fail; the fake still records the attempt.
 type SendHook func(attempt int, params telegramapi.SendMessageParams) error
@@ -40,6 +46,8 @@ type Fake struct {
 	sent       []Sent
 	nextID     int64
 	sendHook   SendHook
+	reactions  []Reaction
+	reactHook  func(context.Context, telegramapi.ReactionParams) error
 }
 
 func NewFake() *Fake {
@@ -60,6 +68,21 @@ func (f *Fake) OnSend(hook SendHook) *Fake {
 	defer f.mu.Unlock()
 	f.sendHook = hook
 	return f
+}
+
+// OnReaction installs a hook consulted for each reaction attempt.
+func (f *Fake) OnReaction(hook func(context.Context, telegramapi.ReactionParams) error) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reactHook = hook
+	return f
+}
+
+// Reactions returns every reaction attempt in order.
+func (f *Fake) Reactions() []Reaction {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]Reaction(nil), f.reactions...)
 }
 
 // Factory returns a telegramapi.Factory backed by this fake.
@@ -91,11 +114,12 @@ func (f *Fake) LastSent() (Sent, bool) {
 	return f.sent[len(f.sent)-1], true
 }
 
-// Reset clears recorded sends without forgetting registered bots.
+// Reset clears recorded sends and reactions without forgetting registered bots.
 func (f *Fake) Reset() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.sent = nil
+	f.reactions = nil
 }
 
 type fakeClient struct {
@@ -144,6 +168,21 @@ func (c *fakeClient) EditMessageText(_ context.Context, params telegramapi.EditM
 	c.fake.sent = append(c.fake.sent, Sent{Token: c.token, Edit: &edit})
 	c.fake.nextID++
 	return telegramapi.Message{ID: c.fake.nextID}, nil
+}
+
+func (c *fakeClient) SetMessageReaction(ctx context.Context, params telegramapi.ReactionParams) error {
+	c.fake.mu.Lock()
+	if _, ok := c.fake.bots[c.token]; !ok {
+		c.fake.mu.Unlock()
+		return unauthorized()
+	}
+	c.fake.reactions = append(c.fake.reactions, Reaction{Token: c.token, Params: params})
+	hook := c.fake.reactHook
+	c.fake.mu.Unlock()
+	if hook != nil {
+		return hook(ctx, params)
+	}
+	return nil
 }
 
 // Identity builds a BotIdentity with the group-friendly defaults most tests
