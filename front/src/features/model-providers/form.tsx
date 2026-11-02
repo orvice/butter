@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { z } from 'zod'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ModelProvider } from '@/types/api'
 import { Plus, Trash2 } from 'lucide-react'
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -36,6 +37,12 @@ const schema = z.object({
   type: z.string().min(1, 'Type is required'),
   api_key: z.string().optional(),
   base_url: z.string().optional(),
+  openai_api: z
+    .string()
+    .refine(
+      (api): boolean => api === 'chat_completions' || api === 'responses',
+      'Select a supported API protocol'
+    ),
   models: modelsSchema,
 })
 
@@ -56,6 +63,7 @@ function providerToFormValues(provider?: ModelProvider): FormValues {
     type: provider?.type || 'openai',
     api_key: provider?.api_key ?? '',
     base_url: provider?.base_url ?? '',
+    openai_api: provider?.openai_api || 'chat_completions',
     models: modelsToRows(provider?.models),
   }
 }
@@ -72,6 +80,7 @@ export function ModelProviderForm({
     resolver: zodResolver(schema),
     defaultValues: providerToFormValues(),
   })
+  const providerType = useWatch({ control: form.control, name: 'type' })
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'models',
@@ -87,6 +96,7 @@ export function ModelProviderForm({
       type: values.type,
       api_key: values.api_key || undefined,
       base_url: values.base_url || undefined,
+      openai_api: values.type === 'openai' ? values.openai_api : undefined,
       models: rowsToModels(values.models),
     })
   }
@@ -132,7 +142,12 @@ export function ModelProviderForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    onValueChange={(value) => {
+                      if (value) field.onChange(value)
+                    }}
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder='Select provider type' />
@@ -147,6 +162,43 @@ export function ModelProviderForm({
                 </FormItem>
               )}
             />
+            {providerType === 'openai' && (
+              <FormField
+                control={form.control}
+                name='openai_api'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API Protocol</FormLabel>
+                    <Select
+                      // Radix can emit an empty value when reset() loads a saved
+                      // selection inside a form. There is no empty API option.
+                      onValueChange={(value) => {
+                        if (value) field.onChange(value)
+                      }}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder='Select API protocol' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value='chat_completions'>
+                          Chat Completions
+                        </SelectItem>
+                        <SelectItem value='responses'>Responses API</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Applies to all models in this provider. The endpoint must
+                      support the selected API; Butter does not automatically
+                      fall back to another protocol.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name='api_key'

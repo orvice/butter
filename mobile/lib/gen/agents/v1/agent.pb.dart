@@ -2858,6 +2858,7 @@ class ModelProvider extends $pb.GeneratedMessage {
     $core.String? apiKey,
     $core.String? baseUrl,
     $core.Iterable<ModelConfig>? models,
+    $core.String? openaiApi,
     $core.String? workspaceId,
   }) {
     final result = ModelProvider._();
@@ -2866,6 +2867,7 @@ class ModelProvider extends $pb.GeneratedMessage {
     if (apiKey != null) result.apiKey = apiKey;
     if (baseUrl != null) result.baseUrl = baseUrl;
     if (models != null) result.models.addAll(models);
+    if (openaiApi != null) result.openaiApi = openaiApi;
     if (workspaceId != null) result.workspaceId = workspaceId;
     return result;
   }
@@ -2889,6 +2891,7 @@ class ModelProvider extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'baseUrl')
     ..pPM<ModelConfig>(5, _omitFieldNames ? '' : 'models',
         subBuilder: ModelConfig.$_createMessage)
+    ..aOS(6, _omitFieldNames ? '' : 'openaiApi')
     ..aOS(100, _omitFieldNames ? '' : 'workspaceId')
     ..hasRequiredFields = false;
 
@@ -2963,14 +2966,27 @@ class ModelProvider extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   $pb.PbList<ModelConfig> get models => $_getList(4);
 
+  /// OpenAI HTTP API: "chat_completions" or "responses". Empty preserves
+  /// Chat Completions for existing providers. Only valid for type "openai";
+  /// other provider types must leave this empty. Applies to all provider models.
+  /// @gotags: json:"openai_api,omitempty" yaml:"openai_api,omitempty"
+  @$pb.TagNumber(6)
+  $core.String get openaiApi => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set openaiApi($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasOpenaiApi() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearOpenaiApi() => $_clearField(6);
+
   /// ID of the workspace this provider belongs to.
   /// @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"
   @$pb.TagNumber(100)
-  $core.String get workspaceId => $_getSZ(5);
+  $core.String get workspaceId => $_getSZ(6);
   @$pb.TagNumber(100)
-  set workspaceId($core.String value) => $_setString(5, value);
+  set workspaceId($core.String value) => $_setString(6, value);
   @$pb.TagNumber(100)
-  $core.bool hasWorkspaceId() => $_has(5);
+  $core.bool hasWorkspaceId() => $_has(6);
   @$pb.TagNumber(100)
   void clearWorkspaceId() => $_clearField(100);
 }

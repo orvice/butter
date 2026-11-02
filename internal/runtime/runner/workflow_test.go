@@ -639,7 +639,9 @@ func TestRun_TurnListenerObservesPauseAndResume(t *testing.T) {
 }
 
 // TestRun_WorkflowHumanInputFIFO: with two pending Interrupts from parallel
-// branches, each reply answers the oldest one first.
+// branches, each reply answers the oldest one first. The branches converge
+// through a Join into one terminal agent: ADK permits only one terminal
+// output, and v2.7 restores the earlier branch's output on the final resume.
 func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 	backend := newFakeBackend(t)
 	agents := []agentsv1.Agent{{
@@ -647,7 +649,7 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 		AgentId:       "double",
 		Type:          agentsv1.AgentType_AGENT_TYPE_WORKFLOW,
 		WorkspaceId:   "ws-a",
-		ChildAgentIds: []string{"seed", "handle_a", "handle_b"},
+		ChildAgentIds: []string{"seed", "handle_a", "handle_b", "finish"},
 		Config: &agentsv1.AgentConfig{
 			Workflow: &agentsv1.WorkflowConfig{
 				Nodes: []*agentsv1.WorkflowNode{
@@ -656,6 +658,8 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 					{Name: "ask_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_HUMAN_INPUT, Question: "Question B?"},
 					{Name: "handle_a", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "handle_a"},
 					{Name: "handle_b", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "handle_b"},
+					{Name: "gather", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_JOIN},
+					{Name: "finish", Kind: agentsv1.WorkflowNodeKind_WORKFLOW_NODE_KIND_AGENT, AgentId: "finish"},
 				},
 				Edges: []*agentsv1.WorkflowEdge{
 					{From: "START", To: "seed"},
@@ -663,6 +667,9 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 					{From: "seed", To: "ask_b"},
 					{From: "ask_a", To: "handle_a"},
 					{From: "ask_b", To: "handle_b"},
+					{From: "handle_a", To: "gather"},
+					{From: "handle_b", To: "gather"},
+					{From: "gather", To: "finish"},
 				},
 			},
 		},
@@ -670,14 +677,15 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 		{Name: "seed", AgentId: "seed", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "seeder"}},
 		{Name: "handle_a", AgentId: "handle_a", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "handler-a"}},
 		{Name: "handle_b", AgentId: "handle_b", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "handler-b"}},
+		{Name: "finish", AgentId: "finish", WorkspaceId: "ws-a", Config: &agentsv1.AgentConfig{Model: "finisher"}},
 	}
 	svc := buildWorkflowService(t, backend, agents,
-		[]string{"seeder", "handler-a", "handler-b"}, session.InMemoryService())
+		[]string{"seeder", "handler-a", "handler-b", "finisher"}, session.InMemoryService())
 	ctxInfo := turnCtxInfo(&agents[0])
 
 	// Turn 1: both branches pause; branch scheduling decides which asked
 	// first, so read the order from the turn result.
-	turn1, err := svc.RunTurn(context.Background(), "double",
+	turn1, err := svc.RunTurn(t.Context(), "double",
 		[]*genai.Part{{Text: "go"}}, "", ctxInfo, nil, nil)
 	if err != nil {
 		t.Fatalf("turn 1: %v", err)
@@ -693,7 +701,7 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 	}
 
 	// Turn 2: the reply answers the OLDEST pending Interrupt.
-	turn2, err := svc.RunTurn(context.Background(), "double",
+	turn2, err := svc.RunTurn(t.Context(), "double",
 		[]*genai.Part{{Text: "first answer"}}, "", ctxInfo, nil, nil)
 	if err != nil {
 		t.Fatalf("turn 2: %v", err)
@@ -707,9 +715,12 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 	if !turn2.Interrupted() {
 		t.Error("turn 2 should still report the second pending Interrupt")
 	}
+	if got := backend.callCount("finisher"); got != 0 {
+		t.Errorf("finisher ran %d times before both answers arrived, want 0", got)
+	}
 
 	// Turn 3: the next reply answers the remaining Interrupt.
-	turn3, err := svc.RunTurn(context.Background(), "double",
+	turn3, err := svc.RunTurn(t.Context(), "double",
 		[]*genai.Part{{Text: "second answer"}}, "", ctxInfo, nil, nil)
 	if err != nil {
 		t.Fatalf("turn 3: %v", err)
@@ -719,6 +730,16 @@ func TestRun_WorkflowHumanInputFIFO(t *testing.T) {
 	}
 	if turn3.Interrupted() {
 		t.Errorf("turn 3 still reports pending interrupts: %+v", turn3.Pending)
+	}
+	for _, output := range []string{firstHandler + "(first answer)", secondHandler + "(second answer)"} {
+		if !strings.Contains(turn3.Output, output) {
+			t.Errorf("joined output %q missing %q", turn3.Output, output)
+		}
+	}
+	for _, model := range []string{"seeder", "handler-a", "handler-b", "finisher"} {
+		if got := backend.callCount(model); got != 1 {
+			t.Errorf("%s ran %d times across resumes, want 1", model, got)
+		}
 	}
 }
 

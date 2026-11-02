@@ -103,6 +103,7 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 ## 2. 模型管理
 
 - **模型别名与 Provider 解析**：通过 `model_providers` 配置把别名（如 `flash`）映射到具体模型。别名只用于选择；OpenAI-compatible 与 Gemini adapter 都把解析后的实际 `ModelConfig.name` 写入 ADK 请求，容量 lookup 和日志不会为 alias 建第二套命名空间。
+- **OpenAI API 协议**：Provider 新建／编辑页可选 Chat Completions 或 Responses API，列表显示生效协议。两者均使用 ADK v2.7 原生适配器，协议应用于该 Provider 下全部模型；旧记录 `openai_api` 未设置时保持 Chat Completions，无需迁移。Gemini 不显示此选项，切换类型后不携带 OpenAI 专属配置；后端拒绝未知协议及非 OpenAI Provider 的非空协议。更新沿现有 reload 路径生效，保留会话历史。endpoint 必须支持所选协议，失败时不会自动切换协议重试；不同模型如需不同协议可拆分 Provider。
 - **Model Context Capacity**：每个 Provider Model 行可选填输入上下文容量 `context_window_tokens`；0 或留空表示继续使用内置 Crush/catwalk 元数据，未知模型最终回退到 128,000 tokens。该值只描述模型元数据，不是 maximum output tokens，也不会提高 provider 实际接受的上限。
 - **ContextGuard 继承**：只有显式启用 ContextGuard 的 LLM Agent 才使用模型容量。Threshold 未设置 Agent Context Override 时继承本次实际选中 Model 的容量；Sliding Window 仍由 `max_turns` 触发，但使用该容量执行压缩后的安全与重试计算。容量进入现有安全缓冲，因此名义值不是精确压缩触发点或 provider 端硬限制。
 - **冲突与热更新**：扁平运行时中相同实际 Model ID 的非零容量必须一致，0 不参与冲突；冲突会以包含 Model ID 和排序后数值的确定性错误拒绝 runner 构建或 reload。Model Provider 更新沿现有 reload 路径重建 registry 与 plugin，推进 runtime generation 并清空 runner / model override cache；与 reload 并发的旧 generation cache build 会被丢弃并重试。reload 失败时回滚数据库配置并重新加载旧运行时，无需迁移或重启，session 历史、ContextGuard state key 与 compaction 通知契约均不变。

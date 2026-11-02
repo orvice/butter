@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	adkopenai "github.com/achetronic/adk-utils-go/genai/openai"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/model/gemini"
+	"google.golang.org/adk/v2/model/openaimodel"
 	"google.golang.org/genai"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -125,7 +125,28 @@ type ModelInfo struct {
 	Name  string
 }
 
+// ValidateModelProviderAPI is shared by provider writes and model construction,
+// so invalid persisted configuration cannot silently select a different API.
+func ValidateModelProviderAPI(p *agentsv1.ModelProvider) error {
+	api := p.GetOpenaiApi()
+	if api == "" {
+		return nil
+	}
+	if p.GetType() != "openai" {
+		return fmt.Errorf("openai_api is only supported for openai providers")
+	}
+	switch openaimodel.API(api) {
+	case openaimodel.APIChatCompletions, openaimodel.APIResponses:
+		return nil
+	default:
+		return fmt.Errorf("openai_api must be chat_completions or responses, got %q", api)
+	}
+}
+
 func createModelFromProvider(ctx context.Context, modelName string, p *agentsv1.ModelProvider) (model.LLM, error) {
+	if err := ValidateModelProviderAPI(p); err != nil {
+		return nil, err
+	}
 	switch p.GetType() {
 	case "gemini":
 		cfg := &genai.ClientConfig{}
@@ -137,16 +158,17 @@ func createModelFromProvider(ctx context.Context, modelName string, p *agentsv1.
 		}
 		return gemini.NewModel(ctx, modelName, cfg)
 	case "openai":
-		// ADK's native openaimodel is not production-safe for Butter yet: as of
-		// v2.5.0 it still does not map genai media parts (InlineData, FileData)
-		// to image or file inputs, and at v2.1.0 it also broke multi-turn
-		// assistant history. See docs/research/adk-go-v2.1-openai.md before
-		// changing this adapter.
-		return adkopenai.New(adkopenai.Config{
-			APIKey:    p.GetApiKey(),
-			BaseURL:   p.GetBaseUrl(),
-			ModelName: modelName,
-		}), nil
+		api := openaimodel.API(p.GetOpenaiApi())
+		if api == "" {
+			// ADK defaults to Responses; Butter must preserve Chat Completions
+			// for providers saved before the protocol selector was introduced.
+			api = openaimodel.APIChatCompletions
+		}
+		return openaimodel.NewModel(ctx, modelName, &openaimodel.ClientConfig{
+			APIKey:  p.GetApiKey(),
+			BaseURL: p.GetBaseUrl(),
+			API:     api,
+		})
 	default:
 		return nil, fmt.Errorf("unknown provider type %q for model %q", p.GetType(), modelName)
 	}

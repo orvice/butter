@@ -2,6 +2,11 @@
 
 Research date: 2026-08-12
 
+> Historical, version-specific findings. For the 2026-11-02 reassessment of
+> v2.5.0, v2.6.0, and the v2.7.0 release (including the media-input fix), see
+> [ADK OpenAI migration reassessment](adk-openai-migration-2026-11.md).
+> The multi-turn defect described below is fixed in v2.3.0 and later.
+
 ## Conclusion
 
 ADK Go v2.1.0 adds a native OpenAI `model.LLM`, but Butter should **not replace

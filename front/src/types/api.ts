@@ -385,6 +385,8 @@ export interface ModelProvider {
   type: string;
   api_key?: string;
   base_url?: string;
+  /** OpenAI only: chat_completions (also the legacy default) or responses. */
+  openai_api?: string;
   models?: ModelConfig[];
 }
 

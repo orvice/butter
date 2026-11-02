@@ -861,7 +861,9 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	}
 	s.mu.Unlock()
 
-	// Resolve the model alias to get the actual model name.
+	// Resolve for diagnostics and legacy builders. Proto construction must
+	// retain the alias until it selects the provider: two providers can use
+	// the same actual model ID with different credentials, endpoints or APIs.
 	resolvedName, _ := internalagent.ResolveModelAlias(modelOverride, providers)
 	logger.Info("building model-overridden agent",
 		"agent", agentName,
@@ -879,7 +881,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 		if clone.Config == nil {
 			clone.Config = &agentsv1.AgentConfig{}
 		}
-		clone.Config.Model = resolvedName
+		clone.Config.Model = modelOverride
 		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, daemonRegistry, mcpHTTPFactory, newToolsetFactory(deps), boxBuilders, pool)
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.

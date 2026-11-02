@@ -3165,8 +3165,44 @@ POST /api/agents.v1.ModelProviderService/DeleteModelProvider
 | `type` | string | Provider backend, e.g. `gemini` or `openai` |
 | `api_key` | string | API key or env-injected value |
 | `base_url` | string | Base URL for OpenAI-compatible endpoints |
+| `openai_api` | string | OpenAI providers only: `chat_completions` or `responses`; empty/unset preserves Chat Completions |
 | `models` | ModelConfig[] | Models served by this provider |
 | `workspace_id` | string | Owning workspace |
+
+Both OpenAI protocols use ADK's native `model/openaimodel` adapter. The
+selection applies to every model in this provider: `chat_completions` sends
+`POST {base_url}/chat/completions`, while `responses` sends
+`POST {base_url}/responses`. For OpenAI itself the base URL is normally
+`https://api.openai.com/v1`. The endpoint and model must support the selected
+API, including any images or tools being used; Butter does not automatically
+probe or fall back to a different protocol after an error.
+
+For example, an opt-in Responses provider can be created with:
+
+```json
+{
+  "model_provider": {
+    "name": "openai-responses",
+    "type": "openai",
+    "openai_api": "responses",
+    "base_url": "https://api.openai.com/v1",
+    "api_key": "<provider-key>",
+    "models": [{ "name": "gpt-4o", "alias": "responses-model" }]
+  }
+}
+```
+
+Existing records without `openai_api` require no migration and keep Chat
+Completions. Unknown values, and any non-empty `openai_api` on a non-OpenAI
+provider (including `gemini`), return `invalid_argument` before persistence or
+runtime reload. Create/Get/List/Update round-trip the field. A successful
+update reloads future turns and invalidates model-override runner caches;
+session history remains in place. A failed runtime reload rolls the provider
+configuration back. If models on one endpoint need different APIs, configure
+separate providers with distinct model aliases (especially when they share an
+actual Model ID). Alias-based model overrides retain the selected provider's
+endpoint, credentials and API. This setting changes outbound model requests, not Butter's
+inbound OpenAI-compatible API; it does not add a `/responses` HTTP handler.
 
 | ModelConfig | Type | Description |
 |-------|------|-------------|
