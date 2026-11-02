@@ -24,19 +24,20 @@ func TestModelOverrideRetainsProviderProtocolForDuplicateModelIDs(t *testing.T) 
 		fmt.Fprint(w, `{"id":"resp_test","object":"response","model":"shared-model","status":"completed","output":[{"type":"message","id":"msg_test","role":"assistant","status":"completed","content":[{"type":"output_text","text":"responses-answer","annotations":[]}]}]}`)
 	}))
 	t.Cleanup(responses.Close)
-	root := agentsv1.Agent{
+	agents := []agentsv1.Agent{{
 		Name: "protocol-selection", AgentId: "protocol-selection", WorkspaceId: "ws-a", Type: agentsv1.AgentType_AGENT_TYPE_LLM,
 		Config: &agentsv1.AgentConfig{Model: "chat-alias"},
-	}
+	}}
+	root := &agents[0]
 	providers := []agentsv1.ModelProvider{
 		{Name: "chat", Type: "openai", ApiKey: "test-only", BaseUrl: chat.URL(), Models: []*agentsv1.ModelConfig{{Name: "shared-model", Alias: "chat-alias"}}},
 		{Name: "responses", Type: "openai", ApiKey: "test-only", BaseUrl: responses.URL, OpenaiApi: "responses", Models: []*agentsv1.ModelConfig{{Name: "shared-model", Alias: "responses-alias"}}},
 	}
-	svc, err := NewService(t.Context(), []agentsv1.Agent{root}, providers, nil, nil, nil, session.InMemoryService(), nil, nil, adkrunner.PluginConfig{})
+	svc, err := NewService(t.Context(), agents, providers, nil, nil, nil, session.InMemoryService(), nil, nil, adkrunner.PluginConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ci := turnCtxInfo(&root)
+	ci := turnCtxInfo(root)
 	if _, err := svc.Run(t.Context(), root.Name, []*genai.Part{{Text: "warm"}}, "", ci, nil, nil); err != nil {
 		t.Fatal(err)
 	}
