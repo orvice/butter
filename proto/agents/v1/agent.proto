@@ -838,7 +838,13 @@ message ModelProvider {
   // Chat Completions for existing providers. Only valid for type "openai";
   // other provider types must leave this empty. Applies to all provider models.
   // @gotags: json:"openai_api,omitempty" yaml:"openai_api,omitempty"
-  string openai_api = 6 [(validate.rules).string = {in: ["", "chat_completions", "responses"]}];
+  string openai_api = 6 [(validate.rules).string = {
+    in: [
+      "",
+      "chat_completions",
+      "responses"
+    ]
+  }];
 
   // ID of the workspace this provider belongs to.
   // @gotags: json:"workspace_id,omitempty" yaml:"workspace_id,omitempty" bson:"workspace_id,omitempty"

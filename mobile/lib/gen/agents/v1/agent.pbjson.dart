@@ -1156,6 +1156,7 @@ const ModelProvider$json = {
       '6': '.agents.v1.ModelConfig',
       '10': 'models'
     },
+    {'1': 'openai_api', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'openaiApi'},
     {'1': 'workspace_id', '3': 100, '4': 1, '5': 9, '10': 'workspaceId'},
   ],
 };
@@ -1164,8 +1165,9 @@ const ModelProvider$json = {
 final $typed_data.Uint8List modelProviderDescriptor = $convert.base64Decode(
     'Cg1Nb2RlbFByb3ZpZGVyEhIKBG5hbWUYASABKAlSBG5hbWUSEgoEdHlwZRgCIAEoCVIEdHlwZR'
     'IXCgdhcGlfa2V5GAMgASgJUgZhcGlLZXkSGQoIYmFzZV91cmwYBCABKAlSB2Jhc2VVcmwSLgoG'
-    'bW9kZWxzGAUgAygLMhYuYWdlbnRzLnYxLk1vZGVsQ29uZmlnUgZtb2RlbHMSIQoMd29ya3NwYW'
-    'NlX2lkGGQgASgJUgt3b3Jrc3BhY2VJZA==');
+    'bW9kZWxzGAUgAygLMhYuYWdlbnRzLnYxLk1vZGVsQ29uZmlnUgZtb2RlbHMSQwoKb3BlbmFpX2'
+    'FwaRgGIAEoCUIk+kIhch9SAFIQY2hhdF9jb21wbGV0aW9uc1IJcmVzcG9uc2VzUglvcGVuYWlB'
+    'cGkSIQoMd29ya3NwYWNlX2lkGGQgASgJUgt3b3Jrc3BhY2VJZA==');
 
 @$core.Deprecated('Use notifyGroupDescriptor instead')
 const NotifyGroup$json = {
