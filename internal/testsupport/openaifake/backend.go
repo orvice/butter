@@ -85,7 +85,7 @@ func (b *Backend) handleCompletion(w http.ResponseWriter, r *http.Request) {
 		answer(w, r, req)
 		return
 	}
-	WriteCompletion(w, req.Model, fmt.Sprintf("%s(%s)", req.Model, lastUser))
+	WriteReply(w, req, fmt.Sprintf("%s(%s)", req.Model, lastUser))
 }
 
 func (b *Backend) setScript(model string, answer script) {

@@ -8,7 +8,9 @@ import (
 	"butterfly.orx.me/core/log"
 	"connectrpc.com/connect"
 
+	internalagent "go.orx.me/apps/butter/internal/agent"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
+	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -22,6 +24,16 @@ func validateModelProviderBaseURL(mp *agentsv1.ModelProvider) error {
 		return nil
 	}
 	return validateHTTPURL("base_url", raw)
+}
+
+func validateModelProviderConfig(mp *agentsv1.ModelProvider) error {
+	if mp == nil {
+		return connectx.RequiredArgument("model_provider")
+	}
+	if err := internalagent.ValidateModelProviderAPI(mp); err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return validateModelProviderBaseURL(mp)
 }
 
 type ModelProviderServiceServer struct {
@@ -73,7 +85,7 @@ func (s *ModelProviderServiceServer) CreateModelProvider(ctx context.Context, re
 	if err != nil {
 		return nil, err
 	}
-	if err := validateModelProviderBaseURL(req.Msg.GetModelProvider()); err != nil {
+	if err := validateModelProviderConfig(req.Msg.GetModelProvider()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)
@@ -105,7 +117,7 @@ func (s *ModelProviderServiceServer) UpdateModelProvider(ctx context.Context, re
 	if err != nil {
 		return nil, err
 	}
-	if err := validateModelProviderBaseURL(req.Msg.GetModelProvider()); err != nil {
+	if err := validateModelProviderConfig(req.Msg.GetModelProvider()); err != nil {
 		return nil, err
 	}
 	logger := log.FromContext(ctx)

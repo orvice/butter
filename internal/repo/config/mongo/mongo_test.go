@@ -17,8 +17,29 @@ func TestUnmarshalLegacyModelProviderDefaultsContextCapacity(t *testing.T) {
 	if err := unmarshal(legacy, provider); err != nil {
 		t.Fatalf("unmarshal legacy model provider: %v", err)
 	}
+	if got := provider.GetOpenaiApi(); got != "" {
+		t.Fatalf("legacy openai_api = %q, want empty (Chat Completions)", got)
+	}
 	if got := provider.GetModels()[0].GetContextWindowTokens(); got != 0 {
 		t.Fatalf("legacy context_window_tokens = %d, want zero", got)
+	}
+}
+
+func TestModelProviderAPIJSONPersistence(t *testing.T) {
+	for _, api := range []string{"", "chat_completions", "responses"} {
+		t.Run(api, func(t *testing.T) {
+			encoded, err := marshal(&agentsv1.ModelProvider{Name: "custom", Type: "openai", OpenaiApi: api})
+			if err != nil {
+				t.Fatal(err)
+			}
+			provider := &agentsv1.ModelProvider{}
+			if err := unmarshal(encoded, provider); err != nil {
+				t.Fatal(err)
+			}
+			if provider.GetOpenaiApi() != api {
+				t.Fatalf("persisted openai_api = %q, want %q", provider.GetOpenaiApi(), api)
+			}
+		})
 	}
 }
 

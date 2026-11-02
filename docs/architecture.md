@@ -158,7 +158,7 @@ Agent proto
           -> workflowagent.New(config)
 ```
 
-模型通过 `model_providers` 解析。alias-first 解析在 Agent 构建阶段完成，OpenAI-compatible 和 Gemini LLM 的 `Name()` 都返回实际 provider Model ID；ADK 在每个 model callback 前把该值写入 `LLMRequest.Model`。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会先把 alias 解析为实际 ID，再 clone proto 配置、替换 model，并缓存 override 后的 agent。
+模型通过 `model_providers` 解析。alias-first 解析在 Agent 构建阶段完成，OpenAI-compatible 和 Gemini LLM 的 `Name()` 都返回实际 provider Model ID；ADK 在每个 model callback 前把该值写入 `LLMRequest.Model`。OpenAI 两种 API 均使用 ADK v2.7 原生 `model/openaimodel`：Provider 的 `openai_api` 选择 `chat_completions` / `responses`；未设置时显式选择 Chat Completions，覆盖 ADK 默认 Responses，保持旧记录兼容。协议在保存和构建时共用校验，非 OpenAI 类型不可设置；没有运行中自动协议回退。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会 clone proto 配置并保留所选模型引用（alias），由模型工厂同时解析实际 Model ID 和所属 Provider，再缓存 override 后的 agent；不能提前把 alias 丢成 Model ID，否则不同 Provider 下同名模型的凭据、endpoint 和协议会混淆。ADK 的 `LLM.Name()` 仍为实际 Model ID。Provider 协议更新复用现有 reload / generation 失效机制，不重置 session。
 
 Effective Context Window 仍由 ContextGuard 执行全部 compaction、buffer、summary、retry、session state 和通知语义，Butter 不复制其策略。Runner 从配置构建一个 source-aware `configuredModelRegistry`：配置容量覆盖 Crush/catwalk；内置 catalog 的 last-ID-wins 索引只用于准确区分 `embedded` 与数值同为 128,000 的 unknown `fallback`，output-token metadata 继续直接委托 Crush。Agent Threshold override 仍通过 `contextguard.WithMaxTokens` 传入，因此保持最高优先级；没有 Agent override 时，ContextGuard 在 callback 时按 `LLMRequest.Model` 查询实际选中 Model 的容量，model override 不会误用默认 Model 容量。
 
