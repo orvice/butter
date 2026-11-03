@@ -5,6 +5,8 @@ package github
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,9 +27,20 @@ const origin = "https://api.github.com"
 const maxPages = 1000
 const maxBody = 16 << 20
 
-type Provider struct{ client *http.Client }
+type Provider struct {
+	client *http.Client
+	cache  ETagCache
+}
 
 func New(transport http.RoundTripper) *Provider {
+	return newProvider(transport, nil)
+}
+
+func NewWithETagCache(transport http.RoundTripper, cache ETagCache) *Provider {
+	return newProvider(transport, cache)
+}
+
+func newProvider(transport http.RoundTripper, cache ETagCache) *Provider {
 	if transport == nil {
 		t := http.DefaultTransport.(*http.Transport).Clone()
 		// Fixed origins still need DNS checks at connection time. Disable proxy
@@ -36,7 +49,7 @@ func New(transport http.RoundTripper) *Provider {
 		t.DialContext = publicDial
 		transport = t
 	}
-	return &Provider{client: &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	return &Provider{client: &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, cache: cache}
 }
 func publicDial(ctx context.Context, network, address string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
@@ -69,9 +82,20 @@ func (p *Provider) get(ctx context.Context, token, path string, q url.Values, ou
 	if err != nil {
 		return nil, failure("SCHEMA_ERROR")
 	}
+	cacheKey := ""
+	cachedETag := ""
+	cachedBody := []byte(nil)
+	if p.cache != nil {
+		tokenHash := sha256.Sum256([]byte(token))
+		cacheKey = u + "\x00" + hex.EncodeToString(tokenHash[:])
+		cachedETag, cachedBody, _ = p.cache.Get(cacheKey)
+	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if cachedETag != "" {
+		req.Header.Set("If-None-Match", cachedETag)
+	}
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, failure("DEGRADED")
@@ -93,10 +117,10 @@ func (p *Provider) get(ctx context.Context, token, path string, q url.Values, ou
 	switch resp.StatusCode {
 	case 200:
 	case 304:
-		// This provider has no persisted response-body cache yet. Treat a
-		// conditional response as a protocol error rather than publishing an
-		// empty page or pretending that the full traversal completed.
-		return nil, failure("SCHEMA_ERROR")
+		if cachedETag == "" || len(cachedBody) == 0 || json.Unmarshal(cachedBody, out) != nil {
+			return nil, failure("SCHEMA_ERROR")
+		}
+		return h, nil
 	case 401:
 		return nil, failure("AUTH_INVALID")
 	case 403:
@@ -120,7 +144,10 @@ func (p *Provider) get(ctx context.Context, token, path string, q url.Values, ou
 		return nil, failure("DEGRADED")
 	}
 	if len(data) > maxBody || json.Unmarshal(data, out) != nil {
-		return nil, failure("SCHEMA_ERROR")
+		return h, failure("SCHEMA_ERROR")
+	}
+	if p.cache != nil {
+		p.cache.Put(cacheKey, h.Get("ETag"), data)
 	}
 	return h, nil
 }

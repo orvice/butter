@@ -140,6 +140,52 @@ func TestNoFailurePublishesEarlierPages(t *testing.T) {
 		})
 	}
 }
+func TestETagCacheReusesBodyOnlyForMatchingCredential(t *testing.T) {
+	cache := NewMemoryETagCache()
+	calls := 0
+	p := NewWithETagCache(transportFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.URL.Path != "/user" {
+			return response(500, "unexpected", nil), nil
+		}
+		if r.Header.Get("Authorization") == "Bearer first" {
+			if r.Header.Get("If-None-Match") == `"user-v1"` {
+				return response(http.StatusNotModified, "", http.Header{"ETag": {`"user-v1"`}}), nil
+			}
+			return response(200, `{"id":1}`, http.Header{"ETag": {`"user-v1"`}}), nil
+		}
+		if r.Header.Get("If-None-Match") != "" {
+			t.Fatal("credential reused another credential's validator")
+		}
+		return response(200, `{"id":2}`, http.Header{"ETag": {`"user-v2"`}}), nil
+	}), cache)
+	identity, err := p.Probe(context.Background(), "first")
+	if err != nil || identity.PrincipalID != "1" {
+		t.Fatal(identity, err)
+	}
+	identity, err = p.Probe(context.Background(), "first")
+	if err != nil || identity.PrincipalID != "1" {
+		t.Fatal("cached 304 was not decoded", identity, err)
+	}
+	identity, err = p.Probe(context.Background(), "second")
+	if err != nil || identity.PrincipalID != "2" {
+		t.Fatal("credential cache isolation", identity, err)
+	}
+	if calls != 3 {
+		t.Fatalf("calls=%d", calls)
+	}
+}
+
+func TestUncachedNotModifiedFailsClosed(t *testing.T) {
+	p := NewWithETagCache(transportFunc(func(*http.Request) (*http.Response, error) {
+		return response(http.StatusNotModified, "", http.Header{"ETag": {`"missing"`}}), nil
+	}), NewMemoryETagCache())
+	_, err := p.Probe(context.Background(), "token")
+	var failure *ws.Failure
+	if !errors.As(err, &failure) || failure.Category != "SCHEMA_ERROR" {
+		t.Fatalf("want schema error, got %v", err)
+	}
+}
 func TestErrorCategoriesAndRedaction(t *testing.T) {
 	for _, tc := range []struct {
 		status  int
