@@ -209,6 +209,13 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 	if err == nil {
 		now, e := s.Repo.Now(attemptCtx)
 		err = e
+		if err == nil && s.Budget != nil {
+			var retry time.Duration
+			retry, err = s.Budget.Reserve(attemptCtx, BudgetKey(a.Record.SourceIdentity()), now)
+			if err == nil && retry > 0 {
+				err = &Failure{Category: "RATE_LIMITED", RetryAfter: retry}
+			}
+		}
 		if err == nil {
 			var result Scan
 			result, err = s.Provider.Scan(attemptCtx, token, a.Scope, now)

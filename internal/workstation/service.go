@@ -23,6 +23,7 @@ type Service struct {
 	Repo     Repository
 	Keyring  *secretbox.Keyring
 	Provider Provider
+	Budget   Budget
 	// CheckHost validates the existing Git Host on every operation/attempt.
 	CheckHost func(context.Context, string) error
 }

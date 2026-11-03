@@ -101,6 +101,47 @@ func TestReconcilerFailureIsolatedAcrossConnections(t *testing.T) {
 		t.Fatal("one failure blocked or polluted another", rows, err)
 	}
 }
+func TestSharedBudgetAppliesAcrossConnections(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.New()
+	s := repotest.NewService(repo, &repotest.Provider{Items: []*v1.WorkStationItem{repotest.Item("1", "budgeted", time.Now().UTC())}})
+	s.Budget = ws.NewMemoryBudget(1, time.Hour)
+	ids := make([]string, 0, 2)
+	for _, name := range []string{"one", "two"} {
+		r, err := s.Create(ctx, "A", name, "host", "key")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Select(ctx, "A", r.ID, r.Revision, []string{"42"}); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, r.ID)
+	}
+	if err := s.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	ready, err := s.Connection(ctx, "A", ids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.Connection(ctx, "A", ids[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	phases := []string{ready.Scopes[0].SyncPhase, other.Scopes[0].SyncPhase}
+	if !(containsPhase(phases, "READY") && containsPhase(phases, "WAITING_RETRY")) {
+		t.Fatalf("shared budget phases: %v", phases)
+	}
+}
+
+func containsPhase(phases []string, want string) bool {
+	for _, phase := range phases {
+		if phase == want {
+			return true
+		}
+	}
+	return false
+}
 func TestRetentionExactBoundary(t *testing.T) {
 	now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
 	item := repotest.Item("1", "closed", now)
