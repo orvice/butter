@@ -55,6 +55,8 @@ message WorkStationScope {
   uint32 scanned_item_count = 9;
   // QUEUED, SCANNING, READY, ERROR, or WAITING_RETRY.
   string sync_phase = 10;
+  bool checkpoint_lag = 11;
+  string checkpoint_error = 12;
 }
 message WorkStationServiceCreateConnectionRequest {
   string name = 1;

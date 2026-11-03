@@ -43,6 +43,10 @@ func TestCheckpointFailureDoesNotHideCommittedSnapshot(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Title != "committed" {
 		t.Fatalf("checkpoint failure hid committed snapshot: rows=%v err=%v", rows, err)
 	}
+	connection, err := s.Connection(ctx, "A", r.ID)
+	if err != nil || !connection.Scopes[0].CheckpointLag || connection.Scopes[0].CheckpointError == "" {
+		t.Fatalf("checkpoint lag was not observable: connection=%v err=%v", connection, err)
+	}
 }
 func TestReconcilerDurableRefreshCooldownAndRestart(t *testing.T) {
 	ctx := context.Background()

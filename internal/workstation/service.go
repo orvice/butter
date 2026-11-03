@@ -20,10 +20,11 @@ import (
 )
 
 type Service struct {
-	Repo     Repository
-	Keyring  *secretbox.Keyring
-	Provider Provider
-	Budget   Budget
+	Repo       Repository
+	Keyring    *secretbox.Keyring
+	Provider   Provider
+	Budget     Budget
+	Checkpoint CheckpointStore
 	// CheckHost validates the existing Git Host on every operation/attempt.
 	CheckHost func(context.Context, string) error
 }
@@ -116,6 +117,8 @@ func reset(r *Record, now time.Time) {
 		sc.Unresolved = 0
 		sc.Scanned = 0
 		sc.SyncPhase = "QUEUED"
+		sc.CheckpointLag = false
+		sc.CheckpointError = ""
 		sc.LastSuccess = time.Time{}
 		sc.Due = now
 		sc.Health = "QUEUED"
@@ -381,7 +384,7 @@ func maxTime(a, b time.Time) time.Time {
 func Public(r Record) *v1.WorkStationConnection {
 	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.SourceIdentity().Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused}
 	for _, sc := range r.Scopes {
-		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, ScannedItemCount: sc.Scanned, SyncPhase: sc.SyncPhase, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess)}
+		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, ScannedItemCount: sc.Scanned, SyncPhase: sc.SyncPhase, CheckpointLag: sc.CheckpointLag, CheckpointError: sc.CheckpointError, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess)}
 		c.Scopes = append(c.Scopes, p)
 	}
 	return c

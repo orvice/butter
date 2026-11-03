@@ -44,20 +44,22 @@ type Credential struct {
 	KeyID      string `bson:"key_id"`
 }
 type Scope struct {
-	ID          string    `bson:"id"`
-	Name        string    `bson:"name"`
-	Generation  string    `bson:"generation"`
-	Snapshot    string    `bson:"snapshot"`
-	Health      string    `bson:"health"`
-	Coverage    string    `bson:"coverage"`
-	Unresolved  uint32    `bson:"unresolved"`
-	LastSuccess time.Time `bson:"last_success"`
-	Due         time.Time `bson:"due"`
-	Claim       string    `bson:"claim"`
-	LeaseUntil  time.Time `bson:"lease_until"`
-	Hidden      bool      `bson:"hidden"`
-	Scanned     uint32    `bson:"scanned_item_count"`
-	SyncPhase   string    `bson:"sync_phase"`
+	ID              string    `bson:"id"`
+	Name            string    `bson:"name"`
+	Generation      string    `bson:"generation"`
+	Snapshot        string    `bson:"snapshot"`
+	Health          string    `bson:"health"`
+	Coverage        string    `bson:"coverage"`
+	Unresolved      uint32    `bson:"unresolved"`
+	LastSuccess     time.Time `bson:"last_success"`
+	Due             time.Time `bson:"due"`
+	Claim           string    `bson:"claim"`
+	LeaseUntil      time.Time `bson:"lease_until"`
+	Hidden          bool      `bson:"hidden"`
+	Scanned         uint32    `bson:"scanned_item_count"`
+	SyncPhase       string    `bson:"sync_phase"`
+	CheckpointLag   bool      `bson:"checkpoint_lag"`
+	CheckpointError string    `bson:"checkpoint_error"`
 }
 type Fence struct {
 	Token string

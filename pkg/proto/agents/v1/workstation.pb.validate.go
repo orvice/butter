@@ -878,6 +878,10 @@ func (m *WorkStationScope) validate(all bool) error {
 
 	// no validation rules for SyncPhase
 
+	// no validation rules for CheckpointLag
+
+	// no validation rules for CheckpointError
+
 	if len(errors) > 0 {
 		return WorkStationScopeMultiError(errors)
 	}

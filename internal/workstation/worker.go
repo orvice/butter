@@ -92,6 +92,8 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 				sc.Unresolved = result.Unresolved
 				sc.Scanned = uint32(len(result.Items))
 				sc.SyncPhase = "READY"
+				sc.CheckpointLag = false
+				sc.CheckpointError = ""
 				sc.LastSuccess = now
 				sc.Hidden = false
 			} else {
@@ -218,6 +220,21 @@ func (s *Service) advanceCheckpoint(ctx context.Context, a Attempt, now time.Tim
 	return err
 }
 
+func (s *Service) markCheckpointLag(ctx context.Context, a Attempt, err error) error {
+	category := ReportCategory(err)
+	_, updateErr := s.mutate(ctx, a.Record.WorkspaceID, a.Record.ID, func(r *Record, _ time.Time) error {
+		for i := range r.Scopes {
+			if r.Scopes[i].ID == a.Scope.ID {
+				r.Scopes[i].CheckpointLag = true
+				r.Scopes[i].CheckpointError = category
+				return nil
+			}
+		}
+		return ErrNotFound
+	})
+	return updateErr
+}
+
 func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 	a, err := s.Claim(ctx, r.WorkspaceID, r.ID, sc.ID)
 	if errors.Is(err, ErrFenced) || errors.Is(err, ErrPaused) || errors.Is(err, ErrNotFound) {
@@ -257,6 +274,7 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 					if checkpointErr = s.advanceCheckpoint(ctx, a, now); checkpointErr != nil {
 						// The snapshot is already committed. Surface checkpoint lag
 						// without fencing or hiding the newly visible data.
+						_ = s.markCheckpointLag(ctx, a, checkpointErr)
 						return checkpointErr
 					}
 					return nil
