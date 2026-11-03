@@ -41,6 +41,23 @@ func (s *Store) Load(ctx context.Context, key string) (ws.Checkpoint, bool, erro
 	return checkpointFromDocument(doc), true, nil
 }
 
+func (s *Store) Delete(ctx context.Context, key string, expected uint64) error {
+	result, err := s.checkpoints.DeleteOne(ctx, bson.M{"_id": key, "revision": expected})
+	if err != nil {
+		return err
+	}
+	if result.DeletedCount == 1 {
+		return nil
+	}
+	_, exists, err := s.Load(ctx, key)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	return ws.ErrCheckpointConflict
+}
 func (s *Store) CompareAndSwap(ctx context.Context, key string, expected uint64, next ws.Checkpoint) (ws.Checkpoint, error) {
 	current, exists, err := s.Load(ctx, key)
 	if err != nil {

@@ -25,9 +25,14 @@ func TestMemoryCheckpointCASAndSequenceContract(t *testing.T) {
 	if err != nil || reset.Revision != 2 || reset.Generation != "g2" {
 		t.Fatalf("generation reset: %+v %v", reset, err)
 	}
-	loaded, ok, err := s.Load(ctx, "github:issues")
-	if err != nil || !ok || loaded.Cursor != "page-1" || loaded.ETag != "" {
-		t.Fatalf("loaded checkpoint: %+v %v %v", loaded, ok, err)
+	if err := s.Delete(ctx, "github:issues", 1); !errors.Is(err, ErrCheckpointConflict) {
+		t.Fatalf("stale cleanup was accepted: %v", err)
+	}
+	if err := s.Delete(ctx, "github:issues", 2); err != nil {
+		t.Fatalf("current cleanup failed: %v", err)
+	}
+	if _, ok, err := s.Load(ctx, "github:issues"); err != nil || ok {
+		t.Fatalf("checkpoint survived cleanup: ok=%v err=%v", ok, err)
 	}
 }
 

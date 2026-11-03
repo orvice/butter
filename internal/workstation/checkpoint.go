@@ -29,6 +29,7 @@ type Checkpoint struct {
 type CheckpointStore interface {
 	Load(context.Context, string) (Checkpoint, bool, error)
 	CompareAndSwap(context.Context, string, uint64, Checkpoint) (Checkpoint, error)
+	Delete(context.Context, string, uint64) error
 }
 
 type MemoryCheckpointStore struct {
@@ -50,6 +51,22 @@ func (s *MemoryCheckpointStore) Load(ctx context.Context, key string) (Checkpoin
 	return value, ok, nil
 }
 
+func (s *MemoryCheckpointStore) Delete(ctx context.Context, key string, expected uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, ok := s.values[key]
+	if !ok {
+		return nil
+	}
+	if current.Revision != expected {
+		return ErrCheckpointConflict
+	}
+	delete(s.values, key)
+	return nil
+}
 func (s *MemoryCheckpointStore) CompareAndSwap(ctx context.Context, key string, expected uint64, next Checkpoint) (Checkpoint, error) {
 	if err := ctx.Err(); err != nil {
 		return Checkpoint{}, err

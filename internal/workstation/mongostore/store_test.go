@@ -64,6 +64,15 @@ func TestCheckpointContract(t *testing.T) {
 	if err != nil || !ok || loaded.Cursor != "page-2" || loaded.ETag != `"v1"` {
 		t.Fatalf("loaded checkpoint: %+v %v %v", loaded, ok, err)
 	}
+	if err := store.Delete(ctx, "github:issues", 0); !errors.Is(err, ws.ErrCheckpointConflict) {
+		t.Fatalf("stale checkpoint cleanup accepted: %v", err)
+	}
+	if err := store.Delete(ctx, "github:issues", 1); err != nil {
+		t.Fatalf("checkpoint cleanup: %v", err)
+	}
+	if _, ok, err := store.Load(ctx, "github:issues"); err != nil || ok {
+		t.Fatalf("checkpoint survived cleanup: ok=%v err=%v", ok, err)
+	}
 }
 func TestReclamation(t *testing.T) {
 	uri := os.Getenv("BUTTER_TEST_MONGO_URI")
