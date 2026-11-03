@@ -1,48 +1,35 @@
-package workstation_test
+package workstation
 
 import (
-	"context"
 	"errors"
 	"testing"
-
-	ws "go.orx.me/apps/butter/internal/workstation"
-	"go.orx.me/apps/butter/internal/workstation/memory"
-	"go.orx.me/apps/butter/internal/workstation/repotest"
+	"time"
 )
 
-type retryCollectRepo struct {
-	ws.Repository
-	failures int
-	calls    int
-}
-
-func (r *retryCollectRepo) Collect(ctx context.Context) error {
-	r.calls++
-	if r.calls <= r.failures {
-		return errors.New("transient cleanup failure")
-	}
-	return r.Repository.Collect(ctx)
-}
-
-func TestCleanupRetriesTransientCollectionFailure(t *testing.T) {
-	base := memory.New()
-	repo := &retryCollectRepo{Repository: base, failures: 2}
-	s := repotest.NewService(repo, &repotest.Provider{})
-	if err := s.Cleanup(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if repo.calls != 3 {
-		t.Fatalf("cleanup calls = %d, want 3", repo.calls)
+func TestPlanCleanupRetryBackoffAndCap(t *testing.T) {
+	now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	policy := CleanupPolicy{BaseDelay: time.Second, MaxDelay: 4 * time.Second}
+	task := CleanupTask{Key: "k", Revision: 3}
+	for attempt, want := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 4 * time.Second} {
+		var result CleanupResult
+		task, result = PlanCleanupRetry(task, now, errors.New("temporary storage error"), policy)
+		if result != CleanupRetry || task.Attempts != attempt+1 || !task.NextAt.Equal(now.Add(want)) {
+			t.Fatalf("attempt %d: task=%+v result=%d", attempt+1, task, result)
+		}
 	}
 }
 
-func TestCleanupStopsAfterBoundedRetries(t *testing.T) {
-	repo := &retryCollectRepo{Repository: memory.New(), failures: 10}
-	s := repotest.NewService(repo, &repotest.Provider{})
-	if err := s.Cleanup(context.Background()); err == nil {
-		t.Fatal("expected cleanup failure")
+func TestPlanCleanupRetryDeadlineAndConflictAreTerminal(t *testing.T) {
+	now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	policy := CleanupPolicy{BaseDelay: time.Minute, MaxDelay: time.Hour}
+	task := CleanupTask{Key: "k", Revision: 2, Deadline: now.Add(30 * time.Second)}
+	if _, result := PlanCleanupRetry(task, now, errors.New("temporary"), policy); result != CleanupExpired {
+		t.Fatal("retry past deadline was scheduled")
 	}
-	if repo.calls != 3 {
-		t.Fatalf("cleanup calls = %d, want 3", repo.calls)
+	if _, result := PlanCleanupRetry(task, now, ErrCheckpointConflict, policy); result != CleanupDone {
+		t.Fatal("revision conflict was retried")
+	}
+	if _, result := PlanCleanupRetry(task, now, nil, policy); result != CleanupDone {
+		t.Fatal("successful cleanup was not terminal")
 	}
 }
