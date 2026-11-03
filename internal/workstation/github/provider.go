@@ -130,7 +130,7 @@ func (p *Provider) Probe(ctx context.Context, token string) (ws.Identity, error)
 	if !decimal(me.ID.String()) {
 		return ws.Identity{}, failure("SCHEMA_ERROR")
 	}
-	return ws.Identity{PrincipalID: me.ID.String()}, nil
+	return ws.Identity{PrincipalID: me.ID.String(), Source: ws.GitHubSource()}, nil
 }
 
 type repository struct {

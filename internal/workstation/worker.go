@@ -3,6 +3,7 @@ package workstation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"sync"
 	"time"
@@ -14,6 +15,10 @@ import (
 )
 
 const LeaseDuration = 2 * time.Minute
+
+// OrphanGrace exceeds a whole attempt/lease, so a GC candidate cannot
+// later become a valid published snapshot. Normal predecessors skip this grace.
+const OrphanGrace = 2 * LeaseDuration
 
 // Attempt captures both configuration and publisher identity. Every success
 // and error write rechecks these; ctx cancellation alone never authorizes it.
@@ -64,6 +69,7 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 		next := old
 		next.Scopes = append([]Scope(nil), old.Scopes...)
 		found := false
+		previousSnapshot := ""
 		for i := range next.Scopes {
 			sc := &next.Scopes[i]
 			if sc.ID != a.Scope.ID {
@@ -77,6 +83,7 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 			sc.LeaseUntil = time.Time{}
 			sc.Due = maxTime(now.Add(5*time.Minute+jitter(old.ID+sc.ID)), old.RetryAfter)
 			if scanErr == nil {
+				previousSnapshot = sc.Snapshot
 				sc.Snapshot = a.Token
 				sc.Health = "HEALTHY"
 				sc.Coverage = result.Coverage
@@ -115,6 +122,11 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 			return err
 		}
 		if ok {
+			if scanErr == nil && previousSnapshot != "" {
+				if err := s.Repo.PruneSnapshot(ctx, old.WorkspaceID, old.ID, a.Scope.ID, previousSnapshot); err != nil {
+					return fmt.Errorf("%w: %w", ErrCleanupPending, err)
+				}
+			}
 			return nil
 		}
 	}
@@ -157,7 +169,8 @@ func (s *Service) Publish(ctx context.Context, a Attempt, result Scan) error {
 			result.Unresolved++
 			continue
 		}
-		item.Id = ItemID(a.Record.WorkspaceID, a.Scope.ID, item.Kind, item.RemoteId)
+		item.Provider = a.Record.SourceIdentity().Provider
+		item.Id = ItemID(a.Record.WorkspaceID, a.Record.SourceIdentity(), a.Scope.ID, item.Kind, item.RemoteId)
 		if seen[item.Id] {
 			return ErrInvalid
 		}
@@ -194,6 +207,10 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 			result, err = s.Provider.Scan(attemptCtx, token, a.Scope, now)
 			if err == nil {
 				err = s.Publish(attemptCtx, a, result)
+				if errors.Is(err, ErrCleanupPending) {
+					// The pointer is committed; never record a scan failure.
+					return err
+				}
 				if err == nil {
 					return nil
 				}
@@ -248,13 +265,15 @@ func (s *Service) Run(ctx context.Context, report func(error)) {
 	nextGC := time.Now()
 	for {
 		if err := s.RunOnce(ctx); err != nil && ctx.Err() == nil {
-			report(err)
+			report(&RuntimeError{Operation: "sync", Cause: err})
 		}
 		if time.Now().After(nextGC) {
-			if err := s.Repo.Collect(ctx); err != nil && ctx.Err() == nil {
-				report(err)
+			gcCtx, cancelGC := context.WithTimeout(ctx, 30*time.Second)
+			if err := s.Repo.Collect(gcCtx); err != nil && ctx.Err() == nil {
+				report(&RuntimeError{Operation: "observation_gc", Cause: err})
 			}
-			nextGC = time.Now().Add(time.Hour)
+			cancelGC()
+			nextGC = time.Now().Add(time.Minute)
 		}
 		select {
 		case <-ctx.Done():

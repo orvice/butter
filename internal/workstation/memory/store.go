@@ -124,7 +124,23 @@ func (s *Store) HostInUse(_ context.Context, id string) (bool, error) {
 	}
 	return false, nil
 }
-func (s *Store) Collect(context.Context) error {
+func (s *Store) PruneSnapshot(_ context.Context, w, connection, scope, snapshot string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.observations[:0]
+	for _, o := range s.observations {
+		if o.WorkspaceID == w && o.ConnectionID == connection && o.ScopeID == scope && o.Snapshot == snapshot {
+			continue
+		}
+		kept = append(kept, o)
+	}
+	s.observations = kept
+	return nil
+}
+func (s *Store) Collect(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	kept := s.observations[:0]
@@ -136,7 +152,7 @@ func (s *Store) Collect(context.Context) error {
 				current = true
 			}
 		}
-		if (ok && current) || o.Item.ObservedAt.AsTime().After(s.Clock().Add(-24*time.Hour)) {
+		if (ok && current) || o.Item.ObservedAt.AsTime().After(s.Clock().Add(-ws.OrphanGrace)) {
 			kept = append(kept, o)
 		}
 	}

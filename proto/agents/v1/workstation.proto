@@ -93,7 +93,7 @@ message WorkStationServiceSetSelectedScopesRequest {
   repeated string scope_ids = 3;
 }
 message WorkStationServiceRefreshResponse {
-  // QUEUED, ALREADY_PENDING, RUNNING, DEFERRED, or PAUSED.
+  // QUEUED, ALREADY_PENDING, RUNNING, DEFERRED, PAUSED, or NO_SCOPES.
   string status = 1;
   google.protobuf.Timestamp next_attempt_at = 2;
 }

@@ -21,7 +21,7 @@ type Provider struct {
 }
 
 func (p *Provider) Probe(context.Context, string) (ws.Identity, error) {
-	return ws.Identity{PrincipalID: "123"}, p.Failure
+	return ws.Identity{PrincipalID: "123", Source: ws.GitHubSource()}, p.Failure
 }
 func (p *Provider) DiscoverScopes(context.Context, string, string) (ws.Page, error) {
 	return ws.Page{Scopes: []ws.Scope{{ID: "42", Name: "org/repo"}}}, p.Failure
@@ -76,6 +76,7 @@ func list(t *testing.T, s *ws.Service, w string, q ws.Query) []*v1.WorkStationIt
 	return items
 }
 func Run(t *testing.T, newRepo func(*testing.T) ws.Repository) {
+	t.Run("hidden_scope_recovery", func(t *testing.T) { RunScopeRecovery(t, newRepo(t)) })
 	t.Run("staging_visibility_and_workspace_isolation", func(t *testing.T) {
 		repo := newRepo(t)
 		s := NewService(repo, &Provider{})
@@ -92,7 +93,7 @@ func Run(t *testing.T, newRepo func(*testing.T) ws.Repository) {
 		a := claim(t, s, r)
 		now, _ := repo.Now(context.Background())
 		item := Item("1", "staging", now)
-		item.Id = ws.ItemID("A", "42", "ISSUE", "1")
+		item.Id = ws.ItemID("A", ws.GitHubSource(), "42", "ISSUE", "1")
 		item.ObservedAt = timestamppb.New(now)
 		must(t, repo.Stage(context.Background(), []ws.Observation{{WorkspaceID: "A", ConnectionID: r.ID, ScopeID: "42", Snapshot: "orphan", Item: item}, {WorkspaceID: "A", ConnectionID: r.ID, ScopeID: "42", Snapshot: "", Item: item}}))
 		if len(list(t, s, "A", ws.Query{})) != 0 {
@@ -292,6 +293,10 @@ func Run(t *testing.T, newRepo func(*testing.T) ws.Repository) {
 		if token == "" {
 			t.Fatal("expected token")
 		}
+		_, _, sizeErr := s.List(context.Background(), "A", ws.Query{Limit: 2}, token)
+		if !errors.Is(sizeErr, ws.ErrInvalid) {
+			t.Fatal("cursor accepted a different page size")
+		}
 		for _, w := range []string{"A", "B"} {
 			q := ws.Query{Limit: 1}
 			if w == "A" {
@@ -344,4 +349,57 @@ func Run(t *testing.T, newRepo func(*testing.T) ws.Repository) {
 			t.Fatal("GC removed committed data")
 		}
 	})
+}
+
+// Recovery exercises the public selection seam: revalidating one hidden scope
+// must not reset a healthy sibling or accept a pre-recovery publisher.
+func RunScopeRecovery(t *testing.T, repo ws.Repository) {
+	ctx := context.Background()
+	s := NewService(repo, &Provider{})
+	r := selectScope(t, s, create(t, s, "A", "main"))
+	now, err := repo.Now(ctx)
+	must(t, err)
+	publish(t, s, claim(t, s, r), Item("1", "first", now))
+	dueNow(t, repo, r)
+	denied := claim(t, s, r)
+	must(t, s.Fail(ctx, denied, &ws.Failure{Category: "ACCESS_DENIED"}))
+	// Add a healthy sibling as a storage fixture (the provider fake resolves 42).
+	old, err := repo.Get(ctx, "A", r.ID)
+	must(t, err)
+	next := old
+	next.Scopes = append(append([]ws.Scope(nil), old.Scopes...), ws.Scope{ID: "healthy", Name: "org/healthy", Generation: "sibling-gen", Snapshot: "sibling-snapshot", Health: "HEALTHY"})
+	next.Version++
+	ok, err := repo.CAS(ctx, old, &next, nil)
+	must(t, err)
+	if !ok {
+		t.Fatal("fixture conflict")
+	}
+	// Keep the fake's selected scope only for this test's public replacement;
+	// the sibling is checked through a resolver that delegates 42 as before.
+	s.Provider = &recoveryProvider{Provider: Provider{}}
+	r, err = s.Select(ctx, "A", r.ID, r.Revision, []string{"42", "healthy"})
+	must(t, err)
+	if r.Scopes[0].Hidden || r.Scopes[0].Snapshot != "" || r.Scopes[0].Generation == denied.Scope.Generation || r.Scopes[0].Health != "QUEUED" {
+		t.Fatal("denied scope was not requeued safely")
+	}
+	if r.Scopes[1].Snapshot != "sibling-snapshot" || r.Scopes[1].Generation != "sibling-gen" {
+		t.Fatal("healthy sibling reset")
+	}
+	if s.Publish(ctx, denied, ws.Scan{Coverage: "COMPLETE"}) == nil {
+		t.Fatal("pre-recovery publisher accepted")
+	}
+	publish(t, s, claim(t, s, r), Item("1", "restored", now))
+	got := list(t, s, "A", ws.Query{})
+	if len(got) != 1 || got[0].Title != "restored" {
+		t.Fatal("scope did not recover", got)
+	}
+}
+
+type recoveryProvider struct{ Provider }
+
+func (p *recoveryProvider) ResolveScope(ctx context.Context, token, id string) (ws.Scope, error) {
+	if id == "healthy" {
+		return ws.Scope{ID: id, Name: "org/healthy"}, nil
+	}
+	return p.Provider.ResolveScope(ctx, token, id)
 }
