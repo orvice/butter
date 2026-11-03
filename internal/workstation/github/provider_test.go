@@ -76,7 +76,7 @@ func TestReadOnlyMultiPageScanSeparatesIssuesAndPulls(t *testing.T) {
 	}
 }
 func TestNoFailurePublishesEarlierPages(t *testing.T) {
-	for _, scenario := range []string{"page_failure", "foreign_next", "repeated_cursor", "overlap_page", "null_schema", "scope_revoked", "redirect", "incomplete_time"} {
+	for _, scenario := range []string{"page_failure", "foreign_next", "repeated_cursor", "overlap_page", "not_modified", "null_schema", "scope_revoked", "redirect", "incomplete_time"} {
 		t.Run(scenario, func(t *testing.T) {
 			checks := 0
 			p := New(transportFunc(func(r *http.Request) (*http.Response, error) {
@@ -89,6 +89,9 @@ func TestNoFailurePublishesEarlierPages(t *testing.T) {
 				}
 				if strings.HasSuffix(r.URL.Path, "/pulls") {
 					return response(200, "[]", nil), nil
+				}
+				if scenario == "not_modified" {
+					return response(http.StatusNotModified, "", http.Header{"ETag": {`"cached-page"`}}), nil
 				}
 				if scenario == "null_schema" {
 					return response(200, "null", nil), nil

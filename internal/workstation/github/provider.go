@@ -92,6 +92,11 @@ func (p *Provider) get(ctx context.Context, token, path string, q url.Values, ou
 	}
 	switch resp.StatusCode {
 	case 200:
+	case 304:
+		// This provider has no persisted response-body cache yet. Treat a
+		// conditional response as a protocol error rather than publishing an
+		// empty page or pretending that the full traversal completed.
+		return nil, failure("SCHEMA_ERROR")
 	case 401:
 		return nil, failure("AUTH_INVALID")
 	case 403:
