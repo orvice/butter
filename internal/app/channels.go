@@ -109,6 +109,9 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
 	"go.orx.me/apps/butter/internal/secretbox"
+	"go.orx.me/apps/butter/internal/workstation"
+	workstationmemory "go.orx.me/apps/butter/internal/workstation/memory"
+	workstationmongo "go.orx.me/apps/butter/internal/workstation/mongostore"
 )
 
 // BootstrapResult holds the services created during bootstrap.
@@ -142,6 +145,7 @@ type BootstrapResult struct {
 	AgentFileMaxBytes      int64
 	GitHostRepo            githostrepo.Repository
 	ButterBoxRepo          butterboxrepo.Repository
+	WorkStationRepo        workstation.Repository
 	MemoryConfigRepo       memoryconfigrepo.Repository
 	RepoBindingRepo        repobindingrepo.Repository
 	TelegramRepo           telegramrepo.Repository
@@ -207,6 +211,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthHandoffRepo       oauthhandoff.Repository
 		gitHostRepo            githostrepo.Repository
 		butterBoxRepo          butterboxrepo.Repository
+		workStationRepo        workstation.Repository
 		memoryConfigRepo       memoryconfigrepo.Repository
 		bindingRepo            repobindingrepo.Repository
 		cacheRepo              repocache.Repository
@@ -260,6 +265,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo = githostmongo.New(db)
 		butterBoxRepo = butterboxmongo.New(db)
 		memoryConfigRepo = memoryconfigmongo.New(db)
+		workStationRepo = workstationmongo.New(db)
 		bindingRepo = repobindingmongo.New(db)
 		cacheRepo = repocachemongo.New(db)
 		contentRepo = agentcontentmongo.New(db)
@@ -291,6 +297,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo = githostmemory.New()
 		butterBoxRepo = butterboxmemory.New()
 		memoryConfigRepo = memoryconfigmem.New()
+		workStationRepo = workstationmemory.New()
 		bindingRepo = repobindingmemory.New()
 		cacheRepo = repocachememory.New()
 		contentRepo = agentcontentmemory.New()
@@ -305,6 +312,9 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearProcessingRepo = linearprocessingmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
+	}
+	if err := workStationRepo.EnsureIndexes(ctx); err != nil {
+		return nil, err
 	}
 	if err := wsRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create workspace indexes", "err", err)
@@ -618,6 +628,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		GitHostRepo:            gitHostRepo,
 		ButterBoxRepo:          butterBoxRepo,
 		MemoryConfigRepo:       memoryConfigRepo,
+		WorkStationRepo:        workStationRepo,
 		RepoBindingRepo:        bindingRepo,
 		TelegramRepo:           telegramRepo,
 		TelegramSettingRepo:    telegramSettingRepo,

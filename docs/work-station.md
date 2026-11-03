@@ -1,0 +1,96 @@
+# Work Station: GitHub.com preview
+
+This PR delivers the first end-to-end slice of [Spec #489](https://github.com/orvice/butter/issues/489), tracked by KON-55. It does **not** complete the four-provider release gate. The dashboard labels the feature as a preview. Linear, Plane, GitLab and production compatibility acceptance remain open.
+
+## Using the preview
+
+A global administrator first registers a Git Host with kind GitHub, API URL `https://api.github.com` and web URL `https://github.com`. Reuse an existing matching Git Host; no additional endpoint registry is introduced.
+
+Open **Work Station → Manage connections** as a workspace owner or global administrator. Create a named connection with a fine-grained PAT that can read repository metadata, Issues and Pull requests. Discovery lists candidates but imports nothing. Explicitly select repositories and save. Their titles and descriptions are shared with **every member of the Butter workspace**, including members without source-platform access.
+
+A member or workspace admin can browse the local projection, view details, filter and request refresh. Workspace admins cannot manage connections. All management RPCs independently enforce owner/global-admin permissions. Membership is checked again on every read. Root/global-admin bypass follows the existing application convention and is audited.
+
+Keys are write-only. An omitted update keeps the key, a nonempty update replaces it, and `""` clears it. Rotation validates the same GitHub principal; another principal requires a new connection. Clearing/rotating a key hides its old snapshots immediately. Test connection is the owner recovery action: it rechecks the key and queues new snapshots, without restoring stale snapshots from a previous epoch.
+
+Default browsing shows open Issues or Pull requests. All retained items includes terminal items with a verified end time in the last 90 days. The window uses `closed_at`/`merged_at`, never a later edit time. Descriptions are displayed as plain text, so HTML, images and Markdown links cannot execute or load private resources. Comments/reviews/diffs remain on GitHub.
+
+## Protocol and storage
+
+`agents.v1.WorkStationService` is mounted at `/api/agents.v1.WorkStationService/<Method>` using the existing ConnectRPC snake_case codec. Generated Go/Connect/TypeScript bindings are checked in. Every response, including errors, has `Cache-Control: no-store`.
+
+| RPC | Permission | Behavior |
+| --- | --- | --- |
+| ListConnections | member | Only saved scopes and sanitized health; no candidate discovery or credentials |
+| CreateConnection | owner/global admin | Probe, encrypt, create with empty selection |
+| UpdateConnection | owner/global admin | `expected_revision` CAS; rename or optional key keep/replace/clear |
+| DeleteConnection | owner/global admin | Revision CAS; atomic removal of visibility and ciphertext; idempotent retry |
+| TestConnection | owner/global admin | Probe saved key, pin principal, reset visibility epoch and requeue |
+| DiscoverScopes | owner/global admin | Paginated repository discovery, without importing |
+| SetSelectedScopes | owner/global admin | Revision CAS; validate every stable repository ID; full replacement; empty means none |
+| Refresh | member | Durable intent; QUEUED/ALREADY_PENDING/RUNNING/DEFERRED/PAUSED |
+| ListItems | member | Local source restriction → source choice → content/window filtering → keyset pagination |
+| GetItem | member | Same live-source/window authorization as ListItems |
+
+`GetConnection`, server-derived `ListFilterOptions`, additional provider tabs, and Plane Host administration from the full Spec are deferred. Selected repositories are available from ListConnections; assignee filtering currently accepts the displayed external `ID:login` value.
+
+`internal/workstation` owns provider-independent rules. A read-only `Provider` has Probe, DiscoverScopes, ResolveScope and Scan. It cannot write the business repository or source platform. The GitHub adapter is constructed with a transport, never a workspace-supplied endpoint. It uses only GET, rejects redirects and unapproved next links, and checks public DNS destinations when opening production connections. Upstream response bodies and transport errors never become RPC errors or logs.
+
+Mongo collections:
+
+- `work_station_connections`: unique `(workspace_id, id)`, internal optimistic version, public configuration revision, visibility epoch, encrypted credential/key ID, selected scopes/generations, due times, claims and committed snapshot pointers.
+- `work_station_observations`: one immutable source-qualified item per `(workspace_id, connection_id, scope_id, snapshot, item_id)`. Bodies are separate documents, rather than an unbounded array in the connection document.
+
+Keeping bounded scope metadata and pointers in the connection document makes configuration revocation and scope publication share one atomic boundary. Every mutation compares the internal version; publication/error writes also compare the claim token and require the lease expiry to exceed Mongo `$$NOW` **at the write**. Takeover tokens and selection generations are never reused. A configuration race retries against the new record and rechecks the captured epoch/generation/token. The memory implementation runs the same contract.
+
+Scans stage all normalized observations under a fresh snapshot token. Only a completed traversal can publish its pointer. Errors retain the previous pointer; invalid credentials pause/hide the connection, and an inaccessible repository hides that scope. Sources are never merged field by field: after restricting connection/repository filters, the latest valid observation supplies the whole item. Revoking the latest source falls back to the remaining source's body. Canonical identity includes workspace, fixed GitHub instance, stable repository ID, item kind and repository number.
+
+Mongo List/Get joins observations to the **current** connection and selected snapshot using workspace-prefixed indexes. It sorts source versions, groups by canonical identity, applies the rolling window/content filters, and then keyset pagination. The cursor binds workspace and filters. Sources are reauthorized on each page. Queries do not promise a global historical snapshot while refreshes publish.
+
+The reconciler scans durable due state every 10 seconds with up to four scans per process. Healthy scopes become due after five minutes plus deterministic jitter. Claims last two minutes; attempts, including staging, are bounded to 100 seconds. A crashed process leaves a durable due intent that another process can reclaim after expiry. Manual requests have a 60-second connection cooldown and cannot override saved Retry-After. Each hour GC removes up to 1,000 unreferenced observations older than 24 hours, retaining current pointers and other connections.
+
+## Supported behavior and remaining limits
+
+The adapter independently traverses Issues and Pull requests; Issues responses containing `pull_request` are excluded from the Issues projection. Merged wins over closed, Draft is separate, and unresolved terminal times produce PARTIAL coverage rather than fabricated history. Unknown/missing required schema and failed pages do not publish a truncated snapshot. GitHub's issue/PR distinction and list parameters follow the official [Issues](https://docs.github.com/en/rest/issues/issues) and [Pull requests](https://docs.github.com/en/rest/pulls/pulls) contracts.
+
+This implementation uses bounded **full scans**, not the Spec's optimized incremental protocol. There is no ETag cache or incremental checkpoint to advance incorrectly. Each endpoint is capped at 1,000 pages and each response at 16 MiB; exceeding a cap or the attempt deadline fails the scan and retains a safe existing snapshot. Large repositories need incremental/restartable staging before production use. Offset pagination under concurrent source edits still needs controlled platform tests and missing-item reconciliation; a completed HTTP traversal is not proof of a stable remote point-in-time snapshot.
+
+Retry-After is persisted per connection. The Spec's shared budget across multiple connections for the same account/instance is **not implemented**. Do not infer production multi-Pod rate-budget compliance from the database publication fence. Host reference guards reject normal endpoint changes/deletion while connections exist, and every read/attempt revalidates the fixed official profile. A cross-document Host mutation concurrent with connection creation is not transactionally serialized; an invalid/missing Host fails closed and requires administrator repair.
+
+GitHub repositories with Issues disabled currently return FEATURE_UNAVAILABLE for the scope, including its Pull requests. Module-specific coverage, live progress counts, automatic paused-scope recovery and complete metadata facets need follow-up work. Repositories no longer accessible are hidden on the next explicit failure; source revocation cannot be detected instantaneously. No source-platform writes, OAuth, Enterprise endpoints or agent execution actions are included.
+
+## Verification and acceptance evidence
+
+Automated evidence is local, using synthetic provider responses. It is **not real-platform acceptance**.
+
+- Shared memory/Mongo contract: staging invisibility, dedup/source fallback, immediate revocation, key rotation, config CAS, stale publishers/errors, lease takeover, retention, cursor binding and GC preservation.
+- HTTP adapter tests: complete and failed pagination, malformed/foreign cursors, redirects, Issues/PR separation, Draft/Merged, large numeric IDs, missing terminal time, permission/rate-limit/schema/network errors and secret-free failures.
+- Service/router tests: owner-only management, member/admin read/refresh, membership removal, workspace boundaries, no secret fields, official Host validation/reference guards and no-store route mounting.
+- Browser fixtures: connection creation/selection/key clearing/deletion, no secret persistence, source HTML escaping, tabs/filter/pagination, refresh intent, non-owner management exclusion, failed details and late old-workspace responses.
+
+Run:
+
+```sh
+go test ./...
+BUTTER_TEST_MONGO_URI=mongodb://127.0.0.1:27017 go test ./internal/workstation/... -count=1
+go test -race ./internal/workstation/...
+buf lint proto/agents/v1/workstation.proto
+cd front
+npm ci
+npm run build
+npm run typecheck:e2e
+npx eslint src/features/work-station src/api/work-station.ts src/routes/_authenticated/work-station.tsx
+PLAYWRIGHT_PORT=5285 npx playwright test e2e/work-station.spec.ts
+```
+
+Real acceptance is still blocked by the absence of designated instances, least-privilege test credentials and a controlled dataset. No private credential was borrowed from the development CLI. Complete the existing tickets in dependency order:
+
+| Ticket | Remaining evidence/work |
+| --- | --- |
+| KON-56 | Real Linear/Plane Cloud + self-hosted/GitHub/GitLab Cloud + self-hosted versions, permissions, schema, paging and sanitized fixtures |
+| KON-57/59 | Review the partial RPC/storage contract; complete facets, shared budgets, incremental/restartable staging and scale/explain evidence |
+| KON-61 | Real GitHub private-repo matrix, token permissions, access revocation, close/reopen, merge/Draft and read-only request audit; incremental/ETag strategy |
+| KON-60/62/63 | Linear, GitLab and Plane adapters, approved Hosts/profiles, fixtures and real acceptance |
+| KON-64 | Complete provider/facet UX, progress/health refinements and all full-Spec empty-state/E2E scenarios |
+| KON-58 | Two actual Pods, restart/takeover/late-write and rate-budget exercises, all provider controlled datasets and final release decision |
+
+For each real run record: date, operator, provider/profile/version, approved instance, masked principal/permission grant, selected stable scope IDs, controlled fixture counts, exact read-only steps, expected/actual result, sanitized request methods and failure categories. Explicitly mark PASS / PARTIAL / BLOCKED. Never store tokens or raw private bodies in the evidence. The four-provider release remains BLOCKED until all target profiles and multi-Pod gates pass.

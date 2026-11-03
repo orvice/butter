@@ -62,6 +62,9 @@ type Handlers struct {
 	workspaceSvcServer     *application.WorkspaceServiceServer
 	gitHostSvcServer       *application.GitHostServiceServer
 	butterBoxSvcServer     *application.ButterBoxServiceServer
+	workStationSvcServer   *application.WorkStationServiceServer
+	stopWorkStation        context.CancelFunc
+	workStationDone        chan struct{}
 	memoryConfigSvcServer  *application.WorkspaceMemoryConfigServiceServer
 	memoriesSvcServer      *application.WorkspaceMemoryServiceServer
 	repoBindingSvcServer   *application.RepoBindingServiceServer
@@ -438,6 +441,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.butterBoxSvcServer.SetAgentRepo(h.agentRepo)
 		h.agentSvcServer.SetButterBoxRepo(result.ButterBoxRepo)
 	}
+	h.wireWorkStation(result)
 	// Workspace Memory Config (ADR-0013). The mem0 API key goes through the
 	// same database-backed master key as ButterBox and Telegram tokens.
 	if h.memoryConfigSvcServer != nil && result.MemoryConfigRepo != nil {
@@ -759,6 +763,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	gitHostConnectPath, gitHostConnectHandler := agentsv1connect.NewGitHostServiceHandler(gitHostSvcServer, connectOpts...)
 	butterBoxSvcServer := application.NewButterBoxServiceServer(nil)
 	butterBoxConnectPath, butterBoxConnectHandler := agentsv1connect.NewButterBoxServiceHandler(butterBoxSvcServer, connectOpts...)
+	workStationSvcServer := application.NewWorkStationServiceServer()
+	workStationConnectPath, workStationConnectHandler := agentsv1connect.NewWorkStationServiceHandler(workStationSvcServer, connectOpts...)
 	memoryConfigSvcServer := application.NewWorkspaceMemoryConfigServiceServer(nil)
 	memoryConfigConnectPath, memoryConfigConnectHandler := agentsv1connect.NewWorkspaceMemoryConfigServiceHandler(memoryConfigSvcServer, connectOpts...)
 	memoriesSvcServer := application.NewWorkspaceMemoryServiceServer(nil)
@@ -816,6 +822,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		workspaceSvcServer:     workspaceSvcServer,
 		gitHostSvcServer:       gitHostSvcServer,
 		butterBoxSvcServer:     butterBoxSvcServer,
+		workStationSvcServer:   workStationSvcServer,
 		memoryConfigSvcServer:  memoryConfigSvcServer,
 		memoriesSvcServer:      memoriesSvcServer,
 		repoBindingSvcServer:   repoBindingSvcServer,
@@ -874,6 +881,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
 		r.Any("/api"+butterBoxConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", butterBoxConnectHandler)))
+		r.Any("/api"+workStationConnectPath+"*path", gin.WrapH(workStationNoCache(http.StripPrefix("/api", workStationConnectHandler))))
 		r.Any("/api"+memoryConfigConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", memoryConfigConnectHandler)))
 		r.Any("/api"+memoriesConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", memoriesConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
@@ -907,5 +915,12 @@ func enableFullDuplex(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = http.NewResponseController(w).EnableFullDuplex()
 		handler.ServeHTTP(w, r)
+	})
+}
+
+func workStationNoCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
 	})
 }

@@ -694,3 +694,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - 跨 workspace 共享同一个 runner / channel manager / cron scheduler / automation scheduler，**agent 运行时名字需在所有 workspace 内全局唯一**；引用 agent 的 channel、cron job 与 automation step 通过 `ResolveAgentRef` **仅按 `agent_id`** 解析（无 legacy name 解析路径）。启动时的 Agent-ID verifier 只读检查违规记录并记录 warning，不自动回填或修复；全局管理员可通过 `VerifyAgentIDCutover` 手动运行同一诊断。
 - Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
 - 内置 system agent 仍为全局注册，其管理类工具读跨 workspace、写则要求显式传入 `workspace_id`。
+
+## Work Station（GitHub.com 预览）
+
+`application.WorkStationServiceServer` 从 Workspace context 与成员记录授权，调用 `internal/workstation` 的连接、选择、刷新和投影查询规则。只读 provider seam 不暴露写接口。Mongo 将配置/凭证/选中范围及 snapshot pointer 放在同一连接文档，逐事项 observation 独立存储；CAS version + attempt token + Mongo `$$NOW` lease fence 约束成功与错误发布。列表/详情通过 live connection/scope/snapshot join 重新授权后去重，旧来源撤权后回退到剩余来源正文。启动装配选择 memory/Mongo repo 并启动生命周期内的 reconciler，关闭时取消并等待退出。完整约束、索引查询与尚未完成的增量/共享预算门禁见 [Work Station](work-station.md)。

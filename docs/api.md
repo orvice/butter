@@ -5209,6 +5209,10 @@ server holds (#339).
 
 ---
 
+### WorkStationService (GitHub.com preview)
+
+The authenticated workspace-scoped `/api/agents.v1.WorkStationService/` exposes connection create/update/delete/test/discovery/selection, durable Refresh and local ListItems/GetItem. Only workspace owners and global admins manage connections; workspace admins and members read and refresh. Readable messages never contain credentials. Updates use `expected_revision`; optional `api_key` means absent=keep, nonempty=replace, empty=clear and hide. Responses use `Cache-Control: no-store`. See [the preview RPC/storage and acceptance contract](work-station.md). Four-provider release acceptance is pending.
+
 ## Error Handling
 
 RPC endpoints return errors in the standard Connect envelope:

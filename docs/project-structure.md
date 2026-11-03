@@ -313,3 +313,15 @@ butter/
 - 新增 RPC service：在 `proto/agents/v1/*.proto` 定义 service + messages → `make buf` 生成代码 → 在 `internal/application/` 加 `<svc>_service.go`，每个 RPC 方法签名为 `func (s *XxxServiceServer) Method(ctx context.Context, req *connect.Request[agentsv1.YyyRequest]) (*connect.Response[agentsv1.YyyResponse], error)`，方法体访问 `req.Msg.GetX()`，返回 `connect.NewResponse(&agentsv1.YyyResponse{...})` → 在 `internal/app/routes.go` 用 `agentsv1connect.NewXxxServiceHandler(svc, connectOpts...)` 创建 handler，并挂到 `/api/agents.v1.XxxService/*`（`http.StripPrefix("/api", handler)`）→ 前端在 `front/src/api/` 加文件，`makeClient(XxxService)` 拿到类型化 client。
 - 新增 MongoDB collection：在 `internal/repo/` 下加同名子包，提供 interface + memory + mongo 两实现，在 `internal/app/channels.go` 按 `storage_backend` 选择后端并注入 BootstrapResult。
 - 结构变更后同步更新本文件，保证文档与仓库一致。
+
+## Work Station preview
+
+- `proto/agents/v1/workstation.proto`: workspace ConnectRPC contract and generated Go/TypeScript bindings.
+- `internal/app/workstation.go`: runtime wiring and bounded graceful shutdown.
+- `internal/application/workstation_service.go`: membership, owner-only management and sanitized RPC errors.
+- `internal/workstation/`: projection, credential/config CAS, durable claims and fenced snapshot publication.
+- `internal/workstation/github/`: fixed-origin, GET-only GitHub.com profile and HTTP fixtures.
+- `internal/workstation/{memory,mongostore,repotest}/`: storage implementations and shared behavioral contract.
+- `front/src/features/work-station/`: shared list/detail and connection/scope management at `/work-station`.
+- `front/e2e/work-station.spec.ts`: browser fixture journeys.
+- `docs/work-station.md`: preview scope, operations and pending release acceptance.

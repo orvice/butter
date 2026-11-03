@@ -546,3 +546,7 @@ cmd/butter-daemon (客户端)
 - 内置 system agent 仍为全局注册；daemon connector 是 `/api` 下的长连接入口，但连接、registry、任务路由和配置均按 workspace 隔离。
 - `pkg/proto/agents/v1` 为生成代码，改动需在 `proto/agents/v1` 中完成后重新生成。
 - 长期记忆 v1：Workspace Memory 在 workspace 内共享，不区分人（按人区分的 scope 见 #347）；记忆管理只支持查看、搜索、删除单条，不支持修改和一键清空，列表最多显示 200 条，更早的记忆靠搜索找到；PI / Cursor agent 不支持；只对接 mem0 OSS，不支持 mem0 云平台。
+
+## Work Station（GitHub.com 预览）
+
+认证路由 `/work-station` 提供 Workspace 共享的只读 Issues/PR 列表、详情、过滤与手动刷新。owner/全局管理员管理连接与明确选中的 Repository；Workspace admin 和 member 只能浏览、刷新。平台 Key 通过数据库 Keyring 加密，清空/轮换 Key、移除范围与删除连接立即撤销旧来源的可见性。后台从持久化 due state 扫描、staging 后原子发布；Refresh accepted 不表示数据已经更新。Linear、Plane、GitLab 与真实平台/两 Pod 发布门禁尚未完成，详见 [实现范围与限制](work-station.md)。

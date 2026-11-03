@@ -22,7 +22,8 @@ import (
 // user (owners need them to configure a binding), mutations require global
 // admin so workspace input can never introduce an arbitrary API base URL.
 type GitHostServiceServer struct {
-	repo githostrepo.Repository
+	repo                 githostrepo.Repository
+	workStationHostInUse func(context.Context, string) (bool, error)
 }
 
 func NewGitHostServiceServer(repo githostrepo.Repository) *GitHostServiceServer {
@@ -32,6 +33,24 @@ func NewGitHostServiceServer(repo githostrepo.Repository) *GitHostServiceServer 
 // SetRepo wires the repository after bootstrap.
 func (s *GitHostServiceServer) SetRepo(repo githostrepo.Repository) {
 	s.repo = repo
+}
+
+// SetWorkStationHostGuard prevents endpoint changes or deletion while referenced.
+func (s *GitHostServiceServer) SetWorkStationHostGuard(check func(context.Context, string) (bool, error)) {
+	s.workStationHostInUse = check
+}
+func (s *GitHostServiceServer) workStationReference(ctx context.Context, id string) error {
+	if s.workStationHostInUse == nil {
+		return nil
+	}
+	used, err := s.workStationHostInUse(ctx, id)
+	if err != nil {
+		return connect.NewError(connect.CodeUnavailable, errors.New("unable to check Work Station references"))
+	}
+	if used {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("Git Host is used by Work Station; remove its connections first"))
+	}
+	return nil
 }
 
 func (s *GitHostServiceServer) requireRepo() error {
@@ -148,6 +167,15 @@ func (s *GitHostServiceServer) UpdateGitHost(ctx context.Context, req *connect.R
 	if err := validateGitHost(host); err != nil {
 		return nil, err
 	}
+	previous, err := s.repo.Get(ctx, host.Id)
+	if err != nil {
+		return nil, mapGitHostErr(err)
+	}
+	if previous.Kind != host.Kind || previous.ApiBaseUrl != host.ApiBaseUrl || previous.WebBaseUrl != host.WebBaseUrl {
+		if err := s.workStationReference(ctx, host.Id); err != nil {
+			return nil, err
+		}
+	}
 	logger := log.FromContext(ctx)
 	updated, err := s.repo.Update(ctx, host)
 	if err != nil {
@@ -167,6 +195,9 @@ func (s *GitHostServiceServer) DeleteGitHost(ctx context.Context, req *connect.R
 	}
 	if req.Msg.GetId() == "" {
 		return nil, connectx.RequiredArgument("id")
+	}
+	if err := s.workStationReference(ctx, req.Msg.GetId()); err != nil {
+		return nil, err
 	}
 	logger := log.FromContext(ctx)
 	if err := s.repo.Delete(ctx, req.Msg.GetId()); err != nil {
