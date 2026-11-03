@@ -195,6 +195,29 @@ func (s *Service) Publish(ctx context.Context, a Attempt, result Scan) error {
 func (s *Service) Fail(ctx context.Context, a Attempt, err error) error {
 	return s.finish(ctx, a, Scan{}, err)
 }
+func (s *Service) advanceCheckpoint(ctx context.Context, a Attempt, now time.Time) error {
+	if s.Checkpoint == nil {
+		return nil
+	}
+	key := CheckpointKey(a.Record.WorkspaceID, a.Record.ID, a.Scope.ID)
+	current, exists, err := s.Checkpoint.Load(ctx, key)
+	if err != nil {
+		return err
+	}
+	expected := uint64(0)
+	next := Checkpoint{Generation: a.Scope.Generation, UpdatedAt: now}
+	if exists {
+		expected = current.Revision
+		if current.Generation == next.Generation {
+			next.Sequence = current.Sequence + 1
+		}
+	} else {
+		next.Sequence = 1
+	}
+	_, err = s.Checkpoint.CompareAndSwap(ctx, key, expected, next)
+	return err
+}
+
 func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 	a, err := s.Claim(ctx, r.WorkspaceID, r.ID, sc.ID)
 	if errors.Is(err, ErrFenced) || errors.Is(err, ErrPaused) || errors.Is(err, ErrNotFound) {
@@ -227,6 +250,15 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 					return err
 				}
 				if err == nil {
+					now, checkpointErr := s.Repo.Now(ctx)
+					if checkpointErr != nil {
+						return checkpointErr
+					}
+					if checkpointErr = s.advanceCheckpoint(ctx, a, now); checkpointErr != nil {
+						// The snapshot is already committed. Surface checkpoint lag
+						// without fencing or hiding the newly visible data.
+						return checkpointErr
+					}
 					return nil
 				}
 			}

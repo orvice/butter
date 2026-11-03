@@ -32,6 +32,10 @@ type CheckpointStore interface {
 	Delete(context.Context, string, uint64) error
 }
 
+func CheckpointKey(workspace, connection, scope string) string {
+	return workspace + "\x00" + connection + "\x00" + scope
+}
+
 type MemoryCheckpointStore struct {
 	mu     sync.RWMutex
 	values map[string]Checkpoint
