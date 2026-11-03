@@ -20,17 +20,20 @@ import (
 
 const connections = "work_station_connections"
 const observations = "work_station_observations"
+const checkpoints = "work_station_checkpoints"
 
 type Store struct {
 	db                        *mongo.Database
 	connections, observations *mongo.Collection
+	checkpoints               *mongo.Collection
 }
 
 func New(db *mongo.Database) *Store {
-	return &Store{db: db, connections: db.Collection(connections), observations: db.Collection(observations)}
+	return &Store{db: db, connections: db.Collection(connections), observations: db.Collection(observations), checkpoints: db.Collection(checkpoints)}
 }
 
 var _ ws.Repository = (*Store)(nil)
+var _ ws.CheckpointStore = (*Store)(nil)
 
 func (s *Store) EnsureIndexes(ctx context.Context) error {
 	_, err := s.connections.Indexes().CreateMany(ctx, []mongo.IndexModel{
