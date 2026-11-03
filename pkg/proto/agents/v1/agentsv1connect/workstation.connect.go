@@ -36,6 +36,9 @@ const (
 	// WorkStationServiceListConnectionsProcedure is the fully-qualified name of the
 	// WorkStationService's ListConnections RPC.
 	WorkStationServiceListConnectionsProcedure = "/agents.v1.WorkStationService/ListConnections"
+	// WorkStationServiceGetConnectionProcedure is the fully-qualified name of the WorkStationService's
+	// GetConnection RPC.
+	WorkStationServiceGetConnectionProcedure = "/agents.v1.WorkStationService/GetConnection"
 	// WorkStationServiceCreateConnectionProcedure is the fully-qualified name of the
 	// WorkStationService's CreateConnection RPC.
 	WorkStationServiceCreateConnectionProcedure = "/agents.v1.WorkStationService/CreateConnection"
@@ -68,6 +71,7 @@ const (
 // WorkStationServiceClient is a client for the agents.v1.WorkStationService service.
 type WorkStationServiceClient interface {
 	ListConnections(context.Context, *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error)
+	GetConnection(context.Context, *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error)
 	CreateConnection(context.Context, *connect.Request[v1.WorkStationServiceCreateConnectionRequest]) (*connect.Response[v1.WorkStationServiceCreateConnectionResponse], error)
 	UpdateConnection(context.Context, *connect.Request[v1.WorkStationServiceUpdateConnectionRequest]) (*connect.Response[v1.WorkStationServiceUpdateConnectionResponse], error)
 	DeleteConnection(context.Context, *connect.Request[v1.WorkStationServiceDeleteConnectionRequest]) (*connect.Response[v1.WorkStationServiceDeleteConnectionResponse], error)
@@ -94,6 +98,12 @@ func NewWorkStationServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			httpClient,
 			baseURL+WorkStationServiceListConnectionsProcedure,
 			connect.WithSchema(workStationServiceMethods.ByName("ListConnections")),
+			connect.WithClientOptions(opts...),
+		),
+		getConnection: connect.NewClient[v1.WorkStationServiceGetConnectionRequest, v1.WorkStationServiceGetConnectionResponse](
+			httpClient,
+			baseURL+WorkStationServiceGetConnectionProcedure,
+			connect.WithSchema(workStationServiceMethods.ByName("GetConnection")),
 			connect.WithClientOptions(opts...),
 		),
 		createConnection: connect.NewClient[v1.WorkStationServiceCreateConnectionRequest, v1.WorkStationServiceCreateConnectionResponse](
@@ -156,6 +166,7 @@ func NewWorkStationServiceClient(httpClient connect.HTTPClient, baseURL string, 
 // workStationServiceClient implements WorkStationServiceClient.
 type workStationServiceClient struct {
 	listConnections   *connect.Client[v1.WorkStationServiceListConnectionsRequest, v1.WorkStationServiceListConnectionsResponse]
+	getConnection     *connect.Client[v1.WorkStationServiceGetConnectionRequest, v1.WorkStationServiceGetConnectionResponse]
 	createConnection  *connect.Client[v1.WorkStationServiceCreateConnectionRequest, v1.WorkStationServiceCreateConnectionResponse]
 	updateConnection  *connect.Client[v1.WorkStationServiceUpdateConnectionRequest, v1.WorkStationServiceUpdateConnectionResponse]
 	deleteConnection  *connect.Client[v1.WorkStationServiceDeleteConnectionRequest, v1.WorkStationServiceDeleteConnectionResponse]
@@ -170,6 +181,11 @@ type workStationServiceClient struct {
 // ListConnections calls agents.v1.WorkStationService.ListConnections.
 func (c *workStationServiceClient) ListConnections(ctx context.Context, req *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error) {
 	return c.listConnections.CallUnary(ctx, req)
+}
+
+// GetConnection calls agents.v1.WorkStationService.GetConnection.
+func (c *workStationServiceClient) GetConnection(ctx context.Context, req *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error) {
+	return c.getConnection.CallUnary(ctx, req)
 }
 
 // CreateConnection calls agents.v1.WorkStationService.CreateConnection.
@@ -220,6 +236,7 @@ func (c *workStationServiceClient) GetItem(ctx context.Context, req *connect.Req
 // WorkStationServiceHandler is an implementation of the agents.v1.WorkStationService service.
 type WorkStationServiceHandler interface {
 	ListConnections(context.Context, *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error)
+	GetConnection(context.Context, *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error)
 	CreateConnection(context.Context, *connect.Request[v1.WorkStationServiceCreateConnectionRequest]) (*connect.Response[v1.WorkStationServiceCreateConnectionResponse], error)
 	UpdateConnection(context.Context, *connect.Request[v1.WorkStationServiceUpdateConnectionRequest]) (*connect.Response[v1.WorkStationServiceUpdateConnectionResponse], error)
 	DeleteConnection(context.Context, *connect.Request[v1.WorkStationServiceDeleteConnectionRequest]) (*connect.Response[v1.WorkStationServiceDeleteConnectionResponse], error)
@@ -242,6 +259,12 @@ func NewWorkStationServiceHandler(svc WorkStationServiceHandler, opts ...connect
 		WorkStationServiceListConnectionsProcedure,
 		svc.ListConnections,
 		connect.WithSchema(workStationServiceMethods.ByName("ListConnections")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workStationServiceGetConnectionHandler := connect.NewUnaryHandler(
+		WorkStationServiceGetConnectionProcedure,
+		svc.GetConnection,
+		connect.WithSchema(workStationServiceMethods.ByName("GetConnection")),
 		connect.WithHandlerOptions(opts...),
 	)
 	workStationServiceCreateConnectionHandler := connect.NewUnaryHandler(
@@ -302,6 +325,8 @@ func NewWorkStationServiceHandler(svc WorkStationServiceHandler, opts ...connect
 		switch r.URL.Path {
 		case WorkStationServiceListConnectionsProcedure:
 			workStationServiceListConnectionsHandler.ServeHTTP(w, r)
+		case WorkStationServiceGetConnectionProcedure:
+			workStationServiceGetConnectionHandler.ServeHTTP(w, r)
 		case WorkStationServiceCreateConnectionProcedure:
 			workStationServiceCreateConnectionHandler.ServeHTTP(w, r)
 		case WorkStationServiceUpdateConnectionProcedure:
@@ -331,6 +356,10 @@ type UnimplementedWorkStationServiceHandler struct{}
 
 func (UnimplementedWorkStationServiceHandler) ListConnections(context.Context, *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.ListConnections is not implemented"))
+}
+
+func (UnimplementedWorkStationServiceHandler) GetConnection(context.Context, *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.GetConnection is not implemented"))
 }
 
 func (UnimplementedWorkStationServiceHandler) CreateConnection(context.Context, *connect.Request[v1.WorkStationServiceCreateConnectionRequest]) (*connect.Response[v1.WorkStationServiceCreateConnectionResponse], error) {

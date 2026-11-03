@@ -386,6 +386,25 @@ func stamp(t time.Time) *timestamppb.Timestamp {
 	}
 	return timestamppb.New(t)
 }
+func (s *Service) Connection(ctx context.Context, w, id string) (*v1.WorkStationConnection, error) {
+	if id == "" {
+		return nil, ErrInvalid
+	}
+	r, err := s.Repo.Get(ctx, w, id)
+	if err != nil {
+		return nil, err
+	}
+	p := Public(r)
+	if err := s.CheckHost(ctx, r.HostID); err != nil {
+		p.Paused = true
+		for _, sc := range p.Scopes {
+			sc.Health = "UNSUPPORTED"
+			sc.Initialized = false
+		}
+	}
+	return p, nil
+}
+
 func (s *Service) Connections(ctx context.Context, w string) ([]*v1.WorkStationConnection, error) {
 	rs, err := s.Repo.List(ctx, w)
 	if err != nil {

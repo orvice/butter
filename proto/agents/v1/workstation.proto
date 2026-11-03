@@ -9,6 +9,7 @@ option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
 // appear on readable messages. This first implementation supports GitHub.com.
 service WorkStationService {
   rpc ListConnections(WorkStationServiceListConnectionsRequest) returns (WorkStationServiceListConnectionsResponse);
+  rpc GetConnection(WorkStationServiceGetConnectionRequest) returns (WorkStationServiceGetConnectionResponse);
   rpc CreateConnection(WorkStationServiceCreateConnectionRequest) returns (WorkStationServiceCreateConnectionResponse);
   rpc UpdateConnection(WorkStationServiceUpdateConnectionRequest) returns (WorkStationServiceUpdateConnectionResponse);
   rpc DeleteConnection(WorkStationServiceDeleteConnectionRequest) returns (WorkStationServiceDeleteConnectionResponse);
@@ -21,6 +22,12 @@ service WorkStationService {
 }
 message WorkStationServiceDeleteConnectionResponse {}
 message WorkStationServiceListConnectionsRequest {}
+message WorkStationServiceGetConnectionRequest {
+  string id = 1;
+}
+message WorkStationServiceGetConnectionResponse {
+  WorkStationConnection connection = 1;
+}
 message WorkStationServiceListConnectionsResponse {
   repeated WorkStationConnection connections = 1;
 }

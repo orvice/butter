@@ -94,15 +94,18 @@ func TestWorkStationPermissionsAndWriteOnlyCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.GetConnection(stationContext("member"), connect.NewRequest(&v1.WorkStationServiceGetConnectionRequest{Id: id})); err != nil {
+		t.Fatal("member cannot read one connection", err)
+	}
 	if strings.Contains(string(data), "super-private-token") || strings.Contains(string(data), "ciphertext") || strings.Contains(string(data), "key_id") {
 		t.Fatal("credential leaked")
 	}
+	outsider := stationContext("outsider")
+	if _, err := s.GetConnection(outsider, connect.NewRequest(&v1.WorkStationServiceGetConnectionRequest{Id: id})); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatal("nonmember read one connection", err)
+	}
 	if _, err := s.Refresh(stationContext("member"), connect.NewRequest(&v1.WorkStationServiceRefreshRequest{Id: id})); err != nil {
 		t.Fatal(err)
-	}
-	outsider := stationContext("outsider")
-	if _, err := s.ListConnections(outsider, connect.NewRequest(&v1.WorkStationServiceListConnectionsRequest{})); connect.CodeOf(err) != connect.CodeNotFound {
-		t.Fatal("nonmember authorized", err)
 	}
 	ctx := workspacecontext.WithID(authrepo.WithAdmin(context.Background()), "A")
 	if _, err := s.CreateConnection(ctx, connect.NewRequest(&v1.WorkStationServiceCreateConnectionRequest{Name: "global", HostId: "host", ApiKey: "global-token"})); err != nil {
@@ -175,6 +178,10 @@ func TestWorkStationMissingIDIsInvalid(t *testing.T) {
 		},
 		func() error {
 			_, e := s.Refresh(ctx, connect.NewRequest(&v1.WorkStationServiceRefreshRequest{}))
+			return e
+		},
+		func() error {
+			_, e := s.GetConnection(ctx, connect.NewRequest(&v1.WorkStationServiceGetConnectionRequest{}))
 			return e
 		},
 		func() error {

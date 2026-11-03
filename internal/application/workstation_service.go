@@ -116,6 +116,18 @@ func (s *WorkStationServiceServer) ListConnections(ctx context.Context, _ *conne
 	}
 	return connect.NewResponse(&v1.WorkStationServiceListConnectionsResponse{Connections: connections}), nil
 }
+func (s *WorkStationServiceServer) GetConnection(ctx context.Context, req *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error) {
+	w, err := s.authorize(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	connection, err := s.service.Connection(ctx, w, req.Msg.Id)
+	if err != nil {
+		return nil, stationError(err)
+	}
+	return connect.NewResponse(&v1.WorkStationServiceGetConnectionResponse{Connection: connection}), nil
+}
+
 func (s *WorkStationServiceServer) CreateConnection(ctx context.Context, req *connect.Request[v1.WorkStationServiceCreateConnectionRequest]) (*connect.Response[v1.WorkStationServiceCreateConnectionResponse], error) {
 	w, err := s.authorize(ctx, true)
 	if err != nil {

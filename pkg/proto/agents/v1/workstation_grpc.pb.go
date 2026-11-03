@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	WorkStationService_ListConnections_FullMethodName   = "/agents.v1.WorkStationService/ListConnections"
+	WorkStationService_GetConnection_FullMethodName     = "/agents.v1.WorkStationService/GetConnection"
 	WorkStationService_CreateConnection_FullMethodName  = "/agents.v1.WorkStationService/CreateConnection"
 	WorkStationService_UpdateConnection_FullMethodName  = "/agents.v1.WorkStationService/UpdateConnection"
 	WorkStationService_DeleteConnection_FullMethodName  = "/agents.v1.WorkStationService/DeleteConnection"
@@ -39,6 +40,7 @@ const (
 // appear on readable messages. This first implementation supports GitHub.com.
 type WorkStationServiceClient interface {
 	ListConnections(ctx context.Context, in *WorkStationServiceListConnectionsRequest, opts ...grpc.CallOption) (*WorkStationServiceListConnectionsResponse, error)
+	GetConnection(ctx context.Context, in *WorkStationServiceGetConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceGetConnectionResponse, error)
 	CreateConnection(ctx context.Context, in *WorkStationServiceCreateConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceCreateConnectionResponse, error)
 	UpdateConnection(ctx context.Context, in *WorkStationServiceUpdateConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceUpdateConnectionResponse, error)
 	DeleteConnection(ctx context.Context, in *WorkStationServiceDeleteConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceDeleteConnectionResponse, error)
@@ -62,6 +64,16 @@ func (c *workStationServiceClient) ListConnections(ctx context.Context, in *Work
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkStationServiceListConnectionsResponse)
 	err := c.cc.Invoke(ctx, WorkStationService_ListConnections_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workStationServiceClient) GetConnection(ctx context.Context, in *WorkStationServiceGetConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceGetConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationServiceGetConnectionResponse)
+	err := c.cc.Invoke(ctx, WorkStationService_GetConnection_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +178,7 @@ func (c *workStationServiceClient) GetItem(ctx context.Context, in *WorkStationS
 // appear on readable messages. This first implementation supports GitHub.com.
 type WorkStationServiceServer interface {
 	ListConnections(context.Context, *WorkStationServiceListConnectionsRequest) (*WorkStationServiceListConnectionsResponse, error)
+	GetConnection(context.Context, *WorkStationServiceGetConnectionRequest) (*WorkStationServiceGetConnectionResponse, error)
 	CreateConnection(context.Context, *WorkStationServiceCreateConnectionRequest) (*WorkStationServiceCreateConnectionResponse, error)
 	UpdateConnection(context.Context, *WorkStationServiceUpdateConnectionRequest) (*WorkStationServiceUpdateConnectionResponse, error)
 	DeleteConnection(context.Context, *WorkStationServiceDeleteConnectionRequest) (*WorkStationServiceDeleteConnectionResponse, error)
@@ -187,6 +200,9 @@ type UnimplementedWorkStationServiceServer struct{}
 
 func (UnimplementedWorkStationServiceServer) ListConnections(context.Context, *WorkStationServiceListConnectionsRequest) (*WorkStationServiceListConnectionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListConnections not implemented")
+}
+func (UnimplementedWorkStationServiceServer) GetConnection(context.Context, *WorkStationServiceGetConnectionRequest) (*WorkStationServiceGetConnectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetConnection not implemented")
 }
 func (UnimplementedWorkStationServiceServer) CreateConnection(context.Context, *WorkStationServiceCreateConnectionRequest) (*WorkStationServiceCreateConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateConnection not implemented")
@@ -250,6 +266,24 @@ func _WorkStationService_ListConnections_Handler(srv interface{}, ctx context.Co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkStationServiceServer).ListConnections(ctx, req.(*WorkStationServiceListConnectionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkStationService_GetConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationServiceGetConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationServiceServer).GetConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationService_GetConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationServiceServer).GetConnection(ctx, req.(*WorkStationServiceGetConnectionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -426,6 +460,10 @@ var WorkStationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListConnections",
 			Handler:    _WorkStationService_ListConnections_Handler,
+		},
+		{
+			MethodName: "GetConnection",
+			Handler:    _WorkStationService_GetConnection_Handler,
 		},
 		{
 			MethodName: "CreateConnection",
