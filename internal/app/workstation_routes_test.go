@@ -74,6 +74,10 @@ func TestWorkStationConnectHTTPHappyPath(t *testing.T) {
 	if !c.CredentialSet || len(c.Scopes) != 0 || created.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal("create contract", created.Msg)
 	}
+	got, err := client.GetConnection(ctx, connect.NewRequest(&v1.WorkStationServiceGetConnectionRequest{Id: c.Id}))
+	if err != nil || got.Msg.Connection.Id != c.Id || !got.Msg.Connection.CredentialSet {
+		t.Fatal("connection detail", got, err)
+	}
 	_, err = client.SetSelectedScopes(ctx, connect.NewRequest(&v1.WorkStationServiceSetSelectedScopesRequest{Id: c.Id, ExpectedRevision: c.Revision, ScopeIds: []string{"42"}}))
 	if err != nil {
 		t.Fatal(err)

@@ -21,6 +21,7 @@ Default browsing shows open Issues or Pull requests. All retained items includes
 | RPC | Permission | Behavior |
 | --- | --- | --- |
 | ListConnections | member | Only saved scopes and sanitized health; no candidate discovery or credentials |
+| GetConnection | member | Reads one saved connection with the same sanitized fields and live Host/profile health |
 | CreateConnection | owner/global admin | Probe, encrypt, create with empty selection |
 | UpdateConnection | owner/global admin | `expected_revision` CAS; rename or optional key keep/replace/clear |
 | DeleteConnection | owner/global admin | Revision CAS; atomic removal of visibility and ciphertext; idempotent retry |
