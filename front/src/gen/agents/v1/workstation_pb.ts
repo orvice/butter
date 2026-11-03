@@ -427,7 +427,7 @@ export const WorkStationServiceSetSelectedScopesRequestSchema: GenMessage<WorkSt
  */
 export type WorkStationServiceRefreshResponse = Message<"agents.v1.WorkStationServiceRefreshResponse"> & {
   /**
-   * QUEUED, ALREADY_PENDING, RUNNING, DEFERRED, or PAUSED.
+   * QUEUED, ALREADY_PENDING, RUNNING, DEFERRED, PAUSED, or NO_SCOPES.
    *
    * @generated from field: string status = 1;
    */

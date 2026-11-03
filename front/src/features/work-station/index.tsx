@@ -142,14 +142,19 @@ function Station({
     setRefreshing(true)
     setError('')
     try {
-      const responses = await Promise.all(
-        (connections.data?.connections ?? []).map((c) =>
-          client.refresh({ id: c.id })
+      const responses = []
+      for (let start = 0; start < refreshTargets.length; start += 4) {
+        responses.push(
+          ...(await Promise.all(
+            refreshTargets
+              .slice(start, start + 4)
+              .map((c) => client.refresh({ id: c.id }))
+          ))
         )
-      )
+      }
       setNotice(
         responses.map((r) => r.status).join(', ') ||
-          'Add a connection to start syncing.'
+          'Select repositories on an active connection to start syncing.'
       )
       // Accepted refresh is only an intent. Polling observes later publication.
       setPages([''])
@@ -161,6 +166,12 @@ function Station({
     }
   }
   const allConnections = connections.data?.connections ?? []
+  const refreshTargets = allConnections.filter(
+    (c) =>
+      c.scopes.length > 0 &&
+      !c.paused &&
+      (!filters.connection || c.id === filters.connection)
+  )
   const scopes = allConnections
     .filter((c) => !filters.connection || c.id === filters.connection)
     .flatMap((c) => c.scopes)
@@ -190,7 +201,7 @@ function Station({
             <Button
               variant='outline'
               onClick={() => void refresh()}
-              disabled={refreshing || !allConnections.length}
+              disabled={refreshing || !refreshTargets.length}
             >
               <RefreshCw className='size-4' aria-hidden />
               Request refresh
@@ -204,7 +215,8 @@ function Station({
         </div>
         <p className='text-sm text-muted-foreground'>
           GitHub.com is available in this preview. Linear, Plane and GitLab are
-          pending.
+          pending. Refresh applies to the selected connection, or all active
+          connections when no connection filter is set.
         </p>
         <div role='status' className='text-sm'>
           {notice}
@@ -750,7 +762,8 @@ function ConnectionForm({
             <legend className='font-medium'>Selected repositories</legend>
             <p className='text-sm text-muted-foreground'>
               Select only repositories you intend to share. Clearing every
-              selection imports nothing.
+              selection imports nothing. Saving rechecks access and retries
+              unavailable repositories without resetting healthy ones.
             </p>
             <Button
               type='button'

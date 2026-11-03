@@ -110,3 +110,16 @@ func TestRetentionExactBoundary(t *testing.T) {
 		t.Fatal("query-time expiry not applied")
 	}
 }
+
+func TestRefreshWithoutScopesIsExplicit(t *testing.T) {
+	ctx := context.Background()
+	s := repotest.NewService(memory.New(), &repotest.Provider{})
+	r, err := s.Create(ctx, "A", "main", "host", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, _, err := s.Refresh(ctx, "A", r.ID)
+	if err != nil || status != "NO_SCOPES" {
+		t.Fatal(status, err)
+	}
+}

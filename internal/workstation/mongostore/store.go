@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -159,17 +160,46 @@ func (s *Store) Stage(ctx context.Context, obs []ws.Observation) error {
 func stage(k string, v any) bson.D { return bson.D{{Key: k, Value: v}} }
 
 // currentSource joins the live connection and selected snapshot at every read.
-// This is also the GC predicate; a stale index can never authorize a body.
-func currentSource() bson.D {
+// GC uses the reference-only variant, so hidden/paused pointers are retained.
+// A stale query index can never authorize a body.
+func currentSource() bson.D { return snapshotReference(true) }
+
+func snapshotReference(visible bool) bson.D {
+	filter := bson.M{"$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$workspace_id", "$$w"}}, bson.M{"$eq": bson.A{"$id", "$$c"}}}}}
+	scopeFilter := bson.M{"scopes.snapshot": bson.M{"$ne": ""}, "$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$scopes.id", "$$s"}}, bson.M{"$eq": bson.A{"$scopes.snapshot", "$$snap"}}}}}
+	if visible {
+		filter["paused"] = false
+		filter["credential.ciphertext"] = bson.M{"$ne": ""}
+		scopeFilter["scopes.hidden"] = false
+	}
 	return stage("$lookup", bson.M{"from": connections, "let": bson.M{"w": "$workspace_id", "c": "$connection_id", "s": "$scope_id", "snap": "$snapshot"}, "pipeline": bson.A{
-		stage("$match", bson.M{"paused": false, "credential.ciphertext": bson.M{"$ne": ""}, "$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$workspace_id", "$$w"}}, bson.M{"$eq": bson.A{"$id", "$$c"}}}}}),
+		stage("$match", filter),
 		stage("$unwind", "$scopes"),
-		stage("$match", bson.M{"scopes.hidden": false, "scopes.snapshot": bson.M{"$ne": ""}, "$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$scopes.id", "$$s"}}, bson.M{"$eq": bson.A{"$scopes.snapshot", "$$snap"}}}}}),
+		stage("$match", scopeFilter),
 		stage("$project", bson.M{"_id": 1}),
 	}, "as": "live"})
 }
 func (s *Store) Query(ctx context.Context, w string, q ws.Query) ([]*v1.WorkStationItem, error) {
-	match := bson.M{"workspace_id": w}
+	records, err := s.List(ctx, w)
+	if err != nil {
+		return nil, err
+	}
+	snapshots := bson.A{}
+	for _, r := range records {
+		if r.Paused || r.Credential.Ciphertext == "" || (q.AllowedConnections != nil && !slices.Contains(q.AllowedConnections, r.ID)) || (q.ConnectionID != "" && q.ConnectionID != r.ID) {
+			continue
+		}
+		for _, sc := range r.Scopes {
+			if sc.Hidden || sc.Snapshot == "" || (q.ScopeID != "" && sc.ID != q.ScopeID) {
+				continue
+			}
+			snapshots = append(snapshots, bson.M{"connection_id": r.ID, "scope_id": sc.ID, "snapshot": sc.Snapshot})
+		}
+	}
+	if len(snapshots) == 0 {
+		return []*v1.WorkStationItem{}, nil
+	}
+	match := bson.M{"workspace_id": w, "$or": snapshots}
 	if q.AllowedConnections != nil {
 		match["connection_id"] = bson.M{"$in": q.AllowedConnections}
 	}
@@ -242,32 +272,45 @@ func (s *Store) HostInUse(ctx context.Context, id string) (bool, error) {
 	}
 	return err == nil, err
 }
+func (s *Store) PruneSnapshot(ctx context.Context, w, connection, scope, snapshot string) error {
+	_, err := s.observations.DeleteMany(ctx, bson.M{"workspace_id": w, "connection_id": connection, "scope_id": scope, "snapshot": snapshot})
+	return err
+}
 func (s *Store) Collect(ctx context.Context) error {
 	now, err := s.Now(ctx)
 	if err != nil {
 		return err
 	}
-	p := mongo.Pipeline{stage("$match", bson.M{"observed": bson.M{"$lt": now.Add(-24 * time.Hour)}}), currentSource(), stage("$match", bson.M{"live.0": bson.M{"$exists": false}}), stage("$limit", int64(1000)), stage("$project", bson.M{"_id": 1})}
-	cur, err := s.observations.Aggregate(ctx, p)
-	if err != nil {
-		return err
-	}
-	defer cur.Close(ctx)
-	ids := bson.A{}
-	for cur.Next(ctx) {
-		var r struct {
-			ID string `bson:"_id"`
-		}
-		if err := cur.Decode(&r); err != nil {
+	p := mongo.Pipeline{stage("$match", bson.M{"observed": bson.M{"$lt": now.Add(-ws.OrphanGrace)}}), snapshotReference(false), stage("$match", bson.M{"live.0": bson.M{"$exists": false}}), stage("$limit", int64(1000)), stage("$project", bson.M{"_id": 1})}
+	for {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
-		ids = append(ids, r.ID)
+		cur, err := s.observations.Aggregate(ctx, p)
+		if err != nil {
+			return err
+		}
+		ids := bson.A{}
+		for cur.Next(ctx) {
+			var row struct {
+				ID string `bson:"_id"`
+			}
+			if err := cur.Decode(&row); err != nil {
+				_ = cur.Close(ctx)
+				return err
+			}
+			ids = append(ids, row.ID)
+		}
+		err = cur.Err()
+		_ = cur.Close(ctx)
+		if err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		if _, err := s.observations.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": ids}}); err != nil {
+			return err
+		}
 	}
-	if err := cur.Err(); err != nil {
-		return err
-	}
-	if len(ids) > 0 {
-		_, err = s.observations.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": ids}})
-	}
-	return err
 }

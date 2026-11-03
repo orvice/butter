@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,11 +74,15 @@ func (s *Service) Create(ctx context.Context, w, name, host, key string) (Record
 	if err != nil {
 		return Record{}, err
 	}
+	source, err := identity.Source.Canonical()
+	if err != nil {
+		return Record{}, err
+	}
 	cipher, kid, err := s.Keyring.Encrypt(ctx, []byte(key))
 	if err != nil {
 		return Record{}, err
 	}
-	r := Record{WorkspaceID: w, ID: uuid.NewString(), Name: strings.TrimSpace(name), Provider: "github", Origin: "https://api.github.com", HostID: host, PrincipalID: identity.PrincipalID, Revision: 1, Version: 1, Epoch: uuid.NewString(), Credential: Credential{Ciphertext: cipher, KeyID: kid}, Scopes: []Scope{}}
+	r := Record{Source: source, WorkspaceID: w, ID: uuid.NewString(), Name: strings.TrimSpace(name), HostID: host, PrincipalID: identity.PrincipalID, Revision: 1, Version: 1, Epoch: uuid.NewString(), Credential: Credential{Ciphertext: cipher, KeyID: kid}, Scopes: []Scope{}}
 	return r, s.Repo.Create(ctx, r)
 }
 func (s *Service) token(ctx context.Context, r Record) (string, error) {
@@ -139,8 +144,12 @@ func (s *Service) Update(ctx context.Context, w, id string, revision int64, name
 		if err != nil {
 			return Record{}, err
 		}
-		if identity.PrincipalID != old.PrincipalID {
-			return Record{}, fmt.Errorf("%w: create a new connection for a different GitHub identity", ErrInvalid)
+		source, err := identity.Source.Canonical()
+		if err != nil {
+			return Record{}, err
+		}
+		if identity.PrincipalID != old.PrincipalID || source != old.SourceIdentity() {
+			return Record{}, fmt.Errorf("%w: create a new connection for a different external identity", ErrInvalid)
 		}
 		cred.Ciphertext, cred.KeyID, err = s.Keyring.Encrypt(ctx, []byte(*key))
 		if err != nil {
@@ -206,8 +215,11 @@ func (s *Service) Test(ctx context.Context, w, id string) (Record, error) {
 		if next.Revision != r.Revision || next.Epoch != r.Epoch {
 			return ErrConflict
 		}
-		if probeErr == nil && identity.PrincipalID != r.PrincipalID {
-			return ErrInvalid
+		if probeErr == nil {
+			source, err := identity.Source.Canonical()
+			if err != nil || identity.PrincipalID != r.PrincipalID || source != r.SourceIdentity() {
+				return ErrInvalid
+			}
 		}
 		next.Revision++
 		next.Paused = probeErr != nil
@@ -281,18 +293,13 @@ func (s *Service) Select(ctx context.Context, w, id string, revision int64, ids 
 			sc := resolved[id]
 			index := slices.IndexFunc(next.Scopes, func(sc Scope) bool { return sc.ID == id })
 			if index >= 0 {
-				sc = next.Scopes[index]
-				// A scope hidden after an access failure must be revalidated
-				// before it can publish again. Keep the old body invisible.
-				if sc.Hidden {
+				previous := next.Scopes[index]
+				if !previous.Hidden {
+					sc = previous
+				} else {
+					// ResolveScope above revalidated this exact selection with the current
+					// credential. Requeue only this scope; old snapshots/attempts stay fenced.
 					sc.Generation = uuid.NewString()
-					sc.Snapshot = ""
-					sc.Claim = ""
-					sc.LeaseUntil = time.Time{}
-					sc.Hidden = false
-					sc.Coverage = ""
-					sc.Unresolved = 0
-					sc.LastSuccess = time.Time{}
 					sc.Due = now
 					sc.Health = "QUEUED"
 				}
@@ -322,7 +329,7 @@ func (s *Service) Refresh(ctx context.Context, w, id string) (string, time.Time,
 			return nil
 		}
 		if len(r.Scopes) == 0 {
-			status = "ALREADY_PENDING"
+			status = "NO_SCOPES"
 			return nil
 		}
 		if r.ManualAfter.After(now) || r.RetryAfter.After(now) {
@@ -366,7 +373,7 @@ func maxTime(a, b time.Time) time.Time {
 	return b
 }
 func Public(r Record) *v1.WorkStationConnection {
-	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused}
+	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.SourceIdentity().Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused}
 	for _, sc := range r.Scopes {
 		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess)}
 		c.Scopes = append(c.Scopes, p)
@@ -407,7 +414,7 @@ type pageCursor struct {
 }
 
 func fingerprint(w string, q Query) string {
-	b, _ := json.Marshal([]any{w, q.Kind, q.ConnectionID, q.ScopeID, q.Status, q.Assignee, q.Keyword, q.Limit})
+	b, _ := json.Marshal([]string{w, q.Kind, q.ConnectionID, q.ScopeID, q.Status, q.Assignee, q.Keyword, strconv.Itoa(q.Limit)})
 	hash := sha256.Sum256(b)
 	return hex.EncodeToString(hash[:])
 }

@@ -1008,7 +1008,7 @@ type WorkStationServiceRefreshResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// QUEUED, ALREADY_PENDING, RUNNING, DEFERRED, or PAUSED.
+	// QUEUED, ALREADY_PENDING, RUNNING, DEFERRED, PAUSED, or NO_SCOPES.
 	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	NextAttemptAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=next_attempt_at,json=nextAttemptAt,proto3" json:"next_attempt_at,omitempty"`
 }

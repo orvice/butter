@@ -156,3 +156,30 @@ test('revoked detail renders no cached source body', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Item unavailable' })).toBeVisible()
   await expect(page.getByRole('dialog').getByRole('link')).toHaveCount(0)
 })
+
+test('refresh targets the connection filter and skips empty or paused connections', async ({ page }) => {
+  const refreshed: string[] = []
+  const one = connection()
+  const two = create(w.WorkStationConnectionSchema, { ...one, id: 'c2', name: 'Second connection' })
+  const empty = create(w.WorkStationConnectionSchema, { ...one, id: 'empty', name: 'No selection', scopes: [] })
+  const paused = create(w.WorkStationConnectionSchema, { ...one, id: 'paused', name: 'Paused connection', paused: true })
+  await setupAuthenticatedConnectRoutes(page, async (route, url) => {
+    if (url.includes('WorkStationService/ListConnections')) return fulfillProto(route, w.WorkStationServiceListConnectionsResponseSchema, { connections: [one, two, empty, paused] })
+    if (url.includes('WorkStationService/ListItems')) return fulfillProto(route, w.WorkStationServiceListItemsResponseSchema, {})
+    if (url.includes('WorkStationService/Refresh')) {
+      const request = fromBinary(w.WorkStationServiceRefreshRequestSchema, route.request().postDataBuffer()!)
+      refreshed.push(request.id)
+      return fulfillProto(route, w.WorkStationServiceRefreshResponseSchema, { status: 'QUEUED' })
+    }
+    return false
+  })
+  await page.goto('/work-station')
+  await page.getByLabel('Connection', { exact: true }).selectOption('c2')
+  await page.getByRole('button', { name: 'Request refresh' }).click()
+  await expect.poll(() => refreshed).toEqual(['c2'])
+  await page.getByLabel('Connection', { exact: true }).selectOption('empty')
+  await expect(page.getByRole('button', { name: 'Request refresh' })).toBeDisabled()
+  await page.getByLabel('Connection', { exact: true }).selectOption('')
+  await page.getByRole('button', { name: 'Request refresh' }).click()
+  await expect.poll(() => refreshed).toEqual(['c2', 'c1', 'c2'])
+})

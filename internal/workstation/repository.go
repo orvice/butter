@@ -4,8 +4,6 @@ package workstation
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"time"
 
@@ -13,34 +11,33 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("work station resource not found")
-	ErrConflict    = errors.New("configuration changed; reload and try again")
-	ErrInvalid     = errors.New("invalid work station request")
-	ErrUnsupported = errors.New("provider profile is not supported")
-	ErrPaused      = errors.New("connection is paused; an owner must test or replace its credential")
-	ErrFenced      = errors.New("sync attempt lost its claim")
+	ErrNotFound       = errors.New("work station resource not found")
+	ErrConflict       = errors.New("configuration changed; reload and try again")
+	ErrInvalid        = errors.New("invalid work station request")
+	ErrUnsupported    = errors.New("provider profile is not supported")
+	ErrPaused         = errors.New("connection is paused; an owner must test or replace its credential")
+	ErrFenced         = errors.New("sync attempt lost its claim")
+	ErrCleanupPending = errors.New("snapshot published; cleanup pending")
 )
 
 // Record is internal: neither it nor Credential can be serialized as an RPC.
 // Config and all scope pointers share a document, so revocation and publication
 // use the same CAS boundary. Item bodies are separate, immutable observations.
 type Record struct {
-	WorkspaceID string     `bson:"workspace_id"`
-	ID          string     `bson:"id"`
-	Name        string     `bson:"name"`
-	Provider    string     `bson:"provider"`
-	Origin      string     `bson:"origin"`
-	Tenant      string     `bson:"tenant"`
-	HostID      string     `bson:"host_id"`
-	PrincipalID string     `bson:"principal_id"`
-	Revision    int64      `bson:"revision"`
-	Version     int64      `bson:"version"`
-	Epoch       string     `bson:"epoch"`
-	Credential  Credential `bson:"credential"`
-	Paused      bool       `bson:"paused"`
-	RetryAfter  time.Time  `bson:"retry_after"`
-	ManualAfter time.Time  `bson:"manual_after"`
-	Scopes      []Scope    `bson:"scopes"`
+	Source      SourceIdentity `bson:"source"`
+	WorkspaceID string         `bson:"workspace_id"`
+	ID          string         `bson:"id"`
+	Name        string         `bson:"name"`
+	HostID      string         `bson:"host_id"`
+	PrincipalID string         `bson:"principal_id"`
+	Revision    int64          `bson:"revision"`
+	Version     int64          `bson:"version"`
+	Epoch       string         `bson:"epoch"`
+	Credential  Credential     `bson:"credential"`
+	Paused      bool           `bson:"paused"`
+	RetryAfter  time.Time      `bson:"retry_after"`
+	ManualAfter time.Time      `bson:"manual_after"`
+	Scopes      []Scope        `bson:"scopes"`
 }
 type Credential struct {
 	Ciphertext string `bson:"ciphertext"`
@@ -94,14 +91,20 @@ type Repository interface {
 	Create(context.Context, Record) error
 	CAS(context.Context, Record, *Record, *Fence) (bool, error)
 	Stage(context.Context, []Observation) error
+	// PruneSnapshot removes one permanently superseded token, never "all except
+	// current": another publisher may already be staging or publishing a successor.
+	PruneSnapshot(context.Context, string, string, string, string) error
 	Query(context.Context, string, Query) ([]*v1.WorkStationItem, error)
 	HostInUse(context.Context, string) (bool, error)
-	// Collect only removes unreferenced snapshots past a grace period. A scan is
-	// bounded to less than a lease, and a lease is shorter than this grace period.
+	// Collect drains expired orphan batches until empty or context cancellation.
+	// References (including hidden/paused ones) and recent staging are retained.
 	Collect(context.Context) error
 }
 
-type Identity struct{ PrincipalID string }
+type Identity struct {
+	PrincipalID string
+	Source      SourceIdentity
+}
 type Page struct {
 	Scopes []Scope
 	Next   string
@@ -134,13 +137,4 @@ func Classify(err error) *Failure {
 		return &Failure{Category: "CONFIG_ERROR"}
 	}
 	return &Failure{Category: "DEGRADED"}
-}
-func ItemIDFor(workspaceID, provider, origin, tenant, scopeID, kind, number string) string {
-	sum := sha256.Sum256([]byte(workspaceID + "\x00" + provider + "\x00" + origin + "\x00" + tenant + "\x00" + scopeID + "\x00" + kind + "\x00" + number))
-	return hex.EncodeToString(sum[:])
-}
-
-// ItemID preserves the original GitHub.com identity for existing records.
-func ItemID(workspaceID, scopeID, kind, number string) string {
-	return ItemIDFor(workspaceID, "github", "https://api.github.com", "", scopeID, kind, number)
 }
