@@ -340,6 +340,7 @@ func (p *Provider) Scan(ctx context.Context, token string, scope ws.Scope, now t
 	for _, endpoint := range []struct{ Path, Kind string }{{"/issues", "ISSUE"}, {"/pulls", "PULL_REQUEST"}} {
 		path := base + endpoint.Path
 		seenPages := map[string]bool{}
+		seenRemoteIDs := map[string]bool{}
 		for page := 1; ; page++ {
 			q := url.Values{"state": {"all"}, "sort": {"updated"}, "direction": {"desc"}, "per_page": {"100"}, "page": {strconv.Itoa(page)}}
 			var remote []remoteItem
@@ -360,6 +361,13 @@ func (p *Provider) Scan(ctx context.Context, token string, scope ws.Scope, now t
 			seenPages[signature] = true
 			progress := 0
 			for _, r := range remote {
+				remoteID := r.Number.String()
+				if seenRemoteIDs[remoteID] {
+					// A repeated item across pages means the remote collection moved
+					// during traversal. Do not publish a mixed point-in-time snapshot.
+					return ws.Scan{}, failure("SCHEMA_ERROR")
+				}
+				seenRemoteIDs[remoteID] = true
 				if endpoint.Kind == "ISSUE" && len(r.PullRequest) > 0 && string(r.PullRequest) != "null" {
 					continue
 				}

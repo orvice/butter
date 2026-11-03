@@ -76,7 +76,7 @@ func TestReadOnlyMultiPageScanSeparatesIssuesAndPulls(t *testing.T) {
 	}
 }
 func TestNoFailurePublishesEarlierPages(t *testing.T) {
-	for _, scenario := range []string{"page_failure", "foreign_next", "repeated_cursor", "null_schema", "scope_revoked", "redirect", "incomplete_time"} {
+	for _, scenario := range []string{"page_failure", "foreign_next", "repeated_cursor", "overlap_page", "null_schema", "scope_revoked", "redirect", "incomplete_time"} {
 		t.Run(scenario, func(t *testing.T) {
 			checks := 0
 			p := New(transportFunc(func(r *http.Request) (*http.Response, error) {
@@ -103,6 +103,9 @@ func TestNoFailurePublishesEarlierPages(t *testing.T) {
 					return response(200, "["+issueJSON+"]", nil), nil
 				}
 				if r.URL.Query().Get("page") == "2" {
+					if scenario == "overlap_page" {
+						return response(200, "["+issueJSON+"]", nil), nil
+					}
 					return response(500, "test-secret", nil), nil
 				}
 				next := *r.URL
