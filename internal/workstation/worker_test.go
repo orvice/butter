@@ -35,6 +35,10 @@ func TestReconcilerDurableRefreshCooldownAndRestart(t *testing.T) {
 	if err != nil || len(rows) != 1 {
 		t.Fatal("initial intent lost", err)
 	}
+	connection, err := s.Connection(ctx, "A", r.ID)
+	if err != nil || connection.Scopes[0].SyncPhase != "READY" || connection.Scopes[0].ScannedItemCount != 1 {
+		t.Fatal("initial progress", connection, err)
+	}
 	status, _, err := s.Refresh(ctx, "A", r.ID)
 	if err != nil || status != "QUEUED" {
 		t.Fatal("manual intent", status, err)

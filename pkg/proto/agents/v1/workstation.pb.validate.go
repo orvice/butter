@@ -874,6 +874,10 @@ func (m *WorkStationScope) validate(all bool) error {
 
 	// no validation rules for Initialized
 
+	// no validation rules for ScannedItemCount
+
+	// no validation rules for SyncPhase
+
 	if len(errors) > 0 {
 		return WorkStationScopeMultiError(errors)
 	}

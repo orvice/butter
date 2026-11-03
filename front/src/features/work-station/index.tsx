@@ -251,9 +251,10 @@ function Station({
                       >
                         <span>{s.name}</span>
                         <span>
-                          {s.health || 'QUEUED'} ·{' '}
+                          {s.syncPhase || s.health || 'QUEUED'} ·{' '}
                           {s.coverage || 'INITIALIZING'}
                         </span>
+                        <span>Scanned: {s.scannedItemCount}</span>
                         <span>Last success: {when(s.lastSuccessAt)}</span>
                         <span>Next attempt: {when(s.nextAttemptAt)}</span>
                         {s.unresolvedTerminalCount > 0 && (

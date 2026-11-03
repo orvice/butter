@@ -113,6 +113,8 @@ func reset(r *Record, now time.Time) {
 		sc.Hidden = false
 		sc.Coverage = ""
 		sc.Unresolved = 0
+		sc.Scanned = 0
+		sc.SyncPhase = "QUEUED"
 		sc.LastSuccess = time.Time{}
 		sc.Due = now
 		sc.Health = "QUEUED"
@@ -302,11 +304,13 @@ func (s *Service) Select(ctx context.Context, w, id string, revision int64, ids 
 					sc.Generation = uuid.NewString()
 					sc.Due = now
 					sc.Health = "QUEUED"
+					sc.SyncPhase = "QUEUED"
 				}
 			} else {
 				sc.Generation = uuid.NewString()
 				sc.Due = now
 				sc.Health = "QUEUED"
+				sc.SyncPhase = "QUEUED"
 			}
 			scopes = append(scopes, sc)
 		}
@@ -360,6 +364,7 @@ func (s *Service) Refresh(ctx context.Context, w, id string) (string, time.Time,
 			if !r.Scopes[i].Hidden {
 				r.Scopes[i].Due = now
 				r.Scopes[i].Health = "QUEUED"
+				r.Scopes[i].SyncPhase = "QUEUED"
 			}
 		}
 		return nil
@@ -375,7 +380,7 @@ func maxTime(a, b time.Time) time.Time {
 func Public(r Record) *v1.WorkStationConnection {
 	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.SourceIdentity().Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused}
 	for _, sc := range r.Scopes {
-		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess)}
+		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, ScannedItemCount: sc.Scanned, SyncPhase: sc.SyncPhase, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess)}
 		c.Scopes = append(c.Scopes, p)
 	}
 	return c

@@ -56,6 +56,8 @@ type Scope struct {
 	Claim       string    `bson:"claim"`
 	LeaseUntil  time.Time `bson:"lease_until"`
 	Hidden      bool      `bson:"hidden"`
+	Scanned     uint32    `bson:"scanned_item_count"`
+	SyncPhase   string    `bson:"sync_phase"`
 }
 type Fence struct {
 	Token string

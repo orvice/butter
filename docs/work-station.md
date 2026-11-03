@@ -33,6 +33,8 @@ Default browsing shows open Issues or Pull requests. All retained items includes
 | ListFilterOptions | member | Facets from visible local projections only; no remote discovery |
 | GetItem | member | Same live-source/window authorization as ListItems |
 
+The scope health projection now exposes `sync_phase` (`QUEUED`, `SCANNING`, `READY`, `ERROR`, or `WAITING_RETRY`) and `scanned_item_count`. The count is the number returned by the completed provider traversal for the latest committed attempt; it is an observability signal, not a remote total or a completeness claim. A failed attempt keeps the previous committed snapshot and reports the phase/error separately.
+
 `ListFilterOptions` currently derives status, assignee and label facets from up to the first 1,000 visible local items for the requested kind/scope. It never calls a provider or exposes unselected resources; complete large-scale facets and progress counts remain part of KON-64/KON-59.
 
 `internal/workstation` owns provider-independent rules. A read-only `Provider` has Probe, DiscoverScopes, ResolveScope and Scan. It cannot write the business repository or source platform. The GitHub adapter is constructed with a transport, never a workspace-supplied endpoint. It uses only GET, rejects redirects and unapproved next links, and checks public DNS destinations when opening production connections. Upstream response bodies and transport errors never become RPC errors or logs.

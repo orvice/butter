@@ -52,6 +52,9 @@ message WorkStationScope {
   google.protobuf.Timestamp last_success_at = 6;
   google.protobuf.Timestamp next_attempt_at = 7;
   bool initialized = 8;
+  uint32 scanned_item_count = 9;
+  // QUEUED, SCANNING, READY, ERROR, or WAITING_RETRY.
+  string sync_phase = 10;
 }
 message WorkStationServiceCreateConnectionRequest {
   string name = 1;

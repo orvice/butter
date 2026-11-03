@@ -46,6 +46,7 @@ func (s *Service) Claim(ctx context.Context, w, id, scopeID string) (Attempt, er
 			sc.Claim = uuid.NewString()
 			sc.LeaseUntil = now.Add(LeaseDuration)
 			sc.Health = "RUNNING"
+			sc.SyncPhase = "SCANNING"
 			a = Attempt{Record: *r, Scope: *sc, Token: sc.Claim, Until: sc.LeaseUntil}
 			return nil
 		}
@@ -88,11 +89,17 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 				sc.Health = "HEALTHY"
 				sc.Coverage = result.Coverage
 				sc.Unresolved = result.Unresolved
+				sc.Scanned = uint32(len(result.Items))
+				sc.SyncPhase = "READY"
 				sc.LastSuccess = now
 				sc.Hidden = false
 			} else {
 				f := Classify(scanErr)
 				sc.Health = f.Category
+				sc.SyncPhase = "ERROR"
+				if f.Category == "RATE_LIMITED" {
+					sc.SyncPhase = "WAITING_RETRY"
+				}
 				switch f.Category {
 				case "AUTH_INVALID", "CONFIG_ERROR":
 					next.Paused = true
