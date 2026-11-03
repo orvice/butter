@@ -220,6 +220,29 @@ func (s *WorkStationServiceServer) ListItems(ctx context.Context, req *connect.R
 	}
 	return connect.NewResponse(&v1.WorkStationServiceListItemsResponse{Items: items, NextPageToken: next}), nil
 }
+func (s *WorkStationServiceServer) ListFilterOptions(ctx context.Context, req *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error) {
+	w, err := s.authorize(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	options, err := s.service.FilterOptions(ctx, w, ws.Query{Kind: req.Msg.Kind, ConnectionID: req.Msg.ConnectionId, ScopeID: req.Msg.ScopeId})
+	if err != nil {
+		return nil, stationError(err)
+	}
+	toProto := func(values []string) []*v1.WorkStationFilterOption {
+		out := make([]*v1.WorkStationFilterOption, 0, len(values))
+		for _, value := range values {
+			out = append(out, &v1.WorkStationFilterOption{Value: value, Label: value})
+		}
+		return out
+	}
+	return connect.NewResponse(&v1.WorkStationServiceListFilterOptionsResponse{
+		Statuses:  toProto(options.Statuses),
+		Assignees: toProto(options.Assignees),
+		Labels:    toProto(options.Labels),
+	}), nil
+}
+
 func (s *WorkStationServiceServer) GetItem(ctx context.Context, req *connect.Request[v1.WorkStationServiceGetItemRequest]) (*connect.Response[v1.WorkStationServiceGetItemResponse], error) {
 	w, err := s.authorize(ctx, false)
 	if err != nil {

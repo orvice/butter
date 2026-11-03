@@ -63,6 +63,9 @@ const (
 	// WorkStationServiceListItemsProcedure is the fully-qualified name of the WorkStationService's
 	// ListItems RPC.
 	WorkStationServiceListItemsProcedure = "/agents.v1.WorkStationService/ListItems"
+	// WorkStationServiceListFilterOptionsProcedure is the fully-qualified name of the
+	// WorkStationService's ListFilterOptions RPC.
+	WorkStationServiceListFilterOptionsProcedure = "/agents.v1.WorkStationService/ListFilterOptions"
 	// WorkStationServiceGetItemProcedure is the fully-qualified name of the WorkStationService's
 	// GetItem RPC.
 	WorkStationServiceGetItemProcedure = "/agents.v1.WorkStationService/GetItem"
@@ -80,6 +83,7 @@ type WorkStationServiceClient interface {
 	SetSelectedScopes(context.Context, *connect.Request[v1.WorkStationServiceSetSelectedScopesRequest]) (*connect.Response[v1.WorkStationServiceSetSelectedScopesResponse], error)
 	Refresh(context.Context, *connect.Request[v1.WorkStationServiceRefreshRequest]) (*connect.Response[v1.WorkStationServiceRefreshResponse], error)
 	ListItems(context.Context, *connect.Request[v1.WorkStationServiceListItemsRequest]) (*connect.Response[v1.WorkStationServiceListItemsResponse], error)
+	ListFilterOptions(context.Context, *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error)
 	GetItem(context.Context, *connect.Request[v1.WorkStationServiceGetItemRequest]) (*connect.Response[v1.WorkStationServiceGetItemResponse], error)
 }
 
@@ -154,6 +158,12 @@ func NewWorkStationServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(workStationServiceMethods.ByName("ListItems")),
 			connect.WithClientOptions(opts...),
 		),
+		listFilterOptions: connect.NewClient[v1.WorkStationServiceListFilterOptionsRequest, v1.WorkStationServiceListFilterOptionsResponse](
+			httpClient,
+			baseURL+WorkStationServiceListFilterOptionsProcedure,
+			connect.WithSchema(workStationServiceMethods.ByName("ListFilterOptions")),
+			connect.WithClientOptions(opts...),
+		),
 		getItem: connect.NewClient[v1.WorkStationServiceGetItemRequest, v1.WorkStationServiceGetItemResponse](
 			httpClient,
 			baseURL+WorkStationServiceGetItemProcedure,
@@ -175,6 +185,7 @@ type workStationServiceClient struct {
 	setSelectedScopes *connect.Client[v1.WorkStationServiceSetSelectedScopesRequest, v1.WorkStationServiceSetSelectedScopesResponse]
 	refresh           *connect.Client[v1.WorkStationServiceRefreshRequest, v1.WorkStationServiceRefreshResponse]
 	listItems         *connect.Client[v1.WorkStationServiceListItemsRequest, v1.WorkStationServiceListItemsResponse]
+	listFilterOptions *connect.Client[v1.WorkStationServiceListFilterOptionsRequest, v1.WorkStationServiceListFilterOptionsResponse]
 	getItem           *connect.Client[v1.WorkStationServiceGetItemRequest, v1.WorkStationServiceGetItemResponse]
 }
 
@@ -228,6 +239,11 @@ func (c *workStationServiceClient) ListItems(ctx context.Context, req *connect.R
 	return c.listItems.CallUnary(ctx, req)
 }
 
+// ListFilterOptions calls agents.v1.WorkStationService.ListFilterOptions.
+func (c *workStationServiceClient) ListFilterOptions(ctx context.Context, req *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error) {
+	return c.listFilterOptions.CallUnary(ctx, req)
+}
+
 // GetItem calls agents.v1.WorkStationService.GetItem.
 func (c *workStationServiceClient) GetItem(ctx context.Context, req *connect.Request[v1.WorkStationServiceGetItemRequest]) (*connect.Response[v1.WorkStationServiceGetItemResponse], error) {
 	return c.getItem.CallUnary(ctx, req)
@@ -245,6 +261,7 @@ type WorkStationServiceHandler interface {
 	SetSelectedScopes(context.Context, *connect.Request[v1.WorkStationServiceSetSelectedScopesRequest]) (*connect.Response[v1.WorkStationServiceSetSelectedScopesResponse], error)
 	Refresh(context.Context, *connect.Request[v1.WorkStationServiceRefreshRequest]) (*connect.Response[v1.WorkStationServiceRefreshResponse], error)
 	ListItems(context.Context, *connect.Request[v1.WorkStationServiceListItemsRequest]) (*connect.Response[v1.WorkStationServiceListItemsResponse], error)
+	ListFilterOptions(context.Context, *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error)
 	GetItem(context.Context, *connect.Request[v1.WorkStationServiceGetItemRequest]) (*connect.Response[v1.WorkStationServiceGetItemResponse], error)
 }
 
@@ -315,6 +332,12 @@ func NewWorkStationServiceHandler(svc WorkStationServiceHandler, opts ...connect
 		connect.WithSchema(workStationServiceMethods.ByName("ListItems")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workStationServiceListFilterOptionsHandler := connect.NewUnaryHandler(
+		WorkStationServiceListFilterOptionsProcedure,
+		svc.ListFilterOptions,
+		connect.WithSchema(workStationServiceMethods.ByName("ListFilterOptions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	workStationServiceGetItemHandler := connect.NewUnaryHandler(
 		WorkStationServiceGetItemProcedure,
 		svc.GetItem,
@@ -343,6 +366,8 @@ func NewWorkStationServiceHandler(svc WorkStationServiceHandler, opts ...connect
 			workStationServiceRefreshHandler.ServeHTTP(w, r)
 		case WorkStationServiceListItemsProcedure:
 			workStationServiceListItemsHandler.ServeHTTP(w, r)
+		case WorkStationServiceListFilterOptionsProcedure:
+			workStationServiceListFilterOptionsHandler.ServeHTTP(w, r)
 		case WorkStationServiceGetItemProcedure:
 			workStationServiceGetItemHandler.ServeHTTP(w, r)
 		default:
@@ -392,6 +417,10 @@ func (UnimplementedWorkStationServiceHandler) Refresh(context.Context, *connect.
 
 func (UnimplementedWorkStationServiceHandler) ListItems(context.Context, *connect.Request[v1.WorkStationServiceListItemsRequest]) (*connect.Response[v1.WorkStationServiceListItemsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.ListItems is not implemented"))
+}
+
+func (UnimplementedWorkStationServiceHandler) ListFilterOptions(context.Context, *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.ListFilterOptions is not implemented"))
 }
 
 func (UnimplementedWorkStationServiceHandler) GetItem(context.Context, *connect.Request[v1.WorkStationServiceGetItemRequest]) (*connect.Response[v1.WorkStationServiceGetItemResponse], error) {

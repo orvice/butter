@@ -30,9 +30,10 @@ Default browsing shows open Issues or Pull requests. All retained items includes
 | SetSelectedScopes | owner/global admin | Revision CAS; validate every stable repository ID; full replacement; empty means none |
 | Refresh | member | Durable intent; QUEUED/ALREADY_PENDING/RUNNING/DEFERRED/PAUSED/NO_SCOPES |
 | ListItems | member | Local source restriction → source choice → content/window filtering → keyset pagination |
+| ListFilterOptions | member | Facets from visible local projections only; no remote discovery |
 | GetItem | member | Same live-source/window authorization as ListItems |
 
-`ListFilterOptions`, additional provider tabs, and Plane Host administration from the full Spec are deferred. Selected repositories are available from ListConnections; assignee filtering currently accepts the displayed external `ID:login` value.
+`ListFilterOptions` currently derives status, assignee and label facets from up to the first 1,000 visible local items for the requested kind/scope. It never calls a provider or exposes unselected resources; complete large-scale facets and progress counts remain part of KON-64/KON-59.
 
 `internal/workstation` owns provider-independent rules. A read-only `Provider` has Probe, DiscoverScopes, ResolveScope and Scan. It cannot write the business repository or source platform. The GitHub adapter is constructed with a transport, never a workspace-supplied endpoint. It uses only GET, rejects redirects and unapproved next links, and checks public DNS destinations when opening production connections. Upstream response bodies and transport errors never become RPC errors or logs.
 

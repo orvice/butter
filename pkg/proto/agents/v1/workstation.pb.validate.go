@@ -2805,6 +2805,432 @@ var _ interface {
 	ErrorName() string
 } = WorkStationServiceListItemsResponseValidationError{}
 
+// Validate checks the field values on
+// WorkStationServiceListFilterOptionsRequest with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *WorkStationServiceListFilterOptionsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// WorkStationServiceListFilterOptionsRequest with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in
+// WorkStationServiceListFilterOptionsRequestMultiError, or nil if none found.
+func (m *WorkStationServiceListFilterOptionsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *WorkStationServiceListFilterOptionsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Kind
+
+	// no validation rules for ConnectionId
+
+	// no validation rules for ScopeId
+
+	if len(errors) > 0 {
+		return WorkStationServiceListFilterOptionsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// WorkStationServiceListFilterOptionsRequestMultiError is an error wrapping
+// multiple validation errors returned by
+// WorkStationServiceListFilterOptionsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type WorkStationServiceListFilterOptionsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m WorkStationServiceListFilterOptionsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m WorkStationServiceListFilterOptionsRequestMultiError) AllErrors() []error { return m }
+
+// WorkStationServiceListFilterOptionsRequestValidationError is the validation
+// error returned by WorkStationServiceListFilterOptionsRequest.Validate if
+// the designated constraints aren't met.
+type WorkStationServiceListFilterOptionsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WorkStationServiceListFilterOptionsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WorkStationServiceListFilterOptionsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WorkStationServiceListFilterOptionsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WorkStationServiceListFilterOptionsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WorkStationServiceListFilterOptionsRequestValidationError) ErrorName() string {
+	return "WorkStationServiceListFilterOptionsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e WorkStationServiceListFilterOptionsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWorkStationServiceListFilterOptionsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WorkStationServiceListFilterOptionsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WorkStationServiceListFilterOptionsRequestValidationError{}
+
+// Validate checks the field values on WorkStationFilterOption with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *WorkStationFilterOption) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on WorkStationFilterOption with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// WorkStationFilterOptionMultiError, or nil if none found.
+func (m *WorkStationFilterOption) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *WorkStationFilterOption) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Value
+
+	// no validation rules for Label
+
+	if len(errors) > 0 {
+		return WorkStationFilterOptionMultiError(errors)
+	}
+
+	return nil
+}
+
+// WorkStationFilterOptionMultiError is an error wrapping multiple validation
+// errors returned by WorkStationFilterOption.ValidateAll() if the designated
+// constraints aren't met.
+type WorkStationFilterOptionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m WorkStationFilterOptionMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m WorkStationFilterOptionMultiError) AllErrors() []error { return m }
+
+// WorkStationFilterOptionValidationError is the validation error returned by
+// WorkStationFilterOption.Validate if the designated constraints aren't met.
+type WorkStationFilterOptionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WorkStationFilterOptionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WorkStationFilterOptionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WorkStationFilterOptionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WorkStationFilterOptionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WorkStationFilterOptionValidationError) ErrorName() string {
+	return "WorkStationFilterOptionValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e WorkStationFilterOptionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWorkStationFilterOption.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WorkStationFilterOptionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WorkStationFilterOptionValidationError{}
+
+// Validate checks the field values on
+// WorkStationServiceListFilterOptionsResponse with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *WorkStationServiceListFilterOptionsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// WorkStationServiceListFilterOptionsResponse with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in
+// WorkStationServiceListFilterOptionsResponseMultiError, or nil if none found.
+func (m *WorkStationServiceListFilterOptionsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *WorkStationServiceListFilterOptionsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetStatuses() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Statuses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Statuses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WorkStationServiceListFilterOptionsResponseValidationError{
+					field:  fmt.Sprintf("Statuses[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	for idx, item := range m.GetAssignees() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Assignees[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Assignees[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WorkStationServiceListFilterOptionsResponseValidationError{
+					field:  fmt.Sprintf("Assignees[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	for idx, item := range m.GetLabels() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Labels[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Labels[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WorkStationServiceListFilterOptionsResponseValidationError{
+					field:  fmt.Sprintf("Labels[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return WorkStationServiceListFilterOptionsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// WorkStationServiceListFilterOptionsResponseMultiError is an error wrapping
+// multiple validation errors returned by
+// WorkStationServiceListFilterOptionsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type WorkStationServiceListFilterOptionsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m WorkStationServiceListFilterOptionsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m WorkStationServiceListFilterOptionsResponseMultiError) AllErrors() []error { return m }
+
+// WorkStationServiceListFilterOptionsResponseValidationError is the validation
+// error returned by WorkStationServiceListFilterOptionsResponse.Validate if
+// the designated constraints aren't met.
+type WorkStationServiceListFilterOptionsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e WorkStationServiceListFilterOptionsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e WorkStationServiceListFilterOptionsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e WorkStationServiceListFilterOptionsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e WorkStationServiceListFilterOptionsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e WorkStationServiceListFilterOptionsResponseValidationError) ErrorName() string {
+	return "WorkStationServiceListFilterOptionsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e WorkStationServiceListFilterOptionsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sWorkStationServiceListFilterOptionsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = WorkStationServiceListFilterOptionsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = WorkStationServiceListFilterOptionsResponseValidationError{}
+
 // Validate checks the field values on WorkStationServiceGetItemRequest with
 // the rules defined in the proto definition for this message. If any rules
 // are violated, the first error encountered is returned, or nil if there are

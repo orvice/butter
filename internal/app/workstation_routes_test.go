@@ -53,7 +53,10 @@ func TestWorkStationShutdownCancelsAndJoins(t *testing.T) {
 func TestWorkStationConnectHTTPHappyPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router, h := SetupRoutes(&config.AppConfig{Auth: config.AuthConfig{AllowUnauthenticated: true}}, daemon.NewRegistry())
-	domain := repotest.NewService(wsmemory.New(), &repotest.Provider{Items: []*v1.WorkStationItem{repotest.Item("1", "HTTP smoke", time.Now().UTC())}})
+	provider := &repotest.Provider{Items: []*v1.WorkStationItem{repotest.Item("1", "HTTP smoke", time.Now().UTC())}}
+	provider.Items[0].Assignees = []string{"u:alice"}
+	provider.Items[0].Labels = []string{"priority:high"}
+	domain := repotest.NewService(wsmemory.New(), provider)
 	h.workStationSvcServer.SetService(domain, nil)
 	engine := gin.New()
 	router(engine)
@@ -96,6 +99,10 @@ func TestWorkStationConnectHTTPHappyPath(t *testing.T) {
 	after, err := client.ListItems(ctx, connect.NewRequest(&v1.WorkStationServiceListItemsRequest{}))
 	if err != nil || len(after.Msg.Items) != 1 || after.Msg.Items[0].Title != "HTTP smoke" {
 		t.Fatal("HTTP projection", after, err)
+	}
+	facets, err := client.ListFilterOptions(ctx, connect.NewRequest(&v1.WorkStationServiceListFilterOptionsRequest{}))
+	if err != nil || len(facets.Msg.Statuses) != 1 || facets.Msg.Statuses[0].Value != "NOT_STARTED" || len(facets.Msg.Assignees) != 1 || facets.Msg.Assignees[0].Value != "u:alice" || len(facets.Msg.Labels) != 1 || facets.Msg.Labels[0].Value != "priority:high" {
+		t.Fatal("HTTP filter options", facets, err)
 	}
 	detail, err := client.GetItem(ctx, connect.NewRequest(&v1.WorkStationServiceGetItemRequest{Id: after.Msg.Items[0].Id}))
 	if err != nil || detail.Msg.Item.Title != "HTTP smoke" {

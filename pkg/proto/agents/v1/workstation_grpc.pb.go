@@ -29,6 +29,7 @@ const (
 	WorkStationService_SetSelectedScopes_FullMethodName = "/agents.v1.WorkStationService/SetSelectedScopes"
 	WorkStationService_Refresh_FullMethodName           = "/agents.v1.WorkStationService/Refresh"
 	WorkStationService_ListItems_FullMethodName         = "/agents.v1.WorkStationService/ListItems"
+	WorkStationService_ListFilterOptions_FullMethodName = "/agents.v1.WorkStationService/ListFilterOptions"
 	WorkStationService_GetItem_FullMethodName           = "/agents.v1.WorkStationService/GetItem"
 )
 
@@ -49,6 +50,7 @@ type WorkStationServiceClient interface {
 	SetSelectedScopes(ctx context.Context, in *WorkStationServiceSetSelectedScopesRequest, opts ...grpc.CallOption) (*WorkStationServiceSetSelectedScopesResponse, error)
 	Refresh(ctx context.Context, in *WorkStationServiceRefreshRequest, opts ...grpc.CallOption) (*WorkStationServiceRefreshResponse, error)
 	ListItems(ctx context.Context, in *WorkStationServiceListItemsRequest, opts ...grpc.CallOption) (*WorkStationServiceListItemsResponse, error)
+	ListFilterOptions(ctx context.Context, in *WorkStationServiceListFilterOptionsRequest, opts ...grpc.CallOption) (*WorkStationServiceListFilterOptionsResponse, error)
 	GetItem(ctx context.Context, in *WorkStationServiceGetItemRequest, opts ...grpc.CallOption) (*WorkStationServiceGetItemResponse, error)
 }
 
@@ -160,6 +162,16 @@ func (c *workStationServiceClient) ListItems(ctx context.Context, in *WorkStatio
 	return out, nil
 }
 
+func (c *workStationServiceClient) ListFilterOptions(ctx context.Context, in *WorkStationServiceListFilterOptionsRequest, opts ...grpc.CallOption) (*WorkStationServiceListFilterOptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationServiceListFilterOptionsResponse)
+	err := c.cc.Invoke(ctx, WorkStationService_ListFilterOptions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *workStationServiceClient) GetItem(ctx context.Context, in *WorkStationServiceGetItemRequest, opts ...grpc.CallOption) (*WorkStationServiceGetItemResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkStationServiceGetItemResponse)
@@ -187,6 +199,7 @@ type WorkStationServiceServer interface {
 	SetSelectedScopes(context.Context, *WorkStationServiceSetSelectedScopesRequest) (*WorkStationServiceSetSelectedScopesResponse, error)
 	Refresh(context.Context, *WorkStationServiceRefreshRequest) (*WorkStationServiceRefreshResponse, error)
 	ListItems(context.Context, *WorkStationServiceListItemsRequest) (*WorkStationServiceListItemsResponse, error)
+	ListFilterOptions(context.Context, *WorkStationServiceListFilterOptionsRequest) (*WorkStationServiceListFilterOptionsResponse, error)
 	GetItem(context.Context, *WorkStationServiceGetItemRequest) (*WorkStationServiceGetItemResponse, error)
 	mustEmbedUnimplementedWorkStationServiceServer()
 }
@@ -227,6 +240,9 @@ func (UnimplementedWorkStationServiceServer) Refresh(context.Context, *WorkStati
 }
 func (UnimplementedWorkStationServiceServer) ListItems(context.Context, *WorkStationServiceListItemsRequest) (*WorkStationServiceListItemsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListItems not implemented")
+}
+func (UnimplementedWorkStationServiceServer) ListFilterOptions(context.Context, *WorkStationServiceListFilterOptionsRequest) (*WorkStationServiceListFilterOptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFilterOptions not implemented")
 }
 func (UnimplementedWorkStationServiceServer) GetItem(context.Context, *WorkStationServiceGetItemRequest) (*WorkStationServiceGetItemResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetItem not implemented")
@@ -432,6 +448,24 @@ func _WorkStationService_ListItems_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkStationService_ListFilterOptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationServiceListFilterOptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationServiceServer).ListFilterOptions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationService_ListFilterOptions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationServiceServer).ListFilterOptions(ctx, req.(*WorkStationServiceListFilterOptionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WorkStationService_GetItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WorkStationServiceGetItemRequest)
 	if err := dec(in); err != nil {
@@ -496,6 +530,10 @@ var WorkStationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListItems",
 			Handler:    _WorkStationService_ListItems_Handler,
+		},
+		{
+			MethodName: "ListFilterOptions",
+			Handler:    _WorkStationService_ListFilterOptions_Handler,
 		},
 		{
 			MethodName: "GetItem",

@@ -18,6 +18,7 @@ service WorkStationService {
   rpc SetSelectedScopes(WorkStationServiceSetSelectedScopesRequest) returns (WorkStationServiceSetSelectedScopesResponse);
   rpc Refresh(WorkStationServiceRefreshRequest) returns (WorkStationServiceRefreshResponse);
   rpc ListItems(WorkStationServiceListItemsRequest) returns (WorkStationServiceListItemsResponse);
+  rpc ListFilterOptions(WorkStationServiceListFilterOptionsRequest) returns (WorkStationServiceListFilterOptionsResponse);
   rpc GetItem(WorkStationServiceGetItemRequest) returns (WorkStationServiceGetItemResponse);
 }
 message WorkStationServiceDeleteConnectionResponse {}
@@ -119,6 +120,20 @@ message WorkStationServiceListItemsRequest {
 message WorkStationServiceListItemsResponse {
   repeated WorkStationItem items = 1;
   string next_page_token = 2;
+}
+message WorkStationServiceListFilterOptionsRequest {
+  string kind = 1;
+  string connection_id = 2;
+  string scope_id = 3;
+}
+message WorkStationFilterOption {
+  string value = 1;
+  string label = 2;
+}
+message WorkStationServiceListFilterOptionsResponse {
+  repeated WorkStationFilterOption statuses = 1;
+  repeated WorkStationFilterOption assignees = 2;
+  repeated WorkStationFilterOption labels = 3;
 }
 message WorkStationServiceGetItemRequest {
   string id = 1;
