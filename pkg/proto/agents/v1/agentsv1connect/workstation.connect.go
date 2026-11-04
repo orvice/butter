@@ -23,6 +23,8 @@ const _ = connect.IsAtLeastVersion1_13_0
 const (
 	// WorkStationServiceName is the fully-qualified name of the WorkStationService service.
 	WorkStationServiceName = "agents.v1.WorkStationService"
+	// WorkStationHostServiceName is the fully-qualified name of the WorkStationHostService service.
+	WorkStationHostServiceName = "agents.v1.WorkStationHostService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -36,6 +38,12 @@ const (
 	// WorkStationServiceListConnectionsProcedure is the fully-qualified name of the
 	// WorkStationService's ListConnections RPC.
 	WorkStationServiceListConnectionsProcedure = "/agents.v1.WorkStationService/ListConnections"
+	// WorkStationServiceGetConnectionProcedure is the fully-qualified name of the WorkStationService's
+	// GetConnection RPC.
+	WorkStationServiceGetConnectionProcedure = "/agents.v1.WorkStationService/GetConnection"
+	// WorkStationServiceListFilterOptionsProcedure is the fully-qualified name of the
+	// WorkStationService's ListFilterOptions RPC.
+	WorkStationServiceListFilterOptionsProcedure = "/agents.v1.WorkStationService/ListFilterOptions"
 	// WorkStationServiceCreateConnectionProcedure is the fully-qualified name of the
 	// WorkStationService's CreateConnection RPC.
 	WorkStationServiceCreateConnectionProcedure = "/agents.v1.WorkStationService/CreateConnection"
@@ -63,11 +71,28 @@ const (
 	// WorkStationServiceGetItemProcedure is the fully-qualified name of the WorkStationService's
 	// GetItem RPC.
 	WorkStationServiceGetItemProcedure = "/agents.v1.WorkStationService/GetItem"
+	// WorkStationHostServiceListHostsProcedure is the fully-qualified name of the
+	// WorkStationHostService's ListHosts RPC.
+	WorkStationHostServiceListHostsProcedure = "/agents.v1.WorkStationHostService/ListHosts"
+	// WorkStationHostServiceGetHostProcedure is the fully-qualified name of the
+	// WorkStationHostService's GetHost RPC.
+	WorkStationHostServiceGetHostProcedure = "/agents.v1.WorkStationHostService/GetHost"
+	// WorkStationHostServiceCreateHostProcedure is the fully-qualified name of the
+	// WorkStationHostService's CreateHost RPC.
+	WorkStationHostServiceCreateHostProcedure = "/agents.v1.WorkStationHostService/CreateHost"
+	// WorkStationHostServiceUpdateHostProcedure is the fully-qualified name of the
+	// WorkStationHostService's UpdateHost RPC.
+	WorkStationHostServiceUpdateHostProcedure = "/agents.v1.WorkStationHostService/UpdateHost"
+	// WorkStationHostServiceDeleteHostProcedure is the fully-qualified name of the
+	// WorkStationHostService's DeleteHost RPC.
+	WorkStationHostServiceDeleteHostProcedure = "/agents.v1.WorkStationHostService/DeleteHost"
 )
 
 // WorkStationServiceClient is a client for the agents.v1.WorkStationService service.
 type WorkStationServiceClient interface {
 	ListConnections(context.Context, *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error)
+	GetConnection(context.Context, *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error)
+	ListFilterOptions(context.Context, *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error)
 	CreateConnection(context.Context, *connect.Request[v1.WorkStationServiceCreateConnectionRequest]) (*connect.Response[v1.WorkStationServiceCreateConnectionResponse], error)
 	UpdateConnection(context.Context, *connect.Request[v1.WorkStationServiceUpdateConnectionRequest]) (*connect.Response[v1.WorkStationServiceUpdateConnectionResponse], error)
 	DeleteConnection(context.Context, *connect.Request[v1.WorkStationServiceDeleteConnectionRequest]) (*connect.Response[v1.WorkStationServiceDeleteConnectionResponse], error)
@@ -94,6 +119,18 @@ func NewWorkStationServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			httpClient,
 			baseURL+WorkStationServiceListConnectionsProcedure,
 			connect.WithSchema(workStationServiceMethods.ByName("ListConnections")),
+			connect.WithClientOptions(opts...),
+		),
+		getConnection: connect.NewClient[v1.WorkStationServiceGetConnectionRequest, v1.WorkStationServiceGetConnectionResponse](
+			httpClient,
+			baseURL+WorkStationServiceGetConnectionProcedure,
+			connect.WithSchema(workStationServiceMethods.ByName("GetConnection")),
+			connect.WithClientOptions(opts...),
+		),
+		listFilterOptions: connect.NewClient[v1.WorkStationServiceListFilterOptionsRequest, v1.WorkStationServiceListFilterOptionsResponse](
+			httpClient,
+			baseURL+WorkStationServiceListFilterOptionsProcedure,
+			connect.WithSchema(workStationServiceMethods.ByName("ListFilterOptions")),
 			connect.WithClientOptions(opts...),
 		),
 		createConnection: connect.NewClient[v1.WorkStationServiceCreateConnectionRequest, v1.WorkStationServiceCreateConnectionResponse](
@@ -156,6 +193,8 @@ func NewWorkStationServiceClient(httpClient connect.HTTPClient, baseURL string, 
 // workStationServiceClient implements WorkStationServiceClient.
 type workStationServiceClient struct {
 	listConnections   *connect.Client[v1.WorkStationServiceListConnectionsRequest, v1.WorkStationServiceListConnectionsResponse]
+	getConnection     *connect.Client[v1.WorkStationServiceGetConnectionRequest, v1.WorkStationServiceGetConnectionResponse]
+	listFilterOptions *connect.Client[v1.WorkStationServiceListFilterOptionsRequest, v1.WorkStationServiceListFilterOptionsResponse]
 	createConnection  *connect.Client[v1.WorkStationServiceCreateConnectionRequest, v1.WorkStationServiceCreateConnectionResponse]
 	updateConnection  *connect.Client[v1.WorkStationServiceUpdateConnectionRequest, v1.WorkStationServiceUpdateConnectionResponse]
 	deleteConnection  *connect.Client[v1.WorkStationServiceDeleteConnectionRequest, v1.WorkStationServiceDeleteConnectionResponse]
@@ -170,6 +209,16 @@ type workStationServiceClient struct {
 // ListConnections calls agents.v1.WorkStationService.ListConnections.
 func (c *workStationServiceClient) ListConnections(ctx context.Context, req *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error) {
 	return c.listConnections.CallUnary(ctx, req)
+}
+
+// GetConnection calls agents.v1.WorkStationService.GetConnection.
+func (c *workStationServiceClient) GetConnection(ctx context.Context, req *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error) {
+	return c.getConnection.CallUnary(ctx, req)
+}
+
+// ListFilterOptions calls agents.v1.WorkStationService.ListFilterOptions.
+func (c *workStationServiceClient) ListFilterOptions(ctx context.Context, req *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error) {
+	return c.listFilterOptions.CallUnary(ctx, req)
 }
 
 // CreateConnection calls agents.v1.WorkStationService.CreateConnection.
@@ -220,6 +269,8 @@ func (c *workStationServiceClient) GetItem(ctx context.Context, req *connect.Req
 // WorkStationServiceHandler is an implementation of the agents.v1.WorkStationService service.
 type WorkStationServiceHandler interface {
 	ListConnections(context.Context, *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error)
+	GetConnection(context.Context, *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error)
+	ListFilterOptions(context.Context, *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error)
 	CreateConnection(context.Context, *connect.Request[v1.WorkStationServiceCreateConnectionRequest]) (*connect.Response[v1.WorkStationServiceCreateConnectionResponse], error)
 	UpdateConnection(context.Context, *connect.Request[v1.WorkStationServiceUpdateConnectionRequest]) (*connect.Response[v1.WorkStationServiceUpdateConnectionResponse], error)
 	DeleteConnection(context.Context, *connect.Request[v1.WorkStationServiceDeleteConnectionRequest]) (*connect.Response[v1.WorkStationServiceDeleteConnectionResponse], error)
@@ -242,6 +293,18 @@ func NewWorkStationServiceHandler(svc WorkStationServiceHandler, opts ...connect
 		WorkStationServiceListConnectionsProcedure,
 		svc.ListConnections,
 		connect.WithSchema(workStationServiceMethods.ByName("ListConnections")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workStationServiceGetConnectionHandler := connect.NewUnaryHandler(
+		WorkStationServiceGetConnectionProcedure,
+		svc.GetConnection,
+		connect.WithSchema(workStationServiceMethods.ByName("GetConnection")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workStationServiceListFilterOptionsHandler := connect.NewUnaryHandler(
+		WorkStationServiceListFilterOptionsProcedure,
+		svc.ListFilterOptions,
+		connect.WithSchema(workStationServiceMethods.ByName("ListFilterOptions")),
 		connect.WithHandlerOptions(opts...),
 	)
 	workStationServiceCreateConnectionHandler := connect.NewUnaryHandler(
@@ -302,6 +365,10 @@ func NewWorkStationServiceHandler(svc WorkStationServiceHandler, opts ...connect
 		switch r.URL.Path {
 		case WorkStationServiceListConnectionsProcedure:
 			workStationServiceListConnectionsHandler.ServeHTTP(w, r)
+		case WorkStationServiceGetConnectionProcedure:
+			workStationServiceGetConnectionHandler.ServeHTTP(w, r)
+		case WorkStationServiceListFilterOptionsProcedure:
+			workStationServiceListFilterOptionsHandler.ServeHTTP(w, r)
 		case WorkStationServiceCreateConnectionProcedure:
 			workStationServiceCreateConnectionHandler.ServeHTTP(w, r)
 		case WorkStationServiceUpdateConnectionProcedure:
@@ -331,6 +398,14 @@ type UnimplementedWorkStationServiceHandler struct{}
 
 func (UnimplementedWorkStationServiceHandler) ListConnections(context.Context, *connect.Request[v1.WorkStationServiceListConnectionsRequest]) (*connect.Response[v1.WorkStationServiceListConnectionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.ListConnections is not implemented"))
+}
+
+func (UnimplementedWorkStationServiceHandler) GetConnection(context.Context, *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.GetConnection is not implemented"))
+}
+
+func (UnimplementedWorkStationServiceHandler) ListFilterOptions(context.Context, *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.ListFilterOptions is not implemented"))
 }
 
 func (UnimplementedWorkStationServiceHandler) CreateConnection(context.Context, *connect.Request[v1.WorkStationServiceCreateConnectionRequest]) (*connect.Response[v1.WorkStationServiceCreateConnectionResponse], error) {
@@ -367,4 +442,179 @@ func (UnimplementedWorkStationServiceHandler) ListItems(context.Context, *connec
 
 func (UnimplementedWorkStationServiceHandler) GetItem(context.Context, *connect.Request[v1.WorkStationServiceGetItemRequest]) (*connect.Response[v1.WorkStationServiceGetItemResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationService.GetItem is not implemented"))
+}
+
+// WorkStationHostServiceClient is a client for the agents.v1.WorkStationHostService service.
+type WorkStationHostServiceClient interface {
+	ListHosts(context.Context, *connect.Request[v1.WorkStationHostServiceListHostsRequest]) (*connect.Response[v1.WorkStationHostServiceListHostsResponse], error)
+	GetHost(context.Context, *connect.Request[v1.WorkStationHostServiceGetHostRequest]) (*connect.Response[v1.WorkStationHostServiceGetHostResponse], error)
+	CreateHost(context.Context, *connect.Request[v1.WorkStationHostServiceCreateHostRequest]) (*connect.Response[v1.WorkStationHostServiceCreateHostResponse], error)
+	UpdateHost(context.Context, *connect.Request[v1.WorkStationHostServiceUpdateHostRequest]) (*connect.Response[v1.WorkStationHostServiceUpdateHostResponse], error)
+	DeleteHost(context.Context, *connect.Request[v1.WorkStationHostServiceDeleteHostRequest]) (*connect.Response[v1.WorkStationHostServiceDeleteHostResponse], error)
+}
+
+// NewWorkStationHostServiceClient constructs a client for the agents.v1.WorkStationHostService
+// service. By default, it uses the Connect protocol with the binary Protobuf Codec, asks for
+// gzipped responses, and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply
+// the connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewWorkStationHostServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) WorkStationHostServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	workStationHostServiceMethods := v1.File_agents_v1_workstation_proto.Services().ByName("WorkStationHostService").Methods()
+	return &workStationHostServiceClient{
+		listHosts: connect.NewClient[v1.WorkStationHostServiceListHostsRequest, v1.WorkStationHostServiceListHostsResponse](
+			httpClient,
+			baseURL+WorkStationHostServiceListHostsProcedure,
+			connect.WithSchema(workStationHostServiceMethods.ByName("ListHosts")),
+			connect.WithClientOptions(opts...),
+		),
+		getHost: connect.NewClient[v1.WorkStationHostServiceGetHostRequest, v1.WorkStationHostServiceGetHostResponse](
+			httpClient,
+			baseURL+WorkStationHostServiceGetHostProcedure,
+			connect.WithSchema(workStationHostServiceMethods.ByName("GetHost")),
+			connect.WithClientOptions(opts...),
+		),
+		createHost: connect.NewClient[v1.WorkStationHostServiceCreateHostRequest, v1.WorkStationHostServiceCreateHostResponse](
+			httpClient,
+			baseURL+WorkStationHostServiceCreateHostProcedure,
+			connect.WithSchema(workStationHostServiceMethods.ByName("CreateHost")),
+			connect.WithClientOptions(opts...),
+		),
+		updateHost: connect.NewClient[v1.WorkStationHostServiceUpdateHostRequest, v1.WorkStationHostServiceUpdateHostResponse](
+			httpClient,
+			baseURL+WorkStationHostServiceUpdateHostProcedure,
+			connect.WithSchema(workStationHostServiceMethods.ByName("UpdateHost")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteHost: connect.NewClient[v1.WorkStationHostServiceDeleteHostRequest, v1.WorkStationHostServiceDeleteHostResponse](
+			httpClient,
+			baseURL+WorkStationHostServiceDeleteHostProcedure,
+			connect.WithSchema(workStationHostServiceMethods.ByName("DeleteHost")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// workStationHostServiceClient implements WorkStationHostServiceClient.
+type workStationHostServiceClient struct {
+	listHosts  *connect.Client[v1.WorkStationHostServiceListHostsRequest, v1.WorkStationHostServiceListHostsResponse]
+	getHost    *connect.Client[v1.WorkStationHostServiceGetHostRequest, v1.WorkStationHostServiceGetHostResponse]
+	createHost *connect.Client[v1.WorkStationHostServiceCreateHostRequest, v1.WorkStationHostServiceCreateHostResponse]
+	updateHost *connect.Client[v1.WorkStationHostServiceUpdateHostRequest, v1.WorkStationHostServiceUpdateHostResponse]
+	deleteHost *connect.Client[v1.WorkStationHostServiceDeleteHostRequest, v1.WorkStationHostServiceDeleteHostResponse]
+}
+
+// ListHosts calls agents.v1.WorkStationHostService.ListHosts.
+func (c *workStationHostServiceClient) ListHosts(ctx context.Context, req *connect.Request[v1.WorkStationHostServiceListHostsRequest]) (*connect.Response[v1.WorkStationHostServiceListHostsResponse], error) {
+	return c.listHosts.CallUnary(ctx, req)
+}
+
+// GetHost calls agents.v1.WorkStationHostService.GetHost.
+func (c *workStationHostServiceClient) GetHost(ctx context.Context, req *connect.Request[v1.WorkStationHostServiceGetHostRequest]) (*connect.Response[v1.WorkStationHostServiceGetHostResponse], error) {
+	return c.getHost.CallUnary(ctx, req)
+}
+
+// CreateHost calls agents.v1.WorkStationHostService.CreateHost.
+func (c *workStationHostServiceClient) CreateHost(ctx context.Context, req *connect.Request[v1.WorkStationHostServiceCreateHostRequest]) (*connect.Response[v1.WorkStationHostServiceCreateHostResponse], error) {
+	return c.createHost.CallUnary(ctx, req)
+}
+
+// UpdateHost calls agents.v1.WorkStationHostService.UpdateHost.
+func (c *workStationHostServiceClient) UpdateHost(ctx context.Context, req *connect.Request[v1.WorkStationHostServiceUpdateHostRequest]) (*connect.Response[v1.WorkStationHostServiceUpdateHostResponse], error) {
+	return c.updateHost.CallUnary(ctx, req)
+}
+
+// DeleteHost calls agents.v1.WorkStationHostService.DeleteHost.
+func (c *workStationHostServiceClient) DeleteHost(ctx context.Context, req *connect.Request[v1.WorkStationHostServiceDeleteHostRequest]) (*connect.Response[v1.WorkStationHostServiceDeleteHostResponse], error) {
+	return c.deleteHost.CallUnary(ctx, req)
+}
+
+// WorkStationHostServiceHandler is an implementation of the agents.v1.WorkStationHostService
+// service.
+type WorkStationHostServiceHandler interface {
+	ListHosts(context.Context, *connect.Request[v1.WorkStationHostServiceListHostsRequest]) (*connect.Response[v1.WorkStationHostServiceListHostsResponse], error)
+	GetHost(context.Context, *connect.Request[v1.WorkStationHostServiceGetHostRequest]) (*connect.Response[v1.WorkStationHostServiceGetHostResponse], error)
+	CreateHost(context.Context, *connect.Request[v1.WorkStationHostServiceCreateHostRequest]) (*connect.Response[v1.WorkStationHostServiceCreateHostResponse], error)
+	UpdateHost(context.Context, *connect.Request[v1.WorkStationHostServiceUpdateHostRequest]) (*connect.Response[v1.WorkStationHostServiceUpdateHostResponse], error)
+	DeleteHost(context.Context, *connect.Request[v1.WorkStationHostServiceDeleteHostRequest]) (*connect.Response[v1.WorkStationHostServiceDeleteHostResponse], error)
+}
+
+// NewWorkStationHostServiceHandler builds an HTTP handler from the service implementation. It
+// returns the path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewWorkStationHostServiceHandler(svc WorkStationHostServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	workStationHostServiceMethods := v1.File_agents_v1_workstation_proto.Services().ByName("WorkStationHostService").Methods()
+	workStationHostServiceListHostsHandler := connect.NewUnaryHandler(
+		WorkStationHostServiceListHostsProcedure,
+		svc.ListHosts,
+		connect.WithSchema(workStationHostServiceMethods.ByName("ListHosts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workStationHostServiceGetHostHandler := connect.NewUnaryHandler(
+		WorkStationHostServiceGetHostProcedure,
+		svc.GetHost,
+		connect.WithSchema(workStationHostServiceMethods.ByName("GetHost")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workStationHostServiceCreateHostHandler := connect.NewUnaryHandler(
+		WorkStationHostServiceCreateHostProcedure,
+		svc.CreateHost,
+		connect.WithSchema(workStationHostServiceMethods.ByName("CreateHost")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workStationHostServiceUpdateHostHandler := connect.NewUnaryHandler(
+		WorkStationHostServiceUpdateHostProcedure,
+		svc.UpdateHost,
+		connect.WithSchema(workStationHostServiceMethods.ByName("UpdateHost")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workStationHostServiceDeleteHostHandler := connect.NewUnaryHandler(
+		WorkStationHostServiceDeleteHostProcedure,
+		svc.DeleteHost,
+		connect.WithSchema(workStationHostServiceMethods.ByName("DeleteHost")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/agents.v1.WorkStationHostService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case WorkStationHostServiceListHostsProcedure:
+			workStationHostServiceListHostsHandler.ServeHTTP(w, r)
+		case WorkStationHostServiceGetHostProcedure:
+			workStationHostServiceGetHostHandler.ServeHTTP(w, r)
+		case WorkStationHostServiceCreateHostProcedure:
+			workStationHostServiceCreateHostHandler.ServeHTTP(w, r)
+		case WorkStationHostServiceUpdateHostProcedure:
+			workStationHostServiceUpdateHostHandler.ServeHTTP(w, r)
+		case WorkStationHostServiceDeleteHostProcedure:
+			workStationHostServiceDeleteHostHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedWorkStationHostServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedWorkStationHostServiceHandler struct{}
+
+func (UnimplementedWorkStationHostServiceHandler) ListHosts(context.Context, *connect.Request[v1.WorkStationHostServiceListHostsRequest]) (*connect.Response[v1.WorkStationHostServiceListHostsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationHostService.ListHosts is not implemented"))
+}
+
+func (UnimplementedWorkStationHostServiceHandler) GetHost(context.Context, *connect.Request[v1.WorkStationHostServiceGetHostRequest]) (*connect.Response[v1.WorkStationHostServiceGetHostResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationHostService.GetHost is not implemented"))
+}
+
+func (UnimplementedWorkStationHostServiceHandler) CreateHost(context.Context, *connect.Request[v1.WorkStationHostServiceCreateHostRequest]) (*connect.Response[v1.WorkStationHostServiceCreateHostResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationHostService.CreateHost is not implemented"))
+}
+
+func (UnimplementedWorkStationHostServiceHandler) UpdateHost(context.Context, *connect.Request[v1.WorkStationHostServiceUpdateHostRequest]) (*connect.Response[v1.WorkStationHostServiceUpdateHostResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationHostService.UpdateHost is not implemented"))
+}
+
+func (UnimplementedWorkStationHostServiceHandler) DeleteHost(context.Context, *connect.Request[v1.WorkStationHostServiceDeleteHostRequest]) (*connect.Response[v1.WorkStationHostServiceDeleteHostResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.WorkStationHostService.DeleteHost is not implemented"))
 }

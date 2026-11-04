@@ -20,6 +20,8 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	WorkStationService_ListConnections_FullMethodName   = "/agents.v1.WorkStationService/ListConnections"
+	WorkStationService_GetConnection_FullMethodName     = "/agents.v1.WorkStationService/GetConnection"
+	WorkStationService_ListFilterOptions_FullMethodName = "/agents.v1.WorkStationService/ListFilterOptions"
 	WorkStationService_CreateConnection_FullMethodName  = "/agents.v1.WorkStationService/CreateConnection"
 	WorkStationService_UpdateConnection_FullMethodName  = "/agents.v1.WorkStationService/UpdateConnection"
 	WorkStationService_DeleteConnection_FullMethodName  = "/agents.v1.WorkStationService/DeleteConnection"
@@ -36,9 +38,11 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // Work Station is a workspace-shared, read-only projection. Credentials never
-// appear on readable messages. This first implementation supports GitHub.com.
+// appear on readable messages. Provider profiles have only read capabilities.
 type WorkStationServiceClient interface {
 	ListConnections(ctx context.Context, in *WorkStationServiceListConnectionsRequest, opts ...grpc.CallOption) (*WorkStationServiceListConnectionsResponse, error)
+	GetConnection(ctx context.Context, in *WorkStationServiceGetConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceGetConnectionResponse, error)
+	ListFilterOptions(ctx context.Context, in *WorkStationServiceListFilterOptionsRequest, opts ...grpc.CallOption) (*WorkStationServiceListFilterOptionsResponse, error)
 	CreateConnection(ctx context.Context, in *WorkStationServiceCreateConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceCreateConnectionResponse, error)
 	UpdateConnection(ctx context.Context, in *WorkStationServiceUpdateConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceUpdateConnectionResponse, error)
 	DeleteConnection(ctx context.Context, in *WorkStationServiceDeleteConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceDeleteConnectionResponse, error)
@@ -62,6 +66,26 @@ func (c *workStationServiceClient) ListConnections(ctx context.Context, in *Work
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkStationServiceListConnectionsResponse)
 	err := c.cc.Invoke(ctx, WorkStationService_ListConnections_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workStationServiceClient) GetConnection(ctx context.Context, in *WorkStationServiceGetConnectionRequest, opts ...grpc.CallOption) (*WorkStationServiceGetConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationServiceGetConnectionResponse)
+	err := c.cc.Invoke(ctx, WorkStationService_GetConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workStationServiceClient) ListFilterOptions(ctx context.Context, in *WorkStationServiceListFilterOptionsRequest, opts ...grpc.CallOption) (*WorkStationServiceListFilterOptionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationServiceListFilterOptionsResponse)
+	err := c.cc.Invoke(ctx, WorkStationService_ListFilterOptions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -163,9 +187,11 @@ func (c *workStationServiceClient) GetItem(ctx context.Context, in *WorkStationS
 // for forward compatibility.
 //
 // Work Station is a workspace-shared, read-only projection. Credentials never
-// appear on readable messages. This first implementation supports GitHub.com.
+// appear on readable messages. Provider profiles have only read capabilities.
 type WorkStationServiceServer interface {
 	ListConnections(context.Context, *WorkStationServiceListConnectionsRequest) (*WorkStationServiceListConnectionsResponse, error)
+	GetConnection(context.Context, *WorkStationServiceGetConnectionRequest) (*WorkStationServiceGetConnectionResponse, error)
+	ListFilterOptions(context.Context, *WorkStationServiceListFilterOptionsRequest) (*WorkStationServiceListFilterOptionsResponse, error)
 	CreateConnection(context.Context, *WorkStationServiceCreateConnectionRequest) (*WorkStationServiceCreateConnectionResponse, error)
 	UpdateConnection(context.Context, *WorkStationServiceUpdateConnectionRequest) (*WorkStationServiceUpdateConnectionResponse, error)
 	DeleteConnection(context.Context, *WorkStationServiceDeleteConnectionRequest) (*WorkStationServiceDeleteConnectionResponse, error)
@@ -187,6 +213,12 @@ type UnimplementedWorkStationServiceServer struct{}
 
 func (UnimplementedWorkStationServiceServer) ListConnections(context.Context, *WorkStationServiceListConnectionsRequest) (*WorkStationServiceListConnectionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListConnections not implemented")
+}
+func (UnimplementedWorkStationServiceServer) GetConnection(context.Context, *WorkStationServiceGetConnectionRequest) (*WorkStationServiceGetConnectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetConnection not implemented")
+}
+func (UnimplementedWorkStationServiceServer) ListFilterOptions(context.Context, *WorkStationServiceListFilterOptionsRequest) (*WorkStationServiceListFilterOptionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFilterOptions not implemented")
 }
 func (UnimplementedWorkStationServiceServer) CreateConnection(context.Context, *WorkStationServiceCreateConnectionRequest) (*WorkStationServiceCreateConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateConnection not implemented")
@@ -250,6 +282,42 @@ func _WorkStationService_ListConnections_Handler(srv interface{}, ctx context.Co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkStationServiceServer).ListConnections(ctx, req.(*WorkStationServiceListConnectionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkStationService_GetConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationServiceGetConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationServiceServer).GetConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationService_GetConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationServiceServer).GetConnection(ctx, req.(*WorkStationServiceGetConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkStationService_ListFilterOptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationServiceListFilterOptionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationServiceServer).ListFilterOptions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationService_ListFilterOptions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationServiceServer).ListFilterOptions(ctx, req.(*WorkStationServiceListFilterOptionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -428,6 +496,14 @@ var WorkStationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _WorkStationService_ListConnections_Handler,
 		},
 		{
+			MethodName: "GetConnection",
+			Handler:    _WorkStationService_GetConnection_Handler,
+		},
+		{
+			MethodName: "ListFilterOptions",
+			Handler:    _WorkStationService_ListFilterOptions_Handler,
+		},
+		{
 			MethodName: "CreateConnection",
 			Handler:    _WorkStationService_CreateConnection_Handler,
 		},
@@ -462,6 +538,265 @@ var WorkStationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetItem",
 			Handler:    _WorkStationService_GetItem_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "agents/v1/workstation.proto",
+}
+
+const (
+	WorkStationHostService_ListHosts_FullMethodName  = "/agents.v1.WorkStationHostService/ListHosts"
+	WorkStationHostService_GetHost_FullMethodName    = "/agents.v1.WorkStationHostService/GetHost"
+	WorkStationHostService_CreateHost_FullMethodName = "/agents.v1.WorkStationHostService/CreateHost"
+	WorkStationHostService_UpdateHost_FullMethodName = "/agents.v1.WorkStationHostService/UpdateHost"
+	WorkStationHostService_DeleteHost_FullMethodName = "/agents.v1.WorkStationHostService/DeleteHost"
+)
+
+// WorkStationHostServiceClient is the client API for WorkStationHostService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Global admin approved Plane v2 endpoints. Contains no workspace credential.
+type WorkStationHostServiceClient interface {
+	ListHosts(ctx context.Context, in *WorkStationHostServiceListHostsRequest, opts ...grpc.CallOption) (*WorkStationHostServiceListHostsResponse, error)
+	GetHost(ctx context.Context, in *WorkStationHostServiceGetHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceGetHostResponse, error)
+	CreateHost(ctx context.Context, in *WorkStationHostServiceCreateHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceCreateHostResponse, error)
+	UpdateHost(ctx context.Context, in *WorkStationHostServiceUpdateHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceUpdateHostResponse, error)
+	DeleteHost(ctx context.Context, in *WorkStationHostServiceDeleteHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceDeleteHostResponse, error)
+}
+
+type workStationHostServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewWorkStationHostServiceClient(cc grpc.ClientConnInterface) WorkStationHostServiceClient {
+	return &workStationHostServiceClient{cc}
+}
+
+func (c *workStationHostServiceClient) ListHosts(ctx context.Context, in *WorkStationHostServiceListHostsRequest, opts ...grpc.CallOption) (*WorkStationHostServiceListHostsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationHostServiceListHostsResponse)
+	err := c.cc.Invoke(ctx, WorkStationHostService_ListHosts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workStationHostServiceClient) GetHost(ctx context.Context, in *WorkStationHostServiceGetHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceGetHostResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationHostServiceGetHostResponse)
+	err := c.cc.Invoke(ctx, WorkStationHostService_GetHost_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workStationHostServiceClient) CreateHost(ctx context.Context, in *WorkStationHostServiceCreateHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceCreateHostResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationHostServiceCreateHostResponse)
+	err := c.cc.Invoke(ctx, WorkStationHostService_CreateHost_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workStationHostServiceClient) UpdateHost(ctx context.Context, in *WorkStationHostServiceUpdateHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceUpdateHostResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationHostServiceUpdateHostResponse)
+	err := c.cc.Invoke(ctx, WorkStationHostService_UpdateHost_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workStationHostServiceClient) DeleteHost(ctx context.Context, in *WorkStationHostServiceDeleteHostRequest, opts ...grpc.CallOption) (*WorkStationHostServiceDeleteHostResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkStationHostServiceDeleteHostResponse)
+	err := c.cc.Invoke(ctx, WorkStationHostService_DeleteHost_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// WorkStationHostServiceServer is the server API for WorkStationHostService service.
+// All implementations must embed UnimplementedWorkStationHostServiceServer
+// for forward compatibility.
+//
+// Global admin approved Plane v2 endpoints. Contains no workspace credential.
+type WorkStationHostServiceServer interface {
+	ListHosts(context.Context, *WorkStationHostServiceListHostsRequest) (*WorkStationHostServiceListHostsResponse, error)
+	GetHost(context.Context, *WorkStationHostServiceGetHostRequest) (*WorkStationHostServiceGetHostResponse, error)
+	CreateHost(context.Context, *WorkStationHostServiceCreateHostRequest) (*WorkStationHostServiceCreateHostResponse, error)
+	UpdateHost(context.Context, *WorkStationHostServiceUpdateHostRequest) (*WorkStationHostServiceUpdateHostResponse, error)
+	DeleteHost(context.Context, *WorkStationHostServiceDeleteHostRequest) (*WorkStationHostServiceDeleteHostResponse, error)
+	mustEmbedUnimplementedWorkStationHostServiceServer()
+}
+
+// UnimplementedWorkStationHostServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedWorkStationHostServiceServer struct{}
+
+func (UnimplementedWorkStationHostServiceServer) ListHosts(context.Context, *WorkStationHostServiceListHostsRequest) (*WorkStationHostServiceListHostsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListHosts not implemented")
+}
+func (UnimplementedWorkStationHostServiceServer) GetHost(context.Context, *WorkStationHostServiceGetHostRequest) (*WorkStationHostServiceGetHostResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHost not implemented")
+}
+func (UnimplementedWorkStationHostServiceServer) CreateHost(context.Context, *WorkStationHostServiceCreateHostRequest) (*WorkStationHostServiceCreateHostResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateHost not implemented")
+}
+func (UnimplementedWorkStationHostServiceServer) UpdateHost(context.Context, *WorkStationHostServiceUpdateHostRequest) (*WorkStationHostServiceUpdateHostResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateHost not implemented")
+}
+func (UnimplementedWorkStationHostServiceServer) DeleteHost(context.Context, *WorkStationHostServiceDeleteHostRequest) (*WorkStationHostServiceDeleteHostResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteHost not implemented")
+}
+func (UnimplementedWorkStationHostServiceServer) mustEmbedUnimplementedWorkStationHostServiceServer() {
+}
+func (UnimplementedWorkStationHostServiceServer) testEmbeddedByValue() {}
+
+// UnsafeWorkStationHostServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to WorkStationHostServiceServer will
+// result in compilation errors.
+type UnsafeWorkStationHostServiceServer interface {
+	mustEmbedUnimplementedWorkStationHostServiceServer()
+}
+
+func RegisterWorkStationHostServiceServer(s grpc.ServiceRegistrar, srv WorkStationHostServiceServer) {
+	// If the following call panics, it indicates UnimplementedWorkStationHostServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&WorkStationHostService_ServiceDesc, srv)
+}
+
+func _WorkStationHostService_ListHosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationHostServiceListHostsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationHostServiceServer).ListHosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationHostService_ListHosts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationHostServiceServer).ListHosts(ctx, req.(*WorkStationHostServiceListHostsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkStationHostService_GetHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationHostServiceGetHostRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationHostServiceServer).GetHost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationHostService_GetHost_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationHostServiceServer).GetHost(ctx, req.(*WorkStationHostServiceGetHostRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkStationHostService_CreateHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationHostServiceCreateHostRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationHostServiceServer).CreateHost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationHostService_CreateHost_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationHostServiceServer).CreateHost(ctx, req.(*WorkStationHostServiceCreateHostRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkStationHostService_UpdateHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationHostServiceUpdateHostRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationHostServiceServer).UpdateHost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationHostService_UpdateHost_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationHostServiceServer).UpdateHost(ctx, req.(*WorkStationHostServiceUpdateHostRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkStationHostService_DeleteHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkStationHostServiceDeleteHostRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkStationHostServiceServer).DeleteHost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkStationHostService_DeleteHost_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkStationHostServiceServer).DeleteHost(ctx, req.(*WorkStationHostServiceDeleteHostRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// WorkStationHostService_ServiceDesc is the grpc.ServiceDesc for WorkStationHostService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var WorkStationHostService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "agents.v1.WorkStationHostService",
+	HandlerType: (*WorkStationHostServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListHosts",
+			Handler:    _WorkStationHostService_ListHosts_Handler,
+		},
+		{
+			MethodName: "GetHost",
+			Handler:    _WorkStationHostService_GetHost_Handler,
+		},
+		{
+			MethodName: "CreateHost",
+			Handler:    _WorkStationHostService_CreateHost_Handler,
+		},
+		{
+			MethodName: "UpdateHost",
+			Handler:    _WorkStationHostService_UpdateHost_Handler,
+		},
+		{
+			MethodName: "DeleteHost",
+			Handler:    _WorkStationHostService_DeleteHost_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

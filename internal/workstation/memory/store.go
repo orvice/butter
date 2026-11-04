@@ -4,6 +4,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,12 +18,16 @@ type Store struct {
 	records      map[string]ws.Record
 	observations []ws.Observation
 	Clock        func() time.Time
+	hosts        map[string]ws.Host
+	budgets      map[string]time.Time
 }
 
-func New() *Store             { return &Store{records: map[string]ws.Record{}, Clock: time.Now} }
+func New() *Store {
+	return &Store{records: map[string]ws.Record{}, hosts: map[string]ws.Host{}, budgets: map[string]time.Time{}, Clock: time.Now}
+}
 func key(w, id string) string { return w + "\x00" + id }
 func clone(r ws.Record) ws.Record {
-	r.Scopes = append([]ws.Scope(nil), r.Scopes...)
+	r.Scopes = ws.CloneScopes(r.Scopes)
 	return r
 }
 
@@ -148,7 +153,7 @@ func (s *Store) Collect(ctx context.Context) error {
 		r, ok := s.records[key(o.WorkspaceID, o.ConnectionID)]
 		current := false
 		for _, sc := range r.Scopes {
-			if sc.Snapshot == o.Snapshot {
+			if sc.Snapshot == o.Snapshot || (sc.Pending != nil && slices.Contains(sc.Pending.Batches, o.Snapshot)) {
 				current = true
 			}
 		}
@@ -167,4 +172,25 @@ func hasClaim(r ws.Record, token string) bool {
 		}
 	}
 	return false
+}
+
+func (s *Store) Facets(ctx context.Context, w string, q ws.Query, dimension, search, after string, limit int) ([]*v1.WorkStationFilterOption, error) {
+	q.Limit = 0
+	items, err := s.Query(ctx, w, q)
+	if err != nil {
+		return nil, err
+	}
+	return ws.ProjectOptions(items, dimension, search, after, limit), nil
+}
+
+func (s *Store) Staged(_ context.Context, w, connection, scope string, tokens []string) ([]*v1.WorkStationItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []*v1.WorkStationItem{}
+	for _, o := range s.observations {
+		if o.WorkspaceID == w && o.ConnectionID == connection && o.ScopeID == scope && slices.Contains(tokens, o.Snapshot) {
+			out = append(out, proto.Clone(o.Item).(*v1.WorkStationItem))
+		}
+	}
+	return out, nil
 }

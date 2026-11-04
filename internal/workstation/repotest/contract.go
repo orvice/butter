@@ -76,6 +76,7 @@ func list(t *testing.T, s *ws.Service, w string, q ws.Query) []*v1.WorkStationIt
 	return items
 }
 func Run(t *testing.T, newRepo func(*testing.T) ws.Repository) {
+	RunFoundation(t, newRepo)
 	t.Run("hidden_scope_recovery", func(t *testing.T) { RunScopeRecovery(t, newRepo(t)) })
 	t.Run("staging_visibility_and_workspace_isolation", func(t *testing.T) {
 		repo := newRepo(t)

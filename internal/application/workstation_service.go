@@ -121,7 +121,7 @@ func (s *WorkStationServiceServer) CreateConnection(ctx context.Context, req *co
 	if err != nil {
 		return nil, err
 	}
-	r, err := s.service.Create(ctx, w, req.Msg.Name, req.Msg.HostId, req.Msg.ApiKey)
+	r, err := s.service.CreateFor(ctx, w, req.Msg.Name, req.Msg.Provider, req.Msg.HostId, req.Msg.ExternalWorkspaceSlug, req.Msg.ApiKey)
 	if err != nil {
 		return nil, stationError(err)
 	}
@@ -201,7 +201,7 @@ func (s *WorkStationServiceServer) ListItems(ctx context.Context, req *connect.R
 	if err != nil {
 		return nil, err
 	}
-	q := ws.Query{Kind: req.Msg.Kind, ConnectionID: req.Msg.ConnectionId, ScopeID: req.Msg.ScopeId, Status: req.Msg.Status, Assignee: req.Msg.Assignee, Keyword: req.Msg.Keyword, Limit: int(req.Msg.PageSize)}
+	q := ws.Query{Kind: req.Msg.Kind, ConnectionID: req.Msg.ConnectionId, ScopeID: req.Msg.ScopeId, Status: req.Msg.Status, Assignee: req.Msg.Assignee, Keyword: req.Msg.Keyword, Limit: int(req.Msg.PageSize), Provider: req.Msg.Provider, ProjectID: req.Msg.ProjectId}
 	items, next, err := s.service.List(ctx, w, q, req.Msg.PageToken)
 	if err != nil {
 		return nil, stationError(err)
@@ -218,4 +218,36 @@ func (s *WorkStationServiceServer) GetItem(ctx context.Context, req *connect.Req
 		return nil, stationError(err)
 	}
 	return connect.NewResponse(&v1.WorkStationServiceGetItemResponse{Item: item}), nil
+}
+
+func (s *WorkStationServiceServer) GetConnection(ctx context.Context, req *connect.Request[v1.WorkStationServiceGetConnectionRequest]) (*connect.Response[v1.WorkStationServiceGetConnectionResponse], error) {
+	w, err := s.authorize(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	if req.Msg.Id == "" {
+		return nil, stationError(ws.ErrInvalid)
+	}
+	connections, err := s.service.Connections(ctx, w)
+	if err != nil {
+		return nil, stationError(err)
+	}
+	for _, c := range connections {
+		if c.Id == req.Msg.Id {
+			return connect.NewResponse(&v1.WorkStationServiceGetConnectionResponse{Connection: c}), nil
+		}
+	}
+	return nil, stationError(ws.ErrNotFound)
+}
+func (s *WorkStationServiceServer) ListFilterOptions(ctx context.Context, req *connect.Request[v1.WorkStationServiceListFilterOptionsRequest]) (*connect.Response[v1.WorkStationServiceListFilterOptionsResponse], error) {
+	w, err := s.authorize(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	q := ws.Query{Kind: req.Msg.Kind, ConnectionID: req.Msg.ConnectionId, ScopeID: req.Msg.ScopeId, Provider: req.Msg.Provider}
+	options, next, err := s.service.FilterOptions(ctx, w, q, req.Msg.Dimension, req.Msg.Search, req.Msg.PageToken, int(req.Msg.PageSize))
+	if err != nil {
+		return nil, stationError(err)
+	}
+	return connect.NewResponse(&v1.WorkStationServiceListFilterOptionsResponse{Options: options, NextPageToken: next}), nil
 }

@@ -7,15 +7,17 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/workstation"
-	workstationgithub "go.orx.me/apps/butter/internal/workstation/github"
 )
 
 func (h *Handlers) wireWorkStation(result *BootstrapResult) {
 	if h.workStationSvcServer == nil || result.WorkStationRepo == nil {
 		return
 	}
-	station := &workstation.Service{Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), Provider: workstationgithub.New(nil), CheckHost: application.WorkStationHostCheck(result.GitHostRepo)}
+	station := &workstation.Service{Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), ResolveProvider: application.WorkStationProviders(result.GitHostRepo, result.WorkStationRepo)}
 	h.workStationSvcServer.SetService(station, result.WorkspaceRepo)
+	if h.workStationHostSvcServer != nil {
+		h.workStationHostSvcServer.SetRepo(result.WorkStationRepo)
+	}
 	h.gitHostSvcServer.SetWorkStationHostGuard(result.WorkStationRepo.HostInUse)
 	ctx, cancel := context.WithCancel(context.Background())
 	h.stopWorkStation = cancel

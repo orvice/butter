@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/workstation.proto.
  */
 export const file_agents_v1_workstation: GenFile = /*@__PURE__*/
-  fileDesc("ChthZ2VudHMvdjEvd29ya3N0YXRpb24ucHJvdG8SCWFnZW50cy52MSIsCipXb3JrU3RhdGlvblNlcnZpY2VEZWxldGVDb25uZWN0aW9uUmVzcG9uc2UiKgooV29ya1N0YXRpb25TZXJ2aWNlTGlzdENvbm5lY3Rpb25zUmVxdWVzdCJiCilXb3JrU3RhdGlvblNlcnZpY2VMaXN0Q29ubmVjdGlvbnNSZXNwb25zZRI1Cgtjb25uZWN0aW9ucxgBIAMoCzIgLmFnZW50cy52MS5Xb3JrU3RhdGlvbkNvbm5lY3Rpb24i0QEKFVdvcmtTdGF0aW9uQ29ubmVjdGlvbhIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHByb3ZpZGVyGAMgASgJEg8KB2hvc3RfaWQYBCABKAkSFAoMcHJpbmNpcGFsX2lkGAUgASgJEhAKCHJldmlzaW9uGAYgASgDEhYKDmNyZWRlbnRpYWxfc2V0GAcgASgIEg4KBnBhdXNlZBgIIAEoCBIrCgZzY29wZXMYCSADKAsyGy5hZ2VudHMudjEuV29ya1N0YXRpb25TY29wZSLwAQoQV29ya1N0YXRpb25TY29wZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBmhlYWx0aBgDIAEoCRIQCghjb3ZlcmFnZRgEIAEoCRIhChl1bnJlc29sdmVkX3Rlcm1pbmFsX2NvdW50GAUgASgNEjMKD2xhc3Rfc3VjY2Vzc19hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPbmV4dF9hdHRlbXB0X2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtpbml0aWFsaXplZBgIIAEoCCJbCilXb3JrU3RhdGlvblNlcnZpY2VDcmVhdGVDb25uZWN0aW9uUmVxdWVzdBIMCgRuYW1lGAEgASgJEg8KB2hvc3RfaWQYAiABKAkSDwoHYXBpX2tleRgDIAEoCSKCAQopV29ya1N0YXRpb25TZXJ2aWNlVXBkYXRlQ29ubmVjdGlvblJlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSDAoEbmFtZRgDIAEoCRIUCgdhcGlfa2V5GAQgASgJSACIAQFCCgoIX2FwaV9rZXkiUgopV29ya1N0YXRpb25TZXJ2aWNlRGVsZXRlQ29ubmVjdGlvblJlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMiNQonV29ya1N0YXRpb25TZXJ2aWNlVGVzdENvbm5lY3Rpb25SZXF1ZXN0EgoKAmlkGAEgASgJIi4KIFdvcmtTdGF0aW9uU2VydmljZVJlZnJlc2hSZXF1ZXN0EgoKAmlkGAEgASgJImIKKldvcmtTdGF0aW9uU2VydmljZUNyZWF0ZUNvbm5lY3Rpb25SZXNwb25zZRI0Cgpjb25uZWN0aW9uGAEgASgLMiAuYWdlbnRzLnYxLldvcmtTdGF0aW9uQ29ubmVjdGlvbiJiCipXb3JrU3RhdGlvblNlcnZpY2VVcGRhdGVDb25uZWN0aW9uUmVzcG9uc2USNAoKY29ubmVjdGlvbhgBIAEoCzIgLmFnZW50cy52MS5Xb3JrU3RhdGlvbkNvbm5lY3Rpb24iYAooV29ya1N0YXRpb25TZXJ2aWNlVGVzdENvbm5lY3Rpb25SZXNwb25zZRI0Cgpjb25uZWN0aW9uGAEgASgLMiAuYWdlbnRzLnYxLldvcmtTdGF0aW9uQ29ubmVjdGlvbiJjCitXb3JrU3RhdGlvblNlcnZpY2VTZXRTZWxlY3RlZFNjb3Blc1Jlc3BvbnNlEjQKCmNvbm5lY3Rpb24YASABKAsyIC5hZ2VudHMudjEuV29ya1N0YXRpb25Db25uZWN0aW9uIkkKJ1dvcmtTdGF0aW9uU2VydmljZURpc2NvdmVyU2NvcGVzUmVxdWVzdBIKCgJpZBgBIAEoCRISCgpwYWdlX3Rva2VuGAIgASgJInAKKFdvcmtTdGF0aW9uU2VydmljZURpc2NvdmVyU2NvcGVzUmVzcG9uc2USKwoGc2NvcGVzGAEgAygLMhsuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2NvcGUSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJImYKKldvcmtTdGF0aW9uU2VydmljZVNldFNlbGVjdGVkU2NvcGVzUmVxdWVzdBIKCgJpZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoAxIRCglzY29wZV9pZHMYAyADKAkiaAohV29ya1N0YXRpb25TZXJ2aWNlUmVmcmVzaFJlc3BvbnNlEg4KBnN0YXR1cxgBIAEoCRIzCg9uZXh0X2F0dGVtcHRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIrUBCiJXb3JrU3RhdGlvblNlcnZpY2VMaXN0SXRlbXNSZXF1ZXN0EgwKBGtpbmQYASABKAkSFQoNY29ubmVjdGlvbl9pZBgCIAEoCRIQCghzY29wZV9pZBgDIAEoCRIOCgZzdGF0dXMYBCABKAkSEAoIYXNzaWduZWUYBSABKAkSDwoHa2V5d29yZBgGIAEoCRIRCglwYWdlX3NpemUYByABKAUSEgoKcGFnZV90b2tlbhgIIAEoCSJpCiNXb3JrU3RhdGlvblNlcnZpY2VMaXN0SXRlbXNSZXNwb25zZRIpCgVpdGVtcxgBIAMoCzIaLmFnZW50cy52MS5Xb3JrU3RhdGlvbkl0ZW0SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIi4KIFdvcmtTdGF0aW9uU2VydmljZUdldEl0ZW1SZXF1ZXN0EgoKAmlkGAEgASgJIk0KIVdvcmtTdGF0aW9uU2VydmljZUdldEl0ZW1SZXNwb25zZRIoCgRpdGVtGAEgASgLMhouYWdlbnRzLnYxLldvcmtTdGF0aW9uSXRlbSI8ChFXb3JrU3RhdGlvblNvdXJjZRIVCg1jb25uZWN0aW9uX2lkGAEgASgJEhAKCHNjb3BlX2lkGAIgASgJIs0ECg9Xb3JrU3RhdGlvbkl0ZW0SCgoCaWQYASABKAkSEAoIcHJvdmlkZXIYAiABKAkSDAoEa2luZBgDIAEoCRIRCglyZW1vdGVfaWQYBCABKAkSEgoKaWRlbnRpZmllchgFIAEoCRIQCghzY29wZV9pZBgGIAEoCRISCgpzY29wZV9uYW1lGAcgASgJEg0KBXRpdGxlGAggASgJEhMKC2Rlc2NyaXB0aW9uGAkgASgJEh0KFWRlc2NyaXB0aW9uX2F2YWlsYWJsZRgKIAEoCBILCgN1cmwYCyABKAkSEQoJcmF3X3N0YXRlGAwgASgJEg4KBnN0YXR1cxgNIAEoCRIQCgh0ZXJtaW5hbBgOIAEoCBINCgVkcmFmdBgPIAEoCBIOCgZhdXRob3IYECABKAkSEQoJYXNzaWduZWVzGBEgAygJEg4KBmxhYmVscxgSIAMoCRI1ChFzb3VyY2VfY3JlYXRlZF9hdBgTIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASNQoRc291cmNlX3VwZGF0ZWRfYXQYFCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiwKCGVuZGVkX2F0GBUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtvYnNlcnZlZF9hdBgWIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLQoHc291cmNlcxgXIAMoCzIcLmFnZW50cy52MS5Xb3JrU3RhdGlvblNvdXJjZTLICQoSV29ya1N0YXRpb25TZXJ2aWNlEnwKD0xpc3RDb25uZWN0aW9ucxIzLmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VMaXN0Q29ubmVjdGlvbnNSZXF1ZXN0GjQuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZUxpc3RDb25uZWN0aW9uc1Jlc3BvbnNlEn8KEENyZWF0ZUNvbm5lY3Rpb24SNC5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlQ3JlYXRlQ29ubmVjdGlvblJlcXVlc3QaNS5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlQ3JlYXRlQ29ubmVjdGlvblJlc3BvbnNlEn8KEFVwZGF0ZUNvbm5lY3Rpb24SNC5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlVXBkYXRlQ29ubmVjdGlvblJlcXVlc3QaNS5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlVXBkYXRlQ29ubmVjdGlvblJlc3BvbnNlEn8KEERlbGV0ZUNvbm5lY3Rpb24SNC5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlRGVsZXRlQ29ubmVjdGlvblJlcXVlc3QaNS5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlRGVsZXRlQ29ubmVjdGlvblJlc3BvbnNlEnkKDlRlc3RDb25uZWN0aW9uEjIuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZVRlc3RDb25uZWN0aW9uUmVxdWVzdBozLmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VUZXN0Q29ubmVjdGlvblJlc3BvbnNlEnkKDkRpc2NvdmVyU2NvcGVzEjIuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZURpc2NvdmVyU2NvcGVzUmVxdWVzdBozLmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VEaXNjb3ZlclNjb3Blc1Jlc3BvbnNlEoIBChFTZXRTZWxlY3RlZFNjb3BlcxI1LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VTZXRTZWxlY3RlZFNjb3Blc1JlcXVlc3QaNi5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlU2V0U2VsZWN0ZWRTY29wZXNSZXNwb25zZRJkCgdSZWZyZXNoEisuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZVJlZnJlc2hSZXF1ZXN0GiwuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZVJlZnJlc2hSZXNwb25zZRJqCglMaXN0SXRlbXMSLS5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlTGlzdEl0ZW1zUmVxdWVzdBouLmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VMaXN0SXRlbXNSZXNwb25zZRJkCgdHZXRJdGVtEisuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZUdldEl0ZW1SZXF1ZXN0GiwuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZUdldEl0ZW1SZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChthZ2VudHMvdjEvd29ya3N0YXRpb24ucHJvdG8SCWFnZW50cy52MSIsCipXb3JrU3RhdGlvblNlcnZpY2VEZWxldGVDb25uZWN0aW9uUmVzcG9uc2UiKgooV29ya1N0YXRpb25TZXJ2aWNlTGlzdENvbm5lY3Rpb25zUmVxdWVzdCJiCilXb3JrU3RhdGlvblNlcnZpY2VMaXN0Q29ubmVjdGlvbnNSZXNwb25zZRI1Cgtjb25uZWN0aW9ucxgBIAMoCzIgLmFnZW50cy52MS5Xb3JrU3RhdGlvbkNvbm5lY3Rpb24iugIKFVdvcmtTdGF0aW9uQ29ubmVjdGlvbhIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHByb3ZpZGVyGAMgASgJEg8KB2hvc3RfaWQYBCABKAkSFAoMcHJpbmNpcGFsX2lkGAUgASgJEhAKCHJldmlzaW9uGAYgASgDEhYKDmNyZWRlbnRpYWxfc2V0GAcgASgIEg4KBnBhdXNlZBgIIAEoCBIrCgZzY29wZXMYCSADKAsyGy5hZ2VudHMudjEuV29ya1N0YXRpb25TY29wZRIfChdleHRlcm5hbF93b3Jrc3BhY2Vfc2x1ZxgKIAEoCRIUCgxpbnN0YW5jZV91cmwYCyABKAkSGgoSZXh0ZXJuYWxfdGVuYW50X2lkGAwgASgJEhQKDHdlYl9iYXNlX3VybBgNIAEoCSKMAwoQV29ya1N0YXRpb25TY29wZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBmhlYWx0aBgDIAEoCRIQCghjb3ZlcmFnZRgEIAEoCRIhChl1bnJlc29sdmVkX3Rlcm1pbmFsX2NvdW50GAUgASgNEjMKD2xhc3Rfc3VjY2Vzc19hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPbmV4dF9hdHRlbXB0X2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtpbml0aWFsaXplZBgIIAEoCBIzCg9zY2FuX3N0YXJ0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEj8KG2xhc3RfZnVsbF9yZWNvbmNpbGlhdGlvbl9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNc2Nhbm5lZF9pdGVtcxgLIAEoDRINCgVzdGFsZRgMIAEoCCKOAQopV29ya1N0YXRpb25TZXJ2aWNlQ3JlYXRlQ29ubmVjdGlvblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIPCgdob3N0X2lkGAIgASgJEg8KB2FwaV9rZXkYAyABKAkSEAoIcHJvdmlkZXIYBCABKAkSHwoXZXh0ZXJuYWxfd29ya3NwYWNlX3NsdWcYBSABKAkiggEKKVdvcmtTdGF0aW9uU2VydmljZVVwZGF0ZUNvbm5lY3Rpb25SZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDEgwKBG5hbWUYAyABKAkSFAoHYXBpX2tleRgEIAEoCUgAiAEBQgoKCF9hcGlfa2V5IlIKKVdvcmtTdGF0aW9uU2VydmljZURlbGV0ZUNvbm5lY3Rpb25SZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDIjUKJ1dvcmtTdGF0aW9uU2VydmljZVRlc3RDb25uZWN0aW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIuCiBXb3JrU3RhdGlvblNlcnZpY2VSZWZyZXNoUmVxdWVzdBIKCgJpZBgBIAEoCSJiCipXb3JrU3RhdGlvblNlcnZpY2VDcmVhdGVDb25uZWN0aW9uUmVzcG9uc2USNAoKY29ubmVjdGlvbhgBIAEoCzIgLmFnZW50cy52MS5Xb3JrU3RhdGlvbkNvbm5lY3Rpb24iYgoqV29ya1N0YXRpb25TZXJ2aWNlVXBkYXRlQ29ubmVjdGlvblJlc3BvbnNlEjQKCmNvbm5lY3Rpb24YASABKAsyIC5hZ2VudHMudjEuV29ya1N0YXRpb25Db25uZWN0aW9uImAKKFdvcmtTdGF0aW9uU2VydmljZVRlc3RDb25uZWN0aW9uUmVzcG9uc2USNAoKY29ubmVjdGlvbhgBIAEoCzIgLmFnZW50cy52MS5Xb3JrU3RhdGlvbkNvbm5lY3Rpb24iYworV29ya1N0YXRpb25TZXJ2aWNlU2V0U2VsZWN0ZWRTY29wZXNSZXNwb25zZRI0Cgpjb25uZWN0aW9uGAEgASgLMiAuYWdlbnRzLnYxLldvcmtTdGF0aW9uQ29ubmVjdGlvbiJJCidXb3JrU3RhdGlvblNlcnZpY2VEaXNjb3ZlclNjb3Blc1JlcXVlc3QSCgoCaWQYASABKAkSEgoKcGFnZV90b2tlbhgCIAEoCSJwCihXb3JrU3RhdGlvblNlcnZpY2VEaXNjb3ZlclNjb3Blc1Jlc3BvbnNlEisKBnNjb3BlcxgBIAMoCzIbLmFnZW50cy52MS5Xb3JrU3RhdGlvblNjb3BlEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSJmCipXb3JrU3RhdGlvblNlcnZpY2VTZXRTZWxlY3RlZFNjb3Blc1JlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSEQoJc2NvcGVfaWRzGAMgAygJImgKIVdvcmtTdGF0aW9uU2VydmljZVJlZnJlc2hSZXNwb25zZRIOCgZzdGF0dXMYASABKAkSMwoPbmV4dF9hdHRlbXB0X2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCLbAQoiV29ya1N0YXRpb25TZXJ2aWNlTGlzdEl0ZW1zUmVxdWVzdBIMCgRraW5kGAEgASgJEhUKDWNvbm5lY3Rpb25faWQYAiABKAkSEAoIc2NvcGVfaWQYAyABKAkSDgoGc3RhdHVzGAQgASgJEhAKCGFzc2lnbmVlGAUgASgJEg8KB2tleXdvcmQYBiABKAkSEQoJcGFnZV9zaXplGAcgASgFEhIKCnBhZ2VfdG9rZW4YCCABKAkSEAoIcHJvdmlkZXIYCSABKAkSEgoKcHJvamVjdF9pZBgKIAEoCSJpCiNXb3JrU3RhdGlvblNlcnZpY2VMaXN0SXRlbXNSZXNwb25zZRIpCgVpdGVtcxgBIAMoCzIaLmFnZW50cy52MS5Xb3JrU3RhdGlvbkl0ZW0SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIi4KIFdvcmtTdGF0aW9uU2VydmljZUdldEl0ZW1SZXF1ZXN0EgoKAmlkGAEgASgJIk0KIVdvcmtTdGF0aW9uU2VydmljZUdldEl0ZW1SZXNwb25zZRIoCgRpdGVtGAEgASgLMhouYWdlbnRzLnYxLldvcmtTdGF0aW9uSXRlbSI8ChFXb3JrU3RhdGlvblNvdXJjZRIVCg1jb25uZWN0aW9uX2lkGAEgASgJEhAKCHNjb3BlX2lkGAIgASgJIvcECg9Xb3JrU3RhdGlvbkl0ZW0SCgoCaWQYASABKAkSEAoIcHJvdmlkZXIYAiABKAkSDAoEa2luZBgDIAEoCRIRCglyZW1vdGVfaWQYBCABKAkSEgoKaWRlbnRpZmllchgFIAEoCRIQCghzY29wZV9pZBgGIAEoCRISCgpzY29wZV9uYW1lGAcgASgJEg0KBXRpdGxlGAggASgJEhMKC2Rlc2NyaXB0aW9uGAkgASgJEh0KFWRlc2NyaXB0aW9uX2F2YWlsYWJsZRgKIAEoCBILCgN1cmwYCyABKAkSEQoJcmF3X3N0YXRlGAwgASgJEg4KBnN0YXR1cxgNIAEoCRIQCgh0ZXJtaW5hbBgOIAEoCBINCgVkcmFmdBgPIAEoCBIOCgZhdXRob3IYECABKAkSEQoJYXNzaWduZWVzGBEgAygJEg4KBmxhYmVscxgSIAMoCRI1ChFzb3VyY2VfY3JlYXRlZF9hdBgTIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASNQoRc291cmNlX3VwZGF0ZWRfYXQYFCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiwKCGVuZGVkX2F0GBUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtvYnNlcnZlZF9hdBgWIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLQoHc291cmNlcxgXIAMoCzIcLmFnZW50cy52MS5Xb3JrU3RhdGlvblNvdXJjZRISCgpwcm9qZWN0X2lkGBggASgJEhQKDHByb2plY3RfbmFtZRgZIAEoCSI0CiZXb3JrU3RhdGlvblNlcnZpY2VHZXRDb25uZWN0aW9uUmVxdWVzdBIKCgJpZBgBIAEoCSJfCidXb3JrU3RhdGlvblNlcnZpY2VHZXRDb25uZWN0aW9uUmVzcG9uc2USNAoKY29ubmVjdGlvbhgBIAEoCzIgLmFnZW50cy52MS5Xb3JrU3RhdGlvbkNvbm5lY3Rpb24ivwEKKldvcmtTdGF0aW9uU2VydmljZUxpc3RGaWx0ZXJPcHRpb25zUmVxdWVzdBIMCgRraW5kGAEgASgJEhUKDWNvbm5lY3Rpb25faWQYAiABKAkSEAoIc2NvcGVfaWQYAyABKAkSEAoIcHJvdmlkZXIYBCABKAkSEQoJZGltZW5zaW9uGAUgASgJEg4KBnNlYXJjaBgGIAEoCRIRCglwYWdlX3NpemUYByABKAUSEgoKcGFnZV90b2tlbhgIIAEoCSIzChdXb3JrU3RhdGlvbkZpbHRlck9wdGlvbhIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJInsKK1dvcmtTdGF0aW9uU2VydmljZUxpc3RGaWx0ZXJPcHRpb25zUmVzcG9uc2USMwoHb3B0aW9ucxgBIAMoCzIiLmFnZW50cy52MS5Xb3JrU3RhdGlvbkZpbHRlck9wdGlvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiegoPV29ya1N0YXRpb25Ib3N0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSFAoMYXBpX2Jhc2VfdXJsGAMgASgJEhQKDHdlYl9iYXNlX3VybBgEIAEoCRIPCgdwcm9maWxlGAUgASgJEhAKCHJldmlzaW9uGAYgASgDIigKJldvcmtTdGF0aW9uSG9zdFNlcnZpY2VMaXN0SG9zdHNSZXF1ZXN0IlQKJ1dvcmtTdGF0aW9uSG9zdFNlcnZpY2VMaXN0SG9zdHNSZXNwb25zZRIpCgVob3N0cxgBIAMoCzIaLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3QiMgokV29ya1N0YXRpb25Ib3N0U2VydmljZUdldEhvc3RSZXF1ZXN0EgoKAmlkGAEgASgJIlEKJVdvcmtTdGF0aW9uSG9zdFNlcnZpY2VHZXRIb3N0UmVzcG9uc2USKAoEaG9zdBgBIAEoCzIaLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3QiUwonV29ya1N0YXRpb25Ib3N0U2VydmljZUNyZWF0ZUhvc3RSZXF1ZXN0EigKBGhvc3QYASABKAsyGi5hZ2VudHMudjEuV29ya1N0YXRpb25Ib3N0IlQKKFdvcmtTdGF0aW9uSG9zdFNlcnZpY2VDcmVhdGVIb3N0UmVzcG9uc2USKAoEaG9zdBgBIAEoCzIaLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3QibgonV29ya1N0YXRpb25Ib3N0U2VydmljZVVwZGF0ZUhvc3RSZXF1ZXN0EigKBGhvc3QYASABKAsyGi5hZ2VudHMudjEuV29ya1N0YXRpb25Ib3N0EhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDIlQKKFdvcmtTdGF0aW9uSG9zdFNlcnZpY2VVcGRhdGVIb3N0UmVzcG9uc2USKAoEaG9zdBgBIAEoCzIaLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3QiUAonV29ya1N0YXRpb25Ib3N0U2VydmljZURlbGV0ZUhvc3RSZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDIioKKFdvcmtTdGF0aW9uSG9zdFNlcnZpY2VEZWxldGVIb3N0UmVzcG9uc2UyxQsKEldvcmtTdGF0aW9uU2VydmljZRJ8Cg9MaXN0Q29ubmVjdGlvbnMSMy5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlTGlzdENvbm5lY3Rpb25zUmVxdWVzdBo0LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VMaXN0Q29ubmVjdGlvbnNSZXNwb25zZRJ2Cg1HZXRDb25uZWN0aW9uEjEuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZUdldENvbm5lY3Rpb25SZXF1ZXN0GjIuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZUdldENvbm5lY3Rpb25SZXNwb25zZRKCAQoRTGlzdEZpbHRlck9wdGlvbnMSNS5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlTGlzdEZpbHRlck9wdGlvbnNSZXF1ZXN0GjYuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZUxpc3RGaWx0ZXJPcHRpb25zUmVzcG9uc2USfwoQQ3JlYXRlQ29ubmVjdGlvbhI0LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VDcmVhdGVDb25uZWN0aW9uUmVxdWVzdBo1LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VDcmVhdGVDb25uZWN0aW9uUmVzcG9uc2USfwoQVXBkYXRlQ29ubmVjdGlvbhI0LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VVcGRhdGVDb25uZWN0aW9uUmVxdWVzdBo1LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VVcGRhdGVDb25uZWN0aW9uUmVzcG9uc2USfwoQRGVsZXRlQ29ubmVjdGlvbhI0LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VEZWxldGVDb25uZWN0aW9uUmVxdWVzdBo1LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VEZWxldGVDb25uZWN0aW9uUmVzcG9uc2USeQoOVGVzdENvbm5lY3Rpb24SMi5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlVGVzdENvbm5lY3Rpb25SZXF1ZXN0GjMuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZVRlc3RDb25uZWN0aW9uUmVzcG9uc2USeQoORGlzY292ZXJTY29wZXMSMi5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlRGlzY292ZXJTY29wZXNSZXF1ZXN0GjMuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZURpc2NvdmVyU2NvcGVzUmVzcG9uc2USggEKEVNldFNlbGVjdGVkU2NvcGVzEjUuYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZVNldFNlbGVjdGVkU2NvcGVzUmVxdWVzdBo2LmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VTZXRTZWxlY3RlZFNjb3Blc1Jlc3BvbnNlEmQKB1JlZnJlc2gSKy5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlUmVmcmVzaFJlcXVlc3QaLC5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlUmVmcmVzaFJlc3BvbnNlEmoKCUxpc3RJdGVtcxItLmFnZW50cy52MS5Xb3JrU3RhdGlvblNlcnZpY2VMaXN0SXRlbXNSZXF1ZXN0Gi4uYWdlbnRzLnYxLldvcmtTdGF0aW9uU2VydmljZUxpc3RJdGVtc1Jlc3BvbnNlEmQKB0dldEl0ZW0SKy5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlR2V0SXRlbVJlcXVlc3QaLC5hZ2VudHMudjEuV29ya1N0YXRpb25TZXJ2aWNlR2V0SXRlbVJlc3BvbnNlMt8EChZXb3JrU3RhdGlvbkhvc3RTZXJ2aWNlEnIKCUxpc3RIb3N0cxIxLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3RTZXJ2aWNlTGlzdEhvc3RzUmVxdWVzdBoyLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3RTZXJ2aWNlTGlzdEhvc3RzUmVzcG9uc2USbAoHR2V0SG9zdBIvLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3RTZXJ2aWNlR2V0SG9zdFJlcXVlc3QaMC5hZ2VudHMudjEuV29ya1N0YXRpb25Ib3N0U2VydmljZUdldEhvc3RSZXNwb25zZRJ1CgpDcmVhdGVIb3N0EjIuYWdlbnRzLnYxLldvcmtTdGF0aW9uSG9zdFNlcnZpY2VDcmVhdGVIb3N0UmVxdWVzdBozLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3RTZXJ2aWNlQ3JlYXRlSG9zdFJlc3BvbnNlEnUKClVwZGF0ZUhvc3QSMi5hZ2VudHMudjEuV29ya1N0YXRpb25Ib3N0U2VydmljZVVwZGF0ZUhvc3RSZXF1ZXN0GjMuYWdlbnRzLnYxLldvcmtTdGF0aW9uSG9zdFNlcnZpY2VVcGRhdGVIb3N0UmVzcG9uc2USdQoKRGVsZXRlSG9zdBIyLmFnZW50cy52MS5Xb3JrU3RhdGlvbkhvc3RTZXJ2aWNlRGVsZXRlSG9zdFJlcXVlc3QaMy5hZ2VudHMudjEuV29ya1N0YXRpb25Ib3N0U2VydmljZURlbGV0ZUhvc3RSZXNwb25zZUI0WjJnby5vcngubWUvYXBwcy9idXR0ZXIvcGtnL3Byb3RvL2FnZW50cy92MTthZ2VudHN2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message agents.v1.WorkStationServiceDeleteConnectionResponse
@@ -105,6 +105,26 @@ export type WorkStationConnection = Message<"agents.v1.WorkStationConnection"> &
    * @generated from field: repeated agents.v1.WorkStationScope scopes = 9;
    */
   scopes: WorkStationScope[];
+
+  /**
+   * @generated from field: string external_workspace_slug = 10;
+   */
+  externalWorkspaceSlug: string;
+
+  /**
+   * @generated from field: string instance_url = 11;
+   */
+  instanceUrl: string;
+
+  /**
+   * @generated from field: string external_tenant_id = 12;
+   */
+  externalTenantId: string;
+
+  /**
+   * @generated from field: string web_base_url = 13;
+   */
+  webBaseUrl: string;
 };
 
 /**
@@ -157,6 +177,26 @@ export type WorkStationScope = Message<"agents.v1.WorkStationScope"> & {
    * @generated from field: bool initialized = 8;
    */
   initialized: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp scan_started_at = 9;
+   */
+  scanStartedAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp last_full_reconciliation_at = 10;
+   */
+  lastFullReconciliationAt?: Timestamp;
+
+  /**
+   * @generated from field: uint32 scanned_items = 11;
+   */
+  scannedItems: number;
+
+  /**
+   * @generated from field: bool stale = 12;
+   */
+  stale: boolean;
 };
 
 /**
@@ -184,6 +224,18 @@ export type WorkStationServiceCreateConnectionRequest = Message<"agents.v1.WorkS
    * @generated from field: string api_key = 3;
    */
   apiKey: string;
+
+  /**
+   * github (legacy default), gitlab, linear, or plane.
+   *
+   * @generated from field: string provider = 4;
+   */
+  provider: string;
+
+  /**
+   * @generated from field: string external_workspace_slug = 5;
+   */
+  externalWorkspaceSlug: string;
 };
 
 /**
@@ -451,7 +503,7 @@ export const WorkStationServiceRefreshResponseSchema: GenMessage<WorkStationServ
  */
 export type WorkStationServiceListItemsRequest = Message<"agents.v1.WorkStationServiceListItemsRequest"> & {
   /**
-   * ISSUE (default) or PULL_REQUEST. Source fields remain separate.
+   * ISSUE (default), PULL_REQUEST or MERGE_REQUEST. Source fields remain separate.
    *
    * @generated from field: string kind = 1;
    */
@@ -493,6 +545,16 @@ export type WorkStationServiceListItemsRequest = Message<"agents.v1.WorkStationS
    * @generated from field: string page_token = 8;
    */
   pageToken: string;
+
+  /**
+   * @generated from field: string provider = 9;
+   */
+  provider: string;
+
+  /**
+   * @generated from field: string project_id = 10;
+   */
+  projectId: string;
 };
 
 /**
@@ -698,6 +760,16 @@ export type WorkStationItem = Message<"agents.v1.WorkStationItem"> & {
    * @generated from field: repeated agents.v1.WorkStationSource sources = 23;
    */
   sources: WorkStationSource[];
+
+  /**
+   * @generated from field: string project_id = 24;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: string project_name = 25;
+   */
+  projectName: string;
 };
 
 /**
@@ -708,8 +780,354 @@ export const WorkStationItemSchema: GenMessage<WorkStationItem> = /*@__PURE__*/
   messageDesc(file_agents_v1_workstation, 23);
 
 /**
+ * @generated from message agents.v1.WorkStationServiceGetConnectionRequest
+ */
+export type WorkStationServiceGetConnectionRequest = Message<"agents.v1.WorkStationServiceGetConnectionRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationServiceGetConnectionRequest.
+ * Use `create(WorkStationServiceGetConnectionRequestSchema)` to create a new message.
+ */
+export const WorkStationServiceGetConnectionRequestSchema: GenMessage<WorkStationServiceGetConnectionRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 24);
+
+/**
+ * @generated from message agents.v1.WorkStationServiceGetConnectionResponse
+ */
+export type WorkStationServiceGetConnectionResponse = Message<"agents.v1.WorkStationServiceGetConnectionResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkStationConnection connection = 1;
+   */
+  connection?: WorkStationConnection;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationServiceGetConnectionResponse.
+ * Use `create(WorkStationServiceGetConnectionResponseSchema)` to create a new message.
+ */
+export const WorkStationServiceGetConnectionResponseSchema: GenMessage<WorkStationServiceGetConnectionResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 25);
+
+/**
+ * @generated from message agents.v1.WorkStationServiceListFilterOptionsRequest
+ */
+export type WorkStationServiceListFilterOptionsRequest = Message<"agents.v1.WorkStationServiceListFilterOptionsRequest"> & {
+  /**
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string connection_id = 2;
+   */
+  connectionId: string;
+
+  /**
+   * @generated from field: string scope_id = 3;
+   */
+  scopeId: string;
+
+  /**
+   * @generated from field: string provider = 4;
+   */
+  provider: string;
+
+  /**
+   * provider, scope, project, status, or assignee.
+   *
+   * @generated from field: string dimension = 5;
+   */
+  dimension: string;
+
+  /**
+   * @generated from field: string search = 6;
+   */
+  search: string;
+
+  /**
+   * @generated from field: int32 page_size = 7;
+   */
+  pageSize: number;
+
+  /**
+   * @generated from field: string page_token = 8;
+   */
+  pageToken: string;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationServiceListFilterOptionsRequest.
+ * Use `create(WorkStationServiceListFilterOptionsRequestSchema)` to create a new message.
+ */
+export const WorkStationServiceListFilterOptionsRequestSchema: GenMessage<WorkStationServiceListFilterOptionsRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 26);
+
+/**
+ * @generated from message agents.v1.WorkStationFilterOption
+ */
+export type WorkStationFilterOption = Message<"agents.v1.WorkStationFilterOption"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationFilterOption.
+ * Use `create(WorkStationFilterOptionSchema)` to create a new message.
+ */
+export const WorkStationFilterOptionSchema: GenMessage<WorkStationFilterOption> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 27);
+
+/**
+ * @generated from message agents.v1.WorkStationServiceListFilterOptionsResponse
+ */
+export type WorkStationServiceListFilterOptionsResponse = Message<"agents.v1.WorkStationServiceListFilterOptionsResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.WorkStationFilterOption options = 1;
+   */
+  options: WorkStationFilterOption[];
+
+  /**
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken: string;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationServiceListFilterOptionsResponse.
+ * Use `create(WorkStationServiceListFilterOptionsResponseSchema)` to create a new message.
+ */
+export const WorkStationServiceListFilterOptionsResponseSchema: GenMessage<WorkStationServiceListFilterOptionsResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 28);
+
+/**
+ * @generated from message agents.v1.WorkStationHost
+ */
+export type WorkStationHost = Message<"agents.v1.WorkStationHost"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string api_base_url = 3;
+   */
+  apiBaseUrl: string;
+
+  /**
+   * @generated from field: string web_base_url = 4;
+   */
+  webBaseUrl: string;
+
+  /**
+   * @generated from field: string profile = 5;
+   */
+  profile: string;
+
+  /**
+   * @generated from field: int64 revision = 6;
+   */
+  revision: bigint;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHost.
+ * Use `create(WorkStationHostSchema)` to create a new message.
+ */
+export const WorkStationHostSchema: GenMessage<WorkStationHost> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 29);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceListHostsRequest
+ */
+export type WorkStationHostServiceListHostsRequest = Message<"agents.v1.WorkStationHostServiceListHostsRequest"> & {
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceListHostsRequest.
+ * Use `create(WorkStationHostServiceListHostsRequestSchema)` to create a new message.
+ */
+export const WorkStationHostServiceListHostsRequestSchema: GenMessage<WorkStationHostServiceListHostsRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 30);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceListHostsResponse
+ */
+export type WorkStationHostServiceListHostsResponse = Message<"agents.v1.WorkStationHostServiceListHostsResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.WorkStationHost hosts = 1;
+   */
+  hosts: WorkStationHost[];
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceListHostsResponse.
+ * Use `create(WorkStationHostServiceListHostsResponseSchema)` to create a new message.
+ */
+export const WorkStationHostServiceListHostsResponseSchema: GenMessage<WorkStationHostServiceListHostsResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 31);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceGetHostRequest
+ */
+export type WorkStationHostServiceGetHostRequest = Message<"agents.v1.WorkStationHostServiceGetHostRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceGetHostRequest.
+ * Use `create(WorkStationHostServiceGetHostRequestSchema)` to create a new message.
+ */
+export const WorkStationHostServiceGetHostRequestSchema: GenMessage<WorkStationHostServiceGetHostRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 32);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceGetHostResponse
+ */
+export type WorkStationHostServiceGetHostResponse = Message<"agents.v1.WorkStationHostServiceGetHostResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkStationHost host = 1;
+   */
+  host?: WorkStationHost;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceGetHostResponse.
+ * Use `create(WorkStationHostServiceGetHostResponseSchema)` to create a new message.
+ */
+export const WorkStationHostServiceGetHostResponseSchema: GenMessage<WorkStationHostServiceGetHostResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 33);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceCreateHostRequest
+ */
+export type WorkStationHostServiceCreateHostRequest = Message<"agents.v1.WorkStationHostServiceCreateHostRequest"> & {
+  /**
+   * @generated from field: agents.v1.WorkStationHost host = 1;
+   */
+  host?: WorkStationHost;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceCreateHostRequest.
+ * Use `create(WorkStationHostServiceCreateHostRequestSchema)` to create a new message.
+ */
+export const WorkStationHostServiceCreateHostRequestSchema: GenMessage<WorkStationHostServiceCreateHostRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 34);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceCreateHostResponse
+ */
+export type WorkStationHostServiceCreateHostResponse = Message<"agents.v1.WorkStationHostServiceCreateHostResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkStationHost host = 1;
+   */
+  host?: WorkStationHost;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceCreateHostResponse.
+ * Use `create(WorkStationHostServiceCreateHostResponseSchema)` to create a new message.
+ */
+export const WorkStationHostServiceCreateHostResponseSchema: GenMessage<WorkStationHostServiceCreateHostResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 35);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceUpdateHostRequest
+ */
+export type WorkStationHostServiceUpdateHostRequest = Message<"agents.v1.WorkStationHostServiceUpdateHostRequest"> & {
+  /**
+   * @generated from field: agents.v1.WorkStationHost host = 1;
+   */
+  host?: WorkStationHost;
+
+  /**
+   * @generated from field: int64 expected_revision = 2;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceUpdateHostRequest.
+ * Use `create(WorkStationHostServiceUpdateHostRequestSchema)` to create a new message.
+ */
+export const WorkStationHostServiceUpdateHostRequestSchema: GenMessage<WorkStationHostServiceUpdateHostRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 36);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceUpdateHostResponse
+ */
+export type WorkStationHostServiceUpdateHostResponse = Message<"agents.v1.WorkStationHostServiceUpdateHostResponse"> & {
+  /**
+   * @generated from field: agents.v1.WorkStationHost host = 1;
+   */
+  host?: WorkStationHost;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceUpdateHostResponse.
+ * Use `create(WorkStationHostServiceUpdateHostResponseSchema)` to create a new message.
+ */
+export const WorkStationHostServiceUpdateHostResponseSchema: GenMessage<WorkStationHostServiceUpdateHostResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 37);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceDeleteHostRequest
+ */
+export type WorkStationHostServiceDeleteHostRequest = Message<"agents.v1.WorkStationHostServiceDeleteHostRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: int64 expected_revision = 2;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceDeleteHostRequest.
+ * Use `create(WorkStationHostServiceDeleteHostRequestSchema)` to create a new message.
+ */
+export const WorkStationHostServiceDeleteHostRequestSchema: GenMessage<WorkStationHostServiceDeleteHostRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 38);
+
+/**
+ * @generated from message agents.v1.WorkStationHostServiceDeleteHostResponse
+ */
+export type WorkStationHostServiceDeleteHostResponse = Message<"agents.v1.WorkStationHostServiceDeleteHostResponse"> & {
+};
+
+/**
+ * Describes the message agents.v1.WorkStationHostServiceDeleteHostResponse.
+ * Use `create(WorkStationHostServiceDeleteHostResponseSchema)` to create a new message.
+ */
+export const WorkStationHostServiceDeleteHostResponseSchema: GenMessage<WorkStationHostServiceDeleteHostResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_workstation, 39);
+
+/**
  * Work Station is a workspace-shared, read-only projection. Credentials never
- * appear on readable messages. This first implementation supports GitHub.com.
+ * appear on readable messages. Provider profiles have only read capabilities.
  *
  * @generated from service agents.v1.WorkStationService
  */
@@ -721,6 +1139,22 @@ export const WorkStationService: GenService<{
     methodKind: "unary";
     input: typeof WorkStationServiceListConnectionsRequestSchema;
     output: typeof WorkStationServiceListConnectionsResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.WorkStationService.GetConnection
+   */
+  getConnection: {
+    methodKind: "unary";
+    input: typeof WorkStationServiceGetConnectionRequestSchema;
+    output: typeof WorkStationServiceGetConnectionResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.WorkStationService.ListFilterOptions
+   */
+  listFilterOptions: {
+    methodKind: "unary";
+    input: typeof WorkStationServiceListFilterOptionsRequestSchema;
+    output: typeof WorkStationServiceListFilterOptionsResponseSchema;
   },
   /**
    * @generated from rpc agents.v1.WorkStationService.CreateConnection
@@ -796,3 +1230,53 @@ export const WorkStationService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_workstation, 0);
+
+/**
+ * Global admin approved Plane v2 endpoints. Contains no workspace credential.
+ *
+ * @generated from service agents.v1.WorkStationHostService
+ */
+export const WorkStationHostService: GenService<{
+  /**
+   * @generated from rpc agents.v1.WorkStationHostService.ListHosts
+   */
+  listHosts: {
+    methodKind: "unary";
+    input: typeof WorkStationHostServiceListHostsRequestSchema;
+    output: typeof WorkStationHostServiceListHostsResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.WorkStationHostService.GetHost
+   */
+  getHost: {
+    methodKind: "unary";
+    input: typeof WorkStationHostServiceGetHostRequestSchema;
+    output: typeof WorkStationHostServiceGetHostResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.WorkStationHostService.CreateHost
+   */
+  createHost: {
+    methodKind: "unary";
+    input: typeof WorkStationHostServiceCreateHostRequestSchema;
+    output: typeof WorkStationHostServiceCreateHostResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.WorkStationHostService.UpdateHost
+   */
+  updateHost: {
+    methodKind: "unary";
+    input: typeof WorkStationHostServiceUpdateHostRequestSchema;
+    output: typeof WorkStationHostServiceUpdateHostResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.WorkStationHostService.DeleteHost
+   */
+  deleteHost: {
+    methodKind: "unary";
+    input: typeof WorkStationHostServiceDeleteHostRequestSchema;
+    output: typeof WorkStationHostServiceDeleteHostResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_agents_v1_workstation, 1);
+

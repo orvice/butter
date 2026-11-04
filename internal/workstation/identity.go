@@ -48,6 +48,12 @@ func (r Record) SourceIdentity() SourceIdentity {
 func ItemID(workspaceID string, source SourceIdentity, scopeID, kind, number string) string {
 	// Keep the original GitHub byte sequence stable. A nonempty tenant adds its
 	// own suffix namespace; no later provider or instance changes this format.
+	// Linear and Plane item IDs are globally unique within their tenant. A
+	// team/project move changes provenance, not logical identity. GitHub/GitLab
+	// use container-local numbers/iids and must keep the stable container ID.
+	if source.Provider == "linear" || source.Provider == "plane" {
+		scopeID = ""
+	}
 	key := workspaceID + "\x00" + source.Provider + "\x00" + source.Origin + "\x00" + scopeID + "\x00" + kind + "\x00" + number
 	if source.TenantID != "" {
 		key += "\x00tenant\x00" + source.TenantID

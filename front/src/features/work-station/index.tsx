@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { GitHostKind } from '@/gen/agents/v1/githost_pb'
 import type {
   WorkStationConnection,
   WorkStationItem,
@@ -11,7 +12,12 @@ import { timestampDate } from '@bufbuild/protobuf/wkt'
 import { ConnectError } from '@connectrpc/connect'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import { useGitHosts } from '@/api/git-hosts'
-import { workStationClient, type WorkStationClient } from '@/api/work-station'
+import {
+  workStationClient,
+  workStationHostClient,
+  type WorkStationClient,
+  type WorkStationHostClient,
+} from '@/api/work-station'
 import { useWorkspaceMembers } from '@/api/workspaces'
 import { useAuthStore, useIsAdmin } from '@/stores/auth-store'
 import { useWorkspace } from '@/hooks/use-workspace'
@@ -29,6 +35,8 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
+import { FacetFilter } from './facet-filter'
+import { PlaneHostAdmin } from './host-admin'
 
 function errorText(error: unknown) {
   return error instanceof ConnectError
@@ -37,6 +45,25 @@ function errorText(error: unknown) {
 }
 function when(value: WorkStationItem['sourceUpdatedAt']) {
   return value ? timestampDate(value).toLocaleString() : 'Not yet synced'
+}
+function providerName(provider: string) {
+  return (
+    (
+      {
+        github: 'GitHub',
+        gitlab: 'GitLab',
+        linear: 'Linear',
+        plane: 'Plane',
+      } as Record<string, string>
+    )[provider] ?? provider
+  )
+}
+function scopeName(provider: string) {
+  return provider === 'linear'
+    ? 'teams'
+    : provider === 'github'
+      ? 'repositories'
+      : 'projects'
 }
 export function WorkStationPage() {
   const { selectedWorkspaceId } = useWorkspace()
@@ -63,6 +90,10 @@ function Station({
 }) {
   const client = useMemo(
     () => workStationClient(workspaceId, token),
+    [workspaceId, token]
+  )
+  const hostClient = useMemo(
+    () => workStationHostClient(workspaceId, token),
     [workspaceId, token]
   )
   const prefix = useMemo(
@@ -102,6 +133,8 @@ function Station({
           connectionId: filters.connection,
           scopeId: filters.scope,
           assignee: filters.assignee,
+          provider: filters.provider,
+          projectId: filters.project,
           pageSize: 50,
           pageToken,
         },
@@ -154,7 +187,7 @@ function Station({
       }
       setNotice(
         responses.map((r) => r.status).join(', ') ||
-          'Select repositories on an active connection to start syncing.'
+          'Select scopes on an active connection to start syncing.'
       )
       // Accepted refresh is only an intent. Polling observes later publication.
       setPages([''])
@@ -170,11 +203,9 @@ function Station({
     (c) =>
       c.scopes.length > 0 &&
       !c.paused &&
+      (!filters.provider || c.provider === filters.provider) &&
       (!filters.connection || c.id === filters.connection)
   )
-  const scopes = allConnections
-    .filter((c) => !filters.connection || c.id === filters.connection)
-    .flatMap((c) => c.scopes)
   const hasScopes = allConnections.some((c) => c.scopes.length > 0)
   const initializing =
     hasScopes &&
@@ -214,9 +245,9 @@ function Station({
           </div>
         </div>
         <p className='text-sm text-muted-foreground'>
-          GitHub.com is available in this preview. Linear, Plane and GitLab are
-          pending. Refresh applies to the selected connection, or all active
-          connections when no connection filter is set.
+          Browse Linear and Plane issues, GitHub issues and pull requests, and
+          GitLab issues and merge requests. Refresh applies to active
+          connections matching your provider and connection filters.
         </p>
         <div role='status' className='text-sm'>
           {notice}
@@ -240,7 +271,7 @@ function Station({
                   </p>
                   {!c.scopes.length && (
                     <p className='text-sm text-muted-foreground'>
-                      No repositories selected
+                      No scopes selected
                     </p>
                   )}
                   <ul className='mt-1 space-y-1'>
@@ -250,12 +281,23 @@ function Station({
                         className='flex flex-wrap gap-x-3 text-sm text-muted-foreground'
                       >
                         <span>{s.name}</span>
+                        {s.stale && <Badge variant='outline'>Stale</Badge>}
                         <span>
                           {s.health || 'QUEUED'} ·{' '}
                           {s.coverage || 'INITIALIZING'}
                         </span>
                         <span>Last success: {when(s.lastSuccessAt)}</span>
                         <span>Next attempt: {when(s.nextAttemptAt)}</span>
+                        {s.scanStartedAt && (
+                          <span>Scan started: {when(s.scanStartedAt)}</span>
+                        )}
+                        <span className='tabular-nums'>
+                          {s.scannedItems} items scanned
+                        </span>
+                        <span>
+                          Last full reconciliation:{' '}
+                          {when(s.lastFullReconciliationAt)}
+                        </span>
                         {s.unresolvedTerminalCount > 0 && (
                           <span>
                             {s.unresolvedTerminalCount} ended items need a
@@ -274,9 +316,10 @@ function Station({
           value={filters.kind}
           onValueChange={(kind) => filter({ kind, status: 'open' })}
         >
-          <TabsList aria-label='Work item type'>
+          <TabsList aria-label='Work item type' className='h-auto flex-wrap'>
             <TabsTrigger value='ISSUE'>Issues</TabsTrigger>
             <TabsTrigger value='PULL_REQUEST'>Pull requests</TabsTrigger>
+            <TabsTrigger value='MERGE_REQUEST'>Merge requests</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
@@ -287,7 +330,7 @@ function Station({
               className='block h-10 w-full rounded-md border bg-background px-3'
               value={filters.connection}
               onChange={(e) =>
-                filter({ connection: e.target.value, scope: '' })
+                filter({ connection: e.target.value, scope: '', project: '' })
               }
             >
               <option value=''>All connections</option>
@@ -298,44 +341,48 @@ function Station({
               ))}
             </select>
           </label>
-          <label className='space-y-1 text-sm'>
-            Repository
-            <select
-              aria-label='Repository'
-              className='block h-10 w-full rounded-md border bg-background px-3'
-              value={filters.scope}
-              onChange={(e) => filter({ scope: e.target.value })}
-            >
-              <option value=''>All selected repositories</option>
-              {Array.from(new Map(scopes.map((s) => [s.id, s])).values()).map(
-                (s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                )
-              )}
-            </select>
-          </label>
-          <label className='space-y-1 text-sm'>
-            Status
-            <select
-              aria-label='Status'
-              className='block h-10 w-full rounded-md border bg-background px-3'
-              value={filters.status}
-              onChange={(e) => filter({ status: e.target.value })}
-            >
-              <option value='open'>Open</option>
-              <option value='all'>All retained items</option>
-              {(filters.kind === 'ISSUE'
-                ? ['NOT_STARTED', 'DONE', 'CANCELED']
-                : ['OPEN', 'MERGED', 'CLOSED']
-              ).map((s) => (
-                <option key={s} value={s}>
-                  {s.toLowerCase().replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </label>
+          <FacetFilter
+            client={client}
+            prefix={prefix}
+            filters={filters}
+            dimension='provider'
+            label='Provider'
+            value={filters.provider}
+            onChange={(provider) =>
+              filter({ provider, connection: '', scope: '', project: '' })
+            }
+          />
+          <FacetFilter
+            client={client}
+            prefix={prefix}
+            filters={filters}
+            dimension='scope'
+            label='Scope'
+            value={filters.scope}
+            onChange={(scope) => filter({ scope, project: '' })}
+          />
+          <FacetFilter
+            client={client}
+            prefix={prefix}
+            filters={filters}
+            dimension='project'
+            label='Project'
+            value={filters.project}
+            onChange={(project) => filter({ project })}
+          />
+          <FacetFilter
+            client={client}
+            prefix={prefix}
+            filters={filters}
+            dimension='status'
+            label='Status'
+            value={filters.status}
+            onChange={(status) => filter({ status })}
+            defaults={[
+              { id: 'open', name: 'Open' },
+              { id: 'all', name: 'All retained items' },
+            ]}
+          />
           <label className='space-y-1 text-sm'>
             Search title or identifier
             <Input
@@ -344,15 +391,15 @@ function Station({
               onChange={(e) => filter({ q: e.target.value })}
             />
           </label>
-          <label className='space-y-1 text-sm'>
-            Assignee (external ID:login)
-            <Input
-              value={filters.assignee}
-              maxLength={256}
-              placeholder='123:octocat'
-              onChange={(e) => filter({ assignee: e.target.value })}
-            />
-          </label>
+          <FacetFilter
+            client={client}
+            prefix={prefix}
+            filters={filters}
+            dimension='assignee'
+            label='Assignee'
+            value={filters.assignee}
+            onChange={(assignee) => filter({ assignee })}
+          />
           <Button
             variant='ghost'
             className='self-end'
@@ -360,6 +407,8 @@ function Station({
               filter({
                 connection: '',
                 scope: '',
+                provider: '',
+                project: '',
                 status: 'open',
                 assignee: '',
                 q: '',
@@ -404,7 +453,7 @@ function Station({
               {!allConnections.length
                 ? 'No connections yet'
                 : !hasScopes
-                  ? 'Select repositories to import'
+                  ? 'Select scopes to import'
                   : allConnections.every((c) => c.paused)
                     ? 'Connections need attention'
                     : initializing
@@ -415,7 +464,7 @@ function Station({
               {!allConnections.length || !hasScopes
                 ? canManage
                   ? 'Manage connections to choose what this workspace can read.'
-                  : 'Ask a workspace owner to connect repositories.'
+                  : 'Ask a workspace owner to select the teams, projects, or repositories to share.'
                 : initializing
                   ? 'Published items will appear after a complete scan.'
                   : 'Check sync health or clear filters to see more items.'}
@@ -477,18 +526,21 @@ function Station({
               <DialogHeader>
                 <DialogTitle>Manage connections</DialogTitle>
                 <DialogDescription>
-                  Selected repositories and their descriptions will be visible
-                  to every member of this Butter workspace.
+                  Selected scopes and their descriptions will be visible to
+                  every member of this Butter workspace.
                 </DialogDescription>
               </DialogHeader>
               <ConnectionManager
                 client={client}
+                hostClient={hostClient}
+                prefix={prefix}
                 connections={allConnections}
                 changed={changed}
               />
             </DialogContent>
           </Dialog>
         )}
+        {isAdmin && <PlaneHostAdmin client={hostClient} prefix={prefix} />}
       </Main>
     </>
   )
@@ -501,8 +553,34 @@ function ItemDetail({
   connections: WorkStationConnection[]
 }) {
   // Descriptions are plain text: no HTML, scripts, images or private attachments.
-  const safeSource =
-    item.url.startsWith('https://github.com/') && !item.url.includes('\\')
+  const approvedRoots = connections
+    .filter(
+      (connection) =>
+        connection.provider === item.provider &&
+        item.sources.some((source) => source.connectionId === connection.id)
+    )
+    .map(
+      (connection) =>
+        connection.webBaseUrl ||
+        (connection.provider === 'github' ? 'https://github.com' : '')
+    )
+  const safeSource = approvedRoots.some((root) => {
+    try {
+      if (!root || item.url.includes('\\')) return false
+      const link = new URL(item.url)
+      const approved = new URL(root)
+      const path = approved.pathname.replace(/\/+$/, '')
+      return (
+        link.protocol === 'https:' &&
+        !link.username &&
+        !link.password &&
+        link.origin === approved.origin &&
+        (link.pathname === path || link.pathname.startsWith(`${path}/`))
+      )
+    } catch {
+      return false
+    }
+  })
   return (
     <div className='space-y-4'>
       <p className='text-sm'>
@@ -553,7 +631,7 @@ function ItemDetail({
           target='_blank'
           rel='noopener noreferrer'
         >
-          Open on GitHub
+          Open on {providerName(item.provider)}
           <ExternalLink aria-hidden className='size-4' />
         </a>
       )}
@@ -562,10 +640,14 @@ function ItemDetail({
 }
 function ConnectionManager({
   client,
+  hostClient,
+  prefix,
   connections,
   changed,
 }: {
   client: WorkStationClient
+  hostClient: WorkStationHostClient
+  prefix: string[]
   connections: WorkStationConnection[]
   changed: () => Promise<void>
 }) {
@@ -591,6 +673,8 @@ function ConnectionManager({
       <ConnectionForm
         key={id}
         client={client}
+        hostClient={hostClient}
+        prefix={prefix}
         connection={connection}
         changed={changed}
         select={setId}
@@ -600,11 +684,15 @@ function ConnectionManager({
 }
 function ConnectionForm({
   client,
+  hostClient,
+  prefix,
   connection,
   changed,
   select,
 }: {
   client: WorkStationClient
+  hostClient: WorkStationHostClient
+  prefix: string[]
   connection?: WorkStationConnection
   changed: () => Promise<void>
   select: (id: string) => void
@@ -612,6 +700,10 @@ function ConnectionForm({
   const [name, setName] = useState(connection?.name ?? '')
   const [key, setKey] = useState('')
   const [hostId, setHostId] = useState(connection?.hostId ?? '')
+  const [provider, setProvider] = useState(connection?.provider ?? 'github')
+  const [workspaceSlug, setWorkspaceSlug] = useState(
+    connection?.externalWorkspaceSlug ?? ''
+  )
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pending, setPending] = useState(false)
@@ -624,6 +716,12 @@ function ConnectionForm({
   const [nextPage, setNextPage] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const hosts = useGitHosts()
+  const planeHosts = useQuery({
+    queryKey: [...prefix, 'plane-hosts'],
+    queryFn: ({ signal }) => hostClient.listHosts({}, { signal }),
+    enabled: provider === 'plane',
+  })
+  const scopeLabel = scopeName(provider)
   async function run(action: () => Promise<void>) {
     setPending(true)
     setError('')
@@ -647,7 +745,13 @@ function ConnectionForm({
             name,
             apiKey: key || undefined,
           })
-        : await client.createConnection({ name, hostId, apiKey: key })
+        : await client.createConnection({
+            name,
+            hostId: provider === 'linear' ? '' : hostId,
+            provider,
+            externalWorkspaceSlug: workspaceSlug,
+            apiKey: key,
+          })
       setKey('')
       await changed()
       select(res.connection?.id ?? '')
@@ -656,6 +760,34 @@ function ConnectionForm({
   return (
     <div className='space-y-5'>
       <form className='space-y-4' onSubmit={save}>
+        {!connection && (
+          <label className='block space-y-1 text-sm'>
+            <span>Platform</span>
+            <select
+              className='block min-h-10 w-full rounded-md border bg-background px-3'
+              value={provider}
+              onChange={(e) => {
+                setProvider(e.target.value)
+                setHostId('')
+                setWorkspaceSlug('')
+                setKey('')
+              }}
+            >
+              <option value='github'>GitHub</option>
+              <option value='gitlab'>GitLab</option>
+              <option value='linear'>Linear</option>
+              <option value='plane'>Plane</option>
+            </select>
+          </label>
+        )}
+        {connection && (
+          <p className='text-sm text-muted-foreground'>
+            {providerName(provider)} · {connection.instanceUrl}
+            {connection.externalWorkspaceSlug
+              ? ` · ${connection.externalWorkspaceSlug}`
+              : ''}
+          </p>
+        )}
         <div className='space-y-1'>
           <Label htmlFor='station-name'>Connection name</Label>
           <Input
@@ -666,7 +798,7 @@ function ConnectionForm({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        {!connection && (
+        {!connection && (provider === 'github' || provider === 'gitlab') && (
           <div className='block space-y-1 text-sm'>
             <Label htmlFor='station-host'>Git Host</Label>
             <select
@@ -677,13 +809,15 @@ function ConnectionForm({
               value={hostId}
               onChange={(e) => setHostId(e.target.value)}
             >
-              <option value=''>Select a GitHub.com host</option>
+              <option value=''>Select a {providerName(provider)} host</option>
               {hosts.data?.hosts
-                ?.filter(
-                  (h) =>
-                    h.apiBaseUrl.replace(/\/+$/, '') ===
-                      'https://api.github.com' &&
-                    h.webBaseUrl.replace(/\/+$/, '') === 'https://github.com'
+                ?.filter((h) =>
+                  provider === 'gitlab'
+                    ? h.kind === GitHostKind.GITLAB
+                    : h.kind === GitHostKind.GITHUB &&
+                      h.apiBaseUrl.replace(/\/+$/, '') ===
+                        'https://api.github.com' &&
+                      h.webBaseUrl.replace(/\/+$/, '') === 'https://github.com'
                 )
                 .map((h) => (
                   <option key={h.id} value={h.id}>
@@ -692,10 +826,56 @@ function ConnectionForm({
                 ))}
             </select>
             <p id='station-host-help' className='block text-muted-foreground'>
-              A global administrator can register GitHub.com in Admin → Git
+              A global administrator manages approved endpoints in Admin → Git
               hosts.
             </p>
           </div>
+        )}
+        {!connection && provider === 'linear' && (
+          <p className='text-sm text-muted-foreground'>
+            Connect to the official Linear service at api.linear.app. Team
+            selection is required after creation.
+          </p>
+        )}
+        {!connection && provider === 'plane' && (
+          <>
+            <label className='block space-y-1 text-sm'>
+              <span>Plane host</span>
+              <select
+                required
+                className='block min-h-10 w-full rounded-md border bg-background px-3'
+                value={hostId}
+                onChange={(e) => setHostId(e.target.value)}
+              >
+                <option value=''>Select an approved Plane host</option>
+                {planeHosts.data?.hosts.map((host) => (
+                  <option key={host.id} value={host.id}>
+                    {host.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='block space-y-1 text-sm'>
+              <span>Plane workspace slug</span>
+              <Input
+                required
+                value={workspaceSlug}
+                maxLength={128}
+                placeholder='engineering'
+                onChange={(e) => setWorkspaceSlug(e.target.value)}
+              />
+            </label>
+            <p className='text-sm text-muted-foreground'>
+              Plane Cloud and self-managed hosts use the approved v2 profile.
+              API keys inherit the owner's source permissions; selected projects
+              and descriptions are shared with this workspace.
+            </p>
+            {planeHosts.error && (
+              <p role='alert' className='text-sm text-destructive'>
+                Unable to load approved Plane hosts.
+              </p>
+            )}
+          </>
         )}
         <div className='space-y-1'>
           <Label htmlFor='station-key'>
@@ -713,7 +893,13 @@ function ConnectionForm({
           <p className='text-sm text-muted-foreground'>
             {connection?.credentialSet
               ? 'API key set. Leave blank to keep it.'
-              : 'Use a fine-grained token with Issues and Pull requests read permissions.'}
+              : provider === 'github'
+                ? 'Use a fine-grained token with Issues and Pull requests read permissions.'
+                : provider === 'gitlab'
+                  ? 'Use a personal, project, or group access token with read_api. Deploy and job tokens are unsupported.'
+                  : provider === 'linear'
+                    ? 'Use a read-capable Linear API key with access to the teams you want to share.'
+                    : 'Use a Plane API key with access to the projects you want to share.'}
           </p>
         </div>
         <Button disabled={pending} type='submit'>
@@ -732,8 +918,8 @@ function ConnectionForm({
                   await changed()
                   setNotice(
                     res.connection?.paused
-                      ? 'GitHub rejected the key. Replace it to resume.'
-                      : 'Connection verified. Selected repositories are queued for a new scan.'
+                      ? 'The source rejected the key. Replace it to resume.'
+                      : `Connection verified. Selected ${scopeLabel} are queued for a new scan.`
                   )
                 })
               }
@@ -759,11 +945,11 @@ function ConnectionForm({
             </Button>
           </div>
           <fieldset className='space-y-3' disabled={pending}>
-            <legend className='font-medium'>Selected repositories</legend>
+            <legend className='font-medium'>Selected {scopeLabel}</legend>
             <p className='text-sm text-muted-foreground'>
-              Select only repositories you intend to share. Clearing every
+              Select only {scopeLabel} you intend to share. Clearing every
               selection imports nothing. Saving rechecks access and retries
-              unavailable repositories without resetting healthy ones.
+              unavailable scopes without resetting healthy ones.
             </p>
             <Button
               type='button'
@@ -786,7 +972,7 @@ function ConnectionForm({
                 })
               }
             >
-              {nextPage ? 'Load more repositories' : 'Discover repositories'}
+              {nextPage ? `Load more ${scopeLabel}` : `Discover ${scopeLabel}`}
             </Button>
             <div className='max-h-64 space-y-2 overflow-y-auto'>
               {candidates.map((s) => (
@@ -821,7 +1007,7 @@ function ConnectionForm({
                 })
               }
             >
-              Save selected repositories
+              Save selected {scopeLabel}
             </Button>
           </fieldset>
           {!confirmDelete ? (

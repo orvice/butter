@@ -6,9 +6,7 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,6 +15,7 @@ import (
 	"time"
 
 	ws "go.orx.me/apps/butter/internal/workstation"
+	"go.orx.me/apps/butter/internal/workstation/outbound"
 	v1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -25,42 +24,23 @@ const origin = "https://api.github.com"
 const maxPages = 1000
 const maxBody = 16 << 20
 
-type Provider struct{ client *http.Client }
+type Provider struct {
+	client *http.Client
+	cache  responseCache
+}
 
 func New(transport http.RoundTripper) *Provider {
-	if transport == nil {
-		t := http.DefaultTransport.(*http.Transport).Clone()
-		// Fixed origins still need DNS checks at connection time. Disable proxy
-		// routing so it cannot bypass this check; never disable TLS verification.
-		t.Proxy = nil
-		t.DialContext = publicDial
-		transport = t
-	}
-	return &Provider{client: &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
-}
-func publicDial(ctx context.Context, network, address string) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil || host != "api.github.com" || port != "443" {
-		return nil, fmt.Errorf("unapproved destination")
-	}
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	client, err := outbound.NewClient(origin, transport)
 	if err != nil {
-		return nil, fmt.Errorf("DNS unavailable")
+		panic("invalid fixed GitHub origin")
 	}
-	d := net.Dialer{Timeout: 15 * time.Second}
-	for _, ip := range ips {
-		if !ip.IP.IsGlobalUnicast() || ip.IP.IsPrivate() || ip.IP.IsLoopback() || ip.IP.IsLinkLocalUnicast() {
-			continue
-		}
-		conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
-		if err == nil {
-			return conn, nil
-		}
-	}
-	return nil, fmt.Errorf("no approved destination available")
+	return &Provider{client: client}
 }
 func failure(category string) error { return &ws.Failure{Category: category} }
 func (p *Provider) get(ctx context.Context, token, path string, q url.Values, out any) (http.Header, error) {
+	return p.getResource(ctx, token, path, q, out, false)
+}
+func (p *Provider) getResource(ctx context.Context, token, path string, q url.Values, out any, allowMissing bool) (http.Header, error) {
 	u := origin + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
@@ -72,12 +52,36 @@ func (p *Provider) get(ctx context.Context, token, path string, q url.Values, ou
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	cacheKey := requestKey(token, req)
+	cached, hasCached := p.cache.get(cacheKey)
+	if hasCached {
+		req.Header.Set("If-None-Match", cached.etag)
+	}
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, failure("DEGRADED")
 	}
 	defer resp.Body.Close()
 	h := resp.Header
+	if resp.StatusCode == http.StatusNotModified {
+		if !hasCached {
+			return nil, failure("SCHEMA_ERROR")
+		}
+		if json.Unmarshal(cached.body, out) != nil {
+			return nil, failure("SCHEMA_ERROR")
+		}
+		merged := cached.header.Clone()
+		for key, values := range h {
+			merged[key] = append([]string(nil), values...)
+		}
+		return merged, nil
+	}
+	// A changed or rejected response invalidates the old representation. A
+	// later unexpected 304 can never resurrect it after an authorization error.
+	p.cache.remove(cacheKey)
+	if allowMissing && (resp.StatusCode == 404 || resp.StatusCode == 410 || resp.StatusCode == 301 || resp.StatusCode == 302 || resp.StatusCode == 307 || resp.StatusCode == 308) {
+		return nil, errItemMissing
+	}
 	if resp.StatusCode == 429 || (resp.StatusCode == 403 && (h.Get("X-RateLimit-Remaining") == "0" || h.Get("Retry-After") != "")) {
 		delay := time.Minute
 		if sec, err := strconv.Atoi(h.Get("Retry-After")); err == nil && sec > 0 {
@@ -117,6 +121,7 @@ func (p *Provider) get(ctx context.Context, token, path string, q url.Values, ou
 	if len(data) > maxBody || json.Unmarshal(data, out) != nil {
 		return nil, failure("SCHEMA_ERROR")
 	}
+	p.cache.put(cacheKey, h.Get("ETag"), data, h)
 	return h, nil
 }
 func (p *Provider) Probe(ctx context.Context, token string) (ws.Identity, error) {
@@ -313,9 +318,8 @@ func normalize(r remoteItem, scope ws.Scope, kind string) (*v1.WorkStationItem, 
 	return item, nil
 }
 
-// Scan currently performs a bounded full traversal each cycle. It deliberately
-// has no ETag/incremental cache: a 304 or a failed page can never publish an
-// empty/partial traversal. Incremental reconciliation is a documented follow-up.
+// Scan performs a bounded complete traversal. Each conditional page is replayed
+// independently; a 304 or failed page never substitutes for a full traversal.
 func (p *Provider) Scan(ctx context.Context, token string, scope ws.Scope, now time.Time) (ws.Scan, error) {
 	repo, err := p.repository(ctx, token, scope.ID)
 	if err != nil {
@@ -335,7 +339,7 @@ func (p *Provider) Scan(ctx context.Context, token string, scope ws.Scope, now t
 		return ws.Scan{}, failure("SCHEMA_ERROR")
 	}
 	base := "/repos/" + url.PathEscape(parts[0]) + "/" + url.PathEscape(parts[1])
-	result := ws.Scan{Coverage: "COMPLETE"}
+	result := ws.Scan{Coverage: "COMPLETE", Mode: "FULL"}
 	items := map[string]*v1.WorkStationItem{}
 	for _, endpoint := range []struct{ Path, Kind string }{{"/issues", "ISSUE"}, {"/pulls", "PULL_REQUEST"}} {
 		path := base + endpoint.Path

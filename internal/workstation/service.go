@@ -20,15 +20,16 @@ import (
 )
 
 type Service struct {
-	Repo     Repository
-	Keyring  *secretbox.Keyring
-	Provider Provider
+	Repo            Repository
+	Keyring         *secretbox.Keyring
+	Provider        Provider
+	ResolveProvider func(context.Context, Record) (ResolvedProvider, error)
 	// CheckHost validates the existing Git Host on every operation/attempt.
 	CheckHost func(context.Context, string) error
 }
 
 func (s *Service) ready() error {
-	if s == nil || s.Repo == nil || s.Keyring == nil || s.Provider == nil || s.CheckHost == nil {
+	if s == nil || s.Repo == nil || s.Keyring == nil || (s.ResolveProvider == nil && (s.Provider == nil || s.CheckHost == nil)) {
 		return ErrUnsupported
 	}
 	return nil
@@ -45,7 +46,7 @@ func (s *Service) mutate(ctx context.Context, w, id string, change func(*Record,
 			return Record{}, err
 		}
 		next := old
-		next.Scopes = append([]Scope(nil), old.Scopes...)
+		next.Scopes = CloneScopes(old.Scopes)
 		if err := change(&next, now); err != nil {
 			return Record{}, err
 		}
@@ -61,20 +62,31 @@ func (s *Service) mutate(ctx context.Context, w, id string, change func(*Record,
 	return Record{}, ErrConflict
 }
 func (s *Service) Create(ctx context.Context, w, name, host, key string) (Record, error) {
+	return s.CreateFor(ctx, w, name, "github", host, "", key)
+}
+func (s *Service) CreateFor(ctx context.Context, w, name, provider, host, slug, key string) (Record, error) {
 	if err := s.ready(); err != nil {
 		return Record{}, err
 	}
-	if !validName(name) || host == "" || strings.TrimSpace(key) == "" || len(key) > 16384 {
+	if !validName(name) || strings.TrimSpace(key) == "" || len(key) > 16384 {
 		return Record{}, ErrInvalid
 	}
-	if err := s.CheckHost(ctx, host); err != nil {
+	if provider == "" {
+		provider = "github"
+	}
+	seed := Record{Source: SourceIdentity{Provider: provider}, HostID: host, ExternalWorkspaceSlug: slug}
+	resolved, err := s.resolve(ctx, seed)
+	if err != nil {
 		return Record{}, err
 	}
-	identity, err := s.Provider.Probe(ctx, key)
+	identity, err := resolved.Adapter.Probe(ctx, key)
 	if err != nil {
 		return Record{}, err
 	}
 	source, err := identity.Source.Canonical()
+	if err == nil && (source.Provider != resolved.Source.Provider || source.Origin != resolved.Source.Origin) {
+		err = ErrInvalid
+	}
 	if err != nil {
 		return Record{}, err
 	}
@@ -82,14 +94,14 @@ func (s *Service) Create(ctx context.Context, w, name, host, key string) (Record
 	if err != nil {
 		return Record{}, err
 	}
-	r := Record{Source: source, WorkspaceID: w, ID: uuid.NewString(), Name: strings.TrimSpace(name), HostID: host, PrincipalID: identity.PrincipalID, Revision: 1, Version: 1, Epoch: uuid.NewString(), Credential: Credential{Ciphertext: cipher, KeyID: kid}, Scopes: []Scope{}}
+	r := Record{Source: source, WorkspaceID: w, ID: uuid.NewString(), Name: strings.TrimSpace(name), HostID: host, ExternalWorkspaceSlug: slug, WebBaseURL: resolved.WebBaseURL, PrincipalID: identity.PrincipalID, Revision: 1, Version: 1, Epoch: uuid.NewString(), Credential: Credential{Ciphertext: cipher, KeyID: kid}, Scopes: []Scope{}}
 	return r, s.Repo.Create(ctx, r)
 }
 func (s *Service) token(ctx context.Context, r Record) (string, error) {
 	if err := s.ready(); err != nil {
 		return "", err
 	}
-	if err := s.CheckHost(ctx, r.HostID); err != nil {
+	if _, err := s.resolve(ctx, r); err != nil {
 		return "", err
 	}
 	if r.Credential.Ciphertext == "" {
@@ -114,6 +126,11 @@ func reset(r *Record, now time.Time) {
 		sc.Coverage = ""
 		sc.Unresolved = 0
 		sc.LastSuccess = time.Time{}
+		sc.Checkpoint = time.Time{}
+		sc.LastFull = time.Time{}
+		sc.ScanStarted = time.Time{}
+		sc.ScannedItems = 0
+		sc.Pending = nil
 		sc.Due = now
 		sc.Health = "QUEUED"
 	}
@@ -137,10 +154,11 @@ func (s *Service) Update(ctx context.Context, w, id string, revision int64, name
 		if len(*key) > 16384 {
 			return Record{}, ErrInvalid
 		}
-		if err := s.CheckHost(ctx, old.HostID); err != nil {
+		resolved, err := s.resolve(ctx, old)
+		if err != nil {
 			return Record{}, err
 		}
-		identity, err := s.Provider.Probe(ctx, *key)
+		identity, err := resolved.Adapter.Probe(ctx, *key)
 		if err != nil {
 			return Record{}, err
 		}
@@ -207,7 +225,11 @@ func (s *Service) Test(ctx context.Context, w, id string) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	identity, probeErr := s.Provider.Probe(ctx, token)
+	resolved, err := s.resolve(ctx, r)
+	if err != nil {
+		return Record{}, err
+	}
+	identity, probeErr := resolved.Adapter.Probe(ctx, token)
 	if probeErr != nil && Classify(probeErr).Category != "AUTH_INVALID" {
 		return Record{}, probeErr
 	}
@@ -247,7 +269,11 @@ func (s *Service) Discover(ctx context.Context, w, id, page string) (Page, error
 	if err != nil {
 		return Page{}, err
 	}
-	return s.Provider.DiscoverScopes(ctx, token, page)
+	resolved, err := s.resolve(ctx, r)
+	if err != nil {
+		return Page{}, err
+	}
+	return resolved.Adapter.DiscoverScopes(ctx, token, page)
 }
 func (s *Service) Select(ctx context.Context, w, id string, revision int64, ids []string) (Record, error) {
 	if id == "" || revision < 1 {
@@ -277,7 +303,11 @@ func (s *Service) Select(ctx context.Context, w, id string, revision int64, ids 
 			if _, ok := resolved[id]; ok {
 				return Record{}, ErrInvalid
 			}
-			sc, err := s.Provider.ResolveScope(ctx, token, id)
+			resolvedProvider, err := s.resolve(ctx, r)
+			if err != nil {
+				return Record{}, err
+			}
+			sc, err := resolvedProvider.Adapter.ResolveScope(ctx, token, id)
 			if err != nil {
 				return Record{}, err
 			}
@@ -373,9 +403,9 @@ func maxTime(a, b time.Time) time.Time {
 	return b
 }
 func Public(r Record) *v1.WorkStationConnection {
-	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.SourceIdentity().Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused}
+	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.SourceIdentity().Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused, ExternalWorkspaceSlug: r.ExternalWorkspaceSlug, InstanceUrl: r.SourceIdentity().Origin, ExternalTenantId: r.SourceIdentity().TenantID, WebBaseUrl: r.WebBaseURL}
 	for _, sc := range r.Scopes {
-		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess)}
+		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess), ScanStartedAt: stamp(sc.ScanStarted), LastFullReconciliationAt: stamp(sc.LastFull), ScannedItems: sc.ScannedItems}
 		c.Scopes = append(c.Scopes, p)
 	}
 	return c
@@ -395,7 +425,14 @@ func (s *Service) Connections(ctx context.Context, w string) ([]*v1.WorkStationC
 	out := []*v1.WorkStationConnection{}
 	for _, r := range rs {
 		p := Public(r)
-		if err := s.CheckHost(ctx, r.HostID); err != nil {
+		now, err := s.Repo.Now(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, scope := range p.Scopes {
+			scope.Stale = scope.LastSuccessAt == nil || now.Sub(scope.LastSuccessAt.AsTime()) > 10*time.Minute
+		}
+		if _, err := s.resolve(ctx, r); err != nil {
 			p.Paused = true
 			for _, sc := range p.Scopes {
 				sc.Health = "UNSUPPORTED"
@@ -414,7 +451,7 @@ type pageCursor struct {
 }
 
 func fingerprint(w string, q Query) string {
-	b, _ := json.Marshal([]string{w, q.Kind, q.ConnectionID, q.ScopeID, q.Status, q.Assignee, q.Keyword, strconv.Itoa(q.Limit)})
+	b, _ := json.Marshal([]string{w, q.Kind, q.ConnectionID, q.ScopeID, q.Status, q.Assignee, q.Keyword, q.Provider, q.ProjectID, strconv.Itoa(q.Limit)})
 	hash := sha256.Sum256(b)
 	return hex.EncodeToString(hash[:])
 }
@@ -422,13 +459,13 @@ func (s *Service) List(ctx context.Context, w string, q Query, page string) ([]*
 	if q.Kind == "" {
 		q.Kind = "ISSUE"
 	}
-	if q.Kind != "ISSUE" && q.Kind != "PULL_REQUEST" {
+	if q.Kind != "ISSUE" && q.Kind != "PULL_REQUEST" && q.Kind != "MERGE_REQUEST" {
 		return nil, "", ErrInvalid
 	}
 	if q.Status == "" {
 		q.Status = "open"
 	}
-	if !slices.Contains([]string{"open", "all", "NOT_STARTED", "DONE", "CANCELED", "OPEN", "MERGED", "CLOSED", "OTHER"}, q.Status) || len(q.Keyword) > 256 || len(q.Assignee) > 256 {
+	if !slices.Contains([]string{"open", "all", "NOT_STARTED", "IN_PROGRESS", "DONE", "CANCELED", "OPEN", "MERGED", "CLOSED", "OTHER"}, q.Status) || len(q.Keyword) > 256 || len(q.Assignee) > 256 {
 		return nil, "", ErrInvalid
 	}
 	if q.Limit == 0 {
@@ -480,7 +517,7 @@ func (s *Service) allowedSources(ctx context.Context, w string, q *Query) error 
 	}
 	q.AllowedConnections = []string{}
 	for _, r := range rs {
-		if !r.Paused && r.Credential.Ciphertext != "" && s.CheckHost(ctx, r.HostID) == nil {
+		if !r.Paused && r.Credential.Ciphertext != "" && s.hostValid(ctx, r) {
 			q.AllowedConnections = append(q.AllowedConnections, r.ID)
 		}
 	}

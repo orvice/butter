@@ -46,6 +46,14 @@ func (s *Service) Claim(ctx context.Context, w, id, scopeID string) (Attempt, er
 			sc.Claim = uuid.NewString()
 			sc.LeaseUntil = now.Add(LeaseDuration)
 			sc.Health = "RUNNING"
+			if sc.Pending != nil && now.Sub(sc.Pending.Started) < 24*time.Hour {
+				sc.ScanStarted = sc.Pending.Started
+				sc.ScannedItems = sc.Pending.Count
+			} else {
+				sc.Pending = nil
+				sc.ScanStarted = now
+				sc.ScannedItems = 0
+			}
 			a = Attempt{Record: *r, Scope: *sc, Token: sc.Claim, Until: sc.LeaseUntil}
 			return nil
 		}
@@ -67,7 +75,7 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 			return ErrFenced
 		}
 		next := old
-		next.Scopes = append([]Scope(nil), old.Scopes...)
+		next.Scopes = CloneScopes(old.Scopes)
 		found := false
 		previousSnapshot := ""
 		for i := range next.Scopes {
@@ -89,6 +97,14 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 				sc.Coverage = result.Coverage
 				sc.Unresolved = result.Unresolved
 				sc.LastSuccess = now
+				sc.Pending = nil
+				sc.ScannedItems = uint32(len(result.Items))
+				if result.Coverage == "COMPLETE" {
+					sc.Checkpoint = a.Scope.ScanStarted
+					if result.Mode != "INCREMENTAL" {
+						sc.LastFull = a.Scope.ScanStarted
+					}
+				}
 				sc.Hidden = false
 			} else {
 				f := Classify(scanErr)
@@ -122,6 +138,16 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 			return err
 		}
 		if ok {
+			if scanErr != nil && Classify(scanErr).Category == "RATE_LIMITED" {
+				delay := max(Classify(scanErr).RetryAfter, time.Minute)
+				i, k := BudgetKeys(old)
+				if err := s.Repo.DeferBudget(ctx, i, delay); err != nil {
+					return err
+				}
+				if err := s.Repo.DeferBudget(ctx, k, delay); err != nil {
+					return err
+				}
+			}
 			if scanErr == nil && previousSnapshot != "" {
 				if err := s.Repo.PruneSnapshot(ctx, old.WorkspaceID, old.ID, a.Scope.ID, previousSnapshot); err != nil {
 					return fmt.Errorf("%w: %w", ErrCleanupPending, err)
@@ -204,7 +230,30 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 		err = e
 		if err == nil {
 			var result Scan
-			result, err = s.Provider.Scan(attemptCtx, token, a.Scope, now)
+			resolved, e := s.resolve(attemptCtx, a.Record)
+			if e != nil {
+				err = e
+			} else if incremental, ok := resolved.Adapter.(IncrementalProvider); ok && a.Scope.Pending == nil && a.Scope.Snapshot != "" && a.Scope.Coverage == "COMPLETE" && a.Scope.Unresolved == 0 && !a.Scope.Checkpoint.IsZero() && now.Sub(a.Scope.LastFull) < 24*time.Hour {
+				previous, e := s.Repo.Query(attemptCtx, a.Record.WorkspaceID, Query{AllowedConnections: []string{a.Record.ID}, ConnectionID: a.Record.ID, ScopeID: a.Scope.ID, Status: "all", Now: now})
+				if e != nil {
+					err = e
+				} else {
+					result, err = incremental.ScanIncremental(attemptCtx, token, a.Scope, now, previous)
+					if result.Mode == "" {
+						result.Mode = "INCREMENTAL"
+					}
+				}
+			} else {
+				if batched, ok := resolved.Adapter.(BatchProvider); ok {
+					result, err = s.scanBatches(attemptCtx, a, batched, token)
+					if errors.Is(err, errScanPending) {
+						return nil
+					}
+				} else {
+					result, err = resolved.Adapter.Scan(attemptCtx, token, a.Scope, now)
+				}
+				result.Mode = "FULL"
+			}
 			if err == nil {
 				err = s.Publish(attemptCtx, a, result)
 				if errors.Is(err, ErrCleanupPending) {

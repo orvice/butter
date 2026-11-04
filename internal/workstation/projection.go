@@ -64,6 +64,9 @@ func Project(records []Record, observations []Observation, q Query) []*v1.WorkSt
 		if !Retained(item, q.Now) || (q.ID != "" && item.Id != q.ID) || (q.Kind != "" && item.Kind != q.Kind) {
 			continue
 		}
+		if (q.Provider != "" && item.Provider != q.Provider) || (q.ProjectID != "" && item.ProjectId != q.ProjectID) {
+			continue
+		}
 		if q.Status == "open" && item.Terminal {
 			continue
 		}

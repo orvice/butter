@@ -33,6 +33,13 @@ func New(db *mongo.Database) *Store {
 var _ ws.Repository = (*Store)(nil)
 
 func (s *Store) EnsureIndexes(ctx context.Context) error {
+	// All observations before provider columns existed were GitHub preview rows.
+	if _, err := s.observations.UpdateMany(ctx, bson.M{"provider": bson.M{"$exists": false}}, bson.M{"$set": bson.M{"provider": "github"}}); err != nil {
+		return err
+	}
+	if _, err := s.db.Collection(hosts).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true)}); err != nil {
+		return err
+	}
 	_, err := s.connections.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "id", Value: 1}}, Options: options.Index().SetUnique(true)},
 		{Keys: bson.D{{Key: "paused", Value: 1}, {Key: "scopes.due", Value: 1}}},
@@ -133,6 +140,10 @@ type observation struct {
 	Assignees    []string   `bson:"assignees"`
 	Title        string     `bson:"title"`
 	Identifier   string     `bson:"identifier"`
+	Provider     string     `bson:"provider"`
+	ProjectID    string     `bson:"project_id"`
+	ProjectName  string     `bson:"project_name"`
+	ScopeName    string     `bson:"scope_name"`
 	Payload      []byte     `bson:"payload"`
 }
 
@@ -149,7 +160,7 @@ func (s *Store) Stage(ctx context.Context, obs []ws.Observation) error {
 				v := o.Item.EndedAt.AsTime()
 				ended = &v
 			}
-			docs = append(docs, observation{ID: uuid.NewString(), WorkspaceID: o.WorkspaceID, ConnectionID: o.ConnectionID, ScopeID: o.ScopeID, Snapshot: o.Snapshot, ItemID: o.Item.Id, Updated: o.Item.SourceUpdatedAt.AsTime(), Observed: o.Item.ObservedAt.AsTime(), Ended: ended, Terminal: o.Item.Terminal, Kind: o.Item.Kind, Status: o.Item.Status, Assignees: o.Item.Assignees, Title: o.Item.Title, Identifier: o.Item.Identifier, Payload: b})
+			docs = append(docs, observation{ID: uuid.NewString(), WorkspaceID: o.WorkspaceID, ConnectionID: o.ConnectionID, ScopeID: o.ScopeID, Snapshot: o.Snapshot, ItemID: o.Item.Id, Updated: o.Item.SourceUpdatedAt.AsTime(), Observed: o.Item.ObservedAt.AsTime(), Ended: ended, Terminal: o.Item.Terminal, Kind: o.Item.Kind, Status: o.Item.Status, Assignees: o.Item.Assignees, Title: o.Item.Title, Identifier: o.Item.Identifier, Payload: b, Provider: o.Item.Provider, ProjectID: o.Item.ProjectId, ProjectName: o.Item.ProjectName, ScopeName: o.Item.ScopeName})
 		}
 		if _, err := s.observations.InsertMany(ctx, docs); err != nil {
 			return err
@@ -166,7 +177,11 @@ func currentSource() bson.D { return snapshotReference(true) }
 
 func snapshotReference(visible bool) bson.D {
 	filter := bson.M{"$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$workspace_id", "$$w"}}, bson.M{"$eq": bson.A{"$id", "$$c"}}}}}
-	scopeFilter := bson.M{"scopes.snapshot": bson.M{"$ne": ""}, "$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$scopes.id", "$$s"}}, bson.M{"$eq": bson.A{"$scopes.snapshot", "$$snap"}}}}}
+	refs := bson.A{bson.M{"$eq": bson.A{"$scopes.snapshot", "$$snap"}}}
+	if !visible {
+		refs = append(refs, bson.M{"$in": bson.A{"$$snap", bson.M{"$ifNull": bson.A{"$scopes.pending.batches", bson.A{}}}}})
+	}
+	scopeFilter := bson.M{"$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$scopes.id", "$$s"}}, bson.M{"$or": refs}}}}
 	if visible {
 		filter["paused"] = false
 		filter["credential.ciphertext"] = bson.M{"$ne": ""}
@@ -179,7 +194,7 @@ func snapshotReference(visible bool) bson.D {
 		stage("$project", bson.M{"_id": 1}),
 	}, "as": "live"})
 }
-func (s *Store) Query(ctx context.Context, w string, q ws.Query) ([]*v1.WorkStationItem, error) {
+func (s *Store) queryPipeline(ctx context.Context, w string, q ws.Query) (mongo.Pipeline, error) {
 	records, err := s.List(ctx, w)
 	if err != nil {
 		return nil, err
@@ -197,7 +212,7 @@ func (s *Store) Query(ctx context.Context, w string, q ws.Query) ([]*v1.WorkStat
 		}
 	}
 	if len(snapshots) == 0 {
-		return []*v1.WorkStationItem{}, nil
+		return mongo.Pipeline{stage("$match", bson.M{"_id": bson.M{"$exists": false}})}, nil
 	}
 	match := bson.M{"workspace_id": w, "$or": snapshots}
 	if q.AllowedConnections != nil {
@@ -220,6 +235,12 @@ func (s *Store) Query(ctx context.Context, w string, q ws.Query) ([]*v1.WorkStat
 	if q.Kind != "" {
 		filters = append(filters, bson.M{"chosen.kind": q.Kind})
 	}
+	if q.Provider != "" {
+		filters = append(filters, bson.M{"chosen.provider": q.Provider})
+	}
+	if q.ProjectID != "" {
+		filters = append(filters, bson.M{"chosen.project_id": q.ProjectID})
+	}
 	if q.Status == "open" {
 		filters = append(filters, bson.M{"chosen.terminal": false})
 	} else if q.Status != "" && q.Status != "all" {
@@ -235,7 +256,17 @@ func (s *Store) Query(ctx context.Context, w string, q ws.Query) ([]*v1.WorkStat
 	if q.AfterID != "" {
 		filters = append(filters, bson.M{"$or": bson.A{bson.M{"chosen.updated": bson.M{"$lt": q.AfterTime}}, bson.M{"chosen.updated": q.AfterTime, "_id": bson.M{"$lt": q.AfterID}}}})
 	}
-	p = append(p, stage("$match", bson.M{"$and": filters}), stage("$sort", bson.D{{Key: "chosen.updated", Value: -1}, {Key: "_id", Value: -1}}), stage("$limit", int64(q.Limit)))
+	return append(p, stage("$match", bson.M{"$and": filters})), nil
+}
+func (s *Store) Query(ctx context.Context, w string, q ws.Query) ([]*v1.WorkStationItem, error) {
+	p, err := s.queryPipeline(ctx, w, q)
+	if err != nil {
+		return nil, err
+	}
+	p = append(p, stage("$sort", bson.D{{Key: "chosen.updated", Value: -1}, {Key: "_id", Value: -1}}))
+	if q.Limit > 0 {
+		p = append(p, stage("$limit", int64(q.Limit)))
+	}
 	cur, err := s.observations.Aggregate(ctx, p, options.Aggregate().SetAllowDiskUse(true))
 	if err != nil {
 		return nil, err
@@ -313,4 +344,25 @@ func (s *Store) Collect(ctx context.Context) error {
 			return err
 		}
 	}
+}
+
+func (s *Store) Staged(ctx context.Context, w, connection, scope string, tokens []string) ([]*v1.WorkStationItem, error) {
+	cur, err := s.observations.Find(ctx, bson.M{"workspace_id": w, "connection_id": connection, "scope_id": scope, "snapshot": bson.M{"$in": tokens}})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	out := []*v1.WorkStationItem{}
+	for cur.Next(ctx) {
+		var row observation
+		if err := cur.Decode(&row); err != nil {
+			return nil, err
+		}
+		item := &v1.WorkStationItem{}
+		if err := proto.Unmarshal(row.Payload, item); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, cur.Err()
 }
