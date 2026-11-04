@@ -5,16 +5,23 @@ import (
 	"context"
 	"errors"
 	"go.orx.me/apps/butter/internal/application"
+	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/workstation"
 	"go.orx.me/apps/butter/internal/workstation/providerregistry"
 )
 
+func configuredWorkStationProvider(cfg *config.AppConfig) providerregistry.Config {
+	if cfg == nil || cfg.WorkStation.ProviderKind == "" {
+		return providerregistry.Config{Kind: providerregistry.GitHub}
+	}
+	return providerregistry.Config{Kind: providerregistry.Kind(cfg.WorkStation.ProviderKind), Host: cfg.WorkStation.Host, Profile: cfg.WorkStation.Profile}
+}
 func (h *Handlers) wireWorkStation(result *BootstrapResult) {
 	if h.workStationSvcServer == nil || result.WorkStationRepo == nil {
 		return
 	}
-	station, err := providerregistry.NewService(providerregistry.Config{Kind: providerregistry.GitHub}, providerregistry.ServiceDeps{Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), CheckHost: application.WorkStationHostCheck(result.GitHostRepo)})
+	station, err := providerregistry.NewService(configuredWorkStationProvider(h.cfg), providerregistry.ServiceDeps{Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), CheckHost: application.WorkStationHostCheck(result.GitHostRepo)})
 	if err != nil {
 		log.FromContext(context.Background()).Error("work station provider wiring failed", "error", err)
 		return
