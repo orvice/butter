@@ -1,0 +1,247 @@
+syntax = "proto3";
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// Work Station is a workspace-shared, read-only projection. Credentials never
+// appear on readable messages. Provider profiles have only read capabilities.
+service WorkStationService {
+  rpc ListConnections(WorkStationServiceListConnectionsRequest) returns (WorkStationServiceListConnectionsResponse);
+  rpc GetConnection(WorkStationServiceGetConnectionRequest) returns (WorkStationServiceGetConnectionResponse);
+  rpc ListFilterOptions(WorkStationServiceListFilterOptionsRequest) returns (WorkStationServiceListFilterOptionsResponse);
+  rpc CreateConnection(WorkStationServiceCreateConnectionRequest) returns (WorkStationServiceCreateConnectionResponse);
+  rpc UpdateConnection(WorkStationServiceUpdateConnectionRequest) returns (WorkStationServiceUpdateConnectionResponse);
+  rpc DeleteConnection(WorkStationServiceDeleteConnectionRequest) returns (WorkStationServiceDeleteConnectionResponse);
+  rpc TestConnection(WorkStationServiceTestConnectionRequest) returns (WorkStationServiceTestConnectionResponse);
+  rpc DiscoverScopes(WorkStationServiceDiscoverScopesRequest) returns (WorkStationServiceDiscoverScopesResponse);
+  rpc SetSelectedScopes(WorkStationServiceSetSelectedScopesRequest) returns (WorkStationServiceSetSelectedScopesResponse);
+  rpc Refresh(WorkStationServiceRefreshRequest) returns (WorkStationServiceRefreshResponse);
+  rpc ListItems(WorkStationServiceListItemsRequest) returns (WorkStationServiceListItemsResponse);
+  rpc GetItem(WorkStationServiceGetItemRequest) returns (WorkStationServiceGetItemResponse);
+}
+message WorkStationServiceDeleteConnectionResponse {}
+message WorkStationServiceListConnectionsRequest {}
+message WorkStationServiceListConnectionsResponse {
+  repeated WorkStationConnection connections = 1;
+}
+message WorkStationConnection {
+  string id = 1;
+  string name = 2;
+  string provider = 3;
+  string host_id = 4;
+  string principal_id = 5;
+  int64 revision = 6;
+  bool credential_set = 7;
+  bool paused = 8;
+  repeated WorkStationScope scopes = 9;
+  string external_workspace_slug = 10;
+  string instance_url = 11;
+  string external_tenant_id = 12;
+  string web_base_url = 13;
+}
+message WorkStationScope {
+  string id = 1;
+  string name = 2;
+  string health = 3;
+  string coverage = 4;
+  uint32 unresolved_terminal_count = 5;
+  google.protobuf.Timestamp last_success_at = 6;
+  google.protobuf.Timestamp next_attempt_at = 7;
+  bool initialized = 8;
+  uint32 scanned_item_count = 9;
+  string sync_phase = 10;
+  bool checkpoint_lag = 11;
+  string checkpoint_error = 12;
+  google.protobuf.Timestamp scan_started_at = 13;
+  google.protobuf.Timestamp last_full_reconciliation_at = 14;
+  uint32 scanned_items = 15;
+  bool stale = 16;
+}
+message WorkStationServiceCreateConnectionRequest {
+  string name = 1;
+  string host_id = 2;
+  string api_key = 3;
+  // github (legacy default), gitlab, linear, or plane.
+  string provider = 4;
+  string external_workspace_slug = 5;
+}
+message WorkStationServiceUpdateConnectionRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+  string name = 3;
+  // Absent keeps the key; nonempty replaces it; empty clears and hides data.
+  optional string api_key = 4;
+}
+message WorkStationServiceDeleteConnectionRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+}
+message WorkStationServiceTestConnectionRequest {
+  string id = 1;
+}
+message WorkStationServiceRefreshRequest {
+  string id = 1;
+}
+message WorkStationServiceCreateConnectionResponse {
+  WorkStationConnection connection = 1;
+}
+message WorkStationServiceUpdateConnectionResponse {
+  WorkStationConnection connection = 1;
+}
+message WorkStationServiceTestConnectionResponse {
+  WorkStationConnection connection = 1;
+}
+message WorkStationServiceSetSelectedScopesResponse {
+  WorkStationConnection connection = 1;
+}
+message WorkStationServiceDiscoverScopesRequest {
+  string id = 1;
+  string page_token = 2;
+}
+message WorkStationServiceDiscoverScopesResponse {
+  repeated WorkStationScope scopes = 1;
+  string next_page_token = 2;
+}
+message WorkStationServiceSetSelectedScopesRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+  repeated string scope_ids = 3;
+}
+message WorkStationServiceRefreshResponse {
+  // QUEUED, ALREADY_PENDING, RUNNING, DEFERRED, PAUSED, or NO_SCOPES.
+  string status = 1;
+  google.protobuf.Timestamp next_attempt_at = 2;
+}
+message WorkStationServiceListItemsRequest {
+  // ISSUE (default), PULL_REQUEST or MERGE_REQUEST. Source fields remain separate.
+  string kind = 1;
+  string connection_id = 2;
+  string scope_id = 3;
+  // Empty defaults to open. "all" includes retained terminal items.
+  string status = 4;
+  string assignee = 5;
+  string keyword = 6;
+  int32 page_size = 7;
+  string page_token = 8;
+  string provider = 9;
+  string project_id = 10;
+}
+message WorkStationServiceListItemsResponse {
+  repeated WorkStationItem items = 1;
+  string next_page_token = 2;
+}
+message WorkStationServiceGetItemRequest {
+  string id = 1;
+}
+message WorkStationServiceGetItemResponse {
+  WorkStationItem item = 1;
+}
+message WorkStationSource {
+  string connection_id = 1;
+  string scope_id = 2;
+}
+message WorkStationItem {
+  string id = 1;
+  string provider = 2;
+  string kind = 3;
+  string remote_id = 4;
+  string identifier = 5;
+  string scope_id = 6;
+  string scope_name = 7;
+  string title = 8;
+  string description = 9;
+  bool description_available = 10;
+  string url = 11;
+  string raw_state = 12;
+  string status = 13;
+  bool terminal = 14;
+  bool draft = 15;
+  string author = 16;
+  repeated string assignees = 17;
+  repeated string labels = 18;
+  google.protobuf.Timestamp source_created_at = 19;
+  google.protobuf.Timestamp source_updated_at = 20;
+  google.protobuf.Timestamp ended_at = 21;
+  google.protobuf.Timestamp observed_at = 22;
+  repeated WorkStationSource sources = 23;
+  string project_id = 24;
+  string project_name = 25;
+}
+
+message WorkStationServiceGetConnectionRequest {
+  string id = 1;
+}
+message WorkStationServiceGetConnectionResponse {
+  WorkStationConnection connection = 1;
+}
+message WorkStationServiceListFilterOptionsRequest {
+  string kind = 1;
+  string connection_id = 2;
+  string scope_id = 3;
+  string provider = 4;
+  // provider, scope, project, status, or assignee.
+  string dimension = 5;
+  string search = 6;
+  int32 page_size = 7;
+  string page_token = 8;
+}
+message WorkStationFilterOption {
+  string value = 1;
+  string label = 2;
+  string id = 3;
+  string name = 4;
+}
+message WorkStationServiceListFilterOptionsResponse {
+  repeated WorkStationFilterOption statuses = 1;
+  repeated WorkStationFilterOption assignees = 2;
+  repeated WorkStationFilterOption labels = 3;
+  repeated WorkStationFilterOption options = 4;
+  string next_page_token = 5;
+}
+
+// Global admin approved Plane v2 endpoints. Contains no workspace credential.
+service WorkStationHostService {
+  rpc ListHosts(WorkStationHostServiceListHostsRequest) returns (WorkStationHostServiceListHostsResponse);
+  rpc GetHost(WorkStationHostServiceGetHostRequest) returns (WorkStationHostServiceGetHostResponse);
+  rpc CreateHost(WorkStationHostServiceCreateHostRequest) returns (WorkStationHostServiceCreateHostResponse);
+  rpc UpdateHost(WorkStationHostServiceUpdateHostRequest) returns (WorkStationHostServiceUpdateHostResponse);
+  rpc DeleteHost(WorkStationHostServiceDeleteHostRequest) returns (WorkStationHostServiceDeleteHostResponse);
+}
+message WorkStationHost {
+  string id = 1;
+  string name = 2;
+  string api_base_url = 3;
+  string web_base_url = 4;
+  string profile = 5;
+  int64 revision = 6;
+}
+message WorkStationHostServiceListHostsRequest {}
+message WorkStationHostServiceListHostsResponse {
+  repeated WorkStationHost hosts = 1;
+}
+message WorkStationHostServiceGetHostRequest {
+  string id = 1;
+}
+message WorkStationHostServiceGetHostResponse {
+  WorkStationHost host = 1;
+}
+message WorkStationHostServiceCreateHostRequest {
+  WorkStationHost host = 1;
+}
+message WorkStationHostServiceCreateHostResponse {
+  WorkStationHost host = 1;
+}
+message WorkStationHostServiceUpdateHostRequest {
+  WorkStationHost host = 1;
+  int64 expected_revision = 2;
+}
+message WorkStationHostServiceUpdateHostResponse {
+  WorkStationHost host = 1;
+}
+message WorkStationHostServiceDeleteHostRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+}
+message WorkStationHostServiceDeleteHostResponse {}

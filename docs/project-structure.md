@@ -313,3 +313,20 @@ butter/
 - 新增 RPC service：在 `proto/agents/v1/*.proto` 定义 service + messages → `make buf` 生成代码 → 在 `internal/application/` 加 `<svc>_service.go`，每个 RPC 方法签名为 `func (s *XxxServiceServer) Method(ctx context.Context, req *connect.Request[agentsv1.YyyRequest]) (*connect.Response[agentsv1.YyyResponse], error)`，方法体访问 `req.Msg.GetX()`，返回 `connect.NewResponse(&agentsv1.YyyResponse{...})` → 在 `internal/app/routes.go` 用 `agentsv1connect.NewXxxServiceHandler(svc, connectOpts...)` 创建 handler，并挂到 `/api/agents.v1.XxxService/*`（`http.StripPrefix("/api", handler)`）→ 前端在 `front/src/api/` 加文件，`makeClient(XxxService)` 拿到类型化 client。
 - 新增 MongoDB collection：在 `internal/repo/` 下加同名子包，提供 interface + memory + mongo 两实现，在 `internal/app/channels.go` 按 `storage_backend` 选择后端并注入 BootstrapResult。
 - 结构变更后同步更新本文件，保证文档与仓库一致。
+
+## Work Station four-provider preview
+
+- `proto/agents/v1/workstation.proto`: workspace ConnectRPC contract and generated Go/TypeScript bindings.
+- `internal/app/workstation.go`: runtime wiring and bounded graceful shutdown.
+- `internal/application/workstation_service.go`: membership, owner-only management and sanitized RPC errors.
+- `internal/workstation/`: projection, credential/config CAS, durable claims and fenced snapshot publication.
+- `internal/workstation/{github,linear,gitlab,plane}/`: read-only fixed profiles, full-scan page resume and HTTP fixtures; GitHub adds incremental/ETag.
+- `internal/workstation/outbound/`: approved HTTPS origin and public DNS-at-dial confinement.
+- `internal/application/workstation_providers.go`: perconnection approved registry resolution and shared budget transport.
+- `internal/application/workstation_host_service.go`: authenticated approved Plane choices and global-admin Host mutations.
+- `internal/workstation/{memory,mongostore,repotest}/`: storage implementations and shared behavioral contract.
+- `front/src/features/work-station/`: shared list/detail and connection/scope management at `/work-station`.
+- `front/src/features/admin/git-hosts.tsx`: global Plane Host administration alongside approved Git hosts.
+- `front/e2e/work-station.spec.ts`: 14 browser fixture journeys; `.github/workflows/work-station-ui.yml` defines their CI job.
+- `internal/workstation/acceptance/` and `docs/work-station-acceptance.md`: opt-in real read runner, B01–B16 evidence map and external acceptance blockers.
+- `docs/work-station.md`: preview scope, operations and pending release acceptance.

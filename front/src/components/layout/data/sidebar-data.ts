@@ -3,6 +3,7 @@ import {
   CalendarClock,
   LayoutDashboard,
   ListTodo,
+  PanelsTopLeft,
   MessageSquare,
   MessagesSquare,
   Sparkles,
@@ -35,6 +36,11 @@ export const sidebarData: SidebarData = {
           title: 'Chat',
           url: '/chat',
           icon: MessageSquare,
+        },
+        {
+          title: 'Work Station',
+          url: '/work-station',
+          icon: PanelsTopLeft,
         },
         {
           title: 'Agents',
