@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const cleanupAttempts = 3
 const LeaseDuration = 2 * time.Minute
 
 // OrphanGrace exceeds a whole attempt/lease, so a GC candidate cannot
@@ -46,7 +48,8 @@ func (s *Service) Claim(ctx context.Context, w, id, scopeID string) (Attempt, er
 			sc.Claim = uuid.NewString()
 			sc.LeaseUntil = now.Add(LeaseDuration)
 			sc.Health = "RUNNING"
-			if sc.Pending != nil && now.Sub(sc.Pending.Started) < 24*time.Hour {
+			sc.SyncPhase = "SCANNING"
+			if sc.Pending != nil && !sc.Pending.Started.After(now) && now.Sub(sc.Pending.Started) < 24*time.Hour {
 				sc.ScanStarted = sc.Pending.Started
 				sc.ScannedItems = sc.Pending.Count
 			} else {
@@ -94,6 +97,10 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 				previousSnapshot = sc.Snapshot
 				sc.Snapshot = a.Token
 				sc.Health = "HEALTHY"
+				sc.SyncPhase = "READY"
+				sc.Scanned = uint32(len(result.Items))
+				sc.CheckpointLag = false
+				sc.CheckpointError = ""
 				sc.Coverage = result.Coverage
 				sc.Unresolved = result.Unresolved
 				sc.LastSuccess = now
@@ -109,6 +116,13 @@ func (s *Service) finish(ctx context.Context, a Attempt, result Scan, scanErr er
 			} else {
 				f := Classify(scanErr)
 				sc.Health = f.Category
+				sc.SyncPhase = "ERROR"
+				if f.Category == "SCHEMA_ERROR" || f.Category == "UNSUPPORTED" || errors.Is(scanErr, ErrInvalid) {
+					sc.Pending = nil
+				}
+				if f.Category == "RATE_LIMITED" {
+					sc.SyncPhase = "WAITING_RETRY"
+				}
 				switch f.Category {
 				case "AUTH_INVALID", "CONFIG_ERROR":
 					next.Paused = true
@@ -228,6 +242,13 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 	if err == nil {
 		now, e := s.Repo.Now(attemptCtx)
 		err = e
+		if err == nil && s.Budget != nil {
+			retry, e := s.Budget.Reserve(attemptCtx, BudgetKey(a.Record.SourceIdentity()), now)
+			err = e
+			if err == nil && retry > 0 {
+				err = &Failure{Category: "RATE_LIMITED", RetryAfter: retry}
+			}
+		}
 		if err == nil {
 			var result Scan
 			resolved, e := s.resolve(attemptCtx, a.Record)
@@ -261,6 +282,10 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 					return err
 				}
 				if err == nil {
+					if checkpointErr := s.advanceCheckpoint(ctx, a, now); checkpointErr != nil {
+						_ = s.markCheckpointLag(ctx, a, checkpointErr)
+						return checkpointErr
+					}
 					return nil
 				}
 			}
@@ -318,7 +343,7 @@ func (s *Service) Run(ctx context.Context, report func(error)) {
 		}
 		if time.Now().After(nextGC) {
 			gcCtx, cancelGC := context.WithTimeout(ctx, 30*time.Second)
-			if err := s.Repo.Collect(gcCtx); err != nil && ctx.Err() == nil {
+			if err := s.Cleanup(gcCtx); err != nil && ctx.Err() == nil {
 				report(&RuntimeError{Operation: "observation_gc", Cause: err})
 			}
 			cancelGC()
@@ -330,4 +355,88 @@ func (s *Service) Run(ctx context.Context, report func(error)) {
 		case <-ticker.C:
 		}
 	}
+}
+
+func (s *Service) advanceCheckpoint(ctx context.Context, a Attempt, now time.Time) error {
+	if s.Checkpoint == nil {
+		return nil
+	}
+	currentRecord, guardErr := s.Repo.Get(ctx, a.Record.WorkspaceID, a.Record.ID)
+	if guardErr != nil {
+		return guardErr
+	}
+	if currentRecord.Epoch != a.Record.Epoch || !slices.ContainsFunc(currentRecord.Scopes, func(sc Scope) bool {
+		return sc.ID == a.Scope.ID && sc.Generation == a.Scope.Generation && sc.Snapshot == a.Token
+	}) {
+		return ErrFenced
+	}
+	key := CheckpointKey(a.Record.WorkspaceID, a.Record.ID, a.Scope.ID)
+	current, exists, err := s.Checkpoint.Load(ctx, key)
+	if err != nil {
+		return err
+	}
+	expected := uint64(0)
+	next := Checkpoint{Generation: a.Scope.Generation, UpdatedAt: now}
+	if exists {
+		expected = current.Revision
+		if current.Generation == next.Generation {
+			next.Sequence = current.Sequence + 1
+		}
+	} else {
+		next.Sequence = 1
+	}
+	_, err = s.Checkpoint.CompareAndSwap(ctx, key, expected, next)
+	return err
+}
+
+func (s *Service) markCheckpointLag(ctx context.Context, a Attempt, err error) error {
+	category := ReportCategory(err)
+	_, updateErr := s.mutate(ctx, a.Record.WorkspaceID, a.Record.ID, func(r *Record, _ time.Time) error {
+		if r.Epoch != a.Record.Epoch {
+			return ErrFenced
+		}
+		for i := range r.Scopes {
+			if r.Scopes[i].ID == a.Scope.ID && r.Scopes[i].Generation == a.Scope.Generation && r.Scopes[i].Snapshot == a.Token {
+				r.Scopes[i].CheckpointLag = true
+				r.Scopes[i].CheckpointError = category
+				return nil
+			}
+		}
+		return ErrNotFound
+	})
+	return updateErr
+}
+
+func (s *Service) Cleanup(ctx context.Context) error {
+	var last error
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(30 * time.Second)
+	}
+	task := CleanupTask{Key: "observations", Deadline: deadline}
+	for attempt := 0; attempt < cleanupAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		last = s.Repo.Collect(ctx)
+		if last == nil {
+			return nil
+		}
+		if attempt == cleanupAttempts-1 {
+			return last
+		}
+		var result CleanupResult
+		task, result = PlanCleanupRetry(task, time.Now(), last, CleanupPolicy{BaseDelay: 100 * time.Millisecond, MaxDelay: time.Second})
+		if result != CleanupRetry {
+			return last
+		}
+		timer := time.NewTimer(max(time.Until(task.NextAt), time.Duration(0)))
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		}
+	}
+	return last
 }

@@ -20,7 +20,10 @@ import (
 )
 
 type Service struct {
+	DefaultProvider string
 	Repo            Repository
+	Budget          Budget
+	Checkpoint      CheckpointStore
 	Keyring         *secretbox.Keyring
 	Provider        Provider
 	ResolveProvider func(context.Context, Record) (ResolvedProvider, error)
@@ -62,7 +65,7 @@ func (s *Service) mutate(ctx context.Context, w, id string, change func(*Record,
 	return Record{}, ErrConflict
 }
 func (s *Service) Create(ctx context.Context, w, name, host, key string) (Record, error) {
-	return s.CreateFor(ctx, w, name, "github", host, "", key)
+	return s.CreateFor(ctx, w, name, "", host, "", key)
 }
 func (s *Service) CreateFor(ctx context.Context, w, name, provider, host, slug, key string) (Record, error) {
 	if err := s.ready(); err != nil {
@@ -72,7 +75,13 @@ func (s *Service) CreateFor(ctx context.Context, w, name, provider, host, slug, 
 		return Record{}, ErrInvalid
 	}
 	if provider == "" {
+		provider = s.DefaultProvider
+	}
+	if provider == "" {
 		provider = "github"
+	}
+	if provider != "linear" && host == "" {
+		return Record{}, ErrInvalid
 	}
 	seed := Record{Source: SourceIdentity{Provider: provider}, HostID: host, ExternalWorkspaceSlug: slug}
 	resolved, err := s.resolve(ctx, seed)
@@ -367,6 +376,20 @@ func (s *Service) Refresh(ctx context.Context, w, id string) (string, time.Time,
 			due = maxTime(r.ManualAfter, r.RetryAfter)
 			return nil
 		}
+		instance, account := BudgetKeys(*r)
+		for _, key := range []string{instance, account} {
+			wait, err := s.Repo.ReserveBudget(ctx, key, 0)
+			if err != nil {
+				return err
+			}
+			if wait > 0 {
+				status = "DEFERRED"
+				due = maxTime(due, now.Add(wait))
+			}
+		}
+		if status == "DEFERRED" {
+			return nil
+		}
 		pending := true
 		running := false
 		for _, sc := range r.Scopes {
@@ -405,7 +428,7 @@ func maxTime(a, b time.Time) time.Time {
 func Public(r Record) *v1.WorkStationConnection {
 	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.SourceIdentity().Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused, ExternalWorkspaceSlug: r.ExternalWorkspaceSlug, InstanceUrl: r.SourceIdentity().Origin, ExternalTenantId: r.SourceIdentity().TenantID, WebBaseUrl: r.WebBaseURL}
 	for _, sc := range r.Scopes {
-		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess), ScanStartedAt: stamp(sc.ScanStarted), LastFullReconciliationAt: stamp(sc.LastFull), ScannedItems: sc.ScannedItems}
+		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess), ScanStartedAt: stamp(sc.ScanStarted), LastFullReconciliationAt: stamp(sc.LastFull), ScannedItems: sc.ScannedItems, ScannedItemCount: sc.Scanned, SyncPhase: sc.SyncPhase, CheckpointLag: sc.CheckpointLag, CheckpointError: sc.CheckpointError}
 		c.Scopes = append(c.Scopes, p)
 	}
 	return c
@@ -544,4 +567,20 @@ func (s *Service) Get(ctx context.Context, w, id string) (*v1.WorkStationItem, e
 		return nil, ErrNotFound
 	}
 	return items[0], nil
+}
+
+func (s *Service) Connection(ctx context.Context, w, id string) (*v1.WorkStationConnection, error) {
+	if id == "" {
+		return nil, ErrInvalid
+	}
+	connections, err := s.Connections(ctx, w)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range connections {
+		if c.Id == id {
+			return c, nil
+		}
+	}
+	return nil, ErrNotFound
 }

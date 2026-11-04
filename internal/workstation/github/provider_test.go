@@ -76,7 +76,7 @@ func TestReadOnlyMultiPageScanSeparatesIssuesAndPulls(t *testing.T) {
 	}
 }
 func TestNoFailurePublishesEarlierPages(t *testing.T) {
-	for _, scenario := range []string{"page_failure", "foreign_next", "repeated_cursor", "null_schema", "scope_revoked", "redirect", "incomplete_time"} {
+	for _, scenario := range []string{"page_failure", "foreign_next", "repeated_cursor", "overlap_page", "not_modified", "null_schema", "scope_revoked", "redirect", "incomplete_time"} {
 		t.Run(scenario, func(t *testing.T) {
 			checks := 0
 			p := New(transportFunc(func(r *http.Request) (*http.Response, error) {
@@ -89,6 +89,9 @@ func TestNoFailurePublishesEarlierPages(t *testing.T) {
 				}
 				if strings.HasSuffix(r.URL.Path, "/pulls") {
 					return response(200, "[]", nil), nil
+				}
+				if scenario == "not_modified" {
+					return response(http.StatusNotModified, "", http.Header{"ETag": {`"cached-page"`}}), nil
 				}
 				if scenario == "null_schema" {
 					return response(200, "null", nil), nil
@@ -103,6 +106,9 @@ func TestNoFailurePublishesEarlierPages(t *testing.T) {
 					return response(200, "["+issueJSON+"]", nil), nil
 				}
 				if r.URL.Query().Get("page") == "2" {
+					if scenario == "overlap_page" {
+						return response(200, "["+issueJSON+"]", nil), nil
+					}
 					return response(500, "test-secret", nil), nil
 				}
 				next := *r.URL
@@ -132,6 +138,52 @@ func TestNoFailurePublishesEarlierPages(t *testing.T) {
 				t.Fatal("raw error leaked token")
 			}
 		})
+	}
+}
+func TestETagCacheReusesBodyOnlyForMatchingCredential(t *testing.T) {
+	calls := 0
+	// The provider now owns a bounded cache that also preserves page metadata.
+	p := New(transportFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.URL.Path != "/user" {
+			return response(500, "unexpected", nil), nil
+		}
+		if r.Header.Get("Authorization") == "Bearer first" {
+			if r.Header.Get("If-None-Match") == `"user-v1"` {
+				return response(http.StatusNotModified, "", http.Header{"ETag": {`"user-v1"`}}), nil
+			}
+			return response(200, `{"id":1}`, http.Header{"ETag": {`"user-v1"`}}), nil
+		}
+		if r.Header.Get("If-None-Match") != "" {
+			t.Fatal("credential reused another credential's validator")
+		}
+		return response(200, `{"id":2}`, http.Header{"ETag": {`"user-v2"`}}), nil
+	}))
+	identity, err := p.Probe(context.Background(), "first")
+	if err != nil || identity.PrincipalID != "1" {
+		t.Fatal(identity, err)
+	}
+	identity, err = p.Probe(context.Background(), "first")
+	if err != nil || identity.PrincipalID != "1" {
+		t.Fatal("cached 304 was not decoded", identity, err)
+	}
+	identity, err = p.Probe(context.Background(), "second")
+	if err != nil || identity.PrincipalID != "2" {
+		t.Fatal("credential cache isolation", identity, err)
+	}
+	if calls != 3 {
+		t.Fatalf("calls=%d", calls)
+	}
+}
+
+func TestUncachedNotModifiedFailsClosed(t *testing.T) {
+	p := New(transportFunc(func(*http.Request) (*http.Response, error) {
+		return response(http.StatusNotModified, "", http.Header{"ETag": {`"missing"`}}), nil
+	}))
+	_, err := p.Probe(context.Background(), "token")
+	var failure *ws.Failure
+	if !errors.As(err, &failure) || failure.Category != "SCHEMA_ERROR" {
+		t.Fatalf("want schema error, got %v", err)
 	}
 }
 func TestErrorCategoriesAndRedaction(t *testing.T) {

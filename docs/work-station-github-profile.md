@@ -66,6 +66,17 @@ The upstream API does not provide snapshot isolation. Concurrent edits or page
 reordering can require a subsequent reconciliation. The adapter does not represent
 an overlap cutoff or ETag as proof of remote transactional consistency.
 
+Full scans additionally expose one-request batches for durable runtime staging:
+repository identity, each Issue page, each PR page, and a final repository access
+check. The internal cursor stores only the fixed scope, start time at BSON Date
+millisecond precision, phase, page, and compact page-loop fingerprints. It is
+limited to 16 KiB and never contains credentials or item bodies. A failed page can
+be retried on another provider/process without replaying completed pages. Wrong
+scope/start, malformed cursors, repeated pages, and redirect responses fail
+closed. Expired terminal rows and unknown-ended terminal markers remain in
+staging until the runtime chooses the latest observation across all pages; only
+then are they filtered or counted.
+
 ## Conditional-response cache
 
 Cache keys include a SHA-256 credential fingerprint, HTTP method, complete URL
@@ -100,6 +111,8 @@ The GitHub fixtures cover:
 | Missing-open recheck, merge, deletion/transfer, preserved unchanged terminal item | Pass | Unverified |
 | Late item permission/server error prevents incremental publication | Pass | Unverified |
 | Incomplete coverage forces full reconciliation | Pass | Unverified |
+| Durable batch cursor, failed-page retry after provider replacement, final access check | Pass | Unverified |
+| Wrong scope/start, malformed cursor, page loops, terminal markers before source choice | Pass | Unverified |
 
 Required controlled-run records: repository IDs and visibility, API version
 accepted by the service, exact fine-grained grants (Metadata, Issues read, Pull

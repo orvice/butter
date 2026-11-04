@@ -639,6 +639,14 @@ func (m *WorkStationScope) validate(all bool) error {
 
 	// no validation rules for Initialized
 
+	// no validation rules for ScannedItemCount
+
+	// no validation rules for SyncPhase
+
+	// no validation rules for CheckpointLag
+
+	// no validation rules for CheckpointError
+
 	if all {
 		switch v := interface{}(m.GetScanStartedAt()).(type) {
 		case interface{ ValidateAll() error }:
@@ -3660,6 +3668,10 @@ func (m *WorkStationFilterOption) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for Value
+
+	// no validation rules for Label
+
 	// no validation rules for Id
 
 	// no validation rules for Name
@@ -3767,6 +3779,108 @@ func (m *WorkStationServiceListFilterOptionsResponse) validate(all bool) error {
 	}
 
 	var errors []error
+
+	for idx, item := range m.GetStatuses() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Statuses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Statuses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WorkStationServiceListFilterOptionsResponseValidationError{
+					field:  fmt.Sprintf("Statuses[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	for idx, item := range m.GetAssignees() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Assignees[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Assignees[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WorkStationServiceListFilterOptionsResponseValidationError{
+					field:  fmt.Sprintf("Assignees[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	for idx, item := range m.GetLabels() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Labels[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, WorkStationServiceListFilterOptionsResponseValidationError{
+						field:  fmt.Sprintf("Labels[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return WorkStationServiceListFilterOptionsResponseValidationError{
+					field:  fmt.Sprintf("Labels[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
 
 	for idx, item := range m.GetOptions() {
 		_, _ = idx, item

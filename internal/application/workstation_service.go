@@ -11,6 +11,7 @@ import (
 	githost "go.orx.me/apps/butter/internal/repo/githost"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	ws "go.orx.me/apps/butter/internal/workstation"
+	"go.orx.me/apps/butter/internal/workstation/providerregistry"
 	v1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -24,6 +25,15 @@ func NewWorkStationServiceServer() *WorkStationServiceServer { return &WorkStati
 func (s *WorkStationServiceServer) SetService(service *ws.Service, workspaces workspacerepo.Repository) {
 	s.service = service
 	s.workspaceRepo = workspaces
+}
+
+func (s *WorkStationServiceServer) SetConfiguredService(config providerregistry.Config, deps providerregistry.ServiceDeps, workspaces workspacerepo.Repository) error {
+	service, err := providerregistry.NewService(config, deps)
+	if err != nil {
+		return err
+	}
+	s.SetService(service, workspaces)
+	return nil
 }
 
 // WorkStationHostCheck only accepts the existing registry's official GitHub
@@ -244,8 +254,28 @@ func (s *WorkStationServiceServer) ListFilterOptions(ctx context.Context, req *c
 	if err != nil {
 		return nil, err
 	}
+	if req.Msg.Dimension == "" {
+		q := ws.Query{Kind: req.Msg.Kind, ConnectionID: req.Msg.ConnectionId, ScopeID: req.Msg.ScopeId, Provider: req.Msg.Provider}
+
+		options, err := s.service.FilterOptions(ctx, w, q)
+		if err != nil {
+			return nil, stationError(err)
+		}
+		toProto := func(values []string) []*v1.WorkStationFilterOption {
+			out := make([]*v1.WorkStationFilterOption, 0, len(values))
+			for _, value := range values {
+				out = append(out, &v1.WorkStationFilterOption{Value: value, Label: value})
+			}
+			return out
+		}
+		return connect.NewResponse(&v1.WorkStationServiceListFilterOptionsResponse{
+			Statuses:  toProto(options.Statuses),
+			Assignees: toProto(options.Assignees),
+			Labels:    toProto(options.Labels),
+		}), nil
+	}
 	q := ws.Query{Kind: req.Msg.Kind, ConnectionID: req.Msg.ConnectionId, ScopeID: req.Msg.ScopeId, Provider: req.Msg.Provider}
-	options, next, err := s.service.FilterOptions(ctx, w, q, req.Msg.Dimension, req.Msg.Search, req.Msg.PageToken, int(req.Msg.PageSize))
+	options, next, err := s.service.FilterPage(ctx, w, q, req.Msg.Dimension, req.Msg.Search, req.Msg.PageToken, int(req.Msg.PageSize))
 	if err != nil {
 		return nil, stationError(err)
 	}

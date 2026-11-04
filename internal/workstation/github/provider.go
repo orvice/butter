@@ -59,7 +59,7 @@ func (p *Provider) getResource(ctx context.Context, token, path string, q url.Va
 	}
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, failure("DEGRADED")
+		return nil, ws.RequestFailure(err)
 	}
 	defer resp.Body.Close()
 	h := resp.Header

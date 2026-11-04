@@ -1,106 +1,103 @@
-# Work Station: GitHub.com preview
+# Work Station read-only preview
 
-This PR delivers the first end-to-end slice of [Spec #489](https://github.com/orvice/butter/issues/489), tracked by KON-55. It does **not** complete the four-provider release gate. The dashboard labels the feature as a preview. Linear, Plane, GitLab and production compatibility acceptance remain open.
+PR #490 implements the shared projection for [Spec #489](https://github.com/orvice/butter/issues/489), tracked by KON-55. GitHub Issues/PRs, GitLab Issues/MRs, Linear Issues and Plane v2 work items share the connection, synchronization, query and Dashboard paths. **This is a development preview, not a qualified release.** All six real target profiles and the deployed two-Pod gate remain BLOCKED. Synthetic responses and independent local processes do not satisfy those gates.
 
-## Using the preview
+## Connections and sharing
 
-A global administrator first registers a Git Host with kind GitHub, API URL `https://api.github.com` and web URL `https://github.com`. Reuse an existing matching Git Host; no additional endpoint registry is introduced.
+Workspace owners and global administrators create connections. Ordinary members and workspace administrators can browse and request refresh; they cannot discover candidate resources, edit credentials or select scopes. The server rechecks workspace membership on every operation. Global-admin access is audited.
 
-Open **Work Station → Manage connections** as a workspace owner or global administrator. Create a named connection with a fine-grained PAT that can read repository metadata, Issues and Pull requests. Discovery lists candidates but imports nothing. Explicitly select repositories and save. Their titles and descriptions are shared with **every member of the Butter workspace**, including members without source-platform access.
-
-A member or workspace admin can browse the local projection, view details, filter and request refresh. Workspace admins cannot manage connections. All management RPCs independently enforce owner/global-admin permissions. Membership is checked again on every read. Root/global-admin bypass follows the existing application convention and is audited.
-
-Keys are write-only. An omitted update keeps the key, a nonempty update replaces it, and `""` clears it. Rotation validates the same GitHub principal; another principal requires a new connection. Clearing/rotating a key hides its old snapshots immediately. Test connection is the owner recovery action: it rechecks the key and queues new snapshots, without restoring stale snapshots from a previous epoch.
-
-Default browsing shows open Issues or Pull requests. All retained items includes terminal items with a verified end time in the last 90 days. The window uses `closed_at`/`merged_at`, never a later edit time. Descriptions are displayed as plain text, so HTML, images and Markdown links cannot execute or load private resources. Comments/reviews/diffs remain on GitHub.
-
-## Protocol and storage
-
-`agents.v1.WorkStationService` is mounted at `/api/agents.v1.WorkStationService/<Method>` using the existing ConnectRPC snake_case codec. Generated Go/Connect/TypeScript bindings are checked in. Every response, including errors, has `Cache-Control: no-store`.
-
-| RPC | Permission | Behavior |
+| Provider | Approved endpoint source | Smallest selected scope |
 | --- | --- | --- |
-| ListConnections | member | Only saved scopes and sanitized health; no candidate discovery or credentials |
-| CreateConnection | owner/global admin | Probe, encrypt, create with empty selection |
-| UpdateConnection | owner/global admin | `expected_revision` CAS; rename or optional key keep/replace/clear |
-| DeleteConnection | owner/global admin | Revision CAS; atomic removal of visibility and ciphertext; idempotent retry |
-| TestConnection | owner/global admin | Probe saved key, pin principal, reset visibility epoch and requeue |
-| DiscoverScopes | owner/global admin | Paginated repository discovery, without importing |
-| SetSelectedScopes | owner/global admin | Revision CAS; validate every stable repository ID; full replacement; empty means none |
-| Refresh | member | Durable intent; QUEUED/ALREADY_PENDING/RUNNING/DEFERRED/PAUSED/NO_SCOPES |
-| ListItems | member | Local source restriction → source choice → content/window filtering → keyset pagination |
-| GetItem | member | Same live-source/window authorization as ListItems |
+| GitHub.com | Existing global Git Host: `https://api.github.com`, web `https://github.com` | Stable repository ID |
+| GitLab.com / self-managed | Existing global Git Host, HTTPS `<web root>/api/v4` | Stable project ID |
+| Linear official | Fixed `https://api.linear.app/graphql` | Team ID; Linear Project remains metadata |
+| Plane Cloud / self-managed | Built-in `plane-cloud` or global-admin registered Plane Host, fixed v2 profile | Project ID plus explicit external workspace slug |
 
-`GetConnection`, server-derived `ListFilterOptions`, additional provider tabs, and Plane Host administration from the full Spec are deferred. Selected repositories are available from ListConnections; assignee filtering currently accepts the displayed external `ID:login` value.
+Open **Work Station → Manage connections**, choose a platform, approved Host where applicable, connection name and API key. Plane additionally needs its external workspace slug. Creation selects no scopes. Discovery only lists candidates; saving an explicit full scope selection starts backfill. Imported titles and descriptions are shared with **every Butter workspace member**, including people without source-platform access.
 
-`internal/workstation` owns provider-independent rules. A read-only `Provider` has Probe, DiscoverScopes, ResolveScope and Scan. It cannot write the business repository or source platform. The GitHub adapter is constructed with a transport, never a workspace-supplied endpoint. It uses only GET, rejects redirects and unapproved next links, and checks public DNS destinations when opening production connections. Upstream response bodies and transport errors never become RPC errors or logs.
+Keys are encrypted and write-only. Omitted key updates keep the key, nonempty updates replace it and empty strings clear it. Replacement/Test must retain the pinned provider, instance, external tenant and principal. Another identity needs a new connection. Rotation/clear revokes old snapshots in the connection's atomic document. Test explicitly revalidates a paused connection and queues fresh snapshots. Re-saving a selected hidden scope revalidates only that scope under a new generation, preserving healthy siblings. Old hidden snapshots never reappear.
 
-Mongo collections:
+Plane API keys inherit their creator's permissions; the UI explains that the adapter's read-only behavior does not make the credential itself read-only. Use a dedicated minimum-permission account. Source comments, reviews, diffs, writes and agent execution are outside this feature.
 
-- `work_station_connections`: unique `(workspace_id, id)`, internal optimistic version, public configuration revision, visibility epoch, encrypted credential/key ID, selected scopes/generations, due times, claims and committed snapshot pointers.
-- `work_station_observations`: one immutable source-qualified item per `(workspace_id, connection_id, scope_id, snapshot, item_id)`. Bodies are separate documents, rather than an unbounded array in the connection document.
+## RPC and Dashboard contract
 
-Keeping bounded scope metadata and pointers in the connection document makes configuration revocation and scope publication share one atomic boundary. Every mutation compares the internal version; publication/error writes also compare the claim token and require the lease expiry to exceed Mongo `$$NOW` **at the write**. Takeover tokens and selection generations are never reused. A configuration race retries against the new record and rechecks the captured epoch/generation/token. The memory implementation runs the same contract.
+`agents.v1.WorkStationService` and `WorkStationHostService` are ConnectRPC services under `/api`. Responses, including errors, use `Cache-Control: no-store`. Readable messages contain no credential ciphertext or plaintext.
 
-Scans stage all normalized observations under a fresh snapshot token. Only a completed traversal can publish its pointer. Errors retain the previous pointer; invalid credentials pause/hide the connection, and an inaccessible repository hides that scope. Sources are never merged field by field: after restricting connection/repository filters, the latest valid observation supplies the whole item. Revoking the latest source falls back to the remaining source's body. Canonical identity includes workspace, persisted provider/API origin/external tenant, stable repository ID, item kind and repository number. Identity comes from the provider probe, with canonical origin normalization; it does not depend on a Host record ID, display name or token principal. Existing source-less GitHub preview records retain their original namespace and item IDs. Future providers/instances/tenants get distinct keys without changing the format.
+| RPC | Authority | Behavior |
+| --- | --- | --- |
+| ListConnections / GetConnection | member | Saved configuration/scopes and sanitized coverage/progress |
+| Create / Update / DeleteConnection | owner/global admin | Empty initial selection; revision CAS; optional-key keep/replace/clear; atomic revocation |
+| TestConnection / DiscoverScopes / SetSelectedScopes | owner/global admin | Identity revalidation; candidate pagination; authorized full selection replacement |
+| Refresh | member | Durable intent; QUEUED, RUNNING, ALREADY_PENDING, DEFERRED, PAUSED or NO_SCOPES |
+| ListItems / GetItem | member | Local projection with the same source/window qualification |
+| ListFilterOptions | member | Projection-derived provider, scope, project, status and assignee options; literal search and keyset pagination |
+| Host List/Get | authenticated | Approved Plane endpoint choices; no workspace key |
+| Host Create/Update/Delete | global admin | Fixed v2 profile, HTTPS validation, revision and connection-reference guards; Cloud cannot be edited/deleted |
 
-Mongo List/Get first restricts observations to exact current `(workspace, connection, scope, snapshot)` pointers using the compound index, then joins the **current** connection again to reject intervening revocation/publication races. Retired/orphan history never enters the workspace-wide source grouping. It sorts source versions, groups by canonical identity, applies the rolling window/content filters, and then keyset pagination. The cursor binds workspace, filters and page size. Sources are reauthorized on each page. Queries do not promise a global historical snapshot while refreshes publish.
+The three object tabs are Issues, Pull requests and Merge requests. Default results are open work. Filters include provider, connection, scope, project, normalized status, assignee and literal title/identifier keyword. List cursors bind workspace, every filter and page size (50 default, 100 maximum). Facet cursors also bind dimension/search. Candidates never come from upstream discovery. The legacy unpaged filter RPC shape remains readable with its original protobuf field numbers; new paged fields are additive. Previously published scope progress/checkpoint field numbers are preserved.
 
-The reconciler scans durable due state every 10 seconds with up to four scans per process. Healthy scopes become due after five minutes plus deterministic jitter. Claims last two minutes; attempts, including staging, are bounded to 100 seconds. A crashed process leaves a durable due intent that another process can reclaim after expiry. Manual requests have a 60-second connection cooldown and cannot override saved Retry-After. After successful fenced publication, cleanup immediately deletes exactly the replaced snapshot token for that workspace/connection/scope. It never deletes “all except my new token”: a newer publisher or staging attempt may already exist. A cleanup failure is reported as CLEANUP_PENDING without changing the committed pointer or marking the scan failed.
+Dashboard transports are pinned to user/token/workspace. Identity changes remount the feature and cancel/remove its private queries. Requests carry abort signals. Lists, details, health and facets refresh periodically; a failed detail response hides cached body content. Descriptions render as text, without executing HTML or fetching embedded images/private attachments. Source links must remain inside the approved connection web origin/path. Keys are never refilled or persisted in localStorage. Global Plane Host administration lives in the Admin Git Hosts area, in a separate global-admin dialog; it is absent from workspace connection settings.
 
-The fallback GC checks after reconciliation, at most once per minute, with a 30-second context. It drains 1,000-row batches until no expired orphan remains or its context ends; 1,000 is a batch size, not an hourly deletion budget. The four-minute orphan grace exceeds the two-minute lease and 100-second attempt, preventing a GC candidate from becoming a new valid publication. Every referenced snapshot is protected even if its connection is paused or its scope hidden. This handles crashed/failed cleanup, configuration removal and abandoned staging. A timeout retries on a later pass; sustained storage outages can still accumulate physical rows, while indexed current-pointer reads remain isolated from that backlog.
+The previous app-level provider configuration remains a validated default; actual workspace endpoint selection now uses approved Host registries and each connection's provider/tenant. The explicit `providerregistry.NewService` / handler construction seam remains available for tests and fixed-profile integrations. Plane construction through that seam now requires an explicit workspace slug. Legacy global endpoint configuration does not silently introduce a new workspace Host.
 
-## Supported behavior and remaining limits
+## Storage and publication
 
-The adapter independently traverses Issues and Pull requests; Issues responses containing `pull_request` are excluded from the Issues projection. Merged wins over closed, Draft is separate, and unresolved terminal times produce PARTIAL coverage rather than fabricated history. Unknown/missing required schema and failed pages do not publish a truncated snapshot. GitHub's issue/PR distinction and list parameters follow the official [Issues](https://docs.github.com/en/rest/issues/issues) and [Pull requests](https://docs.github.com/en/rest/pulls/pulls) contracts.
+`internal/workstation` owns visibility, identity, retention, claims and publication. Adapters expose only read capabilities. Production HTTP clients disable proxies/redirects, enforce HTTPS origin/method restrictions, reject private/reserved DNS answers at dial time and dial the checked IP with normal TLS verification. Publicly reachable self-managed instances are supported; private-network approval exceptions are not implemented. Invalid schema, unsafe paging, unsupported profiles and resource caps fail closed, rather than returning empty success. Errors/logs contain sanitized categories, operation and cause type, never upstream bodies or keys.
 
-This implementation uses bounded **full scans**, not the Spec's optimized incremental protocol. There is no ETag cache or incremental checkpoint to advance incorrectly. Each endpoint is capped at 1,000 pages and each response at 16 MiB; exceeding a cap or the attempt deadline fails the scan and retains a safe existing snapshot. Large repositories need incremental/restartable staging before production use. Offset pagination under concurrent source edits still needs controlled platform tests and missing-item reconciliation; a completed HTTP traversal is not proof of a stable remote point-in-time snapshot.
+Mongo collections hold connection documents, immutable observations, approved Plane hosts and shared request budgets. Existing optional checkpoint-store APIs remain compatible; the authoritative runtime checkpoint and pending-page registration live in the same connection document as the visibility epoch, scope generation and published pointer. This avoids using a stale sidecar cursor to authorize data.
 
-Retry-After is persisted per connection. The Spec's shared budget across multiple connections for the same account/instance is **not implemented**. Do not infer production multi-Pod rate-budget compliance from the database publication fence. Host reference guards reject normal endpoint changes/deletion while connections exist, and every read/attempt revalidates the fixed official profile. A cross-document Host mutation concurrent with connection creation is not transactionally serialized; an invalid/missing Host fails closed and requires administrator repair.
+Every publication/error/progress write compares version, epoch, generation and claim; Mongo additionally requires the captured lease to exceed server `$$NOW` at the write. A connection deletion atomically removes ciphertext and visibility. Selected-scope removal, key rotation and takeover fence old success, progress and error writes.
 
-GitHub repositories with Issues disabled currently return FEATURE_UNAVAILABLE for the scope, including its Pull requests. Module-specific coverage, live progress counts, automatic background scope recovery and complete metadata facets need follow-up work. Saving the selected repository set revalidates access and requeues hidden scopes under new generations, without clearing healthy siblings. Old hidden snapshots are not restored, and old publishers remain fenced. Repositories no longer accessible are hidden on the next explicit failure; source revocation cannot be detected instantaneously. No source-platform writes, OAuth, Enterprise endpoints or agent execution actions are included.
+Full scans are resumable for all four adapters. Each complete page is staged under a unique token, then its cursor/token is registered with a fenced CAS. A crash before registration leaves only an orphan; a later worker resumes the registered cursor without trusting unregistered rows. At most ten batches occupy one lease, after which health becomes LAGGING and the saved scan is queued for continuation. Final completion is persisted too, so a crash between the last page and publication does not replay the scan. Network/rate-limit failures retain progress; invalid cursor/schema/profile errors abandon it. Progress older than 24 hours restarts. Pending snapshot references are protected by GC, including paused/hidden records.
 
-## Verification and acceptance evidence
+Only the completed traversal can replace a scope snapshot. Staged rows are deduplicated by the latest complete source observation before end-time/90-day filtering. A newer unresolved terminal marker cannot resurrect an earlier open version. Per-cursor metadata is bounded to 4 MiB and total pending connection JSON to 8 MiB, below Mongo's document ceiling; excess fails without publishing. Adapter limits can be smaller (GitHub/Linear cursor metadata 16 KiB; GitLab 500 pages / 50,000 rows per endpoint; Plane 1,000 pages). Bodies remain separate observation documents.
 
-Automated evidence is local, using synthetic provider responses. It is **not real-platform acceptance**.
+Canonical identity includes workspace, provider, canonical API instance, external tenant and kind. GitHub/GitLab qualify local number/IID by stable repository/project ID. Linear/Plane globally unique item IDs retain identity across container moves. Existing GitHub/source-less preview IDs stay unchanged. Plane's documented v2 schema does not expose an immutable workspace ID: its explicit `workspace-slug:<slug>` namespace is a known qualification limit; slug changes require a new connection.
 
-- Shared memory/Mongo contract: staging invisibility, dedup/source fallback, immediate revocation, key rotation, config CAS, stale publishers/errors, lease takeover, retention, page-size-bound cursors, scope-local recovery, bounded physical rows across repeated 1,001-item publications, delayed pruning/cleanup failures, and a 2,501-orphan multi-batch GC with current/staging protection.
-- HTTP adapter tests: complete and failed pagination, malformed/foreign cursors, redirects, Issues/PR separation, Draft/Merged, large numeric IDs, missing terminal time, permission/rate-limit/schema/network errors and secret-free failures.
-- Service/router tests: owner-only management, member/admin read/refresh, membership removal, workspace boundaries, no secret fields, official Host validation/reference guards and no-store route mounting. A real Connect client/handler HTTP smoke test exercises create → select → refresh → reconcile → list/detail through memory storage; it runs in the existing Go CI suite.
-- Local browser fixtures (not a CI or real-platform acceptance claim): connection creation/selection/key clearing/deletion, no secret persistence, source HTML escaping, tabs/filter/pagination, refresh intent, non-owner management exclusion, failed details and late old-workspace responses, and connection-filtered refresh that skips empty/paused connections. Refresh queues only the selected connection, or all active selected connections when the filter is empty, with at most four concurrent intent RPCs.
+List/Get/facets restrict valid source pointers first, choose one whole newest observation, then apply content/window filters. Revoking the newest source falls back to the remaining source's complete body, without mixing fields. Mongo starts with indexed exact snapshot pointers and rechecks live connection/scope eligibility before grouping. Orphan history cannot inflate that grouping input. Keyset queries reauthorize every request and do not promise a historical snapshot during concurrent refreshes.
 
-Run:
+## Scheduling, budgets and cleanup
+
+The reconciler checks durable due state every ten seconds, with at most four attempts per process. Healthy scopes become due after five minutes plus deterministic jitter. Claims last two minutes and each attempt, including staging, is limited to 100 seconds. Accepted Refresh survives process loss; manual requests have a 60-second connection cooldown and honor connection and shared Retry-After state.
+
+Production request admission is enabled through the approved-provider resolver: Mongo server-time reservations aggregate instance and account budgets across workspaces/connections/keys. The local pacing is conservative (instance 100 ms, identified account 500 ms per request); provider quota headers/GraphQL errors can impose longer shared backoff. Unknown-principal probes use a conservative shared anonymous bucket. This is not evidence that every provider complexity quota is tuned for production. Legacy `MemoryBudget` remains a single-process test seam and is not the runtime coordinator.
+
+GitHub uses Issues `since` overlap, PR updated overlap plus all-open enumeration, missing cached-open checks and daily full reconciliation. Its bounded ETag cache isolates full URL/method/media/API version/credential digest and replays pagination metadata; a first-page 304 never skips later pages. Cache entries are bounded by count/bytes/TTL and scoped to a connection epoch. Linear/Plane/GitLab currently reconcile with resumable complete traversals rather than optimized delta queries. This preserves archive/move coverage but still needs representative throughput/scale qualification and further incremental optimization.
+
+Successful publication prunes exactly the replaced snapshot token. Delayed cleanup cannot delete a newer publisher or another batch. Cleanup failure reports CLEANUP_PENDING without downgrading committed data. Fallback GC drains 1,000-row batches under a 30-second context, at most once per minute after reconciliation. It retains all committed and registered-pending references, even paused/hidden ones; unregistered orphans get a four-minute grace, exceeding the lease. Transient collection failures get up to three attempts with bounded backoff/deadline planning; a later lifecycle pass remains the fallback. Storage outages can still accumulate physical orphans.
+
+A Host mutation racing connection creation is not transactionally serialized across documents. Reads and attempts compare the approved endpoint against the pinned source and fail closed after a change. Administrators must repair or remove affected connections. GitHub repositories with Issues disabled and GitLab projects missing either Issues or MRs currently mark the combined scope FEATURE_UNAVAILABLE. Automatic recovery of hidden scopes remains an explicit owner revalidation operation.
+
+## Validation and ticket status
+
+See [the qualification ledger](work-station-acceptance.md) for B01–B16, opt-in real read probes, the six target evidence records and deployed two-Pod procedure. Provider contract/source references are recorded in the [GitHub](work-station-github-profile.md), [Linear](work-station-linear-profile.md), [GitLab](work-station-gitlab-profile.md) and [Plane](work-station-plane-profile.md) profiles.
+
+Local evidence includes shared memory/actual-Mongo contracts, independent OS-process takeover/restart/budget tests, adapter multi-page/error/schema fixtures, batch restart/GC protection, real Connect HTTP create/select/reconcile/List/Get/facet smoke tests, and 14 browser journeys with intercepted RPCs. The Work Station UI workflow now runs build/types/browser contract journeys in CI; a local pass does not claim the new workflow has run. Required commands:
 
 ```sh
 go test ./...
-BUTTER_TEST_MONGO_URI=mongodb://127.0.0.1:27017 go test ./internal/workstation/... -count=1
-go test -race ./internal/workstation/...
+go build ./...
+BUTTER_TEST_MONGO_URI=mongodb://127.0.0.1:27028 go test -race ./internal/workstation/...
 buf lint proto/agents/v1/workstation.proto
 cd front
-npm ci
 npm run build
 npm run typecheck:e2e
 npx eslint src/features/work-station src/api/work-station.ts src/routes/_authenticated/work-station.tsx
-PLAYWRIGHT_PORT=5285 npx playwright test e2e/work-station.spec.ts
+PLAYWRIGHT_PORT=5285 npx playwright test e2e/work-station.spec.ts --workers=1
 ```
 
-Real acceptance is still blocked by the absence of designated instances, least-privilege test credentials and a controlled dataset. No private credential was borrowed from the development CLI. Complete the existing tickets in dependency order:
+| Ticket | Included in PR | Still required before acceptance |
+| --- | --- | --- |
+| KON-56 | Official-source fixed-profile notes, synthetic fixtures and opt-in qualification runner | Six real target versions, schema/permissions, sanitized captured fixtures |
+| KON-57 | Connection CRUD/Get/Test/discovery/selection, paged facets, Host CRUD, roles, encrypted-key CAS | Full RPC/membership/Host matrix on deployed targets; Host race limitation review |
+| KON-59 | Durable intents/claims, page resume, atomic checkpoint/progress, shared Mongo budgets, source-safe query/facets, reclamation | Broader delta optimization, representative scale/explain and deployed failure qualification |
+| KON-60 | Linear organization/Team identity, archived scoped reads, status/end-time/project metadata, GraphQL partial-error handling, page resume | Real Linear Team/project/archive/move/reopen matrix |
+| KON-61 | GitHub Issues/PR mapping, overlap/checkpoint, scoped ETag, all-open reads and full reconciliation | Real private-repo/permissions/revocation/read-only audit and scale |
+| KON-62 | GitLab cloud/self-managed v4, project Issues/MRs, Draft/Merged/time fields, guarded pagination, page resume | Real cloud/self-managed versions/tokens/deep-page/permission matrix |
+| KON-63 | Plane approved Hosts/v2, full cursor traversal, archive/draft/description metadata, page resume | Real Cloud/self-managed v2; reliable cancellation activity and immutable tenant-ID qualification |
+| KON-64 | Four-provider connection UI, three object tabs, local facets, global Host admin, cache isolation, progress and browser CI definition | Real role/cache/source-revocation journeys and final product acceptance |
+| KON-58 | B01–B16 ledger, local Mongo multi-process and failure tests, all-provider live read runner | Controlled real datasets, actual deployed two Pods/fault recovery and release decision |
 
-| Ticket | Remaining evidence/work |
-| --- | --- |
-| KON-56 | Real Linear/Plane Cloud + self-hosted/GitHub/GitLab Cloud + self-hosted versions, permissions, schema, paging and sanitized fixtures |
-| KON-57/59 | Review the partial RPC/storage contract; complete facets, shared budgets, incremental/restartable staging and scale/explain evidence |
-| KON-61 | Real GitHub private-repo matrix, token permissions, access revocation, close/reopen, merge/Draft and read-only request audit; incremental/ETag strategy |
-| KON-60/62/63 | Linear, GitLab and Plane adapters, approved Hosts/profiles, fixtures and real acceptance |
-| KON-64 | Complete provider/facet UX, progress/health refinements and all full-Spec empty-state/E2E scenarios |
-| KON-58 | Two actual Pods, restart/takeover/late-write and rate-budget exercises, all provider controlled datasets and final release decision |
+No ticket is closed by local implementation or mock evidence. Record actual operator/date/version/profile/grants, expected/actual source state and a sanitized GET/query request audit for every real run. Credentials and private source bodies must not enter committed evidence.
 
-For each real run record: date, operator, provider/profile/version, approved instance, masked principal/permission grant, selected stable scope IDs, controlled fixture counts, exact read-only steps, expected/actual result, sanitized request methods and failure categories. Explicitly mark PASS / PARTIAL / BLOCKED. Never store tokens or raw private bodies in the evidence. The four-provider release remains BLOCKED until all target profiles and multi-Pod gates pass.
-
-## PR review follow-up
-
-The P1 retention/query-cost issue is fixed by immediate predecessor pruning, draining orphan GC and indexed current-pointer reads. The physical-count regression fails on the original implementation (second 1,001-item scan produces 2,005 rows instead of 1,004) and runs against both memory and real Mongo.
-
-Both P2 findings are fixed here: explicit selection save recovers a revalidated hidden scope in isolation, and persisted provider/origin/tenant identity preserves the original GitHub namespace while isolating future providers. No child ticket is closed by these corrections.
-
-P3 decisions: NO_SCOPES is explicit; page size is bound into cursors; runtime logs include the failed operation, a safe category and underlying cause type rather than upstream bodies/credentials; a real HTTP Connect smoke test is covered by the existing Go CI suite; local browser fixture evidence is labeled separately. Refresh honors the current connection filter, skips paused/empty connections and bounds concurrent intent RPCs. Adding Playwright to CI, automatic background recovery, shared upstream account budgets and complete scale/explain acceptance remain in KON-59/KON-64/KON-58; the actual platform/two-Pod gates remain blocked.
+The previous P1 observation-GC and P2 recovery/canonical-identity fixes remain. P3 choices remain explicit: NO_SCOPES for empty selection, filter/page-size-bound cursors, redacted operational logs, bounded connection-filtered refresh, safe text descriptions and separate HTTP/browser/real-platform evidence. Optimized non-GitHub deltas, private-network policy exceptions, representative scale and actual platform/two-Pod acceptance are not claimed complete.

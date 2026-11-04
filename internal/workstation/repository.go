@@ -46,23 +46,27 @@ type Credential struct {
 	KeyID      string `bson:"key_id"`
 }
 type Scope struct {
-	ID           string       `bson:"id"`
-	Name         string       `bson:"name"`
-	Generation   string       `bson:"generation"`
-	Snapshot     string       `bson:"snapshot"`
-	Health       string       `bson:"health"`
-	Coverage     string       `bson:"coverage"`
-	Unresolved   uint32       `bson:"unresolved"`
-	LastSuccess  time.Time    `bson:"last_success"`
-	Due          time.Time    `bson:"due"`
-	Claim        string       `bson:"claim"`
-	LeaseUntil   time.Time    `bson:"lease_until"`
-	Hidden       bool         `bson:"hidden"`
-	Checkpoint   time.Time    `bson:"checkpoint"`
-	ScanStarted  time.Time    `bson:"scan_started"`
-	LastFull     time.Time    `bson:"last_full"`
-	ScannedItems uint32       `bson:"scanned_items"`
-	Pending      *PendingScan `bson:"pending,omitempty"`
+	Scanned         uint32       `bson:"scanned_item_count"`
+	SyncPhase       string       `bson:"sync_phase"`
+	CheckpointLag   bool         `bson:"checkpoint_lag"`
+	CheckpointError string       `bson:"checkpoint_error"`
+	ID              string       `bson:"id"`
+	Name            string       `bson:"name"`
+	Generation      string       `bson:"generation"`
+	Snapshot        string       `bson:"snapshot"`
+	Health          string       `bson:"health"`
+	Coverage        string       `bson:"coverage"`
+	Unresolved      uint32       `bson:"unresolved"`
+	LastSuccess     time.Time    `bson:"last_success"`
+	Due             time.Time    `bson:"due"`
+	Claim           string       `bson:"claim"`
+	LeaseUntil      time.Time    `bson:"lease_until"`
+	Hidden          bool         `bson:"hidden"`
+	Checkpoint      time.Time    `bson:"checkpoint"`
+	ScanStarted     time.Time    `bson:"scan_started"`
+	LastFull        time.Time    `bson:"last_full"`
+	ScannedItems    uint32       `bson:"scanned_items"`
+	Pending         *PendingScan `bson:"pending,omitempty"`
 }
 type Fence struct {
 	Token string
@@ -146,6 +150,12 @@ func Classify(err error) *Failure {
 	if errors.As(err, &f) {
 		return f
 	}
+	if errors.Is(err, ErrUnsupported) {
+		return &Failure{Category: "UNSUPPORTED"}
+	}
+	if errors.Is(err, ErrInvalid) {
+		return &Failure{Category: "SCHEMA_ERROR"}
+	}
 	if errors.Is(err, ErrPaused) {
 		return &Failure{Category: "CONFIG_ERROR"}
 	}
@@ -161,6 +171,7 @@ type IncrementalProvider interface {
 // PendingScan registers only completed immutable batches. A crashed/late
 // attempt's unregistered batch never participates in publication.
 type PendingScan struct {
+	Complete   bool      `bson:"complete"`
 	Started    time.Time `bson:"started"`
 	Cursor     string    `bson:"cursor"`
 	Batches    []string  `bson:"batches"`

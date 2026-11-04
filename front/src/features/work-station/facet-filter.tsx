@@ -35,6 +35,7 @@ export function FacetFilter({
   const query = useInfiniteQuery({
     queryKey: [...prefix, 'facets', dimension, context, search],
     initialPageParam: '',
+    refetchInterval: 15_000,
     queryFn: ({ signal, pageParam }) =>
       client.listFilterOptions(
         { ...context, dimension, search, pageSize: 50, pageToken: pageParam },

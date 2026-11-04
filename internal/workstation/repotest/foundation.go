@@ -26,39 +26,39 @@ func RunFoundation(t *testing.T, newRepo func(*testing.T) ws.Repository) {
 		newer.ProjectId = "project-private"
 		newer.ProjectName = "Private"
 		publish(t, s, claim(t, s, r2), newer)
-		options, _, err := s.FilterOptions(ctx, "A", ws.Query{}, "assignee", "", "", 50)
+		options, _, err := s.FilterPage(ctx, "A", ws.Query{}, "assignee", "", "", 50)
 		must(t, err)
 		if len(options) != 1 || options[0].Id != "private" {
 			t.Fatalf("source choice: %v", options)
 		}
 		_, err = s.Select(ctx, "A", r2.ID, r2.Revision, nil)
 		must(t, err)
-		options, next, err := s.FilterOptions(ctx, "A", ws.Query{}, "assignee", "", "", 1)
+		options, next, err := s.FilterPage(ctx, "A", ws.Query{}, "assignee", "", "", 1)
 		must(t, err)
 		if len(options) != 1 || options[0].Id != "safe-a" || next == "" {
 			t.Fatalf("fallback/page: %v %q", options, next)
 		}
-		second, _, err := s.FilterOptions(ctx, "A", ws.Query{}, "assignee", "", next, 1)
+		second, _, err := s.FilterPage(ctx, "A", ws.Query{}, "assignee", "", next, 1)
 		must(t, err)
 		if len(second) != 1 || second[0].Id != "safe-b" {
 			t.Fatal(second)
 		}
 		for _, q := range []ws.Query{{Provider: "gitlab"}, {ConnectionID: r2.ID}} {
-			got, _, err := s.FilterOptions(ctx, "A", q, "assignee", "", "", 50)
+			got, _, err := s.FilterPage(ctx, "A", q, "assignee", "", "", 50)
 			must(t, err)
 			if len(got) != 0 {
 				t.Fatal("hidden facet", got)
 			}
 		}
-		_, _, err = s.FilterOptions(ctx, "B", ws.Query{}, "assignee", "", next, 1)
+		_, _, err = s.FilterPage(ctx, "B", ws.Query{}, "assignee", "", next, 1)
 		if !errors.Is(err, ws.ErrInvalid) {
 			t.Fatal("crossworkspace cursor", err)
 		}
-		_, _, err = s.FilterOptions(ctx, "A", ws.Query{}, "assignee", "", next, 2)
+		_, _, err = s.FilterPage(ctx, "A", ws.Query{}, "assignee", "", next, 2)
 		if !errors.Is(err, ws.ErrInvalid) {
 			t.Fatal("pagesize cursor", err)
 		}
-		options, _, err = s.FilterOptions(ctx, "A", ws.Query{}, "project", "Private", "", 50)
+		options, _, err = s.FilterPage(ctx, "A", ws.Query{}, "project", "Private", "", 50)
 		must(t, err)
 		if len(options) != 0 {
 			t.Fatal("revoked metadata leaked", options)

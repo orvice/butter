@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Navigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { GitBranch, Pencil, RefreshCw, Trash2 } from "lucide-react";
@@ -25,6 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+import { workStationHostClient } from "@/api/work-station";
+import { PlaneHostAdmin } from "@/features/work-station/host-admin";
 
 type FormValues = {
   name: string;
@@ -56,7 +59,9 @@ export function GitHostKindBadge({ kind }: { kind: GitHostKind }) {
 }
 
 export function AdminGitHostsPage() {
-  const { user: currentUser, isAdmin, isLoading: isAuthLoading } = useAuth();
+  const { user: currentUser, token, isAdmin, isLoading: isAuthLoading } = useAuth();
+  const planeClient = useMemo(() => workStationHostClient("", token ?? ""), [token]);
+  const planePrefix = useMemo(() => ["work-station-global-hosts", currentUser?.id ?? ""], [currentUser?.id]);
   const { data, isLoading } = useGitHosts();
   const createMutation = useCreateGitHost();
   const updateMutation = useUpdateGitHost();
@@ -257,6 +262,7 @@ export function AdminGitHostsPage() {
             </CardContent>
           </Card>
         </div>
+        <PlaneHostAdmin key={currentUser.id} client={planeClient} prefix={planePrefix} />
       </PageScroll>
 
       <DeleteDialog

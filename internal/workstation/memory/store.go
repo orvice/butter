@@ -153,7 +153,7 @@ func (s *Store) Collect(ctx context.Context) error {
 		r, ok := s.records[key(o.WorkspaceID, o.ConnectionID)]
 		current := false
 		for _, sc := range r.Scopes {
-			if sc.Snapshot == o.Snapshot || (sc.Pending != nil && slices.Contains(sc.Pending.Batches, o.Snapshot)) {
+			if (sc.Snapshot != "" && sc.Snapshot == o.Snapshot) || (sc.Pending != nil && slices.Contains(sc.Pending.Batches, o.Snapshot)) {
 				current = true
 			}
 		}

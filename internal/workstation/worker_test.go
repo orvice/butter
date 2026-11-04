@@ -2,6 +2,7 @@ package workstation_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +12,42 @@ import (
 	v1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+type failingCheckpointStore struct{}
+
+func (failingCheckpointStore) Load(context.Context, string) (ws.Checkpoint, bool, error) {
+	return ws.Checkpoint{}, false, errors.New("checkpoint storage unavailable")
+}
+func (failingCheckpointStore) CompareAndSwap(context.Context, string, uint64, ws.Checkpoint) (ws.Checkpoint, error) {
+	return ws.Checkpoint{}, errors.New("checkpoint storage unavailable")
+}
+func (failingCheckpointStore) Delete(context.Context, string, uint64) error {
+	return errors.New("checkpoint storage unavailable")
+}
+
+func TestCheckpointFailureDoesNotHideCommittedSnapshot(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.New()
+	s := repotest.NewService(repo, &repotest.Provider{Items: []*v1.WorkStationItem{repotest.Item("1", "committed", time.Now().UTC())}})
+	s.Checkpoint = failingCheckpointStore{}
+	r, err := s.Create(ctx, "A", "main", "host", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Select(ctx, "A", r.ID, r.Revision, []string{"42"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RunOnce(ctx); err == nil {
+		t.Fatal("checkpoint failure was hidden")
+	}
+	rows, _, err := s.List(ctx, "A", ws.Query{}, "")
+	if err != nil || len(rows) != 1 || rows[0].Title != "committed" {
+		t.Fatalf("checkpoint failure hid committed snapshot: rows=%v err=%v", rows, err)
+	}
+	connection, err := s.Connection(ctx, "A", r.ID)
+	if err != nil || !connection.Scopes[0].CheckpointLag || connection.Scopes[0].CheckpointError == "" {
+		t.Fatalf("checkpoint lag was not observable: connection=%v err=%v", connection, err)
+	}
+}
 func TestReconcilerDurableRefreshCooldownAndRestart(t *testing.T) {
 	ctx := context.Background()
 	clock := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
@@ -18,6 +55,7 @@ func TestReconcilerDurableRefreshCooldownAndRestart(t *testing.T) {
 	repo.Clock = func() time.Time { return clock }
 	p := &repotest.Provider{Items: []*v1.WorkStationItem{repotest.Item("1", "old snapshot", clock)}}
 	s := repotest.NewService(repo, p)
+	s.Checkpoint = ws.NewMemoryCheckpointStore()
 	r, err := s.Create(ctx, "A", "main", "host", "key")
 	if err != nil {
 		t.Fatal(err)
@@ -34,6 +72,14 @@ func TestReconcilerDurableRefreshCooldownAndRestart(t *testing.T) {
 	rows, _, err := s.List(ctx, "A", ws.Query{}, "")
 	if err != nil || len(rows) != 1 {
 		t.Fatal("initial intent lost", err)
+	}
+	connection, err := s.Connection(ctx, "A", r.ID)
+	if err != nil || connection.Scopes[0].SyncPhase != "READY" || connection.Scopes[0].ScannedItemCount != 1 {
+		t.Fatal("initial progress", connection, err)
+	}
+	checkpoint, ok, err := s.Checkpoint.Load(ctx, ws.CheckpointKey("A", r.ID, "42"))
+	if err != nil || !ok || checkpoint.Sequence != 1 || checkpoint.Generation == "" {
+		t.Fatal("scan checkpoint", checkpoint, ok, err)
 	}
 	status, _, err := s.Refresh(ctx, "A", r.ID)
 	if err != nil || status != "QUEUED" {
@@ -96,6 +142,47 @@ func TestReconcilerFailureIsolatedAcrossConnections(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Title != "healthy connection" || len(rows[0].Sources) != 1 {
 		t.Fatal("one failure blocked or polluted another", rows, err)
 	}
+}
+func TestSharedBudgetAppliesAcrossConnections(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.New()
+	s := repotest.NewService(repo, &repotest.Provider{Items: []*v1.WorkStationItem{repotest.Item("1", "budgeted", time.Now().UTC())}})
+	s.Budget = ws.NewMemoryBudget(1, time.Hour)
+	ids := make([]string, 0, 2)
+	for _, name := range []string{"one", "two"} {
+		r, err := s.Create(ctx, "A", name, "host", "key")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Select(ctx, "A", r.ID, r.Revision, []string{"42"}); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, r.ID)
+	}
+	if err := s.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	ready, err := s.Connection(ctx, "A", ids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.Connection(ctx, "A", ids[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	phases := []string{ready.Scopes[0].SyncPhase, other.Scopes[0].SyncPhase}
+	if !(containsPhase(phases, "READY") && containsPhase(phases, "WAITING_RETRY")) {
+		t.Fatalf("shared budget phases: %v", phases)
+	}
+}
+
+func containsPhase(phases []string, want string) bool {
+	for _, phase := range phases {
+		if phase == want {
+			return true
+		}
+	}
+	return false
 }
 func TestRetentionExactBoundary(t *testing.T) {
 	now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)

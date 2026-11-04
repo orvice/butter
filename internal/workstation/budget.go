@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"time"
 )
@@ -40,7 +41,10 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		for {
 			wait, err := t.repo.ReserveBudget(req.Context(), b.key, b.spacing)
 			if err != nil {
-				return nil, ErrPaused
+				return nil, &Failure{Category: "DEGRADED"}
+			}
+			if wait > time.Second {
+				return nil, &Failure{Category: "RATE_LIMITED", RetryAfter: wait}
 			}
 			if wait <= 0 {
 				break
@@ -55,4 +59,14 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 	return t.next.RoundTrip(req)
+}
+
+// RequestFailure preserves only the local coordinator's safe retry category.
+// Raw transport errors, URLs, headers and credential strings never escape.
+func RequestFailure(err error) error {
+	var f *Failure
+	if errors.As(err, &f) && f.Category == "RATE_LIMITED" {
+		return &Failure{Category: f.Category, RetryAfter: f.RetryAfter}
+	}
+	return &Failure{Category: "DEGRADED"}
 }

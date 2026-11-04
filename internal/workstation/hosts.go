@@ -39,6 +39,9 @@ func ApprovedURL(raw string) (string, error) {
 	u.Host = strings.ToLower(u.Host)
 	if u.Port() == "443" {
 		u.Host = u.Hostname()
+		if strings.Contains(u.Host, ":") {
+			u.Host = "[" + u.Host + "]"
+		}
 	}
 	u.Path = strings.TrimRight(u.Path, "/")
 	return u.String(), nil

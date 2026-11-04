@@ -5209,9 +5209,9 @@ server holds (#339).
 
 ---
 
-### WorkStationService (GitHub.com preview)
+### WorkStationService / WorkStationHostService (four-provider preview)
 
-The authenticated workspace-scoped `/api/agents.v1.WorkStationService/` exposes connection create/update/delete/test/discovery/selection, durable Refresh and local ListItems/GetItem. Only workspace owners and global admins manage connections; workspace admins and members read and refresh. Readable messages never contain credentials. Updates use `expected_revision`; optional `api_key` means absent=keep, nonempty=replace, empty=clear and hide. Responses use `Cache-Control: no-store`. See [the preview RPC/storage and acceptance contract](work-station.md). Four-provider release acceptance is pending.
+The authenticated workspace-scoped `/api/agents.v1.WorkStationService/` exposes connection create/update/delete/get/test/discovery/selection, durable Refresh, local ListItems/GetItem and searchable paginated ListFilterOptions. Connections select github/gitlab/linear/plane; GitLab MERGE_REQUEST is distinct from GitHub PULL_REQUEST. Plane adds an explicit external workspace slug. Only workspace owners and global admins manage connections; workspace admins and members read and refresh. Readable messages never contain credentials. Updates use `expected_revision`; optional `api_key` means absent=keep, nonempty=replace, empty=clear and hide. Responses use `Cache-Control: no-store`. WorkStationHostService List/Get exposes approved Plane hosts to authenticated callers; mutations require global admin and revision CAS. Existing GitHostService remains the registry for GitHub/GitLab. Scope health includes scan progress, last full reconciliation and stale/partial status; existing protobuf field numbers remain compatible. See [the preview RPC/storage and acceptance contract](work-station.md). Real source-platform and deployed two-Pod acceptance is still BLOCKED.
 
 ## Error Handling
 

@@ -11,7 +11,7 @@ import (
 
 // Filter options use the same source choice and retention as List/Get. They
 // never call discovery or expose a principal from a hidden observation.
-func (s *Service) FilterOptions(ctx context.Context, w string, q Query, dimension, search, page string, limit int) ([]*v1.WorkStationFilterOption, string, error) {
+func (s *Service) FilterPage(ctx context.Context, w string, q Query, dimension, search, page string, limit int) ([]*v1.WorkStationFilterOption, string, error) {
 	if !slices.Contains([]string{"provider", "scope", "project", "status", "assignee"}, dimension) || len(search) > 256 {
 		return nil, "", ErrInvalid
 	}

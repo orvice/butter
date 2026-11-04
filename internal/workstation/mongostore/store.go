@@ -24,10 +24,11 @@ const observations = "work_station_observations"
 type Store struct {
 	db                        *mongo.Database
 	connections, observations *mongo.Collection
+	checkpoints               *mongo.Collection
 }
 
 func New(db *mongo.Database) *Store {
-	return &Store{db: db, connections: db.Collection(connections), observations: db.Collection(observations)}
+	return &Store{db: db, connections: db.Collection(connections), observations: db.Collection(observations), checkpoints: db.Collection("work_station_checkpoints")}
 }
 
 var _ ws.Repository = (*Store)(nil)
@@ -177,7 +178,7 @@ func currentSource() bson.D { return snapshotReference(true) }
 
 func snapshotReference(visible bool) bson.D {
 	filter := bson.M{"$expr": bson.M{"$and": bson.A{bson.M{"$eq": bson.A{"$workspace_id", "$$w"}}, bson.M{"$eq": bson.A{"$id", "$$c"}}}}}
-	refs := bson.A{bson.M{"$eq": bson.A{"$scopes.snapshot", "$$snap"}}}
+	refs := bson.A{bson.M{"$and": bson.A{bson.M{"$ne": bson.A{"$scopes.snapshot", ""}}, bson.M{"$eq": bson.A{"$scopes.snapshot", "$$snap"}}}}}
 	if !visible {
 		refs = append(refs, bson.M{"$in": bson.A{"$$snap", bson.M{"$ifNull": bson.A{"$scopes.pending.batches", bson.A{}}}}})
 	}

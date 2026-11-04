@@ -35,6 +35,48 @@ func TestContract(t *testing.T) {
 	})
 }
 
+func TestMongoDurableBatchResume(t *testing.T) {
+	uri := os.Getenv("BUTTER_TEST_MONGO_URI")
+	if uri == "" {
+		t.Skip("BUTTER_TEST_MONGO_URI not set")
+	}
+	ctx := context.Background()
+	client, err := mongo.Connect(options.Client().ApplyURI(uri).SetTimeout(10 * time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Disconnect(ctx)
+	db := client.Database(fmt.Sprintf("butter_batch_resume_%d", time.Now().UnixNano()))
+	defer db.Drop(ctx)
+	store := mongostore.New(db)
+	if err := store.EnsureIndexes(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repotest.RunBatches(t, store, func(age time.Duration) {
+		// Move due times and orphan ages, without substituting a fake clock for
+		// Mongo's actual $$NOW publication fence or sleeping several minutes.
+		records, err := store.List(ctx, "A")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range records {
+			next := r
+			next.Scopes = ws.CloneScopes(r.Scopes)
+			for i := range next.Scopes {
+				next.Scopes[i].Due = time.Now().Add(-time.Second)
+			}
+			next.Version++
+			ok, err := store.CAS(ctx, r, &next, nil)
+			if err != nil || !ok {
+				t.Fatal("due injection", err)
+			}
+		}
+		if _, err := db.Collection("work_station_observations").UpdateMany(ctx, bson.M{}, bson.M{"$set": bson.M{"observed": time.Now().Add(-age)}}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestReclamation(t *testing.T) {
 	uri := os.Getenv("BUTTER_TEST_MONGO_URI")
 	if uri == "" {

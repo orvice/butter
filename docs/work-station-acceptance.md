@@ -1,6 +1,6 @@
 # Work Station qualification ledger
 
-Recorded 2026-11-03 for KON-55 / PR #490. Release verdict: **not qualified for
+Updated 2026-11-04 for KON-55 / PR #490. Release verdict: **not qualified for
 the complete Work Station Spec**. Local implementation and fixture tests are
 reviewable; real source-platform and deployed two-Pod gates remain open. No
 child issue becomes accepted merely because the corresponding adapter compiles.
@@ -45,7 +45,7 @@ name the executed commands and distinguish skipped live tests.
 | Gate | Automated evidence in this PR | Remaining qualification |
 | --- | --- | --- |
 | B01 workspace boundary | `application/workstation_service_test.go`: membership/workspace rechecks; shared `repotest/contract.go`: staging/workspace isolation and query-token binding | Live role/membership matrix and all newly added RPCs must remain in the same authorization boundary |
-| B02 role/Host policy | `TestWorkStationPermissionsAndWriteOnlyCredentials`, Host service tests; owner-only connection changes, global-admin Host changes | Real member/admin/owner/global-admin UI journeys |
+| B02 role/Host policy | `TestWorkStationPermissionsAndWriteOnlyCredentials`, `TestPlaneHostAuthorityAndRevision`; owner-only connection changes, global-admin Host changes | Real member/admin/owner/global-admin UI journeys |
 | B03 credential/revision | shared `config_CAS_and_secret_seam`, application credential tests, adapter redaction tests, `report_test.go` | Deployed logs/traces inspection; actual key rotation and permissions |
 | B04 selected scopes only | shared staging/discovery isolation, unauthorized scope handling; provider-scoped resolution | Real private scope discovery/revocation and facet candidates |
 | B05 provider traversal | `github`, `linear`, `gitlab`, `plane` adapter fixtures cover pages, failure/schema/error classes; Plane 10,001-row cursor traversal; Linear partial GraphQL errors | Target-sourced sanitized fixtures and exact deployed schema/version for six target profiles |
@@ -56,7 +56,7 @@ name the executed commands and distinguish skipped live tests.
 | B10 source visibility | shared `source_choice_filters_and_immediate_fallback`; Mongo pipeline joins current snapshot eligibility before content choice/filtering | Real revocation with List/Get/Search/FilterOptions and open details in other sessions |
 | B11 failure handling | shared failure-preserves-snapshot/revocation, reconciler isolation tests, provider rate-limit/error fixtures | Real 401/403/404/429 and inaccessible-resource behavior across target versions |
 | B12 fencing/recovery | shared late publish/error/epoch/key/scope/delete tests; real-Mongo independent-process takeover and late writes | Actual two deployed Pods, real lease duration, shutdown/restart/network failure observations |
-| B13 durable intent/budgets | controlled-clock reconciler tests; independent processes share Mongo Refresh/cooldown/budget state across restart | Actual two-Pod scheduling/cross-workspace account budgets and provider Retry-After |
+| B13 durable intent/budgets | controlled-clock reconciler and durable-batch resume tests; independent processes share Mongo Refresh/cooldown/budget state across restart | Actual two-Pod scheduling/cross-workspace account budgets and provider Retry-After |
 | B14 reclamation | memory+Mongo shared reclamation contracts: physical rows, delayed cleanup, >1,000 orphan batch drain, current/hidden/other-source preservation | Long-running deployment footprint and crash-during-staging observation |
 | B15 outbound/UI safety | confined provider client, fixture unsafe URL/path/redirect checks, no-write audit; Dashboard renders descriptions as text | Deployment DNS/egress policy; real source links and no external image/private attachment fetch inspection |
 | B16 query pagination | shared source choice/window/keyset/filter-bound tokens; Mongo projection matches memory behavior | Static real dataset pagination comparison; dynamic result sets do not promise an unimplemented read snapshot |

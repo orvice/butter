@@ -695,6 +695,6 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
 - 内置 system agent 仍为全局注册，其管理类工具读跨 workspace、写则要求显式传入 `workspace_id`。
 
-## Work Station（GitHub.com 预览）
+## Work Station（四平台只读预览）
 
-`application.WorkStationServiceServer` 从 Workspace context 与成员记录授权，调用 `internal/workstation` 的连接、选择、刷新和投影查询规则。只读 provider seam 不暴露写接口。Mongo 将配置/凭证/选中范围及 snapshot pointer 放在同一连接文档，逐事项 observation 独立存储；CAS version + attempt token + Mongo `$$NOW` lease fence 约束成功与错误发布。列表/详情通过 live connection/scope/snapshot join 重新授权后去重，旧来源撤权后回退到剩余来源正文。启动装配选择 memory/Mongo repo 并启动生命周期内的 reconciler，关闭时取消并等待退出。完整约束、索引查询与尚未完成的增量/共享预算门禁见 [Work Station](work-station.md)。
+`application.WorkStationServiceServer` 从 Workspace context 与成员记录授权，调用 `internal/workstation` 的连接、选择、刷新和投影查询规则。只读 provider seam 不暴露写接口。Mongo 将配置/凭证/选中范围及 snapshot pointer 放在同一连接文档，逐事项 observation 独立存储；CAS version + attempt token + Mongo `$$NOW` lease fence 约束成功与错误发布。列表/详情通过 live connection/scope/snapshot join 重新授权后去重，旧来源撤权后回退到剩余来源正文。启动装配选择 memory/Mongo repo 并启动生命周期内的 reconciler，关闭时取消并等待退出。运行时根据每条连接的 provider、批准 Host 与租户选择四类 adapter，所有 HTTP 请求经过 DNS/HTTPS origin 约束和共享 Mongo 实例/账户预算。分页 cursor、注册 staging token 与 checkpoint/progress 和可见性位于同一 CAS 边界；未完成的大扫描可跨 worker 继续，GC 保护已注册 pending 引用。GitHub 使用重叠增量与有界隔离 ETag，其余平台仍以完整核对为主。独立 OS 进程的 Mongo 验证不等于实际两 Pod 验收。完整约束、索引查询与未完成的真实平台/规模门禁见 [Work Station](work-station.md)。

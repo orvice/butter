@@ -547,6 +547,8 @@ cmd/butter-daemon (客户端)
 - `pkg/proto/agents/v1` 为生成代码，改动需在 `proto/agents/v1` 中完成后重新生成。
 - 长期记忆 v1：Workspace Memory 在 workspace 内共享，不区分人（按人区分的 scope 见 #347）；记忆管理只支持查看、搜索、删除单条，不支持修改和一键清空，列表最多显示 200 条，更早的记忆靠搜索找到；PI / Cursor agent 不支持；只对接 mem0 OSS，不支持 mem0 云平台。
 
-## Work Station（GitHub.com 预览）
+## Work Station（四平台只读预览）
 
-认证路由 `/work-station` 提供 Workspace 共享的只读 Issues/PR 列表、详情、过滤与手动刷新。owner/全局管理员管理连接与明确选中的 Repository；Workspace admin 和 member 只能浏览、刷新。平台 Key 通过数据库 Keyring 加密，清空/轮换 Key、移除范围与删除连接立即撤销旧来源的可见性。后台从持久化 due state 扫描、staging 后原子发布；Refresh accepted 不表示数据已经更新。Linear、Plane、GitLab 与真实平台/两 Pod 发布门禁尚未完成，详见 [实现范围与限制](work-station.md)。
+认证路由 `/work-station` 提供 Workspace 共享的 Linear/Plane Issues、GitHub Issues/PR 和 GitLab Issues/MR 列表、详情、本地筛选候选与刷新。owner/全局管理员管理独立连接和明确选中的 Team/Project/Repository；Workspace admin 和 member 只能浏览、刷新。Plane Host 在 Admin 的 Git Hosts 区管理，只有全局管理员能变更；Plane Key 继承创建者权限的风险在连接表单明示。
+
+Key 通过数据库 Keyring 加密；清空/轮换、移除范围和删除连接立即撤销旧来源可见性。四平台完整扫描可按已注册游标跨重启继续，未完成 staging 不可见；共享 Mongo 预算与 fencing 在运行时生效。GitHub 支持重叠增量与隔离的 ETag；其余平台仍做可恢复完整核对。真实平台版本/凭证/受控数据集和实际两 Pod 门禁尚未通过，详见 [实现范围与限制](work-station.md)。

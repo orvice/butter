@@ -82,6 +82,17 @@ window. It does not retain incremental cursors or claim that cursor pagination
 provides a remote transaction: a concurrent Team move can settle on the next
 successful reconciliation. There is no organization-wide issue polling.
 
+Full reconciliation also implements the runtime's resumable batch contract. One
+batch reads one Team issue page and any required label continuation pages. Its
+internal cursor binds the Team ID, fixed scan start at BSON Date millisecond
+precision, profile version, and continuation phase. It contains no credential or
+item body and is capped at 16 KiB. Completed pages can survive a failed next page
+and process replacement; a final separate Team access check is required before
+completion. Repeated cursors, wrong scope/start bindings, malformed state, and
+truncation bounds fail closed. Unresolved and expired terminal rows remain staged
+until the runtime picks the latest item version across all pages, then applies
+retention and counts unresolved items.
+
 ## Verification record
 
 `go test ./internal/workstation/linear` passes with in-memory HTTP responses based
@@ -99,6 +110,8 @@ on the documented schema. These fixtures are synthetic, not remote captures.
 | HTTP 200 partial GraphQL failure, repeated cursors, empty-next pages | Pass | Unverified |
 | HTTP 401/403/429, GraphQL authentication/permission/rate errors | Pass | Unverified |
 | Access lost at final Team recheck, error redaction, unsafe source URL | Pass | Unverified |
+| Durable page cursor, failed-page retry after provider replacement, final access recheck | Pass | Unverified |
+| Wrong scope/start cursor, repeated cursor, terminal markers before global source choice | Pass | Unverified |
 
 The controlled remote run must record the organization and Team IDs, schema/date
 baseline, key's Read and Team restrictions, sanitized response fixtures, request

@@ -66,7 +66,7 @@ func (p *Provider) get(ctx context.Context, token, path string, query url.Values
 	req.Header.Set("Accept", "application/json")
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return failure("DEGRADED")
+		return ws.RequestFailure(err)
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {

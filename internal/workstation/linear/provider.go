@@ -100,7 +100,7 @@ func (p *Provider) query(ctx context.Context, token, query string, variables map
 	req.Header.Set("Accept", "application/json")
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return failure("DEGRADED")
+		return ws.RequestFailure(err)
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {

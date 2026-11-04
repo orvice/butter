@@ -212,6 +212,7 @@ for (const provider of ['gitlab', 'linear', 'plane']) {
     await page.getByLabel('API key', { exact: true }).fill('source-private-key')
     await page.getByRole('button', { name: 'Create connection', exact: true }).click()
     await expect(page.getByLabel('Replace API key')).toHaveValue('')
+    await expect(page.getByLabel('Connection name')).toHaveValue(`${provider} planning`)
     expect(request?.provider).toBe(provider)
     expect(request?.hostId).toBe(provider === 'linear' ? '' : provider === 'plane' ? 'plane-cloud' : 'gitlab')
     expect(request?.externalWorkspaceSlug).toBe(provider === 'plane' ? 'engineering' : '')
@@ -282,6 +283,7 @@ test('global Plane endpoint administration preserves revisions and needs explici
   let saved: w.WorkStationHost | undefined
   let deletes = 0
   await setupAuthenticatedConnectRoutes(page, async (route, url) => {
+    if (await hosts(route, url)) return true
     if (url.includes('WorkStationHostService/ListHosts')) return fulfillProto(route, w.WorkStationHostServiceListHostsResponseSchema, { hosts: saved ? [saved] : [] })
     if (url.includes('WorkStationHostService/CreateHost')) {
       const req = fromBinary(w.WorkStationHostServiceCreateHostRequestSchema, route.request().postDataBuffer()!)
@@ -303,6 +305,8 @@ test('global Plane endpoint administration preserves revisions and needs explici
     return false
   })
   await page.goto('/work-station')
+  await expect(page.getByRole('button', { name: 'Manage global Plane hosts' })).toHaveCount(0)
+  await page.goto('/admin/git-hosts')
   await page.getByRole('button', { name: 'Manage global Plane hosts' }).click()
   await expect(page.getByRole('dialog').getByText('Approved endpoints are available to every workspace.', { exact: false })).toBeVisible()
   await page.getByLabel('Host name').fill('Company Plane')

@@ -36,7 +36,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { FacetFilter } from './facet-filter'
-import { PlaneHostAdmin } from './host-admin'
 
 function errorText(error: unknown) {
   return error instanceof ConnectError
@@ -540,7 +539,6 @@ function Station({
             </DialogContent>
           </Dialog>
         )}
-        {isAdmin && <PlaneHostAdmin client={hostClient} prefix={prefix} />}
       </Main>
     </>
   )
@@ -671,7 +669,7 @@ function ConnectionManager({
         </select>
       </label>
       <ConnectionForm
-        key={id}
+        key={connection?.id ?? 'new'}
         client={client}
         hostClient={hostClient}
         prefix={prefix}

@@ -69,7 +69,7 @@ func (p *Provider) get(ctx context.Context, token, path string, q url.Values, ou
 	req.Header.Set("Accept", "application/json")
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, failure("DEGRADED")
+		return nil, ws.RequestFailure(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusTooManyRequests {

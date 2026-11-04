@@ -50,10 +50,14 @@ message WorkStationScope {
   google.protobuf.Timestamp last_success_at = 6;
   google.protobuf.Timestamp next_attempt_at = 7;
   bool initialized = 8;
-  google.protobuf.Timestamp scan_started_at = 9;
-  google.protobuf.Timestamp last_full_reconciliation_at = 10;
-  uint32 scanned_items = 11;
-  bool stale = 12;
+  uint32 scanned_item_count = 9;
+  string sync_phase = 10;
+  bool checkpoint_lag = 11;
+  string checkpoint_error = 12;
+  google.protobuf.Timestamp scan_started_at = 13;
+  google.protobuf.Timestamp last_full_reconciliation_at = 14;
+  uint32 scanned_items = 15;
+  bool stale = 16;
 }
 message WorkStationServiceCreateConnectionRequest {
   string name = 1;
@@ -184,12 +188,17 @@ message WorkStationServiceListFilterOptionsRequest {
   string page_token = 8;
 }
 message WorkStationFilterOption {
-  string id = 1;
-  string name = 2;
+  string value = 1;
+  string label = 2;
+  string id = 3;
+  string name = 4;
 }
 message WorkStationServiceListFilterOptionsResponse {
-  repeated WorkStationFilterOption options = 1;
-  string next_page_token = 2;
+  repeated WorkStationFilterOption statuses = 1;
+  repeated WorkStationFilterOption assignees = 2;
+  repeated WorkStationFilterOption labels = 3;
+  repeated WorkStationFilterOption options = 4;
+  string next_page_token = 5;
 }
 
 // Global admin approved Plane v2 endpoints. Contains no workspace credential.

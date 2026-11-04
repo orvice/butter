@@ -73,7 +73,7 @@ export function PlaneHostAdmin({
             </p>
           )}
           <HostForm
-            key={id}
+            key={hosts.data?.hosts.find((host) => host.id === id)?.id ?? ''}
             client={client}
             host={hosts.data?.hosts.find((host) => host.id === id)}
             changed={async (nextId) => {

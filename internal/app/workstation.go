@@ -5,15 +5,21 @@ import (
 	"context"
 	"errors"
 	"go.orx.me/apps/butter/internal/application"
+	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/workstation"
+	"go.orx.me/apps/butter/internal/workstation/providerregistry"
 )
 
 func (h *Handlers) wireWorkStation(result *BootstrapResult) {
 	if h.workStationSvcServer == nil || result.WorkStationRepo == nil {
 		return
 	}
-	station := &workstation.Service{Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), ResolveProvider: application.WorkStationProviders(result.GitHostRepo, result.WorkStationRepo)}
+	if err := providerregistry.ValidateConfig(configuredWorkStationProvider(h.cfg)); err != nil {
+		log.FromContext(context.Background()).Error("work station defaults rejected", "category", workstation.ReportCategory(err))
+		return
+	}
+	station := &workstation.Service{DefaultProvider: string(configuredWorkStationProvider(h.cfg).Kind), Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), ResolveProvider: application.WorkStationProviders(result.GitHostRepo, result.WorkStationRepo)}
 	h.workStationSvcServer.SetService(station, result.WorkspaceRepo)
 	if h.workStationHostSvcServer != nil {
 		h.workStationHostSvcServer.SetRepo(result.WorkStationRepo)
@@ -48,4 +54,11 @@ func (h *Handlers) ShutdownWorkStation(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func configuredWorkStationProvider(cfg *config.AppConfig) providerregistry.Config {
+	if cfg == nil || cfg.WorkStation.ProviderKind == "" {
+		return providerregistry.Config{Kind: providerregistry.GitHub}
+	}
+	return providerregistry.Config{Kind: providerregistry.Kind(cfg.WorkStation.ProviderKind), Host: cfg.WorkStation.Host, Profile: cfg.WorkStation.Profile}
 }

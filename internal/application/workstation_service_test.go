@@ -7,12 +7,15 @@ import (
 
 	"connectrpc.com/connect"
 	authrepo "go.orx.me/apps/butter/internal/repo/auth"
+	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
+	"go.orx.me/apps/butter/internal/secretbox"
 	workspacecontext "go.orx.me/apps/butter/internal/workspace"
 	ws "go.orx.me/apps/butter/internal/workstation"
 	wsmemory "go.orx.me/apps/butter/internal/workstation/memory"
+	"go.orx.me/apps/butter/internal/workstation/providerregistry"
 	"go.orx.me/apps/butter/internal/workstation/repotest"
 	v1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -94,15 +97,18 @@ func TestWorkStationPermissionsAndWriteOnlyCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.GetConnection(stationContext("member"), connect.NewRequest(&v1.WorkStationServiceGetConnectionRequest{Id: id})); err != nil {
+		t.Fatal("member cannot read one connection", err)
+	}
 	if strings.Contains(string(data), "super-private-token") || strings.Contains(string(data), "ciphertext") || strings.Contains(string(data), "key_id") {
 		t.Fatal("credential leaked")
 	}
+	outsider := stationContext("outsider")
+	if _, err := s.GetConnection(outsider, connect.NewRequest(&v1.WorkStationServiceGetConnectionRequest{Id: id})); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatal("nonmember read one connection", err)
+	}
 	if _, err := s.Refresh(stationContext("member"), connect.NewRequest(&v1.WorkStationServiceRefreshRequest{Id: id})); err != nil {
 		t.Fatal(err)
-	}
-	outsider := stationContext("outsider")
-	if _, err := s.ListConnections(outsider, connect.NewRequest(&v1.WorkStationServiceListConnectionsRequest{})); connect.CodeOf(err) != connect.CodeNotFound {
-		t.Fatal("nonmember authorized", err)
 	}
 	ctx := workspacecontext.WithID(authrepo.WithAdmin(context.Background()), "A")
 	if _, err := s.CreateConnection(ctx, connect.NewRequest(&v1.WorkStationServiceCreateConnectionRequest{Name: "global", HostId: "host", ApiKey: "global-token"})); err != nil {
@@ -178,6 +184,10 @@ func TestWorkStationMissingIDIsInvalid(t *testing.T) {
 			return e
 		},
 		func() error {
+			_, e := s.GetConnection(ctx, connect.NewRequest(&v1.WorkStationServiceGetConnectionRequest{}))
+			return e
+		},
+		func() error {
 			_, e := s.GetItem(ctx, connect.NewRequest(&v1.WorkStationServiceGetItemRequest{}))
 			return e
 		},
@@ -186,5 +196,30 @@ func TestWorkStationMissingIDIsInvalid(t *testing.T) {
 		if code := connect.CodeOf(call()); code != connect.CodeInvalidArgument {
 			t.Fatalf("missing id: %s", code)
 		}
+	}
+}
+
+func TestSetConfiguredServiceWiresRegistryBeforeHandlerUse(t *testing.T) {
+	s := NewWorkStationServiceServer()
+	err := s.SetConfiguredService(providerregistry.Config{Kind: providerregistry.GitHub}, providerregistry.ServiceDeps{
+		Repo: wsmemory.New(), Keyring: secretbox.NewKeyring(cryptokeymemory.New()),
+		CheckHost: func(context.Context, string) error { return nil },
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.service == nil || s.service.Provider == nil {
+		t.Fatal("configured provider was not wired")
+	}
+}
+
+func TestSetConfiguredServiceRejectsProfileBeforeHandlerUse(t *testing.T) {
+	s := NewWorkStationServiceServer()
+	err := s.SetConfiguredService(providerregistry.Config{Kind: providerregistry.GitHub, Host: "https://evil.example"}, providerregistry.ServiceDeps{}, nil)
+	if err == nil {
+		t.Fatal("invalid profile accepted")
+	}
+	if s.service != nil {
+		t.Fatal("invalid configuration mutated handler")
 	}
 }
