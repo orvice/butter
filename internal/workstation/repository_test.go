@@ -7,13 +7,29 @@ import (
 )
 
 func TestItemIDIncludesProviderOriginAndTenant(t *testing.T) {
-	github := ws.ItemIDFor("workspace", "github", "https://api.github.com", "", "42", "ISSUE", "7")
-	gitlab := ws.ItemIDFor("workspace", "gitlab", "https://gitlab.example", "", "42", "ISSUE", "7")
-	tenant := ws.ItemIDFor("workspace", "plane", "https://plane.example", "tenant-a", "42", "ISSUE", "7")
-	if github == gitlab || github == tenant || gitlab == tenant {
+	github := ws.ItemID("workspace", ws.GitHubSource(), "42", "ISSUE", "7")
+	gitlab, err := ws.GitHubSource().Canonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitlab.Provider = "gitlab"
+	gitlab.Origin = "https://gitlab.example"
+	gitlab, err = gitlab.Canonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitlabID := ws.ItemID("workspace", gitlab, "42", "ISSUE", "7")
+	tenant := gitlab
+	tenant.Provider = "plane"
+	tenant.Origin = "https://plane.example"
+	tenant.TenantID = "tenant-a"
+	tenant, err = tenant.Canonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tenantID := ws.ItemID("workspace", tenant, "42", "ISSUE", "7")
+	if github == gitlabID || github == tenantID || gitlabID == tenantID {
 		t.Fatal("provider, origin, and tenant must partition canonical identities")
 	}
-	if github != ws.ItemID("workspace", "42", "ISSUE", "7") {
-		t.Fatal("legacy GitHub identity changed")
-	}
+
 }

@@ -15,6 +15,7 @@ import (
 )
 
 const LeaseDuration = 2 * time.Minute
+const cleanupAttempts = 3
 
 // OrphanGrace exceeds a whole attempt/lease, so a GC candidate cannot
 // later become a valid published snapshot. Normal predecessors skip this grace.
@@ -236,7 +237,23 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 	return s.Fail(ctx, a, err)
 }
 
-// RunOnce is shared by the runtime and integration tests. Connections/scopes
+// Cleanup retries idempotent orphan collection so a transient storage error
+// does not postpone cleanup until the next lifecycle pass. A bounded retry
+// keeps shutdown responsive and leaves the next scheduled pass as a fallback.
+func (s *Service) Cleanup(ctx context.Context) error {
+	var err error
+	for attempt := 0; attempt < cleanupAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		err = s.Repo.Collect(ctx)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
 // are isolated and bounded to four in-flight scans per process.
 func (s *Service) RunOnce(ctx context.Context) error {
 	records, err := s.Repo.Due(ctx)
@@ -283,7 +300,7 @@ func (s *Service) Run(ctx context.Context, report func(error)) {
 		}
 		if time.Now().After(nextGC) {
 			gcCtx, cancelGC := context.WithTimeout(ctx, 30*time.Second)
-			if err := s.Repo.Collect(gcCtx); err != nil && ctx.Err() == nil {
+			if err := s.Cleanup(gcCtx); err != nil && ctx.Err() == nil {
 				report(&RuntimeError{Operation: "observation_gc", Cause: err})
 			}
 			cancelGC()
