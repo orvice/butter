@@ -14,6 +14,7 @@ import (
 )
 
 const LeaseDuration = 2 * time.Minute
+const cleanupAttempts = 3
 
 // Attempt captures both configuration and publisher identity. Every success
 // and error write rechecks these; ctx cancellation alone never authorizes it.
@@ -157,7 +158,7 @@ func (s *Service) Publish(ctx context.Context, a Attempt, result Scan) error {
 			result.Unresolved++
 			continue
 		}
-		item.Id = ItemID(a.Record.WorkspaceID, a.Scope.ID, item.Kind, item.RemoteId)
+		item.Id = ItemIDFor(a.Record.WorkspaceID, a.Record.Provider, a.Record.Origin, a.Record.Tenant, a.Scope.ID, item.Kind, item.RemoteId)
 		if seen[item.Id] {
 			return ErrInvalid
 		}
@@ -207,6 +208,23 @@ func (s *Service) syncScope(ctx context.Context, r Record, sc Scope) error {
 
 // RunOnce is shared by the runtime and integration tests. Connections/scopes
 // are isolated and bounded to four in-flight scans per process.
+// Cleanup retries idempotent orphan collection so a transient Mongo/network
+// error does not postpone cleanup for an entire hour. The repository operation
+// is bounded and only deletes unreferenced observations, so retrying is safe.
+func (s *Service) Cleanup(ctx context.Context) error {
+	var err error
+	for attempt := 0; attempt < cleanupAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		err = s.Repo.Collect(ctx)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
 func (s *Service) RunOnce(ctx context.Context) error {
 	records, err := s.Repo.Due(ctx)
 	if err != nil {
@@ -251,7 +269,7 @@ func (s *Service) Run(ctx context.Context, report func(error)) {
 			report(err)
 		}
 		if time.Now().After(nextGC) {
-			if err := s.Repo.Collect(ctx); err != nil && ctx.Err() == nil {
+			if err := s.Cleanup(ctx); err != nil && ctx.Err() == nil {
 				report(err)
 			}
 			nextGC = time.Now().Add(time.Hour)

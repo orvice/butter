@@ -77,7 +77,7 @@ func (s *Service) Create(ctx context.Context, w, name, host, key string) (Record
 	if err != nil {
 		return Record{}, err
 	}
-	r := Record{WorkspaceID: w, ID: uuid.NewString(), Name: strings.TrimSpace(name), HostID: host, PrincipalID: identity.PrincipalID, Revision: 1, Version: 1, Epoch: uuid.NewString(), Credential: Credential{Ciphertext: cipher, KeyID: kid}, Scopes: []Scope{}}
+	r := Record{WorkspaceID: w, ID: uuid.NewString(), Name: strings.TrimSpace(name), Provider: "github", Origin: "https://api.github.com", HostID: host, PrincipalID: identity.PrincipalID, Revision: 1, Version: 1, Epoch: uuid.NewString(), Credential: Credential{Ciphertext: cipher, KeyID: kid}, Scopes: []Scope{}}
 	return r, s.Repo.Create(ctx, r)
 }
 func (s *Service) token(ctx context.Context, r Record) (string, error) {
@@ -282,6 +282,20 @@ func (s *Service) Select(ctx context.Context, w, id string, revision int64, ids 
 			index := slices.IndexFunc(next.Scopes, func(sc Scope) bool { return sc.ID == id })
 			if index >= 0 {
 				sc = next.Scopes[index]
+				// A scope hidden after an access failure must be revalidated
+				// before it can publish again. Keep the old body invisible.
+				if sc.Hidden {
+					sc.Generation = uuid.NewString()
+					sc.Snapshot = ""
+					sc.Claim = ""
+					sc.LeaseUntil = time.Time{}
+					sc.Hidden = false
+					sc.Coverage = ""
+					sc.Unresolved = 0
+					sc.LastSuccess = time.Time{}
+					sc.Due = now
+					sc.Health = "QUEUED"
+				}
 			} else {
 				sc.Generation = uuid.NewString()
 				sc.Due = now
@@ -352,7 +366,7 @@ func maxTime(a, b time.Time) time.Time {
 	return b
 }
 func Public(r Record) *v1.WorkStationConnection {
-	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: "github", HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused}
+	c := &v1.WorkStationConnection{Id: r.ID, Name: r.Name, Provider: r.Provider, HostId: r.HostID, PrincipalId: r.PrincipalID, Revision: r.Revision, CredentialSet: r.Credential.Ciphertext != "", Paused: r.Paused}
 	for _, sc := range r.Scopes {
 		p := &v1.WorkStationScope{Id: sc.ID, Name: sc.Name, Health: sc.Health, Coverage: sc.Coverage, UnresolvedTerminalCount: sc.Unresolved, Initialized: sc.Snapshot != "" && !sc.Hidden && !r.Paused, NextAttemptAt: stamp(sc.Due), LastSuccessAt: stamp(sc.LastSuccess)}
 		c.Scopes = append(c.Scopes, p)
@@ -393,7 +407,7 @@ type pageCursor struct {
 }
 
 func fingerprint(w string, q Query) string {
-	b, _ := json.Marshal([]string{w, q.Kind, q.ConnectionID, q.ScopeID, q.Status, q.Assignee, q.Keyword})
+	b, _ := json.Marshal([]any{w, q.Kind, q.ConnectionID, q.ScopeID, q.Status, q.Assignee, q.Keyword, q.Limit})
 	hash := sha256.Sum256(b)
 	return hex.EncodeToString(hash[:])
 }

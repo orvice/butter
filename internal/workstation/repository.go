@@ -28,6 +28,9 @@ type Record struct {
 	WorkspaceID string     `bson:"workspace_id"`
 	ID          string     `bson:"id"`
 	Name        string     `bson:"name"`
+	Provider    string     `bson:"provider"`
+	Origin      string     `bson:"origin"`
+	Tenant      string     `bson:"tenant"`
 	HostID      string     `bson:"host_id"`
 	PrincipalID string     `bson:"principal_id"`
 	Revision    int64      `bson:"revision"`
@@ -132,7 +135,12 @@ func Classify(err error) *Failure {
 	}
 	return &Failure{Category: "DEGRADED"}
 }
-func ItemID(workspaceID, scopeID, kind, number string) string {
-	sum := sha256.Sum256([]byte(workspaceID + "\x00github\x00https://api.github.com\x00" + scopeID + "\x00" + kind + "\x00" + number))
+func ItemIDFor(workspaceID, provider, origin, tenant, scopeID, kind, number string) string {
+	sum := sha256.Sum256([]byte(workspaceID + "\x00" + provider + "\x00" + origin + "\x00" + tenant + "\x00" + scopeID + "\x00" + kind + "\x00" + number))
 	return hex.EncodeToString(sum[:])
+}
+
+// ItemID preserves the original GitHub.com identity for existing records.
+func ItemID(workspaceID, scopeID, kind, number string) string {
+	return ItemIDFor(workspaceID, "github", "https://api.github.com", "", scopeID, kind, number)
 }

@@ -42,11 +42,11 @@ Mongo collections:
 
 Keeping bounded scope metadata and pointers in the connection document makes configuration revocation and scope publication share one atomic boundary. Every mutation compares the internal version; publication/error writes also compare the claim token and require the lease expiry to exceed Mongo `$$NOW` **at the write**. Takeover tokens and selection generations are never reused. A configuration race retries against the new record and rechecks the captured epoch/generation/token. The memory implementation runs the same contract.
 
-Scans stage all normalized observations under a fresh snapshot token. Only a completed traversal can publish its pointer. Errors retain the previous pointer; invalid credentials pause/hide the connection, and an inaccessible repository hides that scope. Sources are never merged field by field: after restricting connection/repository filters, the latest valid observation supplies the whole item. Revoking the latest source falls back to the remaining source's body. Canonical identity includes workspace, fixed GitHub instance, stable repository ID, item kind and repository number.
+Scans stage all normalized observations under a fresh snapshot token. Only a completed traversal can publish its pointer. Errors retain the previous pointer; invalid credentials pause/hide the connection, and an inaccessible repository hides that scope. Sources are never merged field by field: after restricting connection/repository filters, the latest valid observation supplies the whole item. Revoking the latest source falls back to the remaining source's body. Canonical item identity includes workspace, provider, approved origin, tenant (when applicable), stable scope ID, item kind and remote ID. The compatibility helper preserves the original GitHub.com hash, while new adapters cannot collide with another provider, self-hosted origin or tenant. Selecting a previously hidden scope clears its committed pointer and queues a fresh validation scan before visibility returns.
 
 Mongo List/Get joins observations to the **current** connection and selected snapshot using workspace-prefixed indexes. It sorts source versions, groups by canonical identity, applies the rolling window/content filters, and then keyset pagination. The cursor binds workspace and filters. Sources are reauthorized on each page. Queries do not promise a global historical snapshot while refreshes publish.
 
-The reconciler scans durable due state every 10 seconds with up to four scans per process. Healthy scopes become due after five minutes plus deterministic jitter. Claims last two minutes; attempts, including staging, are bounded to 100 seconds. A crashed process leaves a durable due intent that another process can reclaim after expiry. Manual requests have a 60-second connection cooldown and cannot override saved Retry-After. Each hour GC removes up to 1,000 unreferenced observations older than 24 hours, retaining current pointers and other connections.
+The reconciler scans durable due state every 10 seconds with up to four scans per process. Healthy scopes become due after five minutes plus deterministic jitter. Claims last two minutes; attempts, including staging, are bounded to 100 seconds. A crashed process leaves a durable due intent that another process can reclaim after expiry. Manual requests have a 60-second connection cooldown and cannot override saved Retry-After. Each hour GC removes up to 1,000 unreferenced observations older than 24 hours, retaining current pointers and other connections. GC retries up to three times per run because collection is idempotent; after the bounded retries it reports the error and the next hourly run retries again.
 
 ## Supported behavior and remaining limits
 
@@ -62,7 +62,7 @@ GitHub repositories with Issues disabled currently return FEATURE_UNAVAILABLE fo
 
 Automated evidence is local, using synthetic provider responses. It is **not real-platform acceptance**.
 
-- Shared memory/Mongo contract: staging invisibility, dedup/source fallback, immediate revocation, key rotation, config CAS, stale publishers/errors, lease takeover, retention, cursor binding and GC preservation.
+Automated evidence includes cleanup retry behavior: transient collection failures are retried three times, persistent failures remain visible to the lifecycle reporter, and no cleanup error can remove a committed observation.
 - HTTP adapter tests: complete and failed pagination, malformed/foreign cursors, redirects, Issues/PR separation, Draft/Merged, large numeric IDs, missing terminal time, permission/rate-limit/schema/network errors and secret-free failures.
 - Service/router tests: owner-only management, member/admin read/refresh, membership removal, workspace boundaries, no secret fields, official Host validation/reference guards and no-store route mounting.
 - Browser fixtures: connection creation/selection/key clearing/deletion, no secret persistence, source HTML escaping, tabs/filter/pagination, refresh intent, non-owner management exclusion, failed details and late old-workspace responses.
@@ -82,7 +82,7 @@ npx eslint src/features/work-station src/api/work-station.ts src/routes/_authent
 PLAYWRIGHT_PORT=5285 npx playwright test e2e/work-station.spec.ts
 ```
 
-Real acceptance is still blocked by the absence of designated instances, least-privilege test credentials and a controlled dataset. No private credential was borrowed from the development CLI. Complete the existing tickets in dependency order:
+The remaining release gate is blocked. No designated Linear/Plane/GitLab instances, least-privilege credentials, controlled fixtures or two-Pod environment are available in this checkout, so this change records no fabricated real-platform or failover PASS. The next acceptance run must record provider/profile/version, masked permissions, stable scope IDs, fixture counts, read-only request methods, and PASS/PARTIAL/BLOCKED outcomes. Complete the existing tickets in dependency order:
 
 | Ticket | Remaining evidence/work |
 | --- | --- |
