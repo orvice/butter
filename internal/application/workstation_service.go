@@ -11,6 +11,7 @@ import (
 	githost "go.orx.me/apps/butter/internal/repo/githost"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	ws "go.orx.me/apps/butter/internal/workstation"
+	"go.orx.me/apps/butter/internal/workstation/providerregistry"
 	v1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -24,6 +25,15 @@ func NewWorkStationServiceServer() *WorkStationServiceServer { return &WorkStati
 func (s *WorkStationServiceServer) SetService(service *ws.Service, workspaces workspacerepo.Repository) {
 	s.service = service
 	s.workspaceRepo = workspaces
+}
+
+func (s *WorkStationServiceServer) SetConfiguredService(config providerregistry.Config, deps providerregistry.ServiceDeps, workspaces workspacerepo.Repository) error {
+	service, err := providerregistry.NewService(config, deps)
+	if err != nil {
+		return err
+	}
+	s.SetService(service, workspaces)
+	return nil
 }
 
 // WorkStationHostCheck only accepts the existing registry's official GitHub

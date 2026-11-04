@@ -7,14 +7,18 @@ import (
 	"go.orx.me/apps/butter/internal/application"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/workstation"
-	workstationgithub "go.orx.me/apps/butter/internal/workstation/github"
+	"go.orx.me/apps/butter/internal/workstation/providerregistry"
 )
 
 func (h *Handlers) wireWorkStation(result *BootstrapResult) {
 	if h.workStationSvcServer == nil || result.WorkStationRepo == nil {
 		return
 	}
-	station := &workstation.Service{Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), Provider: workstationgithub.New(nil), CheckHost: application.WorkStationHostCheck(result.GitHostRepo)}
+	station, err := providerregistry.NewService(providerregistry.Config{Kind: providerregistry.GitHub}, providerregistry.ServiceDeps{Repo: result.WorkStationRepo, Keyring: secretbox.NewKeyring(result.CryptoKeyRepo), CheckHost: application.WorkStationHostCheck(result.GitHostRepo)})
+	if err != nil {
+		log.FromContext(context.Background()).Error("work station provider wiring failed", "error", err)
+		return
+	}
 	h.workStationSvcServer.SetService(station, result.WorkspaceRepo)
 	h.gitHostSvcServer.SetWorkStationHostGuard(result.WorkStationRepo.HostInUse)
 	ctx, cancel := context.WithCancel(context.Background())
