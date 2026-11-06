@@ -1,0 +1,322 @@
+syntax = "proto3";
+
+package agents.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "go.orx.me/apps/butter/pkg/proto/agents/v1;agentsv1";
+
+// =============================================================================
+// Plane Agent Sessions (ADR-0015, spec #358).
+//
+// A PlaneApp is a workspace's registration of one Plane OAuth application,
+// routed to exactly one Agent. Its app user is that Agent's identity in
+// Plane: people delegate an issue to it or mention it, and the routed Agent
+// works in the resulting Plane Agent Session.
+//
+// The client secret and the webhook signing secret are intentionally not
+// fields of PlaneApp: they are encrypted at rest behind a repository
+// credential seam (ADR-0005, ADR-0008), so plaintext can never appear in API
+// responses, logs, or persisted public models. `credential_state` and the
+// `*_secret_set` flags only report whether they are stored.
+// =============================================================================
+
+// PlaneAppCredentialState reports whether both App secrets are stored
+// without revealing either.
+enum PlaneAppCredentialState {
+  PLANE_APP_CREDENTIAL_STATE_UNSPECIFIED = 0;
+  // At least one of the client secret and webhook signing secret is missing.
+  PLANE_APP_CREDENTIAL_STATE_INCOMPLETE = 1;
+  // Both secrets are stored.
+  PLANE_APP_CREDENTIAL_STATE_COMPLETE = 2;
+}
+
+// PlaneApp is one Plane OAuth application registered in a workspace.
+message PlaneApp {
+  // Service-generated immutable identifier. The webhook URL is derived from
+  // it, so it never changes.
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // Mutable display name, also the channel name of the Agent's turns.
+  // @gotags: json:"display_name,omitempty" bson:"display_name,omitempty"
+  string display_name = 2;
+
+  // The Plane OAuth application's public client ID. Globally unique: one
+  // Plane app can be registered in exactly one Butter workspace.
+  // @gotags: json:"client_id,omitempty" bson:"client_id,omitempty"
+  string client_id = 3;
+
+  // The Agent every Plane Agent Session of this App is routed to. Must name
+  // an active Agent of the workspace.
+  // @gotags: json:"agent_id,omitempty" bson:"agent_id,omitempty"
+  string agent_id = 4;
+
+  // Desired inbound state: whether Plane deliveries are accepted. Enabling
+  // requires both secrets and a durable queue.
+  // @gotags: json:"inbound_enabled,omitempty" bson:"inbound_enabled,omitempty"
+  bool inbound_enabled = 5;
+
+  // Plane user IDs admitted to open or prompt a session. Empty admits every
+  // member of the installed Plane organizations.
+  // @gotags: json:"allowed_user_ids,omitempty" bson:"allowed_user_ids,omitempty"
+  repeated string allowed_user_ids = 6;
+
+  // Maximum run time of one turn, in seconds. Absent means 1800; an explicit
+  // 0 means unlimited.
+  // @gotags: json:"max_run_seconds,omitempty" bson:"max_run_seconds,omitempty"
+  optional int32 max_run_seconds = 7;
+
+  // Optimistic concurrency token. Updates must send the revision they read.
+  // @gotags: json:"revision,omitempty" bson:"revision,omitempty"
+  int64 revision = 8;
+
+  // Server-owned. Never carries credential material.
+  // @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+  PlaneAppCredentialState credential_state = 9;
+
+  // Whether the OAuth client secret is stored. Server-owned.
+  // @gotags: json:"client_secret_set,omitempty" bson:"client_secret_set,omitempty"
+  bool client_secret_set = 10;
+
+  // Whether the webhook signing secret is stored. Server-owned.
+  // @gotags: json:"webhook_secret_set,omitempty" bson:"webhook_secret_set,omitempty"
+  bool webhook_secret_set = 11;
+
+  // The OAuth callback URL to register with the Plane app. Output only:
+  // derived from the platform Plane base URL, empty until it is configured.
+  // @gotags: json:"callback_url,omitempty" bson:"callback_url,omitempty"
+  string callback_url = 12;
+
+  // The webhook URL to register with the Plane app. Output only: derived
+  // from the platform Plane base URL and this App's ID.
+  // @gotags: json:"webhook_url,omitempty" bson:"webhook_url,omitempty"
+  string webhook_url = 13;
+
+  // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
+  google.protobuf.Timestamp created_at = 14;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 15;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+// PlaneAppService manages a workspace's Plane Apps. Members may read;
+// workspace owners and admins manage.
+service PlaneAppService {
+  rpc ListPlaneApps(ListPlaneAppsRequest) returns (ListPlaneAppsResponse);
+  rpc GetPlaneApp(GetPlaneAppRequest) returns (GetPlaneAppResponse);
+
+  // CreatePlaneApp registers a Plane OAuth app routed to one Agent.
+  rpc CreatePlaneApp(CreatePlaneAppRequest) returns (CreatePlaneAppResponse);
+
+  // UpdatePlaneApp replaces the mutable fields under the optimistic
+  // revision check. The ID and client ID are immutable.
+  rpc UpdatePlaneApp(UpdatePlaneAppRequest) returns (UpdatePlaneAppResponse);
+
+  // PutPlaneAppCredentials sets or clears the write-only secrets.
+  rpc PutPlaneAppCredentials(PutPlaneAppCredentialsRequest) returns (PutPlaneAppCredentialsResponse);
+
+  // DeletePlaneApp removes the App together with its installations.
+  rpc DeletePlaneApp(DeletePlaneAppRequest) returns (DeletePlaneAppResponse);
+
+  // BeginPlaneInstall starts installing the App into a Plane organization:
+  // it returns Plane's authorize URL, carrying a single-use state that the
+  // public OAuth callback consumes.
+  rpc BeginPlaneInstall(BeginPlaneInstallRequest) returns (BeginPlaneInstallResponse);
+
+  rpc ListPlaneInstallations(ListPlaneInstallationsRequest) returns (ListPlaneInstallationsResponse);
+
+  // DeletePlaneInstallation removes an installation, revoking its token at
+  // Plane as a best effort.
+  rpc DeletePlaneInstallation(DeletePlaneInstallationRequest) returns (DeletePlaneInstallationResponse);
+}
+
+message ListPlaneAppsRequest {}
+
+message ListPlaneAppsResponse {
+  repeated PlaneApp apps = 1;
+}
+
+message GetPlaneAppRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetPlaneAppResponse {
+  PlaneApp app = 1;
+}
+
+message CreatePlaneAppRequest {
+  // Only display_name, client_id, agent_id, inbound_enabled,
+  // allowed_user_ids and max_run_seconds are read. Identity, revision,
+  // timestamps and credential state are server-owned.
+  PlaneApp app = 1;
+
+  // OAuth client secret, write-only. Encrypted before storage and never
+  // returned by any RPC.
+  optional string client_secret = 2;
+
+  // Webhook signing secret, write-only.
+  optional string webhook_secret = 3;
+}
+
+message CreatePlaneAppResponse {
+  PlaneApp app = 1;
+}
+
+message UpdatePlaneAppRequest {
+  // `id` selects the App and `revision` must match the stored one.
+  PlaneApp app = 1;
+}
+
+message UpdatePlaneAppResponse {
+  PlaneApp app = 1;
+}
+
+message PutPlaneAppCredentialsRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Absent keeps the stored secret; empty clears it.
+  optional string client_secret = 2;
+
+  // Absent keeps the stored secret; empty clears it.
+  optional string webhook_secret = 3;
+}
+
+message PutPlaneAppCredentialsResponse {
+  PlaneApp app = 1;
+}
+
+message DeletePlaneAppRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeletePlaneAppResponse {}
+
+// PlaneInstallationCredentialState reports whether an installation's token
+// is usable without revealing it.
+enum PlaneInstallationCredentialState {
+  PLANE_INSTALLATION_CREDENTIAL_STATE_UNSPECIFIED = 0;
+  // The stored token worked, or was refreshed, on last use.
+  PLANE_INSTALLATION_CREDENTIAL_STATE_VALID = 1;
+  // Plane revoked the token or refused to refresh it; install again.
+  PLANE_INSTALLATION_CREDENTIAL_STATE_NEEDS_REINSTALL = 2;
+}
+
+// PlaneInstallation is a Plane App installed into one Plane
+// organization. Its access and refresh tokens are not proto fields: they sit
+// behind the same credential seam as the App's secrets.
+message PlaneInstallation {
+  // @gotags: json:"id,omitempty" bson:"id,omitempty"
+  string id = 1;
+
+  // @gotags: json:"app_id,omitempty" bson:"app_id,omitempty"
+  string app_id = 2;
+
+  // The Plane organization (Plane calls it a workspace) the App is
+  // installed in. Unique per App.
+  // @gotags: json:"organization_id,omitempty" bson:"organization_id,omitempty"
+  string organization_id = 3;
+
+  // @gotags: json:"organization_name,omitempty" bson:"organization_name,omitempty"
+  string organization_name = 4;
+
+  // The App's own user in that organization (its `viewer.id`), which is
+  // what people delegate issues to and mention.
+  // @gotags: json:"app_user_id,omitempty" bson:"app_user_id,omitempty"
+  string app_user_id = 5;
+
+  // Scopes Plane granted.
+  // @gotags: json:"scopes,omitempty" bson:"scopes,omitempty"
+  repeated string scopes = 6;
+
+  // Server-owned. Never carries credential material.
+  // @gotags: json:"credential_state,omitempty" bson:"credential_state,omitempty"
+  PlaneInstallationCredentialState credential_state = 7;
+
+  // Sanitized reason the installation needs reinstalling. Empty otherwise.
+  // @gotags: json:"last_credential_error,omitempty" bson:"last_credential_error,omitempty"
+  string last_credential_error = 8;
+
+  // First install time; kept when the App is installed again.
+  // @gotags: json:"installed_at,omitempty" bson:"installed_at,omitempty"
+  google.protobuf.Timestamp installed_at = 9;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 10;
+
+  // @gotags: json:"workspace_id,omitempty" bson:"workspace_id,omitempty"
+  string workspace_id = 100;
+}
+
+message BeginPlaneInstallRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+
+  // Where the browser lands after the install: a relative path, or an
+  // absolute URL on the configured Plane base URL's or dashboard's origin.
+  // Anything else falls back to the App's page.
+  string return_url = 2;
+}
+
+message BeginPlaneInstallResponse {
+  // Plane's authorize URL to open in the browser.
+  string authorize_url = 1;
+}
+
+message ListPlaneInstallationsRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ListPlaneInstallationsResponse {
+  repeated PlaneInstallation installations = 1;
+}
+
+message DeletePlaneInstallationRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+  string id = 2 [(validate.rules).string.min_len = 1];
+}
+
+message DeletePlaneInstallationResponse {}
+
+// =============================================================================
+// PlaneAdminService manages platform-level Plane settings.
+//
+// The public base URL is global, not per-workspace: it names the public
+// address of this deployment. Only global administrators may read or change
+// it, so workspace input can never redirect Plane webhooks or OAuth
+// callbacks.
+// =============================================================================
+service PlaneAdminService {
+  rpc GetPlaneSettings(GetPlaneSettingsRequest) returns (GetPlaneSettingsResponse);
+  rpc UpdatePlaneSettings(UpdatePlaneSettingsRequest) returns (UpdatePlaneSettingsResponse);
+}
+
+// PlaneSettings holds platform-level Plane configuration.
+message PlaneSettings {
+  // Public base URL Plane reaches this deployment at, e.g.
+  // "https://butter.example.com". Callback and webhook URLs are derived from
+  // it and immutable IDs.
+  // @gotags: json:"public_base_url,omitempty" bson:"public_base_url,omitempty"
+  string public_base_url = 1;
+
+  // @gotags: json:"updated_at,omitempty" bson:"updated_at,omitempty"
+  google.protobuf.Timestamp updated_at = 2;
+}
+
+message GetPlaneSettingsRequest {}
+
+message GetPlaneSettingsResponse {
+  PlaneSettings settings = 1;
+}
+
+message UpdatePlaneSettingsRequest {
+  PlaneSettings settings = 1;
+}
+
+message UpdatePlaneSettingsResponse {
+  PlaneSettings settings = 1;
+}
+
