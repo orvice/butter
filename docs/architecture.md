@@ -493,6 +493,14 @@ App 的 client secret / webhook secret 与 Installation 的 access / refresh tok
 Redis 租约下进行，并按 token revision 做 compare-and-swap；`invalid_grant` 把
 installation 标为 `NEEDS_REINSTALL`，之后快速失败、不再联系 Linear。
 
+**Linear 剩余限制**：以上是当前实现与本地 fixture 的行为；截至本文更新，本仓库尚未在
+真实 Linear 组织里执行 live validation。真实 payload 字段、stop 形状、prompting user
+解析、`Linear-Delivery` / `organizationId` 的权威性，以及 Linear 的真实回复长度上限
+仍未确认；8000 rune 截断是沿用 butter-box#20 的实现假设。Pi / Cursor 在 box 层产出
+工具事件前只能显示确认与最终回复。管理员步骤、验证测量条件、证据规范与排错见
+[linear-agent-onboarding.md](linear-agent-onboarding.md)，未验证项清单见
+[docs/research/linear-protocol-validation.md](research/linear-protocol-validation.md)。
+
 ## HTTP 与 RPC
 
 HTTP handler 位于 `internal/handler/http`：

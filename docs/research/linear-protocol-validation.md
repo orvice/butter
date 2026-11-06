@@ -1,6 +1,6 @@
 # Linear Agent Session protocol validation
 
-Status: Stage 1 evidence package. The repository checkout was at commit `e91a219` on 2026-11-05. No Linear administrator or deployed test organization was available in this run, so the protocol observations below separate implementation evidence from real-environment evidence.
+Status: Stage 1 evidence package (Stage 2 updated it for the accepted fixes). The repository checkout was at commit `e91a219` on 2026-11-05. No Linear administrator or deployed test organization was available in this run, so the protocol observations below separate implementation evidence from real-environment evidence. An unknown `AgentSessionEvent` action is now acknowledged and ignored (Stage 2, `e12f691`), not queued.
 
 ## Scope and evidence boundary
 
@@ -29,7 +29,7 @@ The requested live actions require a Linear OAuth app, an installed test organiz
 | Linear source path | Butter event field | Unit/encoding | Behavior |
 | --- | --- | --- | --- |
 | `type` | routing discriminator only | UTF-8 string | Only `AgentSessionEvent` is queued; other types are acknowledged and ignored. |
-| `action` | `Event.Action` | UTF-8 string; expected `created`/`prompted` | `created` gets an early acknowledgement thought; both actions can run a turn. Unknown actions are preserved in the snapshot and need live confirmation. |
+| `action` | `Event.Action` | UTF-8 string; expected `created`/`prompted` | `created` gets an early acknowledgement thought; both actions can run a turn. Any other action on a signed `AgentSessionEvent` is acknowledged (200) and ignored, so an unconfirmed protocol action can never start an Agent. |
 | `organizationId` | `Event.OrganizationID` after installation lookup | Linear ID, UTF-8 | Installation is selected by `(app, organizationId)`. Empty is accepted only when exactly one installation exists. |
 | `webhookTimestamp` | freshness check | Unix milliseconds | Accepted only within ±60 seconds of server time. It is not persisted as the event timestamp. |
 | `agentSession.id` | `Event.AgentSessionID` | Linear ID, UTF-8 | Required. Session key is `linear:{app}:{agentSession}:{agent}`. |
@@ -67,6 +67,8 @@ An administrator should run the fixtures in this order against a disposable orga
 6. Produce a successful long response and a controlled Agent failure. Record the activity types, body lengths, truncation marker, and whether Linear accepts the full response.
 
 The live results should replace the “Unverified live” rows above. Any mismatch in identity precedence, organization routing, stop signal, activity limits, or dedupe behavior is a Stage 2 security/protocol fix input.
+
+Stage 2 result: no protocol defect was proven from this package, so the fixes were limited to ignoring unsupported session actions and canonicalizing allowlist IDs (case and surrounding whitespace). The fixture remains `synthetic_shape_only`; the live rows above are still unverified. The regression test `TestStageOneFixturesAreAcceptedAtTheWebhook` replays the sanitized request shapes through the public webhook route to keep the documented fields, dedupe and organization routing consistent with the fixture.
 
 ## Stage 2 repair inputs
 

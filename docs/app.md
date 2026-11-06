@@ -310,6 +310,11 @@ Agent 记录、改配置前的记录、已移除 Installation 的记录、缺少
 能在其 ButterBox 上执行命令，包括该 box 用户能访问的一切。请用白名单限制到你愿意给
 这种权限的人；留空白名单即放行已安装组织的所有成员。
 
+**未验证的边界**：以上是当前实现与本地 fixture 的行为，还没有在真实 Linear 组织里做过
+端到端验证。真实 payload 字段、Stop 形状、Linear 的回复长度上限，以及“5 秒响应 / 10 秒
+确认”的真实测量结果都还属于剩余限制。管理员操作步骤、验证清单、证据格式和排错见
+[linear-agent-onboarding.md](linear-agent-onboarding.md)。
+
 ### Cron 调度
 
 - 后台 scheduler 按 cron 表达式触发 Agent 执行。

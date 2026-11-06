@@ -188,6 +188,7 @@ make buf
 - [docs/app.md](docs/app.md) - product and capability overview
 - [docs/architecture.md](docs/architecture.md) - system architecture
 - [docs/api.md](docs/api.md) - API reference
+- [docs/linear-agent-onboarding.md](docs/linear-agent-onboarding.md) - Linear Agent setup, verification and troubleshooting
 - [docs/daemon.md](docs/daemon.md) - daemon worker setup and deployment
 - [docs/storage.md](docs/storage.md) - object storage, static assets, and artifacts
 - [docs/repo-binding-migration.md](docs/repo-binding-migration.md) - Git-backed workspace content
