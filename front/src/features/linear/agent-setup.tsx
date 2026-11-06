@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
+import { LinearDiagnosticsCard } from './diagnostics'
 import { LinearAppForm, type LinearAppFormValues } from './form'
 
 const steps = [
@@ -288,6 +289,10 @@ export function LinearAgentSetup() {
                 </Button>
               </CardContent>
             </Card>
+          )}
+
+          {step === 4 && selectedApp && (
+            <LinearDiagnosticsCard appId={selectedApp.id} live />
           )}
         </div>
       </PageScroll>

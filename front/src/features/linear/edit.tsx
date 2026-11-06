@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
+import { LinearDiagnosticsCard } from './diagnostics'
 import { LinearAppForm, type LinearAppFormValues } from './form'
 import { InstallResultBanner, InstallationsCard } from './installations'
 import { CopyField, CredentialStateBadge } from './shared'
@@ -137,6 +138,8 @@ export function LinearAppEdit() {
             appId={app.id}
             canInstall={app.clientSecretSet && Boolean(app.callbackUrl)}
           />
+
+          <LinearDiagnosticsCard appId={app.id} live />
 
           <LinearAppForm
             mode='edit'

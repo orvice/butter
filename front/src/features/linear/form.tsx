@@ -233,7 +233,9 @@ export function LinearAppForm({
             <div className='space-y-0.5'>
               <Label htmlFor='linear-inbound'>Inbound enabled</Label>
               <p className='text-xs text-muted-foreground'>
-                Accept Linear deliveries. Requires both secrets.
+                Accept new Linear deliveries. Requires both secrets. Turning
+                this off stops accepting new deliveries; it does not interrupt a
+                turn that is already running.
               </p>
             </div>
             <Switch
