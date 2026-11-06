@@ -110,6 +110,10 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.LinearApp, header 
 		logger.Debug("ignoring linear webhook", "type", payload.Type)
 		return DecisionIgnored, nil
 	}
+	if payload.Action != ActionCreated && payload.Action != ActionPrompted {
+		logger.Debug("ignoring unsupported linear session action", "action", payload.Action)
+		return DecisionIgnored, nil
+	}
 	if !app.GetInboundEnabled() {
 		logger.Info("ignoring linear webhook for an app that is not receiving")
 		return DecisionIgnored, nil

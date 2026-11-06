@@ -326,6 +326,7 @@ func TestAdmission(t *testing.T) {
 	}{
 		{"empty allowlist admits everyone", nil, linearUserTwo, true},
 		{"listed user", []string{linearUserOne}, linearUserOne, true},
+		{"listed user with protocol casing normalized", []string{" USER-1 "}, "user-1", true},
 		{"unlisted user", []string{linearUserOne}, linearUserTwo, false},
 		{"unknown user with an allowlist", []string{linearUserOne}, "", false},
 		{"unknown user without an allowlist", nil, "", true},
