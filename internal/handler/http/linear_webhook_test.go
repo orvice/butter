@@ -204,6 +204,13 @@ func TestLinearWebhookStatuses(t *testing.T) {
 			status: http.StatusOK,
 		},
 		{
+			name: "unsupported agent session action",
+			body: func(fx *webhookFixture) []byte {
+				return fx.payload(func(p map[string]any) { p["action"] = "archived" })
+			},
+			status: http.StatusOK,
+		},
+		{
 			name: "app not receiving",
 			setup: func(fx *webhookFixture) {
 				app := fx.app

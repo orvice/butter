@@ -1,17 +1,19 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   LinearProcessingStatus,
   type LinearProcessingRecord,
 } from '@/gen/agents/v1/linear_pb'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
-import { Link } from '@tanstack/react-router'
 import { ArrowLeft, ChevronRight, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useLinearApps,
+  useLinearInstallations,
   useLinearProcessingRecords,
   useResendLinearReply,
 } from '@/api/linear'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,6 +26,12 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
+import {
+  LinearDiagnosticsCard,
+  LinearRecordContextNote,
+  LinearRecordDiagnosis,
+} from './diagnostics'
+import { readErrorCopy } from './evidence'
 
 const STATUS_LABELS: Record<number, string> = {
   [LinearProcessingStatus.QUEUED]: 'Queued',
@@ -62,7 +70,11 @@ export function LinearProcessingList() {
   const [status, setStatus] = useState('all')
   const [appId, setAppId] = useState('all')
   const { data: apps } = useLinearApps()
-  const { data: records, isLoading } = useLinearProcessingRecords({
+  const {
+    data: records,
+    isLoading,
+    error,
+  } = useLinearProcessingRecords({
     appId: appId === 'all' ? undefined : appId,
     status:
       status === 'all' ? undefined : (Number(status) as LinearProcessingStatus),
@@ -70,6 +82,17 @@ export function LinearProcessingList() {
   const resend = useResendLinearReply()
   const appName = (id: string) =>
     apps?.find((app) => app.id === id)?.displayName ?? id
+  const selectedApp =
+    appId === 'all' ? undefined : apps?.find((app) => app.id === appId)
+  const { data: installations } = useLinearInstallations(
+    appId === 'all' ? undefined : appId
+  )
+  const installationName = (id: string) => {
+    const installation = installations?.find((candidate) => candidate.id === id)
+    return installation
+      ? installation.organizationName || installation.organizationId
+      : id
+  }
 
   return (
     <Page>
@@ -118,8 +141,20 @@ export function LinearProcessingList() {
         }
       />
       <PageScroll>
+        {selectedApp && (
+          <div className='mb-4'>
+            <LinearDiagnosticsCard appId={selectedApp.id} showHeading={false} />
+          </div>
+        )}
         {isLoading ? (
           <Skeleton className='h-40' />
+        ) : error && !records?.length ? (
+          <Alert variant='destructive' data-testid='linear-read-error'>
+            <AlertDescription>
+              {readErrorCopy(error).title}. {readErrorCopy(error).detail} Next:{' '}
+              {readErrorCopy(error).nextStep}
+            </AlertDescription>
+          </Alert>
         ) : !records?.length ? (
           <Card>
             <CardContent className='py-10 text-center text-sm text-muted-foreground'>
@@ -128,6 +163,14 @@ export function LinearProcessingList() {
           </Card>
         ) : (
           <div className='space-y-3'>
+            {error && (
+              <Alert data-testid='linear-read-error'>
+                <AlertDescription>
+                  {readErrorCopy(error).title}. {readErrorCopy(error).detail}{' '}
+                  The deliveries below are from the last successful read.
+                </AlertDescription>
+              </Alert>
+            )}
             {records.map((record) => (
               <Card
                 key={record.id}
@@ -183,16 +226,29 @@ export function LinearProcessingList() {
                     {record.createdAt &&
                       ` · ${timestampDate(record.createdAt).toLocaleString()}`}
                   </div>
-                  {record.error && (
-                    <p className='text-destructive'>{record.error}</p>
-                  )}
-                  {record.status ===
-                    LinearProcessingStatus.FAILED_UNCERTAIN && (
-                    <p className='text-xs'>
-                      The agent may already have taken action, so this is not
-                      retried automatically.
-                    </p>
-                  )}
+                  <div className='text-xs'>
+                    Installation{' '}
+                    {record.installationId
+                      ? installationName(record.installationId)
+                      : 'not recorded'}
+                    {' · '}Agent {record.agentId || 'not stamped'}
+                    {' · '}delivery {record.deliveryId || '—'}
+                    {' · '}session {record.agentSessionId || '—'}
+                  </div>
+                  <LinearRecordContextNote
+                    record={record}
+                    app={
+                      selectedApp ??
+                      apps?.find((candidate) => candidate.id === record.appId)
+                    }
+                  />
+                  <LinearRecordDiagnosis
+                    record={record}
+                    app={
+                      selectedApp ??
+                      apps?.find((candidate) => candidate.id === record.appId)
+                    }
+                  />
                 </CardContent>
               </Card>
             ))}

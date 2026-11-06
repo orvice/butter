@@ -3505,7 +3505,9 @@ retry; `400` means the payload can never be processed.
 
 ### Linear services
 
-Linear Agent Sessions are an entry point for any Agent type (ADR-0015). A
+Linear Agent Sessions are an entry point for any Agent type (ADR-0015). The
+administrator runbook, verification measurements and troubleshooting live in
+[linear-agent-onboarding.md](linear-agent-onboarding.md). A
 **Linear App** is one Linear OAuth application registered in one workspace
 and routed to exactly one Agent. Its app user is that Agent's identity in
 Linear: people delegate an issue to it or mention it, and the routed Agent
@@ -3578,9 +3580,15 @@ naming the App IDs).
 Statuses: `QUEUED` (a follow-up waiting behind the session's turn),
 `RECEIVED`, `PROCESSING`, `READY_TO_DELIVER`, `SUCCEEDED`, `FAILED`,
 `FAILED_UNCERTAIN`, `CANCELLED` (stopped by the user, or discarded by a stop
-while queued). Records expire after 30 days. As with Telegram there is **no
-rerun action**: `FAILED_UNCERTAIN` means the Agent may have run tools
-(ADR-0009).
+while queued). Records expire after 30 days and listings are capped at 200,
+so they are evidence of a read window, not a health signal. The dashboard
+labels a "last successful run" only for a record of the current App and
+Installation and the current Agent that is `SUCCEEDED`, carries an
+invocation ID, and has delivered its reply; anything else is reported as
+"not observed in the current record range" or by its concrete failure. As
+with Telegram there is **no rerun action**: `FAILED_UNCERTAIN` means the
+Agent may have run tools (ADR-0009). `ResendLinearReply` posts a persisted
+reply and never invokes the Agent.
 
 #### Linear webhook
 
@@ -3599,13 +3607,19 @@ Public (no session, no workspace header); the workspace comes from the App.
 | Signature missing or wrong | `401` |
 | Malformed JSON | `400` |
 | `webhookTimestamp` more than ±60 s off | `401` |
-| Not an `AgentSessionEvent`, App not inbound-enabled, or organization not installed | `200` (ignored) |
+| Not an `AgentSessionEvent`, an `AgentSessionEvent` whose `action` is neither `created` nor `prompted`, App not inbound-enabled, or organization not installed | `200` (ignored) |
 | Accepted, or a duplicate delivery | `200` |
 | Queue or credential failure | `503` (Linear redelivers) |
 
 Deliveries are deduplicated by `Linear-Delivery`, or by the SHA-256 of the
 raw body when the header is missing. An event without a top-level
-`organizationId` resolves to the App's only installation.
+`organizationId` resolves to the App's only installation. A rejected
+signature or stale timestamp writes nothing, so a genuine retry of the same
+delivery is still accepted afterwards.
+
+`200` covers three different outcomes: accepted, duplicate, and deliberately
+ignored. Use a processing record (or the debug log) to tell them apart; the
+response body carries `decision`.
 
 #### Linear OAuth callback
 

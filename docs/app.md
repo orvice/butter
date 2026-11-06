@@ -295,9 +295,25 @@ app，固定路由到一个 Agent——它在 Linear 里的 app 用户就是这�
 死信、绝不自动重跑；回复先持久化再发送，发送失败可在 Linear Apps 页面的「Deliveries」里补发，
 不重跑 Agent。Pod 崩溃中断的 turn 会在 session 里报「cut short」。
 
+**配置与历史**：Agent 的 Linear 引导页和 Linear App 页展示配置事实、每个 Installation
+的凭证事实，以及最近 200 条、保留 30 天的 processing records 里的历史证据，不是
+connected / health 状态。每个 Installation 分开显示：最近一次「Agent 真的跑通并回复」
+（created 或非 Stop 的 prompted、SUCCEEDED、有 invocation ID、回复已投递，且属于当前
+App、Installation 和当前绑定的 Agent）只是该读取窗口内的历史证据；没有时显示「当前记录
+范围内未发现」，并区分「未观察到事件」与「观察到但被拒绝 / 失败 / 停止 / 不确定」。旧
+Agent 记录、改配置前的记录、已移除 Installation 的记录、缺少 Installation 标记的记录
+和需重装凭证都单独标注，且不泄露凭证。失败给出具体原因与下一步：可安全重试的失败、绝不
+自动重跑的不确定结果、可在 Deliveries 补发的投递失败。验证页可见时每 5 秒只读刷新，离开
+即停；关闭 inbound 只停止接收新投递，不承诺中断正在执行的 turn。
+
 **安全**：被准入的 Linear 用户可以驱动这个 Agent。对 Pi / Cursor Agent 而言，这等于
 能在其 ButterBox 上执行命令，包括该 box 用户能访问的一切。请用白名单限制到你愿意给
 这种权限的人；留空白名单即放行已安装组织的所有成员。
+
+**未验证的边界**：以上是当前实现与本地 fixture 的行为，还没有在真实 Linear 组织里做过
+端到端验证。真实 payload 字段、Stop 形状、Linear 的回复长度上限，以及“5 秒响应 / 10 秒
+确认”的真实测量结果都还属于剩余限制。管理员操作步骤、验证清单、证据格式和排错见
+[linear-agent-onboarding.md](linear-agent-onboarding.md)。
 
 ### Cron 调度
 

@@ -69,6 +69,7 @@ import { Route as AuthenticatedTelegramChannelsIndexRouteImport } from './routes
 import { Route as AuthenticatedTelegramChannelsCreateRouteImport } from './routes/_authenticated/telegram-channels/create'
 import { Route as AuthenticatedTelegramDestinationsIdRouteImport } from './routes/_authenticated/telegram-destinations/$id'
 import { Route as AuthenticatedAgentsNameEditRouteImport } from './routes/_authenticated/agents/$name.edit'
+import { Route as AuthenticatedAgentsNameLinearRouteImport } from './routes/_authenticated/agents/$name.linear'
 import { Route as AuthenticatedAutomationsNameIndexRouteImport } from './routes/_authenticated/automations/$name.index'
 import { Route as AuthenticatedAutomationsNameEditRouteImport } from './routes/_authenticated/automations/$name.edit'
 import { Route as AuthenticatedButterboxesIdEditRouteImport } from './routes/_authenticated/butterboxes/$id.edit'
@@ -418,6 +419,12 @@ const AuthenticatedAgentsNameEditRoute =
     path: '/agents/$name/edit',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAgentsNameLinearRoute =
+  AuthenticatedAgentsNameLinearRouteImport.update({
+    id: '/agents/$name/linear',
+    path: '/agents/$name/linear',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAutomationsNameIndexRoute =
   AuthenticatedAutomationsNameIndexRouteImport.update({
     id: '/automations/$name/',
@@ -557,6 +564,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
+  '/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -630,6 +638,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/telegram-channels': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
+  '/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -706,6 +715,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/_authenticated/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
+  '/_authenticated/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
   '/_authenticated/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/_authenticated/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/_authenticated/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -782,6 +792,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/telegram-channels/'
     | '/agents/$name/edit'
+    | '/agents/$name/linear'
     | '/automations/$name/edit'
     | '/butterboxes/$id/edit'
     | '/cron/$name/edit'
@@ -855,6 +866,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/telegram-channels'
     | '/agents/$name/edit'
+    | '/agents/$name/linear'
     | '/automations/$name/edit'
     | '/butterboxes/$id/edit'
     | '/cron/$name/edit'
@@ -930,6 +942,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/telegram-channels/'
     | '/_authenticated/agents/$name/edit'
+    | '/_authenticated/agents/$name/linear'
     | '/_authenticated/automations/$name/edit'
     | '/_authenticated/butterboxes/$id/edit'
     | '/_authenticated/cron/$name/edit'
@@ -1378,6 +1391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgentsNameEditRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agents/$name/linear': {
+      id: '/_authenticated/agents/$name/linear'
+      path: '/agents/$name/linear'
+      fullPath: '/agents/$name/linear'
+      preLoaderRoute: typeof AuthenticatedAgentsNameLinearRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/automations/$name/': {
       id: '/_authenticated/automations/$name/'
       path: '/automations/$name'
@@ -1541,6 +1561,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSessionsIndexRoute: typeof AuthenticatedSessionsIndexRoute
   AuthenticatedTelegramChannelsIndexRoute: typeof AuthenticatedTelegramChannelsIndexRoute
   AuthenticatedAgentsNameEditRoute: typeof AuthenticatedAgentsNameEditRoute
+  AuthenticatedAgentsNameLinearRoute: typeof AuthenticatedAgentsNameLinearRoute
   AuthenticatedAutomationsNameEditRoute: typeof AuthenticatedAutomationsNameEditRoute
   AuthenticatedButterboxesIdEditRoute: typeof AuthenticatedButterboxesIdEditRoute
   AuthenticatedCronNameEditRoute: typeof AuthenticatedCronNameEditRoute
@@ -1611,6 +1632,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTelegramChannelsIndexRoute:
     AuthenticatedTelegramChannelsIndexRoute,
   AuthenticatedAgentsNameEditRoute: AuthenticatedAgentsNameEditRoute,
+  AuthenticatedAgentsNameLinearRoute: AuthenticatedAgentsNameLinearRoute,
   AuthenticatedAutomationsNameEditRoute: AuthenticatedAutomationsNameEditRoute,
   AuthenticatedButterboxesIdEditRoute: AuthenticatedButterboxesIdEditRoute,
   AuthenticatedCronNameEditRoute: AuthenticatedCronNameEditRoute,

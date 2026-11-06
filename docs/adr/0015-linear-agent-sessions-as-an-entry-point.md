@@ -338,10 +338,42 @@ What the implementation (#360–#370) settled beyond the decisions above:
   drained.
 - **Worker**: the per-Pod concurrency bound is 32. A Pod with no free slots
   claims nothing and leaves the Stream to other Pods.
-- **Payload assumptions are not yet confirmed.** No real Linear delivery
-  has been observed. The dedupe header (`Linear-Delivery`), the top-level
-  `organizationId` and the prompting-user fields (the activity's `userId`
-  or `user.id`, then the session's `creatorId` or `creator.id`, then the
-  comment's user) are handled as decisions 3, 4 and 10 describe. The first
-  deliveries are logged at debug level so these can be checked, and the
-  fallbacks tightened once they are.
+- **Payload assumptions are not yet confirmed live.** No real Linear
+  delivery has been observed. The dedupe header (`Linear-Delivery`), the
+  top-level `organizationId` and the prompting-user fields (the activity's
+  `userId` or `user.id`, then the session's `creatorId` or `creator.id`,
+  then the comment's user) are handled as decisions 3, 4 and 10 describe.
+  The first deliveries are logged at debug level so these can be checked,
+  and the fallbacks tightened once they are. Stage 2 made one behavior
+  explicit: a signed `AgentSessionEvent` whose action is neither `created`
+  nor `prompted` is acknowledged and ignored instead of being queued.
+
+## Verification status and remaining limits
+
+There is no live-environment evidence yet. The Stage 1 evidence package
+(`docs/research/linear-protocol-validation.md` and the sanitized fixture under
+`docs/research/fixtures/linear-agent-session/`) separates what the code and
+fixtures establish from what still needs a real Linear organization:
+
+- **Established by code and fixtures**: raw-body HMAC-SHA256 verification in
+  constant time, the ±60 s replay window, the 1 MiB body cap, 200/401/400/413/
+  503 semantics, dedupe by `Linear-Delivery` (body hash fallback), installation
+  lookup by `organizationId` with a single-installation fallback, the
+  `created`/`prompted`/`stop` actions, and the processing-record state machine.
+- **Not verified live**: that Linear actually sends these fields with these
+  semantics, the prompting-user precedence, whether `Linear-Delivery` is stable
+  across retries, Stop payload shape, the 8000-rune response limit, and that a
+  real delivery meets the 5-second response / 10-second acknowledgement
+  deadlines. The work was explicitly deferred until development finished
+  (KON-73); #372 stays open until a real run is recorded.
+- **Not supported (not a bug)**: routing by team/project/label, Linear as an
+  outbound target, session plans, the `auth` signal and account linking,
+  repository suggestions, image attachments, a platform-wide OAuth app, and
+  re-pointing an App without starting a fresh session history.
+
+The administrator runbook, the two deadlines with their measurement
+conditions, the evidence format and the troubleshooting matrix live in
+`docs/linear-agent-onboarding.md`. Configuration facts (registered, installed,
+inbound enabled) never imply that an Agent has actually run; diagnosis shows
+only historical evidence inside the 200-record / 30-day read window plus the
+most recent concrete failure.

@@ -1,0 +1,129 @@
+{
+  "fixture_version": "linear-agent-session-stage1-v1",
+  "prepared_at": "2026-11-05T00:00:00Z",
+  "capture_status": "synthetic_shape_only",
+  "source_commit": "e91a219",
+  "note": "Shapes are sanitized and implementation-derived. They are not evidence of a live Linear delivery. IDs and text are placeholders; promptContext and issue bodies are intentionally omitted or shortened.",
+  "cases": [
+    {
+      "name": "delegation_created",
+      "trigger": "delegate disposable issue to app",
+      "request": {
+        "headers": {
+          "Linear-Signature": "<hex-hmac-sha256-of-raw-body>",
+          "Linear-Delivery": "delivery-created-001"
+        },
+        "body": {
+          "type": "AgentSessionEvent",
+          "action": "created",
+          "organizationId": "org-redacted",
+          "webhookTimestamp": 1793836800000,
+          "agentSession": {
+            "id": "session-redacted",
+            "creatorId": "user-redacted",
+            "issue": {"id": "issue-redacted", "identifier": "TST-1", "title": "<redacted>"}
+          },
+          "promptContext": "<omitted: formatted issue/comment context>"
+        }
+      },
+      "expected_butter": {
+        "action": "created",
+        "prompt_text": "",
+        "prompting_user_id": "user-redacted",
+        "stop": false,
+        "dedupe": "app_id + Linear-Delivery"
+      },
+      "expected_activities": ["thought", "response"]
+    },
+    {
+      "name": "mention_created",
+      "trigger": "mention app in disposable issue comment",
+      "request": {
+        "headers": {"Linear-Delivery": "delivery-mention-001"},
+        "body": {
+          "type": "AgentSessionEvent",
+          "action": "created",
+          "organizationId": "org-redacted",
+          "webhookTimestamp": 1793836800000,
+          "agentSession": {
+            "id": "session-redacted",
+            "creatorId": "user-redacted",
+            "comment": {"userId": "user-redacted", "body": "<omitted: comment text>"}
+          },
+          "promptContext": "<omitted>"
+        }
+      },
+      "expected_butter": {
+        "prompt_text_source": "agentSession.comment.body when agentActivity.content.body is empty",
+        "prompting_user_precedence": ["agentActivity.userId", "agentActivity.user.id", "agentSession.creatorId", "agentSession.creator.id", "agentSession.comment.userId", "agentSession.comment.user.id"]
+      }
+    },
+    {
+      "name": "followup_prompted",
+      "trigger": "send a follow-up while or after the session is active",
+      "request": {
+        "headers": {"Linear-Delivery": "delivery-prompted-001"},
+        "body": {
+          "type": "AgentSessionEvent",
+          "action": "prompted",
+          "organizationId": "org-redacted",
+          "webhookTimestamp": 1793836800000,
+          "agentSession": {"id": "session-redacted"},
+          "agentActivity": {
+            "id": "activity-redacted",
+            "userId": "user-redacted",
+            "content": {"body": "<omitted: follow-up text>"}
+          }
+        }
+      },
+      "expected_butter": {
+        "action": "prompted",
+        "prompt_text": "<trimmed follow-up text>",
+        "session_key": "linear:{app_id}:{agent_session_id}:{agent_id}",
+        "busy_behavior": "QUEUED and acknowledged immediately"
+      }
+    },
+    {
+      "name": "stop_prompted",
+      "trigger": "press Stop during a long-running turn",
+      "request": {
+        "headers": {"Linear-Delivery": "delivery-stop-001"},
+        "body": {
+          "type": "AgentSessionEvent",
+          "action": "prompted",
+          "organizationId": "org-redacted",
+          "webhookTimestamp": 1793836800000,
+          "agentSession": {"id": "session-redacted"},
+          "agentActivity": {
+            "id": "activity-stop-redacted",
+            "signal": "stop",
+            "userId": "user-redacted",
+            "content": {"body": ""}
+          }
+        }
+      },
+      "expected_butter": {
+        "stop": true,
+        "queued_followups": "discarded and marked CANCELLED",
+        "holder_behavior": "cancel turn, then post response confirmation"
+      },
+      "expected_activities": ["response"]
+    },
+    {
+      "name": "success_failure_and_redelivery_shapes",
+      "trigger": "controlled completion, controlled failure, and replay of one body",
+      "activity_shapes": {
+        "success": {"content": {"type": "response", "body": "<omitted: short reply>"}},
+        "failure": {"content": {"type": "error", "body": "<omitted: sanitized error>"}},
+        "long_reply": {"content": {"type": "response", "body": "<omitted: response over implementation limit>"}}
+      },
+      "redelivery": {
+        "same_delivery_id": "delivery-created-001",
+        "expected_http_status": 200,
+        "expected_decision": "duplicate",
+        "expected_agent_runs": 1
+      },
+      "missing_delivery_header_fallback": "sha256-<lowercase-body-hash>"
+    }
+  ]
+}

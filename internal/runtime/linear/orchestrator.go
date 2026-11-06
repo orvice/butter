@@ -102,7 +102,9 @@ func (o *Orchestrator) SetProcessingRepo(repo linearprocessing.Repository) { o.p
 
 // SetExternalBaseURL wires where the dashboard lives, for the link from a
 // Linear Agent Session back to the Butter session.
-func (o *Orchestrator) SetExternalBaseURL(provider func(ctx context.Context) string) { o.baseURL = provider }
+func (o *Orchestrator) SetExternalBaseURL(provider func(ctx context.Context) string) {
+	o.baseURL = provider
+}
 
 // SessionID derives the Butter session of one Linear Agent Session and
 // Agent. Re-pointing the App to another Agent starts a fresh history.
@@ -682,7 +684,16 @@ func admitted(allowlist []string, userID string) bool {
 	if len(allowlist) == 0 {
 		return true
 	}
-	return userID != "" && slices.Contains(allowlist, strings.ToLower(userID))
+	userID = strings.ToLower(strings.TrimSpace(userID))
+	if userID == "" {
+		return false
+	}
+	for _, allowed := range allowlist {
+		if strings.ToLower(strings.TrimSpace(allowed)) == userID {
+			return true
+		}
+	}
+	return false
 }
 
 // contextWithPeerCancellation cancels ctx's child when peer ends too.

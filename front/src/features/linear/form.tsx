@@ -35,11 +35,14 @@ type FormState = {
   webhookSecret: string
 }
 
-function toState(app: LinearApp | undefined): FormState {
+function toState(
+  app: LinearApp | undefined,
+  lockedAgentId?: string
+): FormState {
   return {
     displayName: app?.displayName ?? '',
     clientId: app?.clientId ?? '',
-    agentId: app?.agentId ?? '',
+    agentId: app?.agentId ?? lockedAgentId ?? '',
     inboundEnabled: app?.inboundEnabled ?? false,
     allowedUserIds: formatUserIds(app?.allowedUserIds),
     maxRunSeconds:
@@ -52,6 +55,12 @@ function toState(app: LinearApp | undefined): FormState {
 type LinearAppFormProps = {
   mode: 'create' | 'edit'
   initialValue?: LinearApp
+  /**
+   * Set by an Agent-scoped entry (the guided setup). The Agent is then an
+   * immutable part of the route: the selector is read-only and the submitted
+   * payload always carries this ID, whatever the entry URL says.
+   */
+  lockedAgentId?: string
   loading?: boolean
   submitLabel: string
   onCancel: () => void
@@ -66,13 +75,16 @@ type LinearAppFormProps = {
 export function LinearAppForm({
   mode,
   initialValue,
+  lockedAgentId,
   loading,
   submitLabel,
   onCancel,
   onSubmit,
 }: LinearAppFormProps) {
   const { data: agentsData } = useAgents()
-  const [form, setForm] = useState<FormState>(() => toState(initialValue))
+  const [form, setForm] = useState<FormState>(() =>
+    toState(initialValue, lockedAgentId)
+  )
   const [error, setError] = useState<string | null>(null)
 
   // Re-seed on every new server revision so the next save carries it.
@@ -84,7 +96,7 @@ export function LinearAppForm({
     : null
   if (initialValue && revisionKey !== syncedRevision) {
     setSyncedRevision(revisionKey)
-    setForm(toState(initialValue))
+    setForm(toState(initialValue, lockedAgentId))
   }
 
   const agents = (agentsData?.agents ?? []).filter((agent) =>
@@ -103,7 +115,8 @@ export function LinearAppForm({
     event.preventDefault()
     if (!form.displayName.trim()) return setError('Display name is required')
     if (!form.clientId.trim()) return setError('Client ID is required')
-    if (!form.agentId) return setError('Choose the Agent this App routes to')
+    const agentId = lockedAgentId ?? form.agentId
+    if (!agentId) return setError('Choose the Agent this App routes to')
     let maxRunSeconds: number | undefined
     if (form.maxRunSeconds.trim() !== '') {
       const parsed = Number(form.maxRunSeconds)
@@ -118,7 +131,7 @@ export function LinearAppForm({
     onSubmit({
       displayName: form.displayName.trim(),
       clientId: form.clientId.trim(),
-      agentId: form.agentId,
+      agentId,
       inboundEnabled: form.inboundEnabled,
       allowedUserIds: parseUserIds(form.allowedUserIds),
       maxRunSeconds,
@@ -160,6 +173,7 @@ export function LinearAppForm({
             <Label htmlFor='linear-agent'>Agent</Label>
             <Select
               value={form.agentId || undefined}
+              disabled={Boolean(lockedAgentId)}
               onValueChange={(v) => set('agentId', v)}
             >
               <SelectTrigger id='linear-agent' aria-label='Agent'>
@@ -174,8 +188,9 @@ export function LinearAppForm({
               </SelectContent>
             </Select>
             <p className='text-xs text-muted-foreground'>
-              Every Linear Agent Session opened on this App is answered by this
-              Agent.
+              {lockedAgentId
+                ? 'Fixed by the Agent entry you came from. Registering here never routes the App to another Agent; changing the binding is an explicit edit on the App.'
+                : 'Every Linear Agent Session opened on this App is answered by this Agent.'}
             </p>
           </div>
           {boxAgent && <BoxAgentWarning />}
@@ -218,7 +233,9 @@ export function LinearAppForm({
             <div className='space-y-0.5'>
               <Label htmlFor='linear-inbound'>Inbound enabled</Label>
               <p className='text-xs text-muted-foreground'>
-                Accept Linear deliveries. Requires both secrets.
+                Accept new Linear deliveries. Requires both secrets. Turning
+                this off stops accepting new deliveries; it does not interrupt a
+                turn that is already running.
               </p>
             </div>
             <Switch
