@@ -1,12 +1,16 @@
 import { useState } from 'react'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { KeyRound, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
+  LINEAR_APPS_KEY,
   useLinearApp,
   usePutLinearAppCredentials,
   useUpdateLinearApp,
 } from '@/api/linear'
+import { Code, ConnectError } from '@/api/transport'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,8 +25,10 @@ export function LinearAppEdit() {
   const { id } = useParams({ from: '/_authenticated/linear-apps/$id/edit' })
   const search = useSearch({ from: '/_authenticated/linear-apps/$id/edit' })
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: app, isLoading } = useLinearApp(id)
   const updateMutation = useUpdateLinearApp()
+  const [conflict, setConflict] = useState(false)
 
   function onSubmit(values: LinearAppFormValues) {
     if (!app) return
@@ -34,8 +40,26 @@ export function LinearAppEdit() {
     updateMutation.mutate(
       { ...fields, id, revision: app.revision },
       {
-        onSuccess: () => toast.success('Linear App updated'),
-        onError: (err) => toast.error(err.message),
+        onSuccess: () => {
+          setConflict(false)
+          toast.success('Linear App updated')
+        },
+        onError: (err) => {
+          // An aborted update means someone else saved a newer revision. Pull
+          // that revision so the form re-seeds with it and the next save can
+          // succeed instead of failing until the user reloads by hand.
+          if (err instanceof ConnectError && err.code === Code.Aborted) {
+            setConflict(true)
+            toast.error(
+              'This Linear App changed elsewhere. The latest values were reloaded.'
+            )
+            queryClient.invalidateQueries({
+              queryKey: [...LINEAR_APPS_KEY, id],
+            })
+            return
+          }
+          toast.error(err.message)
+        },
       }
     )
   }
@@ -54,6 +78,17 @@ export function LinearAppEdit() {
         className='max-w-3xl'
         title={app.displayName}
         subtitle={<CredentialStateBadge state={app.credentialState} />}
+        actions={
+          <Button variant='outline' asChild>
+            <Link
+              to='/agents/$name/linear'
+              params={{ name: app.agentId }}
+              search={{ step: 4, app: app.id }}
+            >
+              Guided setup
+            </Link>
+          </Button>
+        }
       />
       <PageScroll className='max-w-3xl'>
         <div className='space-y-6'>
@@ -61,6 +96,15 @@ export function LinearAppEdit() {
             outcome={search.linear_install}
             reason={search.reason}
           />
+          {conflict && (
+            <Alert variant='destructive'>
+              <AlertTitle>The App changed elsewhere</AlertTitle>
+              <AlertDescription>
+                A newer revision is now loaded below. Review the current values
+                and save again to apply your change.
+              </AlertDescription>
+            </Alert>
+          )}
           <Card>
             <CardHeader className='pb-2'>
               <CardTitle className='flex items-center gap-2 text-base'>
