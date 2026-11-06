@@ -524,6 +524,42 @@ test('old Agent records, a changed configuration, removed installations, and unc
   ).toBeVisible()
 })
 
+test('an installation without a recorded credential outcome never claims a usable credential', async ({
+  page,
+}) => {
+  await setupLinearFixture(page, {
+    apps: [linearApp()],
+    installations: [
+      installation(),
+      installation({
+        id: 'inst-unrecorded',
+        organizationId: 'org-2',
+        organizationName: 'Linear Org Two',
+        appUserId: 'app-user-2',
+        credentialState: LinearInstallationCredentialState.UNSPECIFIED,
+      }),
+    ],
+    records: [],
+  })
+
+  await page.goto('/linear-apps/app-a/edit')
+
+  // VALID is the only state that may say the credential was last usable.
+  await expect(page.getByTestId('linear-credential-badge-inst-1')).toHaveText(
+    'Credential last known usable'
+  )
+  const unrecorded = page.getByTestId(
+    'linear-installation-diagnostic-inst-unrecorded'
+  )
+  await expect(
+    page.getByTestId('linear-credential-badge-inst-unrecorded')
+  ).toHaveText('Credential state not recorded')
+  await expect(unrecorded).toContainText(
+    'No token use or refresh outcome has been recorded for this installation yet.'
+  )
+  await expect(unrecorded).not.toContainText('Credential last known usable')
+})
+
 test('a full read window is called out instead of claiming there was never a run', async ({
   page,
 }) => {

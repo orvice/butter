@@ -88,46 +88,59 @@ export function appCondition(app: LinearApp): LinearAppCondition {
 
 export type InstallationCredentialFact = {
   needsReinstall: boolean
+  /** True while no credential outcome has been recorded at all. */
+  unrecorded: boolean
+  /** Short badge label; never claims more than the recorded state. */
+  label: string
   title: string
   detail: string
   nextStep?: string
 }
 
+/**
+ * installationCredentialFact reports only what Butter recorded. "Credential
+ * last known usable" is shown for VALID alone: an unspecified state, a
+ * future enum value, or a reinstall requirement must never read as a usable
+ * credential.
+ */
 export function installationCredentialFact(
   installation: LinearInstallation
 ): InstallationCredentialFact {
-  if (
-    installation.credentialState ===
-    LinearInstallationCredentialState.NEEDS_REINSTALL
-  ) {
-    return {
-      needsReinstall: true,
-      title: 'Reinstall needed',
-      detail:
-        installation.lastCredentialError ||
-        'Linear refused the stored token or its refresh, so this installation cannot authenticate.',
-      nextStep:
-        'Install this App into the organization again from the Installations card. Earlier records stay visible as history.',
-    }
-  }
-  if (
-    installation.credentialState ===
-    LinearInstallationCredentialState.UNSPECIFIED
-  ) {
-    return {
-      needsReinstall: false,
-      title: 'Credential state not recorded',
-      detail:
-        'No token use or refresh outcome has been recorded for this installation yet. This is a missing fact, not a health claim.',
-      nextStep:
-        'Delegate an issue to the App or @mention it in Linear; the next authenticated call records the credential outcome.',
-    }
-  }
-  return {
-    needsReinstall: false,
-    title: 'Credential: last known usable',
-    detail:
-      'The stored token worked, or was refreshed, on its last use. This is a credential fact, not a claim that the organization is reachable now.',
+  switch (installation.credentialState) {
+    case LinearInstallationCredentialState.VALID:
+      return {
+        needsReinstall: false,
+        unrecorded: false,
+        label: 'Credential last known usable',
+        title: 'Credential: last known usable',
+        detail:
+          'The stored token worked, or was refreshed, on its last use. This is a credential fact, not a claim that the organization is reachable now.',
+      }
+    case LinearInstallationCredentialState.NEEDS_REINSTALL:
+      return {
+        needsReinstall: true,
+        unrecorded: false,
+        label: 'Reinstall needed',
+        title: 'Reinstall needed',
+        detail:
+          installation.lastCredentialError ||
+          'Linear refused the stored token or its refresh, so this installation cannot authenticate.',
+        nextStep:
+          'Install this App into the organization again from the Installations card. Earlier records stay visible as history.',
+      }
+    default:
+      // UNSPECIFIED (and any state this build does not know) records no
+      // outcome, so the copy says exactly that instead of guessing.
+      return {
+        needsReinstall: false,
+        unrecorded: true,
+        label: 'Credential state not recorded',
+        title: 'Credential state not recorded',
+        detail:
+          'No token use or refresh outcome has been recorded for this installation yet. This is a missing fact, not a health claim.',
+        nextStep:
+          'Delegate an issue to the App or @mention it in Linear; the next authenticated call records the credential outcome.',
+      }
   }
 }
 

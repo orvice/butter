@@ -119,11 +119,17 @@ function InstallationDiagnostic({
         <span className='font-medium'>
           {installation.organizationName || installation.organizationId}
         </span>
-        {evidence.credential.needsReinstall ? (
-          <Badge variant='destructive'>Reinstall needed</Badge>
-        ) : (
-          <Badge variant='outline'>Credential last known usable</Badge>
-        )}
+        <Badge
+          variant={
+            evidence.credential.needsReinstall ? 'destructive' : 'outline'
+          }
+          className={
+            evidence.credential.unrecorded ? 'text-muted-foreground' : undefined
+          }
+          data-testid={`linear-credential-badge-${installation.id}`}
+        >
+          {evidence.credential.label}
+        </Badge>
       </div>
       <div className='text-xs text-muted-foreground'>
         App user {installation.appUserId || 'unknown'} · installed{' '}
