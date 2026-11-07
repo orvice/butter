@@ -64,6 +64,32 @@ func TestProcessorRejectsMissingPrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+func TestProcessorStopCancelsRunningRunner(t *testing.T) {
+	r := &fakeRunner{out: "x", block: make(chan struct{})}
+	p := NewProcessor(r, &fakePublisher{})
+	e := &Event{InstallationID: "i", AgentRunID: "r", ActivityID: "a", Prompt: "x"}
+	done := make(chan error, 1)
+	go func() { _, err := p.Process(context.Background(), &agentsv1.PlaneApp{AgentId: "a"}, e); done <- err }()
+	for {
+		r.mu.Lock()
+		n := r.calls
+		r.mu.Unlock()
+		if n == 1 {
+			break
+		}
+	}
+	audit, err := p.Stop(context.Background(), e)
+	if err != nil || audit.State != RunStateStopping {
+		t.Fatalf("audit=%+v err=%v", audit, err)
+	}
+	if audit, err = p.Stop(context.Background(), e); err != nil || audit.State != RunStateStopping {
+		t.Fatalf("repeat audit=%+v err=%v", audit, err)
+	}
+	close(r.block)
+	if err = <-done; err == nil {
+		t.Fatal("expected cancelled runner")
+	}
+}
 func TestProcessorConcurrentDuplicate(t *testing.T) {
 	r := &fakeRunner{out: "x", block: make(chan struct{})}
 	p := NewProcessor(r, &fakePublisher{})

@@ -27,12 +27,30 @@ type Processor struct {
 	publisher ReplyPublisher
 	mu        sync.Mutex
 	active    map[string]struct{}
+	cancels   map[string]context.CancelFunc
+	states    map[string]RunState
 	seen      map[string]struct{}
 	maxReply  int
 }
 
+type RunState string
+
+const (
+	RunStateRunning   RunState = "running"
+	RunStateStopping  RunState = "stopping"
+	RunStateStopped   RunState = "stopped"
+	RunStateSucceeded RunState = "succeeded"
+	RunStateFailed    RunState = "failed"
+)
+
+type StopAudit struct {
+	Key      string
+	State    RunState
+	Attempts int
+}
+
 func NewProcessor(r Runner, p ReplyPublisher) *Processor {
-	return &Processor{runner: r, publisher: p, active: map[string]struct{}{}, seen: map[string]struct{}{}, maxReply: 500}
+	return &Processor{runner: r, publisher: p, active: map[string]struct{}{}, cancels: map[string]context.CancelFunc{}, states: map[string]RunState{}, seen: map[string]struct{}{}, maxReply: 500}
 }
 func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Event) (string, error) {
 	if p == nil || p.runner == nil {
@@ -52,9 +70,21 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	if !p.begin(key) {
 		return "", ErrDuplicate
 	}
-	defer p.end(key)
-	out, err := p.runner.Run(ctx, app.GetAgentId(), []*genai.Part{{Text: prompt}}, "", &agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
+	child, cancel := context.WithCancel(ctx)
+	p.mu.Lock()
+	p.cancels[key] = cancel
+	p.states[key] = RunStateRunning
+	p.mu.Unlock()
+	defer func() { cancel(); p.mu.Lock(); delete(p.cancels, key); delete(p.active, key); p.mu.Unlock() }()
+	out, err := p.runner.Run(child, app.GetAgentId(), []*genai.Part{{Text: prompt}}, "", &agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
 	if err != nil {
+		p.mu.Lock()
+		if errors.Is(err, context.Canceled) {
+			p.states[key] = RunStateStopped
+		} else {
+			p.states[key] = RunStateFailed
+		}
+		p.mu.Unlock()
 		return "", fmt.Errorf("plane runner: %w", err)
 	}
 	out = strings.TrimSpace(out)
@@ -69,6 +99,7 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	}
 	p.mu.Lock()
 	p.seen[key] = struct{}{}
+	p.states[key] = RunStateSucceeded
 	p.mu.Unlock()
 	return out, nil
 }
@@ -84,4 +115,18 @@ func (p *Processor) begin(k string) bool {
 	p.active[k] = struct{}{}
 	return true
 }
-func (p *Processor) end(k string) { p.mu.Lock(); delete(p.active, k); p.mu.Unlock() }
+func (p *Processor) Stop(_ context.Context, e *Event) (StopAudit, error) {
+	key := e.InstallationID + ":" + e.AgentRunID + ":" + e.ActivityID
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if cancel, ok := p.cancels[key]; ok {
+		p.states[key] = RunStateStopping
+		cancel()
+		return StopAudit{Key: key, State: RunStateStopping, Attempts: 1}, nil
+	}
+	state, ok := p.states[key]
+	if !ok {
+		return StopAudit{Key: key, State: RunStateStopped}, nil
+	}
+	return StopAudit{Key: key, State: state, Attempts: 1}, nil
+}
