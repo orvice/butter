@@ -10,15 +10,20 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"time"
 )
 
 type Store struct{ col *mongo.Collection }
 type doc struct {
-	ID          string `bson:"_id"`
-	WorkspaceID string `bson:"workspace_id"`
-	AppID       string `bson:"app_id"`
-	Key         string `bson:"key"`
-	Spec        string `bson:"spec"`
+	ID             string    `bson:"_id"`
+	WorkspaceID    string    `bson:"workspace_id"`
+	AppID          string    `bson:"app_id"`
+	Key            string    `bson:"key"`
+	Spec           string    `bson:"spec"`
+	ClaimOwner     string    `bson:"claim_owner,omitempty"`
+	ClaimRevision  int64     `bson:"claim_revision,omitempty"`
+	ClaimFence     uint64    `bson:"claim_fence,omitempty"`
+	ClaimExpiresAt time.Time `bson:"claim_expires_at,omitempty"`
 }
 
 func New(db *mongo.Database) *Store { return &Store{col: db.Collection("plane_processing")} }
@@ -96,6 +101,50 @@ func (s *Store) List(ctx context.Context, f planeprocessing.Filter) ([]*agentsv1
 		out = append(out, r)
 	}
 	return out, nil
+}
+
+func (s *Store) Claim(ctx context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
+	key := ws + ":" + app + ":" + installation + ":" + run
+	now := time.Now()
+	f := bson.M{"key": key, "workspace_id": ws, "claim_expires_at": bson.M{"$lte": now}}
+	u := bson.M{"$set": bson.M{"claim_owner": owner, "claim_expires_at": expiry}, "$inc": bson.M{"claim_revision": 1, "claim_fence": 1}, "$setOnInsert": bson.M{"workspace_id": ws, "app_id": app, "key": key}}
+	r, e := s.col.UpdateOne(ctx, f, u)
+	if e != nil {
+		return planeprocessing.Claim{}, e
+	}
+	if r.MatchedCount != 1 {
+		return planeprocessing.Claim{}, planeprocessing.ErrClaimConflict
+	}
+	var d doc
+	if e = s.col.FindOne(ctx, bson.M{"key": key}).Decode(&d); e != nil {
+		return planeprocessing.Claim{}, e
+	}
+	return planeprocessing.Claim{Owner: d.ClaimOwner, Revision: d.ClaimRevision, Fence: d.ClaimFence, ExpiresAt: d.ClaimExpiresAt}, nil
+}
+func (s *Store) Renew(ctx context.Context, key string, c planeprocessing.Claim, expiry time.Time) (planeprocessing.Claim, error) {
+	r, e := s.col.UpdateOne(ctx, bson.M{"key": key, "claim_owner": c.Owner, "claim_revision": c.Revision, "claim_fence": c.Fence, "claim_expires_at": bson.M{"$gt": time.Now()}}, bson.M{"$set": bson.M{"claim_expires_at": expiry}})
+	if e != nil || r.MatchedCount != 1 {
+		return planeprocessing.Claim{}, planeprocessing.ErrClaimExpired
+	}
+	c.ExpiresAt = expiry
+	return c, nil
+}
+func (s *Store) Complete(ctx context.Context, key string, c planeprocessing.Claim) error {
+	r, e := s.col.UpdateOne(ctx, bson.M{"key": key, "claim_owner": c.Owner, "claim_revision": c.Revision, "claim_fence": c.Fence, "claim_expires_at": bson.M{"$gt": time.Now()}}, bson.M{"$unset": bson.M{"claim_owner": "", "claim_expires_at": ""}})
+	if e != nil {
+		return e
+	}
+	if r.MatchedCount != 1 {
+		return planeprocessing.ErrClaimExpired
+	}
+	return nil
+}
+func (s *Store) ReclaimExpired(ctx context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
+	return s.Claim(ctx, ws, app, installation, run, owner, expiry)
+}
+func (s *Store) RecoverExpired(ctx context.Context, now time.Time) error {
+	_, e := s.col.UpdateMany(ctx, bson.M{"claim_expires_at": bson.M{"$lte": now}}, bson.M{"$unset": bson.M{"claim_owner": "", "claim_expires_at": ""}})
+	return e
 }
 
 var _ = proto.Clone
