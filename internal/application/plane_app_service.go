@@ -225,11 +225,11 @@ func rejectInboundEnablement(app *agentsv1.PlaneApp) error {
 	return connect.NewError(connect.CodeFailedPrecondition, errors.New("plane inbound requires an installed, authorized App and verified provider profile"))
 }
 
-func requireInboundEnablement(app *agentsv1.PlaneApp, profile planeapi.Profile) error {
-	if !app.GetInboundEnabled() {
+func requireInboundEnablement(clientSecretSet, webhookSecretSet, enabled bool, profile planeapi.Profile) error {
+	if !enabled {
 		return nil
 	}
-	if !app.GetClientSecretSet() || !app.GetWebhookSecretSet() || !profile.Verified {
+	if !clientSecretSet || !webhookSecretSet || !profile.Verified {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("plane inbound requires an installed, authorized App and verified provider profile"))
 	}
 	return nil
@@ -390,9 +390,7 @@ func (s *PlaneAppServiceServer) UpdatePlaneApp(ctx context.Context, req *connect
 		return nil, err
 	}
 	if input.GetInboundEnabled() {
-		check := *prev
-		check.InboundEnabled = true
-		if err := requireInboundEnablement(&check, profile); err != nil {
+		if err := requireInboundEnablement(prev.GetClientSecretSet(), prev.GetWebhookSecretSet(), true, profile); err != nil {
 			return nil, err
 		}
 	}

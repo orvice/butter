@@ -305,7 +305,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		planeRepo = planemongo.New(db)
 		planeInstallationRepo = planeinstallationmongo.New(db)
 		planeInstallStateRepo = planestatemongo.New(db)
-		planeInstallStateRepo = planestatemongo.New(db)
 		planeProcessingRepo = planeprocessingmongo.New(db)
 		planeSettingRepo = planesettingmongo.New(db)
 	case "memory":
@@ -336,7 +335,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearProcessingRepo = linearprocessingmemory.New()
 		planeRepo = planememory.New()
 		planeInstallationRepo = planeinstallationmemory.New()
-		planeInstallStateRepo = planestatememory.New()
 		planeInstallStateRepo = planestatememory.New()
 		planeProcessingRepo = planeprocessingmemory.New()
 		planeSettingRepo = planesettingmemory.New()
