@@ -32,10 +32,11 @@ const (
 )
 
 type ProgressEvent struct {
-	Key      string
-	Sequence int64
-	State    RunState
-	Error    string
+	Key                    string
+	Sequence               int64
+	State                  RunState
+	Error                  string
+	WorkflowID, DeliveryID string
 }
 type ProgressSink interface {
 	EmitProgress(context.Context, *Event, ProgressEvent) error
