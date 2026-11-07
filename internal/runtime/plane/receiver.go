@@ -78,6 +78,28 @@ func (r *Receiver) FindApp(ctx context.Context, id string) (*agentsv1.PlaneApp, 
 	}
 	return app, err
 }
+func (r *Receiver) FindScopedApp(ctx context.Context, workspaceID, appID, installationID string) (*agentsv1.PlaneApp, error) {
+	if workspaceID == "" || appID == "" || installationID == "" {
+		return nil, errors.New("plane app scope is incomplete")
+	}
+	lookup, ok := r.apps.(interface {
+		GetApp(context.Context, string, string) (*agentsv1.PlaneApp, error)
+	})
+	if !ok {
+		return nil, errors.New("plane app lookup is not configured")
+	}
+	app, err := lookup.GetApp(ctx, workspaceID, appID)
+	if errors.Is(err, planerepo.ErrNotFound) {
+		return nil, ErrAppNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if app.GetWorkspaceId() != workspaceID {
+		return nil, ErrAppNotFound
+	}
+	return app, nil
+}
 func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers http.Header, body []byte) (Decision, error) {
 	if r == nil || r.apps == nil || r.installations == nil || r.keyring == nil || r.queue == nil {
 		return "", errors.New("plane receive is not configured")

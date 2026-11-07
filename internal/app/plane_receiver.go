@@ -19,6 +19,13 @@ func (h *planeReceiverHolder) FindApp(ctx context.Context, id string) (*agentsv1
 	}
 	return r.FindApp(ctx, id)
 }
+func (h *planeReceiverHolder) FindScopedApp(ctx context.Context, workspaceID, appID, installationID string) (*agentsv1.PlaneApp, error) {
+	r := h.receiver.Load()
+	if r == nil {
+		return nil, context.Canceled
+	}
+	return r.FindScopedApp(ctx, workspaceID, appID, installationID)
+}
 func (h *planeReceiverHolder) Deliver(ctx context.Context, a *agentsv1.PlaneApp, hdr http.Header, b []byte) (planeruntime.Decision, error) {
 	r := h.receiver.Load()
 	if r == nil {

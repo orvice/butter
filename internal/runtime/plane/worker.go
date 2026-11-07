@@ -10,7 +10,7 @@ import (
 )
 
 type PlaneAppResolver interface {
-	FindApp(context.Context, string) (*agentsv1.PlaneApp, error)
+	FindScopedApp(context.Context, string, string, string) (*agentsv1.PlaneApp, error)
 }
 type Worker struct {
 	queue     *StreamQueue
@@ -69,7 +69,10 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) error {
 	if err != nil {
 		return err
 	}
-	app, err := w.resolver.FindApp(ctx, e.AppID)
+	if e.WorkspaceID == "" || e.AppID == "" || e.InstallationID == "" {
+		return errors.New("plane event scope is incomplete")
+	}
+	app, err := w.resolver.FindScopedApp(ctx, e.WorkspaceID, e.AppID, e.InstallationID)
 	if err != nil {
 		return err
 	}
