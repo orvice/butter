@@ -28,6 +28,12 @@ type InstallationTokenSource struct {
 var ErrTokenUnavailable = errors.New("plane installation token unavailable")
 
 func (s *InstallationTokenSource) Token(ctx context.Context, workspaceID, appID, installationID string) (string, error) {
+	return s.token(ctx, workspaceID, appID, installationID, false)
+}
+func (s *InstallationTokenSource) ForceRefresh(ctx context.Context, workspaceID, appID, installationID string) (string, error) {
+	return s.token(ctx, workspaceID, appID, installationID, true)
+}
+func (s *InstallationTokenSource) token(ctx context.Context, workspaceID, appID, installationID string, force bool) (string, error) {
 	if s == nil || s.Apps == nil || s.Installations == nil || s.Keyring == nil || s.Client == nil {
 		return "", ErrTokenUnavailable
 	}
@@ -39,7 +45,7 @@ func (s *InstallationTokenSource) Token(ctx context.Context, workspaceID, appID,
 		if err != nil {
 			return "", ErrTokenUnavailable
 		}
-		if m.AccessToken != "" && time.Until(m.ExpiresAt) > s.RefreshBefore {
+		if !force && m.AccessToken != "" && time.Until(m.ExpiresAt) > s.RefreshBefore {
 			return m.AccessToken, nil
 		}
 		s.mu.Lock()
@@ -59,7 +65,7 @@ func (s *InstallationTokenSource) Token(ctx context.Context, workspaceID, appID,
 			s.mu.Unlock()
 			return "", ErrTokenUnavailable
 		}
-		if latest.Revision != m.Revision && latest.AccessToken != "" && time.Until(latest.ExpiresAt) > s.RefreshBefore {
+		if !force && latest.Revision != m.Revision && latest.AccessToken != "" && time.Until(latest.ExpiresAt) > s.RefreshBefore {
 			s.mu.Unlock()
 			return latest.AccessToken, nil
 		}

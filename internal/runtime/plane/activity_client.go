@@ -46,10 +46,12 @@ type ActivityClient interface {
 	ListActivities(context.Context, ActivityQuery) ([]Activity, error)
 }
 type ActivityTokenSource func(context.Context, string, string, string) (string, error)
+type ForceRefreshTokenSource func(context.Context, string, string, string) (string, error)
 type ActivityHTTPClient struct {
-	BaseURL    string
-	HTTPClient *http.Client
-	Token      ActivityTokenSource
+	BaseURL      string
+	HTTPClient   *http.Client
+	Token        ActivityTokenSource
+	ForceRefresh ForceRefreshTokenSource
 }
 
 var ErrActivityPermanent = errors.New("plane activity request is permanent")
@@ -76,6 +78,17 @@ func NewActivityHTTPClient(base string, h *http.Client, t ActivityTokenSource) *
 	return &ActivityHTTPClient{BaseURL: strings.TrimRight(base, "/"), HTTPClient: h, Token: t}
 }
 func (c *ActivityHTTPClient) CreateActivity(ctx context.Context, a ActivityRequest) (ActivityResult, error) {
+	result, err := c.createActivity(ctx, a, false)
+	var ae *activityError
+	if err != nil && c.ForceRefresh != nil && errors.As(err, &ae) && ae.status == http.StatusUnauthorized {
+		if _, refreshErr := c.ForceRefresh(ctx, a.WorkspaceID, a.AppID, a.InstallationID); refreshErr != nil {
+			return ActivityResult{}, refreshErr
+		}
+		return c.createActivity(ctx, a, true)
+	}
+	return result, err
+}
+func (c *ActivityHTTPClient) createActivity(ctx context.Context, a ActivityRequest, _ bool) (ActivityResult, error) {
 	if c == nil || c.Token == nil {
 		return ActivityResult{}, &activityError{kind: DeliveryPermanentFailure, err: ErrReplyUnavailable}
 	}
