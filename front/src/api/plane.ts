@@ -6,6 +6,7 @@ import {
   type PlaneInstallation,
   type GetPlaneSettingsResponse,
   type PlaneProviderProfile,
+  type PlaneDelivery,
 } from '@/gen/agents/v1/plane_pb'
 import { makeClient } from './transport'
 
@@ -16,6 +17,7 @@ export const PLANE_APPS_KEY = ['plane-apps'] as const
 export const PLANE_INSTALLATIONS_KEY = ['plane-installations'] as const
 const PLANE_SETTINGS_KEY = ['plane-settings'] as const
 const PLANE_PROFILE_KEY = ['plane-provider-profile'] as const
+export const PLANE_DELIVERIES_KEY = ['plane-deliveries'] as const
 
 /** The operator-editable fields of a Plane App. */
 export interface PlaneAppInput {
@@ -60,7 +62,9 @@ export function usePlaneProviderProfile(enabled = true) {
   })
 }
 
-// --- Platform settings (global admin) ---------------------------------------
+export function usePlaneDeliveries(enabled = true) { return useQuery({ queryKey: PLANE_DELIVERIES_KEY, enabled, refetchInterval: 5000, queryFn: async (): Promise<PlaneDelivery[]> => (await appClient.listPlaneDeliveries({})).deliveries }) }
+export function useRetryPlaneDelivery() { const qc=useQueryClient(); return useMutation({ mutationFn: async (input:{key:string;owner:string}) => (await appClient.retryPlaneDelivery(input)).delivery, onSuccess:()=>qc.invalidateQueries({queryKey:PLANE_DELIVERIES_KEY}) }) }
+
 
 export function usePlaneSettings(enabled = true) {
   return useQuery({
