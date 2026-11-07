@@ -17,6 +17,7 @@ type doc struct {
 	Scopes                                                                                                               []string
 	InstalledAt, UpdatedAt, ExpiresAt                                                                                    time.Time
 	Token, TokenKey                                                                                                      string
+	Revision                                                                                                             int64
 }
 type Store struct{ c *mongo.Collection }
 
@@ -64,6 +65,23 @@ func (s *Store) List(ctx context.Context, w, a string) ([]*agentsv1.PlaneInstall
 		out = append(out, from(d))
 	}
 	return out, nil
+}
+func (s *Store) GetRuntimeToken(ctx context.Context, w, a, installation string) (repo.TokenMaterial, error) {
+	var d doc
+	if e := s.c.FindOne(ctx, bson.M{"workspace_id": w, "app_id": a, "installation_id": installation}).Decode(&d); e != nil {
+		return repo.TokenMaterial{}, e
+	}
+	return repo.TokenMaterial{WorkspaceID: w, AppID: a, InstallationID: installation, AccessToken: d.Token, ExpiresAt: d.ExpiresAt, Revision: d.Revision}, nil
+}
+func (s *Store) CASRuntimeToken(ctx context.Context, w, a, installation string, expected int64, t repo.Tokens) (repo.TokenMaterial, error) {
+	r, err := s.c.UpdateOne(ctx, bson.M{"workspace_id": w, "app_id": a, "installation_id": installation, "revision": expected}, bson.M{"$set": bson.M{"token": t.AccessToken, "token_key": t.AccessTokenKeyID, "expires_at": t.ExpiresAt}, "$inc": bson.M{"revision": 1}})
+	if err != nil {
+		return repo.TokenMaterial{}, err
+	}
+	if r.MatchedCount != 1 {
+		return repo.TokenMaterial{}, repo.ErrTokenCAS
+	}
+	return s.GetRuntimeToken(ctx, w, a, installation)
 }
 func (s *Store) Get(ctx context.Context, w, id string) (*agentsv1.PlaneInstallation, error) {
 	var d doc
