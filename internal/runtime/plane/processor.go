@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/genai"
 	"strings"
 	"sync"
+	"time"
 )
 
 var ErrPromptRequired = errors.New("plane activity prompt is required")
@@ -57,6 +59,8 @@ type Processor struct {
 	states      map[string]RunState
 	seen        map[string]struct{}
 	maxReply    int
+	claimRepo   planeprocessing.ClaimRepository
+	claimOwner  string
 }
 
 func NewProcessor(r Runner, p ReplyPublisher) *Processor {
@@ -64,6 +68,10 @@ func NewProcessor(r Runner, p ReplyPublisher) *Processor {
 }
 func (p *Processor) SetProgressSink(s ProgressSink)           { p.progress = s }
 func (p *Processor) SetDiagnosticStore(store DiagnosticStore) { p.diagnostics = store }
+func (p *Processor) SetClaimRepository(r planeprocessing.ClaimRepository, owner string) {
+	p.claimRepo = r
+	p.claimOwner = owner
+}
 func NewProcessorWithDurableDelivery(r Runner, target ReplyPublisher, store DeliveryStore) *Processor {
 	return NewProcessor(r, NewDurablePublisher(target, store))
 }
@@ -101,6 +109,16 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	if _, ok := p.active[key]; ok {
 		p.mu.Unlock()
 		return "", ErrDuplicate
+	}
+	if p.claimRepo != nil {
+		if p.claimOwner == "" {
+			return "", planeprocessing.ErrClaimConflict
+		}
+		claim, claimErr := p.claimRepo.Claim(ctx, e.WorkspaceID, e.AppID, e.InstallationID, e.AgentRunID, p.claimOwner, time.Now().Add(5*time.Minute))
+		if claimErr != nil {
+			return "", claimErr
+		}
+		defer func() { _ = p.claimRepo.Complete(context.Background(), key, claim) }()
 	}
 	p.active[key] = struct{}{}
 	child, cancel := context.WithCancel(ctx)
