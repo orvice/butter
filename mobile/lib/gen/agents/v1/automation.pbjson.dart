@@ -28,10 +28,13 @@ const AutomationTriggerType$json = {
     {'1': 'AUTOMATION_TRIGGER_TYPE_MANUAL', '2': 1},
     {'1': 'AUTOMATION_TRIGGER_TYPE_SCHEDULE', '2': 2},
     {'1': 'AUTOMATION_TRIGGER_TYPE_WEBHOOK', '2': 3},
-    {'1': 'AUTOMATION_TRIGGER_TYPE_FORUM_EVENT', '2': 4},
     {'1': 'AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT', '2': 5},
     {'1': 'AUTOMATION_TRIGGER_TYPE_DAEMON_EVENT', '2': 6},
   ],
+  '4': [
+    {'1': 4, '2': 4},
+  ],
+  '5': ['AUTOMATION_TRIGGER_TYPE_FORUM_EVENT'],
 };
 
 /// Descriptor for `AutomationTriggerType`. Decode as a `google.protobuf.EnumDescriptorProto`.
@@ -39,9 +42,9 @@ final $typed_data.Uint8List automationTriggerTypeDescriptor = $convert.base64Dec
     'ChVBdXRvbWF0aW9uVHJpZ2dlclR5cGUSJwojQVVUT01BVElPTl9UUklHR0VSX1RZUEVfVU5TUE'
     'VDSUZJRUQQABIiCh5BVVRPTUFUSU9OX1RSSUdHRVJfVFlQRV9NQU5VQUwQARIkCiBBVVRPTUFU'
     'SU9OX1RSSUdHRVJfVFlQRV9TQ0hFRFVMRRACEiMKH0FVVE9NQVRJT05fVFJJR0dFUl9UWVBFX1'
-    'dFQkhPT0sQAxInCiNBVVRPTUFUSU9OX1RSSUdHRVJfVFlQRV9GT1JVTV9FVkVOVBAEEikKJUFV'
-    'VE9NQVRJT05fVFJJR0dFUl9UWVBFX0NIQU5ORUxfRVZFTlQQBRIoCiRBVVRPTUFUSU9OX1RSSU'
-    'dHRVJfVFlQRV9EQUVNT05fRVZFTlQQBg==');
+    'dFQkhPT0sQAxIpCiVBVVRPTUFUSU9OX1RSSUdHRVJfVFlQRV9DSEFOTkVMX0VWRU5UEAUSKAok'
+    'QVVUT01BVElPTl9UUklHR0VSX1RZUEVfREFFTU9OX0VWRU5UEAYiBAgEEAQqI0FVVE9NQVRJT0'
+    '5fVFJJR0dFUl9UWVBFX0ZPUlVNX0VWRU5U');
 
 @$core.Deprecated('Use automationConditionOperatorDescriptor instead')
 const AutomationConditionOperator$json = {
@@ -75,8 +78,11 @@ const AutomationStepType$json = {
     {'1': 'AUTOMATION_STEP_TYPE_INVOKE_AGENT', '2': 1},
     {'1': 'AUTOMATION_STEP_TYPE_CALL_WEBHOOK', '2': 2},
     {'1': 'AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP', '2': 3},
-    {'1': 'AUTOMATION_STEP_TYPE_CREATE_FORUM_POST', '2': 4},
   ],
+  '4': [
+    {'1': 4, '2': 4},
+  ],
+  '5': ['AUTOMATION_STEP_TYPE_CREATE_FORUM_POST'],
 };
 
 /// Descriptor for `AutomationStepType`. Decode as a `google.protobuf.EnumDescriptorProto`.
@@ -84,8 +90,8 @@ final $typed_data.Uint8List automationStepTypeDescriptor = $convert.base64Decode
     'ChJBdXRvbWF0aW9uU3RlcFR5cGUSJAogQVVUT01BVElPTl9TVEVQX1RZUEVfVU5TUEVDSUZJRU'
     'QQABIlCiFBVVRPTUFUSU9OX1NURVBfVFlQRV9JTlZPS0VfQUdFTlQQARIlCiFBVVRPTUFUSU9O'
     'X1NURVBfVFlQRV9DQUxMX1dFQkhPT0sQAhIqCiZBVVRPTUFUSU9OX1NURVBfVFlQRV9TRU5EX0'
-    '5PVElGWV9HUk9VUBADEioKJkFVVE9NQVRJT05fU1RFUF9UWVBFX0NSRUFURV9GT1JVTV9QT1NU'
-    'EAQ=');
+    '5PVElGWV9HUk9VUBADIgQIBBAEKiZBVVRPTUFUSU9OX1NURVBfVFlQRV9DUkVBVEVfRk9SVU1f'
+    'UE9TVA==');
 
 @$core.Deprecated('Use automationConcurrencyPolicyDescriptor instead')
 const AutomationConcurrencyPolicy$json = {
@@ -412,14 +418,6 @@ const AutomationStep$json = {
       '10': 'sendNotifyGroup'
     },
     {
-      '1': 'create_forum_post',
-      '3': 6,
-      '4': 1,
-      '5': 11,
-      '6': '.agents.v1.AutomationCreateForumPostStep',
-      '10': 'createForumPost'
-    },
-    {
       '1': 'policy',
       '3': 10,
       '4': 1,
@@ -428,6 +426,10 @@ const AutomationStep$json = {
       '10': 'policy'
     },
   ],
+  '9': [
+    {'1': 6, '2': 7},
+  ],
+  '10': ['create_forum_post'],
 };
 
 /// Descriptor for `AutomationStep`. Decode as a `google.protobuf.DescriptorProto`.
@@ -437,10 +439,9 @@ final $typed_data.Uint8List automationStepDescriptor = $convert.base64Decode(
     'dBgDIAEoCzIkLmFnZW50cy52MS5BdXRvbWF0aW9uSW52b2tlQWdlbnRTdGVwUgtpbnZva2VBZ2'
     'VudBJHCgxjYWxsX3dlYmhvb2sYBCABKAsyJC5hZ2VudHMudjEuQXV0b21hdGlvbkNhbGxXZWJo'
     'b29rU3RlcFILY2FsbFdlYmhvb2sSVAoRc2VuZF9ub3RpZnlfZ3JvdXAYBSABKAsyKC5hZ2VudH'
-    'MudjEuQXV0b21hdGlvblNlbmROb3RpZnlHcm91cFN0ZXBSD3NlbmROb3RpZnlHcm91cBJUChFj'
-    'cmVhdGVfZm9ydW1fcG9zdBgGIAEoCzIoLmFnZW50cy52MS5BdXRvbWF0aW9uQ3JlYXRlRm9ydW'
-    '1Qb3N0U3RlcFIPY3JlYXRlRm9ydW1Qb3N0EjMKBnBvbGljeRgKIAEoCzIbLmFnZW50cy52MS5B'
-    'dXRvbWF0aW9uUG9saWN5UgZwb2xpY3k=');
+    'MudjEuQXV0b21hdGlvblNlbmROb3RpZnlHcm91cFN0ZXBSD3NlbmROb3RpZnlHcm91cBIzCgZw'
+    'b2xpY3kYCiABKAsyGy5hZ2VudHMudjEuQXV0b21hdGlvblBvbGljeVIGcG9saWN5SgQIBhAHUh'
+    'FjcmVhdGVfZm9ydW1fcG9zdA==');
 
 @$core.Deprecated('Use automationInvokeAgentStepDescriptor instead')
 const AutomationInvokeAgentStep$json = {
@@ -519,21 +520,6 @@ final $typed_data.Uint8List automationSendNotifyGroupStepDescriptor =
         'Ch1BdXRvbWF0aW9uU2VuZE5vdGlmeUdyb3VwU3RlcBIzChFub3RpZnlfZ3JvdXBfbmFtZRgBIA'
         'EoCUIH+kIEcgIQAVIPbm90aWZ5R3JvdXBOYW1lEhQKBXRpdGxlGAIgASgJUgV0aXRsZRIYCgdt'
         'ZXNzYWdlGAMgASgJUgdtZXNzYWdl');
-
-@$core.Deprecated('Use automationCreateForumPostStepDescriptor instead')
-const AutomationCreateForumPostStep$json = {
-  '1': 'AutomationCreateForumPostStep',
-  '2': [
-    {'1': 'thread_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'threadId'},
-    {'1': 'body', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'body'},
-  ],
-};
-
-/// Descriptor for `AutomationCreateForumPostStep`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List automationCreateForumPostStepDescriptor =
-    $convert.base64Decode(
-        'Ch1BdXRvbWF0aW9uQ3JlYXRlRm9ydW1Qb3N0U3RlcBIkCgl0aHJlYWRfaWQYASABKAlCB/pCBH'
-        'ICEAFSCHRocmVhZElkEhsKBGJvZHkYAiABKAlCB/pCBHICEAFSBGJvZHk=');
 
 @$core.Deprecated('Use automationPolicyDescriptor instead')
 const AutomationPolicy$json = {
@@ -1136,8 +1122,6 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
       AutomationCallWebhookStep_HeadersEntry$json,
   '.agents.v1.AutomationSendNotifyGroupStep':
       AutomationSendNotifyGroupStep$json,
-  '.agents.v1.AutomationCreateForumPostStep':
-      AutomationCreateForumPostStep$json,
   '.agents.v1.AutomationPolicy': AutomationPolicy$json,
   '.google.protobuf.Duration': $1.Duration$json,
   '.agents.v1.AutomationRetryPolicy': AutomationRetryPolicy$json,

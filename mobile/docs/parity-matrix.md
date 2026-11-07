@@ -15,7 +15,6 @@ Legend:
 
 | Web area | Web routes (examples) | Why excluded |
 | --- | --- | --- |
-| Forum | `/forum/*` | Spec §1 / #470 |
 | Skills management | (Web skills UI) | Spec §3; Agent editor may **ListSkills** for pick-only |
 | Global administration | `/admin/*`, `/users` | Spec §1; Git Host CRUD, global MCP CRUD, platform Telegram/Linear endpoints, user admin |
 | Multi-server | — | Single saved server address only |
@@ -96,7 +95,7 @@ Legend:
 | Session explorer + reply | `SessionService` | Sessions | `session_*` | OK |
 | Cron CRUD, run now, WAITING_INPUT reply | `CronJobService`, `ReplySession` | Cron jobs | `cron_*` | OK |
 | Automation CRUD, manual run | `AutomationService` | Automations | `automation_*`, `automation_runtime_test.go` | OK |
-| Automation triggers (webhook/forum/…) | — | Editor (disabled) | `automation_draft_test` | **GAP**: triggers not executable on server; UI disables |
+| Automation triggers (webhook/channel/daemon) | — | Editor (disabled) | `automation_draft_test` | **GAP**: triggers not executable on server; UI disables |
 | Notify group CRUD | `NotifyGroupService` | Notify Groups | `notify_group_*` | OK |
 
 ## Telegram, Linear (#465–#466)

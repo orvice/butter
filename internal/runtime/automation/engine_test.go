@@ -12,12 +12,9 @@ import (
 
 	"google.golang.org/genai"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.orx.me/apps/butter/internal/notify"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
-	"go.orx.me/apps/butter/internal/repo/forum"
-	forummemory "go.orx.me/apps/butter/internal/repo/forum/memory"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -160,20 +157,6 @@ func TestEngineRunNowExecutesAllStepTypes(t *testing.T) {
 	runnerSvc := &engineRunner{outputs: []string{"agent output"}}
 	notifier := &engineNotifier{}
 	httpClient := &engineHTTPClient{statuses: []int{http.StatusAccepted}, bodies: []string{"accepted"}}
-	forumRepo := forummemory.New()
-	now := timestamppb.Now()
-	if err := forumRepo.CreateThread(ctx, &agentsv1.ForumThread{
-		Id:          "thread1",
-		Title:       "Ops",
-		Body:        "thread",
-		Status:      "open",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		WorkspaceId: "ws1",
-	}); err != nil {
-		t.Fatalf("seed forum thread: %v", err)
-	}
-
 	engine := NewEngine(defRepo, runRepo, stepRepo, EngineOptions{
 		Runner: runnerSvc,
 		NotifyGroupRepo: &engineNotifyRepo{group: &agentsv1.NotifyGroup{
@@ -185,7 +168,6 @@ func TestEngineRunNowExecutesAllStepTypes(t *testing.T) {
 			},
 		}},
 		Notifier:   notifier,
-		ForumRepo:  forumRepo,
 		HTTPClient: httpClient,
 	})
 
@@ -201,7 +183,6 @@ func TestEngineRunNowExecutesAllStepTypes(t *testing.T) {
 			{Name: "summarize", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_INVOKE_AGENT, InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentId: "agent1-id", Input: "summarize"}},
 			{Name: "webhook", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CALL_WEBHOOK, CallWebhook: &agentsv1.AutomationCallWebhookStep{Url: "https://example.test/hook", PayloadJson: `{"ok":true}`}},
 			{Name: "notify", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP, SendNotifyGroup: &agentsv1.AutomationSendNotifyGroupStep{NotifyGroupName: "ops", Title: "done", Message: "ok"}},
-			{Name: "post", Type: agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CREATE_FORUM_POST, CreateForumPost: &agentsv1.AutomationCreateForumPostStep{ThreadId: "thread1", Body: "posted"}},
 		},
 	}
 	if err := defRepo.Create(ctx, automation); err != nil {
@@ -219,8 +200,8 @@ func TestEngineRunNowExecutesAllStepTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListByRun: %v", err)
 	}
-	if len(steps) != 4 {
-		t.Fatalf("step count = %d, want 4", len(steps))
+	if len(steps) != 3 {
+		t.Fatalf("step count = %d, want 3", len(steps))
 	}
 	for _, stepRun := range steps {
 		if stepRun.GetStatus() != agentsv1.AutomationStepRunStatus_AUTOMATION_STEP_RUN_STATUS_SUCCEEDED {
@@ -229,13 +210,6 @@ func TestEngineRunNowExecutesAllStepTypes(t *testing.T) {
 	}
 	if notifier.calls != 1 {
 		t.Fatalf("notifier calls = %d, want 1", notifier.calls)
-	}
-	posts, _, total, err := forumRepo.ListPosts(ctx, forum.PostListFilter{WorkspaceID: "ws1", ThreadID: "thread1"}, 10, "")
-	if err != nil {
-		t.Fatalf("ListPosts: %v", err)
-	}
-	if total != 1 || len(posts) != 1 || posts[0].GetBody() != "posted" {
-		t.Fatalf("forum posts = len %d total %d, want one created post", len(posts), total)
 	}
 }
 

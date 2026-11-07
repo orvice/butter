@@ -304,7 +304,7 @@ extension type AgentServiceClient (connect.Transport _transport) {
   /// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
   /// workflow references remain, all child/workflow references resolve, no
   /// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
-  /// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+  /// jobs, automations) carry Agent IDs, and no runtime-name
   /// conflict violates the runner's naming constraints. Global admins only.
   Future<agentsv1agent_service.VerifyAgentIDCutoverResponse> verifyAgentIDCutover(
     agentsv1agent_service.VerifyAgentIDCutoverRequest input, {

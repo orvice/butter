@@ -5,7 +5,6 @@ import {
   ListTodo,
   PanelsTopLeft,
   MessageSquare,
-  MessagesSquare,
   Sparkles,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -56,11 +55,6 @@ export const sidebarData: SidebarData = {
           title: 'Automations',
           url: '/automations',
           icon: CalendarClock,
-        },
-        {
-          title: 'Forum',
-          url: '/forum',
-          icon: MessagesSquare,
         },
       ],
     },

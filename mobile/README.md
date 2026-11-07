@@ -319,7 +319,7 @@ Fixture: `tool/contractserver/dashboard_ops.go` (workspace `ops468`). Contract: 
 
 Agents → **Notify Groups** lists outbound groups and supports CRUD with structured targets (Telegram Destination ID, Lark webhook, Discord webhook). Legacy raw Telegram fields (`bot_token`, `chat_id`, …) are refused on write.
 
-Agents → **Automations** lists workspace automations with structured conditions, ordered steps, trigger/policy fields, manual run (confirmed, never auto-retried), run list and step-run detail. Only **Manual** and **Schedule** triggers are selectable; webhook/forum/channel/daemon triggers appear disabled because the server does not execute them yet.
+Agents → **Automations** lists workspace automations with structured conditions, ordered steps, trigger/policy fields, manual run (confirmed, never auto-retried), run list and step-run detail. Only **Manual** and **Schedule** triggers are selectable; webhook/channel/daemon triggers appear disabled because the server does not execute them yet.
 
 | Operation | API | App entry | Tests |
 | --- | --- | --- | --- |

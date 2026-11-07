@@ -3150,11 +3150,11 @@ type AgentIDCutoverFinding struct {
 	// "agent_id_duplicate", "embedded_sub_agents", "workflow_legacy_agent_ref",
 	// "child_agent_id_unresolved", "workflow_agent_id_unresolved",
 	// "lifecycle_migration_required", "channel_agent_id_missing",
-	// "cron_agent_id_missing", "automation_agent_id_missing",
-	// "forum_agent_id_missing", or "runtime_name_conflict".
+	// "cron_agent_id_missing", "automation_agent_id_missing", or
+	// "runtime_name_conflict".
 	Check string `protobuf:"bytes,2,opt,name=check,proto3" json:"check,omitempty"`
-	// Kind of the offending entity: "agent", "channel", "cron_job",
-	// "automation", or "forum_thread".
+	// Kind of the offending entity: "agent", "channel", "cron_job", or
+	// "automation".
 	EntityKind string `protobuf:"bytes,3,opt,name=entity_kind,json=entityKind,proto3" json:"entity_kind,omitempty"`
 	// Identifier of the offending entity (agent_id or name for agents, record
 	// ID for consumer records).

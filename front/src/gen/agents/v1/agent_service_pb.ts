@@ -1331,16 +1331,16 @@ export type AgentIDCutoverFinding = Message<"agents.v1.AgentIDCutoverFinding"> &
    * "agent_id_duplicate", "embedded_sub_agents", "workflow_legacy_agent_ref",
    * "child_agent_id_unresolved", "workflow_agent_id_unresolved",
    * "lifecycle_migration_required", "channel_agent_id_missing",
-   * "cron_agent_id_missing", "automation_agent_id_missing",
-   * "forum_agent_id_missing", or "runtime_name_conflict".
+   * "cron_agent_id_missing", "automation_agent_id_missing", or
+   * "runtime_name_conflict".
    *
    * @generated from field: string check = 2;
    */
   check: string;
 
   /**
-   * Kind of the offending entity: "agent", "channel", "cron_job",
-   * "automation", or "forum_thread".
+   * Kind of the offending entity: "agent", "channel", "cron_job", or
+   * "automation".
    *
    * @generated from field: string entity_kind = 3;
    */
@@ -4155,7 +4155,7 @@ export const AgentService: GenService<{
    * workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
    * workflow references remain, all child/workflow references resolve, no
    * Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
-   * jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+   * jobs, automations) carry Agent IDs, and no runtime-name
    * conflict violates the runner's naming constraints. Global admins only.
    *
    * @generated from rpc agents.v1.AgentService.VerifyAgentIDCutover

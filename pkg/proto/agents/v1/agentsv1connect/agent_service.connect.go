@@ -322,7 +322,7 @@ type AgentServiceClient interface {
 	// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
 	// workflow references remain, all child/workflow references resolve, no
 	// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
-	// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+	// jobs, automations) carry Agent IDs, and no runtime-name
 	// conflict violates the runner's naming constraints. Global admins only.
 	VerifyAgentIDCutover(context.Context, *connect.Request[v1.VerifyAgentIDCutoverRequest]) (*connect.Response[v1.VerifyAgentIDCutoverResponse], error)
 	// UpdateAgentConfiguration is the composite-save command: it coordinates an
@@ -695,7 +695,7 @@ type AgentServiceHandler interface {
 	// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
 	// workflow references remain, all child/workflow references resolve, no
 	// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
-	// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+	// jobs, automations) carry Agent IDs, and no runtime-name
 	// conflict violates the runner's naming constraints. Global admins only.
 	VerifyAgentIDCutover(context.Context, *connect.Request[v1.VerifyAgentIDCutoverRequest]) (*connect.Response[v1.VerifyAgentIDCutoverResponse], error)
 	// UpdateAgentConfiguration is the composite-save command: it coordinates an

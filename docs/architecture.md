@@ -8,7 +8,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 核心能力：
 
-- 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Notify Group / Agent File / Forum / Cron / Automation / API Token / Invocation / Cron Execution / Automation Run 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
+- 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Notify Group / Agent File / Cron / Automation / API Token / Invocation / Cron Execution / Automation Run 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
 - Agent 配置化：从配置仓库（MongoDB）加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel、Workflow agent。YAML 不是 Agent 的配置入口。
 - 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Cron、Automation schedule、A2A、daemon connector 与 opencode HTTP server 直连。
 - 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
@@ -18,7 +18,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 ## Workspace 多租户模型
 
-所有配置实体（`Agent` / `TelegramChannel` / `TelegramDestination` / legacy `AgentChannel` / `MCPServer` / `RemoteAgent` / `ModelProvider` / `NotifyGroup` / `CronJob` / `Automation` / `APIToken`）、内容实体（`AgentFileSpace` / `AgentFile` / `ForumThread` / `ForumPost`）以及运行时记录（`Invocation` / `CronExecution` / `AutomationRun` / `AutomationStepRun`）都归属于一个 workspace。`Workspace` 自身和 `WorkspaceMember` 由 `WorkspaceService` 管理，持久化为 MongoDB 的 `workspaces` 和 `workspace_members` 集合（`(workspace_id, user_id)` 唯一索引）。
+所有配置实体（`Agent` / `TelegramChannel` / `TelegramDestination` / legacy `AgentChannel` / `MCPServer` / `RemoteAgent` / `ModelProvider` / `NotifyGroup` / `CronJob` / `Automation` / `APIToken`）、内容实体（`AgentFileSpace` / `AgentFile`）以及运行时记录（`Invocation` / `CronExecution` / `AutomationRun` / `AutomationStepRun`）都归属于一个 workspace。`Workspace` 自身和 `WorkspaceMember` 由 `WorkspaceService` 管理，持久化为 MongoDB 的 `workspaces` 和 `workspace_members` 集合（`(workspace_id, user_id)` 唯一索引）。
 
 请求流：
 
@@ -30,7 +30,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 启动时 `application.BootstrapDefaultWorkspace` 检查 `workspaces` 集合是否为空，若为空则自动创建 slug 为 `default` 的 workspace，并把现有所有用户加为 `owner`。
 
-运行时（runner / channel manager / cron scheduler / automation scheduler）通过新增的 `*AcrossWorkspaces` repo 接口拉平所有 workspace 的配置，构建一个全局视图。**在当前阶段 agent 运行时名字仍要求跨 workspace 全局唯一**，但所有 agent 消费方（interactive RPC、channel、cron、automation、forum、A2A、OpenAI 兼容 API）已迁移到不可变的、workspace 内唯一的 **Agent ID**（`agent_id`）作为**唯一引用**（agent_id-only）：调用/绑定 agent 时 `agent_id` 必填，legacy `agent_name` 不再作为输入，仅保留为服务端回写的显示名与历史记录字段。channel、cron job 与 automation step 通过 `ContextInfo.workspace_id` 把所属 workspace 透传到执行链。
+运行时（runner / channel manager / cron scheduler / automation scheduler）通过新增的 `*AcrossWorkspaces` repo 接口拉平所有 workspace 的配置，构建一个全局视图。**在当前阶段 agent 运行时名字仍要求跨 workspace 全局唯一**，但所有 agent 消费方（interactive RPC、channel、cron、automation、A2A、OpenAI 兼容 API）已迁移到不可变的、workspace 内唯一的 **Agent ID**（`agent_id`）作为**唯一引用**（agent_id-only）：调用/绑定 agent 时 `agent_id` 必填，legacy `agent_name` 不再作为输入，仅保留为服务端回写的显示名与历史记录字段。channel、cron job 与 automation step 通过 `ContextInfo.workspace_id` 把所属 workspace 透传到执行链。
 
 ## 进程入口
 
@@ -99,7 +99,7 @@ Workspace Layer
 └── application.WorkspaceServiceServer    # CRUD + memberships
 
 Persistence
-├── MongoDB: session, memory, config, cron, automation, invocations, api_tokens, workspaces, workspace_members, agent files, forum
+├── MongoDB: session, memory, config, cron, automation, invocations, api_tokens, workspaces, workspace_members, agent files
 └── Redis: channel active agent/model selection
 ```
 
@@ -124,7 +124,7 @@ Persistence
 
 **旧 Chat 遗留数据的启动清理（#411，临时）**：每次启动时，`StartChannels` 在后台 goroutine 中以删除模式运行 `internal/maintenance/webchatcleanup`。它与一次性命令 `cmd/butter-delete-web-chat --confirm` 是同一份逻辑，按顺序删除：`web-chat` 会话的 Invocation 的 input parts；这些 Invocation（记录里写明其他 app 的除外）；会话的 events；最后是 `app_name: "web-chat"` 的 `adk_sessions`。多 Pod 时只有拿到 Redis 租约 `butter:maintenance:web-chat-cleanup` 的 Pod 运行它（`redislease.Guard`：TTL 30s，每 TTL/3 续期，丢失租约即取消清理），其余 Pod 跳过；取租约出错时也跳过，留给下次启动。没有 Redis 时只有本进程，直接运行，因为清理是幂等的。整次运行（含取租约）最长 10 分钟，未完成的部分由下次启动继续。它不写完成标记，每次启动都运行：没有剩余数据时只是一次走索引的查询；滚动发布期间旧 Pod 新建的 `web-chat` 会话，在下次重启时删除。按 workspace 与按集合的数量以 `web-chat cleanup:` 为前缀记 Info 日志，错误记 Warn（panic 也只记 Warn），从不阻塞或中断启动。删除 Invocation 会让 dashboard 过往的 Activity 计数下降。`maintenance.delete_web_chat: false` 关闭它。这是项目负责人确认的生产删除方式：在生产上运行过之后，后续版本移除这段启动逻辑和该配置项。
 
-启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation / forum 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
+启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
 
 ## Agent 构建模型
 
@@ -319,7 +319,6 @@ Automation trigger
       -> INVOKE_AGENT: runner.RunTurnSSE(...)  // 返回 TurnResult，携带 Pending Interrupt
       -> CALL_WEBHOOK: HTTP request
       -> SEND_NOTIFY_GROUP: NotifyGroup sender
-      -> CREATE_FORUM_POST: Forum repository/service path
   -> persist AutomationStepRun per executed step
   -> 若 INVOKE_AGENT 暂停于 Human Input Node：AutomationRun(WAITING_INPUT) + session 坐标
   -> 否则 finish AutomationRun(SUCCEEDED / FAILED / SKIPPED / CANCELLED)
@@ -562,7 +561,6 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 - `ModelProviderService`：LLM Provider CRUD。
 - `NotifyGroupService`：通知组 CRUD，供 cron 投递使用。
 - `AgentFileService`：workspace 范围的文件空间与文件 CRUD（含 `SearchAgentFiles`）。
-- `ForumService`：论坛 thread / post 管理（`ListThreads` / `ListThreadLabels` / `GetThread` / `CreateThread` / `UpdateThread` / `DeleteThread` / `CreatePost` / `DeletePost` / `InvokeAgentInThread`）。
 
 运维：
 
@@ -650,7 +648,6 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 - 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemon_runtimes` / legacy `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
 - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`。
 - Skills：`skills`（元数据 + 内容 key，`(workspace_id, name)` 唯一索引）与 `skill_resources`（资源路径索引，`(workspace_id, skill_name, path)` 索引）；`SKILL.md` 正文与资源内容走 `skill.ContentStore`（S3，未配置 bucket 时回退内存）。
-- Forum：`forum_threads` / `forum_posts`。
 - `workspaces`：workspace 元数据，`slug` 唯一索引。
 - `workspace_members`：用户与 workspace 的多对多关系，`(workspace_id, user_id)` 复合唯一索引、`user_id` 普通索引。
 - `users`：dashboard 用户、bcrypt password hash 与全局角色。
@@ -676,7 +673,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 
 ## 前端 Dashboard 与镜像
 
-- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。TanStack Router 路由位于 `front/src/routes/`，资源实现位于 `front/src/features/`；一级页包含 Login、Chat、Forum、Dashboard、Agents、MCP Servers、Remote Agents、Daemons、Telegram Channels/Destinations、Sessions、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Admin 等。
+- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。TanStack Router 路由位于 `front/src/routes/`，资源实现位于 `front/src/features/`；一级页包含 Login、Chat、Dashboard、Agents、MCP Servers、Remote Agents、Daemons、Telegram Channels/Destinations、Sessions、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Admin 等。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）生成到 `front/src/gen/`，运行时类型走 `@bufbuild/protobuf`。
 - 后端镜像：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static + cosign 签名）。
 - 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。
@@ -700,7 +697,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - MCP toolset 当前支持 streamable HTTP 和 SSE transport。
 - A2A remote agent 需要 `url`；daemon remote agent 需要 `daemon_runtime_id`、`acp_runtime` 和在线 daemon runtime 连接。
 - 跨 workspace 共享同一个 runner / channel manager / cron scheduler / automation scheduler，**agent 运行时名字需在所有 workspace 内全局唯一**；引用 agent 的 channel、cron job 与 automation step 通过 `ResolveAgentRef` **仅按 `agent_id`** 解析（无 legacy name 解析路径）。启动时的 Agent-ID verifier 只读检查违规记录并记录 warning，不自动回填或修复；全局管理员可通过 `VerifyAgentIDCutover` 手动运行同一诊断。
-- Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
+- Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
 - 内置 system agent 仍为全局注册，其管理类工具读跨 workspace、写则要求显式传入 `workspace_id`。
 
 ## Work Station（四平台只读预览）

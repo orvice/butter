@@ -42,7 +42,6 @@ type Handlers struct {
 	a2aHandler               *httpHandler.A2AHandler
 	openAIHandler            *httpHandler.OpenAIHandler
 	aguiHandler              *httpHandler.AGUIHandler
-	forumSvcServer           *application.ForumServiceServer
 	agentSvcServer           *application.AgentServiceServer
 	agentFileSvcServer       *application.AgentFileServiceServer
 	skillSvcServer           *application.SkillServiceServer
@@ -85,7 +84,6 @@ type Handlers struct {
 	workspaceMCPSvc          *workspacemcp.Service
 	authRepo                 atomic.Value // auth.Repository
 	apiTokenRepo             atomic.Value // apitoken.Repository
-	forumRepo                atomic.Value // forum.Repository
 	workspaceRepo            atomic.Value // workspace.Repository
 	configStore              *ConfigStore
 	configRuntime            *ConfigRuntime
@@ -252,9 +250,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		}
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
-		if h.forumSvcServer != nil {
-			h.forumSvcServer.SetRunnerService(result.RunnerSvc)
-		}
 	}
 	if result.InvocationRepo != nil {
 		h.agentSvcServer.SetInvocationRepo(result.InvocationRepo)
@@ -292,12 +287,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.MCPAuthResolver != nil {
 		h.mcpSvcServer.SetMCPHTTPClientFactory(result.MCPAuthResolver)
-	}
-	if result.ForumRepo != nil {
-		h.forumRepo.Store(result.ForumRepo)
-		if h.forumSvcServer != nil {
-			h.forumSvcServer.SetRepo(result.ForumRepo)
-		}
 	}
 	if result.LangfuseHost != "" {
 		h.sessionSvcServer.SetLangfuseHost(result.LangfuseHost)
@@ -422,8 +411,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		Channels:    h.configStore,
 		CronJobs:    result.CronJobRepo,
 		Automations: result.AutomationDefRepo,
-		Forum:       result.ForumRepo,
-		Workspaces:  result.WorkspaceRepo,
 	}
 	if result.RunnerSvc != nil {
 		cutoverSources.ReservedName = result.RunnerSvc.IsReservedAgentName
@@ -718,8 +705,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	// connected_daemons / base_url / space_id without camelCase fallbacks
 	// silently see undefined.
 	connectOpts := connectx.HandlerOptions()
-	forumSvcServer := application.NewForumServiceServer(nil)
-	forumConnectPath, forumConnectHandler := agentsv1connect.NewForumServiceHandler(forumSvcServer, connectOpts...)
 	agentConnectPath, agentConnectHandler := agentsv1connect.NewAgentServiceHandler(agentSvcServer, connectOpts...)
 	agentFileConnectPath, agentFileConnectHandler := agentsv1connect.NewAgentFileServiceHandler(agentFileSvcServer, connectOpts...)
 	skillConnectPath, skillConnectHandler := agentsv1connect.NewSkillServiceHandler(skillSvcServer, connectOpts...)
@@ -805,7 +790,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		a2aHandler:               a2aHandler,
 		openAIHandler:            openAIHandler,
 		aguiHandler:              aguiHandler,
-		forumSvcServer:           forumSvcServer,
 		agentSvcServer:           agentSvcServer,
 		agentFileSvcServer:       agentFileSvcServer,
 		skillSvcServer:           skillSvcServer,
@@ -874,7 +858,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+remoteConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", remoteConnectHandler)))
 		r.Any("/api"+automationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", automationConnectHandler)))
 		r.Any("/api"+channelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", channelConnectHandler)))
-		r.Any("/api"+forumConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", forumConnectHandler)))
 		r.Any("/api"+agentFileConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", agentFileConnectHandler)))
 		r.Any("/api"+skillConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", skillConnectHandler)))
 		r.Any("/api"+sessionConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", sessionConnectHandler)))

@@ -77,7 +77,7 @@ display name lives in `display_name` and never participates in lookup.
 
 `agent_id` is **required** wherever an agent is invoked or bound —
 `InvokeAgent`, `StreamAgent`, `ReplySession`, channel / cron / automation
-create-update, forum threads and `InvokeAgentInThread`, the A2A endpoints, and
+create-update, the A2A endpoints, and
 the OpenAI-compatible API. A missing `agent_id` fails with `invalid_argument`
 ("agent_id is required"); an id that matches no agent fails with `not_found` —
 there is never a fallback to the name.
@@ -91,7 +91,7 @@ execution history carries `agent_name` as a display snapshot, and
 `ListAgentInvocations` still accepts a legacy name filter for those
 historical rows.
 
-Consumer records (channels, cron jobs, automations, forum threads) must carry
+Consumer records (channels, cron jobs, automations) must carry
 an `agent_id`; the read-only cutover verifier (`VerifyAgentIDCutover`, also
 run non-fatally at startup) reports any record that still references an agent
 only by legacy name instead of silently rewriting it.
@@ -266,7 +266,7 @@ composite or Workflow root still drives memory for the whole tree.
 
 Every mem0 failure degrades to "no memory" and never fails a turn.
 **Workspace Memory is shared** by every member, entry point (dashboard, API,
-OpenAI-compatible API, AG-UI, A2A, Telegram, cron, automation, forum), and
+OpenAI-compatible API, AG-UI, A2A, Telegram, cron, automation), and
 memory-enabled Agent of the workspace. Anyone who can talk to a
 memory-enabled Agent can therefore influence what the others recall. This
 includes everyone who can reach a Telegram Bot whose Destination has an empty
@@ -532,7 +532,6 @@ The header is required for most methods on these app-facing services:
 | `ChannelService` | **Deprecated.** Legacy generic channels: read and delete only |
 | `AutomationService` | Workspace automation definitions, runs, and step runs |
 | `CronJobService` | Workspace cron jobs and executions |
-| `ForumService` | Workspace forum threads/posts and agent replies |
 | `APITokenService` | Tokens are listed within the selected workspace; only owners/admins create or revoke them |
 | `DaemonService` | Workspace daemon configs, credentials, online daemon/task views |
 | `GitHostService` | Platform Git endpoint allowlist |
@@ -2325,15 +2324,15 @@ workspace. Global admins only; no workspace header required. Reports each
 record that still violates the agent_id contract: missing/invalid/duplicate
 Agent IDs, embedded `sub_agents`, legacy name-based workflow node refs,
 unresolved `child_agent_ids`/workflow refs, `MIGRATION_REQUIRED` lifecycle,
-consumer records (channels, cron jobs, automations, forum threads) without
+consumer records (channels, cron jobs, automations) without
 Agent IDs, and runtime-name conflicts.
 
 **Request:** `{}`
 
 **Response:** `{ "passed": bool, "findings": AgentIDCutoverFinding[] }` —
 each finding carries `workspace_id`, a machine-readable `check`,
-`entity_kind` (`agent`, `channel`, `cron_job`, `automation`,
-`forum_thread`), the offending `entity` identifier, and a human-readable
+`entity_kind` (`agent`, `channel`, `cron_job`, `automation`), the offending
+`entity` identifier, and a human-readable
 `detail`.
 
 The migration-era RPCs `AssignAgentID`, `GetMigrationReadiness`, and
@@ -4006,7 +4005,7 @@ auto-generation from overwriting user-chosen names.
 
 Manages workspace-scoped automation workflows. An automation has one trigger,
 optional conditions, ordered steps, and an execution policy. Manual and schedule
-triggers execute in the current implementation; webhook/forum/channel/daemon
+triggers execute in the current implementation; webhook/channel/daemon
 trigger shapes are reserved for follow-up event routing.
 
 #### ListAutomations
@@ -4050,7 +4049,7 @@ resolved at execution time against the same roots conditions read — `payload`
 and `steps.<name>` (the parsed output of every earlier step; an invoke_agent
 step exposes `steps.<name>.response`). Templated fields: `invoke_agent.input`,
 `call_webhook.url` / `payload_json` / header values, `send_notify_group.title`
-/ `message`, and `create_forum_post.body`. Inside `payload_json`, use the
+/ `message`. Inside `payload_json`, use the
 `{{ selector | json }}` filter so string values stay valid JSON. A placeholder
 whose selector resolves to nothing fails the step explicitly.
 
@@ -4188,11 +4187,11 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | enum | `MANUAL`, `SCHEDULE`, plus reserved `WEBHOOK`, `FORUM_EVENT`, `CHANNEL_EVENT`, `DAEMON_EVENT` |
+| `type` | enum | `MANUAL`, `SCHEDULE`, plus reserved `WEBHOOK`, `CHANNEL_EVENT`, `DAEMON_EVENT` |
 | `schedule.schedule` | string | Cron expression or predefined schedule for schedule triggers |
 | `schedule.timezone` | string | IANA timezone; defaults to UTC |
 | `webhook.token` | string | Reserved stable token for webhook routing |
-| `event.event_type` | string | Reserved event kind such as `forum.post.created` |
+| `event.event_type` | string | Reserved event kind such as `daemon.task.failed` |
 | `event.filters` | map\<string,string\> | Reserved event filters |
 
 #### AutomationCondition Object
@@ -4208,11 +4207,10 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Stable step name recorded in step-run history |
-| `type` | enum | `INVOKE_AGENT`, `CALL_WEBHOOK`, `SEND_NOTIFY_GROUP`, `CREATE_FORUM_POST` |
+| `type` | enum | `INVOKE_AGENT`, `CALL_WEBHOOK`, `SEND_NOTIFY_GROUP` |
 | `invoke_agent` | object | `agent_id` (**required**), `input`, optional `model_override`. `agent_id` is validated against the workspace on write and the resolved runtime name is stamped into `agent_name` for display; legacy `agent_name` is not accepted as an input, and an unknown `agent_id` fails validation |
 | `call_webhook` | object | `url`, `method`, `payload_json`, `headers` |
 | `send_notify_group` | object | `notify_group_name`, `title`, `message` |
-| `create_forum_post` | object | `thread_id`, `body` |
 | `policy` | AutomationPolicy | Optional step-level overrides |
 
 #### AutomationPolicy Object
@@ -4944,31 +4942,6 @@ POST /api/agents.v1.WorkspaceService/RemoveWorkspaceMember
 | `user_id` | string |  |
 | `role` | string | `owner` / `admin` / `member` |
 | `created_at` | timestamp |  |
-
----
-
-### ForumService
-
-Manages forum threads and posts within a workspace. Requires `X-Workspace-ID`.
-
-| RPC | Path | Notes |
-|-----|------|-------|
-| `ListThreads` | `POST /api/agents.v1.ForumService/ListThreads` | Paginated; filter by label |
-| `ListThreadLabels` | `POST /api/agents.v1.ForumService/ListThreadLabels` | Labels in use across threads |
-| `GetThread` | `POST /api/agents.v1.ForumService/GetThread` | Includes posts |
-| `CreateThread` | `POST /api/agents.v1.ForumService/CreateThread` | Creates thread with optional initial post |
-| `UpdateThread` | `POST /api/agents.v1.ForumService/UpdateThread` | Updates title/labels |
-| `DeleteThread` | `POST /api/agents.v1.ForumService/DeleteThread` | Deletes thread and all posts |
-| `CreatePost` | `POST /api/agents.v1.ForumService/CreatePost` | Appends a post to a thread |
-| `DeletePost` | `POST /api/agents.v1.ForumService/DeletePost` | Deletes a single post |
-| `InvokeAgentInThread` | `POST /api/agents.v1.ForumService/InvokeAgentInThread` | Invokes an agent in thread context |
-
-Agents are referenced by Agent ID throughout: `ForumThread.agent_ids` and
-`ForumPost.author_agent_id` carry the immutable IDs. Create/Update thread take
-`agent_ids` and `InvokeAgentInThread` **requires** `agent_id`; `agent_names` is
-no longer an input. The service resolves each id, stamps the runtime name into
-the read-only `agent_names` / `agent_name` output fields, and skips any id that
-does not resolve.
 
 ---
 
