@@ -75,6 +75,9 @@ import (
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
+	planedeliverymongo "go.orx.me/apps/butter/internal/repo/planedelivery/mongo"
+	planedeliveryrepo "go.orx.me/apps/butter/internal/runtime/plane"
+
 	planememory "go.orx.me/apps/butter/internal/repo/plane/memory"
 	planemongo "go.orx.me/apps/butter/internal/repo/plane/mongo"
 	planeinstallationrepo "go.orx.me/apps/butter/internal/repo/planeinstallation"
@@ -170,20 +173,24 @@ type BootstrapResult struct {
 	PlaneInstallationRepo  planeinstallationrepo.Repository
 	PlaneProcessingRepo    planeprocessingrepo.Repository
 	PlaneInstallStateRepo  planestaterepo.Repository
+	PlaneDeliveryStore     planedeliveryrepo.DeliveryStore
+	PlaneActivityClient    planedeliveryrepo.ActivityClient
+	PlaneWorker            *planedeliveryrepo.Worker
 	PlaneSettingRepo       planesettingrepo.Repository
-	CryptoKeyRepo          cryptokeyrepo.Repository
-	RepoCacheRepo          repocache.Repository
-	AgentContentRepo       agentcontentrepo.Repository
-	AgentOperationRepo     agentoprepo.Repository
-	SkillRepo              skillrepo.Repository
-	SkillMDMaxBytes        int64
-	SkillResourceMaxCount  int
-	LangfuseHost           string
-	SessionCounter         func(ctx context.Context) (int64, error)
-	SessionTitleStore      application.SessionTitleStore
-	SessionWSStore         application.WorkspaceSessionStore
-	SessionReadStore       application.SessionReadStore
-	ChatTitleModel         string
+
+	CryptoKeyRepo         cryptokeyrepo.Repository
+	RepoCacheRepo         repocache.Repository
+	AgentContentRepo      agentcontentrepo.Repository
+	AgentOperationRepo    agentoprepo.Repository
+	SkillRepo             skillrepo.Repository
+	SkillMDMaxBytes       int64
+	SkillResourceMaxCount int
+	LangfuseHost          string
+	SessionCounter        func(ctx context.Context) (int64, error)
+	SessionTitleStore     application.SessionTitleStore
+	SessionWSStore        application.WorkspaceSessionStore
+	SessionReadStore      application.SessionReadStore
+	ChatTitleModel        string
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -633,6 +640,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		logger.Info("agent-id cutover verifier passed")
 	}
 
+	planeDeliveryStore := planedeliverymongo.New(db)
+	if err := planeDeliveryStore.EnsureIndexes(ctx); err != nil {
+		return nil, err
+	}
 	return &BootstrapResult{
 		RunnerSvc:              runnerSvc,
 		SessionSvc:             sessionSvc,
@@ -675,19 +686,21 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LinearStateRepo:        linearStateRepo,
 		LinearProcessingRepo:   linearProcessingRepo,
 		PlaneRepo:              planeRepo,
-		PlaneProcessingRepo:    planeProcessingRepo,
-		PlaneInstallStateRepo:  planeInstallStateRepo,
-		PlaneSettingRepo:       planeSettingRepo,
-		CryptoKeyRepo:          cryptoKeyRepo,
-		RepoCacheRepo:          cacheRepo,
-		AgentContentRepo:       contentRepo,
-		AgentOperationRepo:     agentOpRepo,
-		SkillRepo:              skillRepo,
-		SkillMDMaxBytes:        cfg.Skills.EffectiveMaxSkillMDBytes(),
-		SkillResourceMaxCount:  cfg.Skills.EffectiveMaxResourcesPerSkill(),
-		AgentFileMaxBytes:      cfg.AgentFiles.EffectiveMaxFileBytes(),
-		LangfuseHost:           cfg.Langfuse.Host,
-		SessionCounter:         sessionSvc.CountSessions,
-		ChatTitleModel:         cfg.ChatTitleModel,
+		PlaneDeliveryStore:     planeDeliveryStore,
+
+		PlaneProcessingRepo:   planeProcessingRepo,
+		PlaneInstallStateRepo: planeInstallStateRepo,
+		PlaneSettingRepo:      planeSettingRepo,
+		CryptoKeyRepo:         cryptoKeyRepo,
+		RepoCacheRepo:         cacheRepo,
+		AgentContentRepo:      contentRepo,
+		AgentOperationRepo:    agentOpRepo,
+		SkillRepo:             skillRepo,
+		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
+		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),
+		AgentFileMaxBytes:     cfg.AgentFiles.EffectiveMaxFileBytes(),
+		LangfuseHost:          cfg.Langfuse.Host,
+		SessionCounter:        sessionSvc.CountSessions,
+		ChatTitleModel:        cfg.ChatTitleModel,
 	}, nil
 }
