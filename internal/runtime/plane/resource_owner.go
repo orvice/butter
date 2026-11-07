@@ -7,6 +7,10 @@ import (
 	"sync"
 )
 
+type CloseFunc func() error
+
+func (f CloseFunc) Close() error { return f() }
+
 // PlaneResourceOwner is the application boundary for Plane runtime resources.
 // It owns lifecycle only; construction remains fail-closed in PlaneRuntimeFactory.
 type PlaneResourceOwner struct {

@@ -129,16 +129,12 @@ func (c *ActivityHTTPClient) createActivity(ctx context.Context, a ActivityReque
 	}
 	return ActivityResult{ID: out.ID, Status: res.StatusCode}, nil
 }
-func classifyActivityStatus(status int, body []byte) error {
-	msg := strings.TrimSpace(string(body))
-	if len(msg) > 256 {
-		msg = msg[:256]
-	}
+func classifyActivityStatus(status int, _ []byte) error {
 	kind := DeliveryPermanentFailure
 	if status == 408 || status == 409 || status == 429 || (status >= 500 && status <= 599) {
 		kind = DeliveryRetryable
 	}
-	return &activityError{kind: kind, status: status, err: fmt.Errorf("plane activity http %d: %s", status, msg)}
+	return &activityError{kind: kind, status: status, err: fmt.Errorf("plane activity http status %d", status)}
 }
 func (c *ActivityHTTPClient) ListActivities(ctx context.Context, q ActivityQuery) ([]Activity, error) {
 	if c == nil || c.Token == nil {

@@ -596,7 +596,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		}
 		h.agentSvcServer.SetPlaneGuard(application.NewPlaneReferenceGuard(result.PlaneRepo))
 		if h.planeReceiver != nil && result.Redis != nil && result.PlaneInstallationRepo != nil {
-			h.planeReceiver.receiver.Store(planeruntime.NewReceiver(result.PlaneRepo, result.PlaneInstallationRepo, planeKeyring, planeruntime.NewQueue(result.Redis)))
+			r := planeruntime.NewReceiver(result.PlaneRepo, result.PlaneInstallationRepo, planeKeyring, planeruntime.NewQueue(result.Redis))
+			r.SetProcessingRepo(result.PlaneProcessingRepo)
+			h.planeReceiver.receiver.Store(r)
 		}
 	}
 	if h.planeAdminSvcServer != nil && result.PlaneSettingRepo != nil {

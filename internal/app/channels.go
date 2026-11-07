@@ -207,6 +207,7 @@ func (r *BootstrapResult) Close(ctx context.Context) error {
 	}
 	if r.PlaneResources != nil {
 		r.PlaneResources.Stop()
+		return nil
 	}
 	if r.Redis != nil {
 		_ = r.Redis.Close()
@@ -692,7 +693,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		_ = db.Client().Disconnect(ctx)
 		return nil, err
 	}
-	owner := planedeliveryrepo.NewPlaneResourceOwner(planedeliveryrepo.NewRuntimeCoordinator(runtime))
+	owner := planedeliveryrepo.NewPlaneResourceOwner(planedeliveryrepo.NewRuntimeCoordinator(runtime), rdb, planedeliveryrepo.CloseFunc(func() error { return db.Client().Disconnect(context.Background()) }))
 	if err := owner.Start(ctx); err != nil {
 		owner.Stop()
 		_ = rdb.Close()
@@ -744,20 +745,23 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		PlaneDeliveryStore:     planeDeliveryStore,
 		PlaneProgressStore:     stores.Progress,
 		PlaneDiagnosticStore:   stores.Diagnostics,
-
-		PlaneProcessingRepo:   planeProcessingRepo,
-		PlaneInstallStateRepo: planeInstallStateRepo,
-		PlaneSettingRepo:      planeSettingRepo,
-		CryptoKeyRepo:         cryptoKeyRepo,
-		RepoCacheRepo:         cacheRepo,
-		AgentContentRepo:      contentRepo,
-		AgentOperationRepo:    agentOpRepo,
-		SkillRepo:             skillRepo,
-		SkillMDMaxBytes:       cfg.Skills.EffectiveMaxSkillMDBytes(),
-		SkillResourceMaxCount: cfg.Skills.EffectiveMaxResourcesPerSkill(),
-		AgentFileMaxBytes:     cfg.AgentFiles.EffectiveMaxFileBytes(),
-		LangfuseHost:          cfg.Langfuse.Host,
-		SessionCounter:        sessionSvc.CountSessions,
-		ChatTitleModel:        cfg.ChatTitleModel,
+		PlaneResources:         owner,
+		PlaneRuntime:           runtime,
+		PlaneActivityClient:    activityClient,
+		PlaneWorker:            runtime.Worker,
+		PlaneProcessingRepo:    planeProcessingRepo,
+		PlaneInstallStateRepo:  planeInstallStateRepo,
+		PlaneSettingRepo:       planeSettingRepo,
+		CryptoKeyRepo:          cryptoKeyRepo,
+		RepoCacheRepo:          cacheRepo,
+		AgentContentRepo:       contentRepo,
+		AgentOperationRepo:     agentOpRepo,
+		SkillRepo:              skillRepo,
+		SkillMDMaxBytes:        cfg.Skills.EffectiveMaxSkillMDBytes(),
+		SkillResourceMaxCount:  cfg.Skills.EffectiveMaxResourcesPerSkill(),
+		AgentFileMaxBytes:      cfg.AgentFiles.EffectiveMaxFileBytes(),
+		LangfuseHost:           cfg.Langfuse.Host,
+		SessionCounter:         sessionSvc.CountSessions,
+		ChatTitleModel:         cfg.ChatTitleModel,
 	}, nil
 }
