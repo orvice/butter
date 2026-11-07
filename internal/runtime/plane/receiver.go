@@ -134,7 +134,7 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 			return "", ErrIdentity
 		}
 	}
-	e := &Event{WorkspaceID: app.GetWorkspaceId(), AppID: app.GetId(), InstallationID: inst.GetId(), PlaneInstallationID: inst.GetAppInstallationId(), PlaneWorkspaceID: inst.GetPlaneWorkspaceId(), BotUserID: inst.GetAppBotUserId(), AgentRunID: p.Run.ID, ActivityID: p.Activity.ID, Type: p.Type, Action: p.Action, DeliveryID: headers.Get(DeliveryHeader), EventHeader: headers.Get(EventHeader), ReceivedAt: r.now().UnixMilli(), Raw: append([]byte(nil), body...)}
+	e := &Event{WorkspaceID: app.GetWorkspaceId(), AppID: app.GetId(), InstallationID: inst.GetId(), PlaneInstallationID: inst.GetAppInstallationId(), PlaneWorkspaceID: inst.GetPlaneWorkspaceId(), BotUserID: inst.GetAppBotUserId(), AgentRunID: p.Run.ID, ActivityID: p.Activity.ID, Prompt: p.Prompt, Type: p.Type, Action: p.Action, DeliveryID: headers.Get(DeliveryHeader), EventHeader: headers.Get(EventHeader), ReceivedAt: r.now().UnixMilli(), Raw: append([]byte(nil), body...)}
 	if e.ActivityID == "" {
 		e.ActivityID = e.AgentRunID + ":" + e.Action
 	}
@@ -160,13 +160,14 @@ func validSignature(secret []byte, encoded string, body []byte) bool {
 }
 
 type webhookPayload struct {
-	Type, Action, AppClientID, AppInstallationID, AgentUserID, WorkspaceID string
-	Run                                                                    struct{ ID, WorkspaceID string }
-	Activity                                                               struct{ ID string }
+	Prompt, Type, Action, AppClientID, AppInstallationID, AgentUserID, WorkspaceID string
+	Run                                                                            struct{ ID, WorkspaceID string }
+	Activity                                                                       struct{ ID string }
 }
 
 func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 	var raw struct {
+		Prompt            string                           `json:"prompt"`
 		Type              string                           `json:"type"`
 		Action            string                           `json:"action"`
 		AppClientID       string                           `json:"app_client_id"`
@@ -182,7 +183,7 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	p.Type, p.Action, p.AppClientID, p.AppInstallationID, p.AgentUserID, p.WorkspaceID = raw.Type, raw.Action, raw.AppClientID, raw.AppInstallationID, raw.AgentUserID, raw.WorkspaceID
-	p.Run = raw.AgentRun
+	p.Prompt, p.Type, p.Action, p.AppClientID, p.AppInstallationID, p.AgentUserID, p.WorkspaceID = raw.Prompt, raw.Type, raw.Action, raw.AppClientID, raw.AppInstallationID, raw.AgentUserID, raw.WorkspaceID
 	if p.Run.ID == "" {
 		p.Run = raw.Run
 	}
@@ -207,6 +208,7 @@ type Event struct {
 	DeliveryID          string `json:"delivery_id"`
 	EventHeader         string `json:"event_header"`
 	ReceivedAt          int64  `json:"received_at"`
+	Prompt              string `json:"prompt"`
 	Raw                 []byte `json:"raw"`
 }
 
