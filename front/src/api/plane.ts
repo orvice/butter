@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+import {
   PlaneAdminService,
   PlaneAppService,
   type PlaneApp,
+  type PlaneInstallation,
   type GetPlaneSettingsResponse,
   type PlaneProviderProfile,
 } from '@/gen/agents/v1/plane_pb'
@@ -11,7 +13,7 @@ import { makeClient } from './transport'
 const appClient = makeClient(PlaneAppService)
 const adminClient = makeClient(PlaneAdminService)
 
-export const PLANE_APPS_KEY = ['plane-apps'] as const
+export const PLANE_INSTALLATIONS_KEY = ['plane-installations'] as const
 const PLANE_SETTINGS_KEY = ['plane-settings'] as const
 const PLANE_PROFILE_KEY = ['plane-provider-profile'] as const
 
@@ -102,7 +104,17 @@ export function usePlaneApps() {
   })
 }
 
-export function usePlaneApp(id: string | undefined) {
+export function usePlaneInstallations(appId: string | undefined) {
+  return useQuery({
+    queryKey: [...PLANE_INSTALLATIONS_KEY, appId],
+    enabled: Boolean(appId),
+    queryFn: async (): Promise<PlaneInstallation[]> => {
+      const res = await appClient.listPlaneInstallations({ appId: appId! })
+      return res.installations
+    },
+  })
+}
+
   return useQuery({
     queryKey: [...PLANE_APPS_KEY, id],
     enabled: Boolean(id),
