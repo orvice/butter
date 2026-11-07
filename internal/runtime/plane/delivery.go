@@ -47,6 +47,7 @@ type DeliveryAuditStore interface {
 	ListAll(context.Context) ([]*DeliveryAttempt, error)
 }
 type RetryableError interface{ Retryable() bool }
+type DeliveryClassifier interface{ DeliveryStatus() DeliveryStatus }
 type DurablePublisher struct {
 	target ReplyPublisher
 	store  DeliveryStore
@@ -118,7 +119,20 @@ func (p *DurablePublisher) PublishReply(ctx context.Context, e *Event, reply str
 		return p.store.Put(ctx, row)
 	}
 	row.LastError = safeDeliveryError(err)
-	if r, ok := err.(RetryableError); ok && r.Retryable() {
+	if r, ok := err.(DeliveryClassifier); ok {
+		switch r.DeliveryStatus() {
+		case DeliveryRetryable:
+			if row.Attempts >= maxAutomaticDeliveryAttempts {
+				row.Status = DeliveryUnknown
+			} else {
+				row.Status = DeliveryRetryable
+			}
+		case DeliveryUnknown:
+			row.Status = DeliveryUnknown
+		default:
+			row.Status = DeliveryPermanentFailure
+		}
+	} else if r, ok := err.(RetryableError); ok && r.Retryable() {
 		if row.Attempts >= maxAutomaticDeliveryAttempts {
 			row.Status = DeliveryUnknown
 		} else {
