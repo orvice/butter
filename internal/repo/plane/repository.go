@@ -57,6 +57,7 @@ type CredentialChange struct {
 type Repository interface {
 	EnsureIndexes(ctx context.Context) error
 
+	FindAppByID(ctx context.Context, id string) (*agentsv1.PlaneApp, error)
 	ListApps(ctx context.Context, workspaceID string) ([]*agentsv1.PlaneApp, error)
 	GetApp(ctx context.Context, workspaceID, id string) (*agentsv1.PlaneApp, error)
 

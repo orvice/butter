@@ -53,6 +53,16 @@ func (s *Store) ListApps(_ context.Context, workspaceID string) ([]*agentsv1.Pla
 	return out, nil
 }
 
+func (s *Store) FindAppByID(_ context.Context, id string) (*agentsv1.PlaneApp, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rec, ok := s.records[id]
+	if !ok {
+		return nil, planerepo.ErrNotFound
+	}
+	return materialize(rec), nil
+}
+
 func (s *Store) GetApp(_ context.Context, workspaceID, id string) (*agentsv1.PlaneApp, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -136,6 +136,13 @@ func (s *Store) ListApps(ctx context.Context, workspaceID string) ([]*agentsv1.P
 	return out, nil
 }
 
+func (s *Store) FindAppByID(ctx context.Context, id string) (*agentsv1.PlaneApp, error) {
+	var doc appDoc
+	if err := s.apps.FindOne(ctx, bson.M{"_id": id}).Decode(&doc); err != nil {
+		return nil, mapError(id, err)
+	}
+	return decode(doc)
+}
 func (s *Store) GetApp(ctx context.Context, workspaceID, id string) (*agentsv1.PlaneApp, error) {
 	var doc appDoc
 	if err := s.apps.FindOne(ctx, bson.M{"_id": id, "workspace_id": workspaceID}).Decode(&doc); err != nil {

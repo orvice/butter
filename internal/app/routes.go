@@ -24,6 +24,7 @@ import (
 	linearruntime "go.orx.me/apps/butter/internal/runtime/linear"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryconn"
+	planeruntime "go.orx.me/apps/butter/internal/runtime/plane"
 	"go.orx.me/apps/butter/internal/runtime/runlog"
 	"go.orx.me/apps/butter/internal/runtime/runstate"
 	"go.orx.me/apps/butter/internal/runtime/sessionguard"
@@ -76,27 +77,29 @@ type Handlers struct {
 	linearAdminSvcServer     *application.LinearAdminServiceServer
 	linearProcSvcServer      *application.LinearProcessingServiceServer
 	planeAppSvcServer        *application.PlaneAppServiceServer
-	planeAdminSvcServer      *application.PlaneAdminServiceServer
-	linearReceiver           linearReceiverHolder
-	linearWorker             *linearruntime.Worker
-	tgReceiver               atomic.Value // *telegram.Receiver
-	tgReconciler             *telegramruntime.Reconciler
-	tgWorker                 *telegramruntime.Worker
-	tgPoller                 *telegramruntime.Poller
-	workspaceMCPSvc          *workspacemcp.Service
-	authRepo                 atomic.Value // auth.Repository
-	apiTokenRepo             atomic.Value // apitoken.Repository
-	workspaceRepo            atomic.Value // workspace.Repository
-	configStore              *ConfigStore
-	configRuntime            *ConfigRuntime
-	agentRepo                configrepo.AgentRepository
-	mcpServerRepo            configrepo.MCPServerRepository
-	modelProviderRepo        configrepo.ModelProviderRepository
-	notifyGroupRepo          configrepo.NotifyGroupRepository
-	remoteAgentRepo          configrepo.RemoteAgentRepository
-	channelRepo              configrepo.ChannelRepository
-	cfg                      *config.AppConfig
-	reconciler               *Reconciler
+	planeReceiver            *planeReceiverHolder
+
+	planeAdminSvcServer *application.PlaneAdminServiceServer
+	linearReceiver      linearReceiverHolder
+	linearWorker        *linearruntime.Worker
+	tgReceiver          atomic.Value // *telegram.Receiver
+	tgReconciler        *telegramruntime.Reconciler
+	tgWorker            *telegramruntime.Worker
+	tgPoller            *telegramruntime.Poller
+	workspaceMCPSvc     *workspacemcp.Service
+	authRepo            atomic.Value // auth.Repository
+	apiTokenRepo        atomic.Value // apitoken.Repository
+	workspaceRepo       atomic.Value // workspace.Repository
+	configStore         *ConfigStore
+	configRuntime       *ConfigRuntime
+	agentRepo           configrepo.AgentRepository
+	mcpServerRepo       configrepo.MCPServerRepository
+	modelProviderRepo   configrepo.ModelProviderRepository
+	notifyGroupRepo     configrepo.NotifyGroupRepository
+	remoteAgentRepo     configrepo.RemoteAgentRepository
+	channelRepo         configrepo.ChannelRepository
+	cfg                 *config.AppConfig
+	reconciler          *Reconciler
 }
 
 // Authenticate implements httpHandler.TelegramReceiver. The public callback
@@ -591,6 +594,9 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.planeAppSvcServer.SetProfileProvider(planeProfileProvider(h.cfg))
 		}
 		h.agentSvcServer.SetPlaneGuard(application.NewPlaneReferenceGuard(result.PlaneRepo))
+		if h.planeReceiver != nil && result.Redis != nil && result.PlaneInstallationRepo != nil {
+			h.planeReceiver.receiver.Store(planeruntime.NewReceiver(result.PlaneRepo, result.PlaneInstallationRepo, planeKeyring, planeruntime.NewQueue(result.Redis)))
+		}
 	}
 	if h.planeAdminSvcServer != nil && result.PlaneSettingRepo != nil {
 		h.planeAdminSvcServer.SetRepo(result.PlaneSettingRepo)
@@ -849,6 +855,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		linearAdminSvcServer:     linearAdminSvcServer,
 		linearProcSvcServer:      linearProcSvcServer,
 		planeAppSvcServer:        planeAppSvcServer,
+		planeReceiver:            &planeReceiverHolder{},
 		planeAdminSvcServer:      planeAdminSvcServer,
 		workspaceMCPSvc:          workspaceMCPSvc,
 		configStore:              configStore,
@@ -921,6 +928,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		// single-use install state (ADR-0015).
 		httpHandler.NewLinearOAuthHandler(linearAppSvcServer).Register(r)
 		httpHandler.NewPlaneOAuthHandler(planeAppSvcServer).Register(r)
+		httpHandler.NewPlaneWebhookHandler(handlers.planeReceiver).Register(r)
 		// The Linear webhook is public and signed by Linear (ADR-0015).
 		httpHandler.NewLinearWebhookHandler(&handlers.linearReceiver).Register(r)
 
