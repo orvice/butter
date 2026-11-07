@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"butterfly.orx.me/core/log"
@@ -18,6 +19,7 @@ import (
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/mcpoauth"
+	"go.orx.me/apps/butter/internal/planeapi"
 	"go.orx.me/apps/butter/internal/redislease"
 	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
 	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
@@ -179,6 +181,7 @@ type BootstrapResult struct {
 	PlaneProgressStore     planediagnosticrepo.ProgressSink
 	PlaneDiagnosticStore   planediagnosticrepo.DiagnosticStore
 	PlaneResources         *planedeliveryrepo.PlaneResourceOwner
+	PlaneRuntime           *planedeliveryrepo.PlaneRuntime
 	PlaneActivityClient    planedeliveryrepo.ActivityClient
 	PlaneWorker            *planedeliveryrepo.Worker
 	PlaneSettingRepo       planesettingrepo.Repository
@@ -667,6 +670,33 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	}
 	stores, err := planediagfactory.New(ctx, db)
 	if err != nil {
+		return nil, err
+	}
+	profile, err := planeProfileProvider(cfg)()
+	if err != nil {
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
+		return nil, err
+	}
+	if profile.APIBaseURL == "" {
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
+		return nil, fmt.Errorf("plane activity API credential is missing")
+	}
+	tokenSource := &planedeliveryrepo.InstallationTokenSource{Apps: planeRepo, Installations: planeInstallationRepo, Keyring: secretbox.NewKeyring(cryptoKeyRepo), Client: planeapi.NewClient(http.DefaultClient, profile), FencedLease: &planedeliveryrepo.RedisFencedTokenLease{Client: rdb, Prefix: "butter:"}, Owner: live.instanceID}
+	activityClient := planedeliveryrepo.NewActivityHTTPClient(profile.APIBaseURL, http.DefaultClient, tokenSource.Token)
+	lease := &planedeliveryrepo.RedisFencedTokenLease{Client: rdb, Prefix: "butter:"}
+	runtime, err := (planedeliveryrepo.PlaneRuntimeFactory{}).Build(planedeliveryrepo.PlaneRuntimeDependencies{Queue: planedeliveryrepo.NewQueue(rdb), Resolver: scopedPlaneResolver{apps: planeRepo, installations: planeInstallationRepo}, Runner: runnerSvc, Activity: activityClient, Token: tokenSource.Token, Delivery: planeDeliveryStore, Processing: planeProcessingRepo.(planeprocessingrepo.ClaimRepository), Progress: stores.Progress, Diagnostics: stores.Diagnostics, TokenLease: lease, Consumer: live.instanceID})
+	if err != nil {
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
+		return nil, err
+	}
+	owner := planedeliveryrepo.NewPlaneResourceOwner(planedeliveryrepo.NewRuntimeCoordinator(runtime))
+	if err := owner.Start(ctx); err != nil {
+		owner.Stop()
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
 		return nil, err
 	}
 	return &BootstrapResult{
