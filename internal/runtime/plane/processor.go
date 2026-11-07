@@ -46,21 +46,32 @@ type StopAudit struct {
 	Attempts int
 }
 type Processor struct {
-	runner    Runner
-	publisher ReplyPublisher
-	progress  ProgressSink
-	mu        sync.Mutex
-	active    map[string]struct{}
-	cancels   map[string]context.CancelFunc
-	states    map[string]RunState
-	seen      map[string]struct{}
-	maxReply  int
+	runner      Runner
+	publisher   ReplyPublisher
+	progress    ProgressSink
+	diagnostics DiagnosticStore
+	mu          sync.Mutex
+	active      map[string]struct{}
+	cancels     map[string]context.CancelFunc
+	states      map[string]RunState
+	seen        map[string]struct{}
+	maxReply    int
 }
 
 func NewProcessor(r Runner, p ReplyPublisher) *Processor {
 	return &Processor{runner: r, publisher: p, active: map[string]struct{}{}, cancels: map[string]context.CancelFunc{}, states: map[string]RunState{}, seen: map[string]struct{}{}, maxReply: 500}
 }
-func (p *Processor) SetProgressSink(s ProgressSink) { p.progress = s }
+func (p *Processor) SetProgressSink(s ProgressSink)           { p.progress = s }
+func (p *Processor) SetDiagnosticStore(store DiagnosticStore) { p.diagnostics = store }
+func NewProcessorWithDurableDelivery(r Runner, target ReplyPublisher, store DeliveryStore) *Processor {
+	return NewProcessor(r, NewDurablePublisher(target, store))
+}
+
+func (p *Processor) recordDiagnostic(ctx context.Context, e *Event, err error) {
+	if p.diagnostics != nil {
+		_ = p.diagnostics.Put(ctx, BuildDiagnostic(e, "", err))
+	}
+}
 func (p *Processor) emit(ctx context.Context, e *Event, k string, n int64, s RunState, err string) {
 	if p.progress != nil {
 		_ = p.progress.EmitProgress(ctx, e, ProgressEvent{Key: k, Sequence: n, State: s, Error: err})
@@ -111,6 +122,7 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 			seq = 3
 		}
 		p.emit(ctx, e, key, seq, state, err.Error())
+		p.recordDiagnostic(ctx, e, err)
 		return "", fmt.Errorf("plane runner: %w", err)
 	}
 	out = strings.TrimSpace(out)
@@ -119,6 +131,7 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 		p.states[key] = RunStateFailed
 		p.mu.Unlock()
 		p.emit(ctx, e, key, 2, RunStateFailed, "empty reply")
+		p.recordDiagnostic(ctx, e, errors.New("empty reply"))
 		return "", errors.New("plane runner returned empty reply")
 	}
 	if len(out) > p.maxReply {
@@ -129,6 +142,7 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 		p.states[key] = RunStateFailed
 		p.mu.Unlock()
 		p.emit(ctx, e, key, 2, RunStateFailed, err.Error())
+		p.recordDiagnostic(ctx, e, err)
 		return "", fmt.Errorf("plane reply: %w", err)
 	}
 	p.mu.Lock()
