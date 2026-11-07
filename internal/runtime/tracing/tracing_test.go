@@ -26,6 +26,9 @@ func TestTraceIDForInvocationMapsADKUUID(t *testing.T) {
 		id   string
 	}{
 		{name: "adk prefix", id: invocationPrefix + uuid.NewString()},
+		// A UUID that carries an "e-" of its own at a segment boundary: the
+		// prefix is stripped once, not every occurrence of its text.
+		{name: "adk prefix, e before a dash", id: "e-ea26ab9e-8eca-43ba-abbe-746c5401587b"},
 		{name: "bare uuid", id: uuid.NewString()},
 		{name: "uppercase uuid", id: strings.ToUpper(uuid.NewString())},
 	} {
@@ -34,7 +37,7 @@ func TestTraceIDForInvocationMapsADKUUID(t *testing.T) {
 			if !got.IsValid() {
 				t.Fatalf("TraceIDForInvocation(%q) is invalid", tc.id)
 			}
-			compact := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(tc.id, invocationPrefix, ""), "-", ""))
+			compact := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(tc.id, invocationPrefix), "-", ""))
 			if got.String() != compact {
 				t.Fatalf("TraceIDForInvocation(%q) = %s, want %s", tc.id, got, compact)
 			}
