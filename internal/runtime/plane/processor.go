@@ -110,15 +110,18 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 		p.mu.Unlock()
 		return "", ErrDuplicate
 	}
+	var claim planeprocessing.Claim
+	claimed := false
 	if p.claimRepo != nil {
 		if p.claimOwner == "" {
 			return "", planeprocessing.ErrClaimConflict
 		}
-		claim, claimErr := p.claimRepo.Claim(ctx, e.WorkspaceID, e.AppID, e.InstallationID, e.AgentRunID, p.claimOwner, time.Now().Add(5*time.Minute))
+		var claimErr error
+		claim, claimErr = p.claimRepo.Claim(ctx, e.WorkspaceID, e.AppID, e.InstallationID, e.AgentRunID, p.claimOwner, time.Now().Add(5*time.Minute))
 		if claimErr != nil {
 			return "", claimErr
 		}
-		defer func() { _ = p.claimRepo.Complete(context.Background(), key, claim) }()
+		claimed = true
 	}
 	p.active[key] = struct{}{}
 	child, cancel := context.WithCancel(ctx)
@@ -128,6 +131,11 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	defer func() { cancel(); p.mu.Lock(); delete(p.cancels, key); delete(p.active, key); p.mu.Unlock() }()
 	p.emit(ctx, e, key, 1, RunStateRunning, "")
 	out, err := p.runner.Run(child, app.GetAgentId(), []*genai.Part{{Text: prompt}}, "", &agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
+	if claimed {
+		if completeErr := p.claimRepo.Complete(context.Background(), key, claim); completeErr != nil {
+			return "", errors.New("plane processing result was discarded after claim completion failure")
+		}
+	}
 	if err != nil {
 		state := RunStateFailed
 		if errors.Is(err, context.Canceled) {
