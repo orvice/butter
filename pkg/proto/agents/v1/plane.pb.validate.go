@@ -2050,6 +2050,929 @@ var _ interface {
 	ErrorName() string
 } = DeletePlaneAppResponseValidationError{}
 
+// Validate checks the field values on PlaneInstallation with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *PlaneInstallation) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PlaneInstallation with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// PlaneInstallationMultiError, or nil if none found.
+func (m *PlaneInstallation) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PlaneInstallation) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for AppId
+
+	// no validation rules for PlaneWorkspaceId
+
+	// no validation rules for WorkspaceSlug
+
+	// no validation rules for AppInstallationId
+
+	// no validation rules for AppBotUserId
+
+	// no validation rules for AppBotName
+
+	// no validation rules for Status
+
+	// no validation rules for CredentialState
+
+	if all {
+		switch v := interface{}(m.GetTokenExpiresAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PlaneInstallationValidationError{
+					field:  "TokenExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PlaneInstallationValidationError{
+					field:  "TokenExpiresAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTokenExpiresAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PlaneInstallationValidationError{
+				field:  "TokenExpiresAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetInstalledAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PlaneInstallationValidationError{
+					field:  "InstalledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PlaneInstallationValidationError{
+					field:  "InstalledAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetInstalledAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PlaneInstallationValidationError{
+				field:  "InstalledAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PlaneInstallationValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PlaneInstallationValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PlaneInstallationValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return PlaneInstallationMultiError(errors)
+	}
+
+	return nil
+}
+
+// PlaneInstallationMultiError is an error wrapping multiple validation errors
+// returned by PlaneInstallation.ValidateAll() if the designated constraints
+// aren't met.
+type PlaneInstallationMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PlaneInstallationMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PlaneInstallationMultiError) AllErrors() []error { return m }
+
+// PlaneInstallationValidationError is the validation error returned by
+// PlaneInstallation.Validate if the designated constraints aren't met.
+type PlaneInstallationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PlaneInstallationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PlaneInstallationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PlaneInstallationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PlaneInstallationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PlaneInstallationValidationError) ErrorName() string {
+	return "PlaneInstallationValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e PlaneInstallationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPlaneInstallation.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PlaneInstallationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PlaneInstallationValidationError{}
+
+// Validate checks the field values on BeginPlaneInstallRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *BeginPlaneInstallRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on BeginPlaneInstallRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// BeginPlaneInstallRequestMultiError, or nil if none found.
+func (m *BeginPlaneInstallRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *BeginPlaneInstallRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetAppId()) < 1 {
+		err := BeginPlaneInstallRequestValidationError{
+			field:  "AppId",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for ReturnUrl
+
+	if len(errors) > 0 {
+		return BeginPlaneInstallRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// BeginPlaneInstallRequestMultiError is an error wrapping multiple validation
+// errors returned by BeginPlaneInstallRequest.ValidateAll() if the designated
+// constraints aren't met.
+type BeginPlaneInstallRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m BeginPlaneInstallRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m BeginPlaneInstallRequestMultiError) AllErrors() []error { return m }
+
+// BeginPlaneInstallRequestValidationError is the validation error returned by
+// BeginPlaneInstallRequest.Validate if the designated constraints aren't met.
+type BeginPlaneInstallRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e BeginPlaneInstallRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e BeginPlaneInstallRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e BeginPlaneInstallRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e BeginPlaneInstallRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e BeginPlaneInstallRequestValidationError) ErrorName() string {
+	return "BeginPlaneInstallRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e BeginPlaneInstallRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sBeginPlaneInstallRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = BeginPlaneInstallRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = BeginPlaneInstallRequestValidationError{}
+
+// Validate checks the field values on BeginPlaneInstallResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *BeginPlaneInstallResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on BeginPlaneInstallResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// BeginPlaneInstallResponseMultiError, or nil if none found.
+func (m *BeginPlaneInstallResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *BeginPlaneInstallResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AuthorizeUrl
+
+	if len(errors) > 0 {
+		return BeginPlaneInstallResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// BeginPlaneInstallResponseMultiError is an error wrapping multiple validation
+// errors returned by BeginPlaneInstallResponse.ValidateAll() if the
+// designated constraints aren't met.
+type BeginPlaneInstallResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m BeginPlaneInstallResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m BeginPlaneInstallResponseMultiError) AllErrors() []error { return m }
+
+// BeginPlaneInstallResponseValidationError is the validation error returned by
+// BeginPlaneInstallResponse.Validate if the designated constraints aren't met.
+type BeginPlaneInstallResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e BeginPlaneInstallResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e BeginPlaneInstallResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e BeginPlaneInstallResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e BeginPlaneInstallResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e BeginPlaneInstallResponseValidationError) ErrorName() string {
+	return "BeginPlaneInstallResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e BeginPlaneInstallResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sBeginPlaneInstallResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = BeginPlaneInstallResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = BeginPlaneInstallResponseValidationError{}
+
+// Validate checks the field values on ListPlaneInstallationsRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListPlaneInstallationsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListPlaneInstallationsRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// ListPlaneInstallationsRequestMultiError, or nil if none found.
+func (m *ListPlaneInstallationsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListPlaneInstallationsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetAppId()) < 1 {
+		err := ListPlaneInstallationsRequestValidationError{
+			field:  "AppId",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return ListPlaneInstallationsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListPlaneInstallationsRequestMultiError is an error wrapping multiple
+// validation errors returned by ListPlaneInstallationsRequest.ValidateAll()
+// if the designated constraints aren't met.
+type ListPlaneInstallationsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListPlaneInstallationsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListPlaneInstallationsRequestMultiError) AllErrors() []error { return m }
+
+// ListPlaneInstallationsRequestValidationError is the validation error
+// returned by ListPlaneInstallationsRequest.Validate if the designated
+// constraints aren't met.
+type ListPlaneInstallationsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListPlaneInstallationsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListPlaneInstallationsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListPlaneInstallationsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListPlaneInstallationsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListPlaneInstallationsRequestValidationError) ErrorName() string {
+	return "ListPlaneInstallationsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListPlaneInstallationsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListPlaneInstallationsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListPlaneInstallationsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListPlaneInstallationsRequestValidationError{}
+
+// Validate checks the field values on ListPlaneInstallationsResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListPlaneInstallationsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListPlaneInstallationsResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// ListPlaneInstallationsResponseMultiError, or nil if none found.
+func (m *ListPlaneInstallationsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListPlaneInstallationsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetInstallations() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListPlaneInstallationsResponseValidationError{
+						field:  fmt.Sprintf("Installations[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListPlaneInstallationsResponseValidationError{
+						field:  fmt.Sprintf("Installations[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListPlaneInstallationsResponseValidationError{
+					field:  fmt.Sprintf("Installations[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListPlaneInstallationsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListPlaneInstallationsResponseMultiError is an error wrapping multiple
+// validation errors returned by ListPlaneInstallationsResponse.ValidateAll()
+// if the designated constraints aren't met.
+type ListPlaneInstallationsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListPlaneInstallationsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListPlaneInstallationsResponseMultiError) AllErrors() []error { return m }
+
+// ListPlaneInstallationsResponseValidationError is the validation error
+// returned by ListPlaneInstallationsResponse.Validate if the designated
+// constraints aren't met.
+type ListPlaneInstallationsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListPlaneInstallationsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListPlaneInstallationsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListPlaneInstallationsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListPlaneInstallationsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListPlaneInstallationsResponseValidationError) ErrorName() string {
+	return "ListPlaneInstallationsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListPlaneInstallationsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListPlaneInstallationsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListPlaneInstallationsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListPlaneInstallationsResponseValidationError{}
+
+// Validate checks the field values on GetPlaneInstallationRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetPlaneInstallationRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetPlaneInstallationRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetPlaneInstallationRequestMultiError, or nil if none found.
+func (m *GetPlaneInstallationRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetPlaneInstallationRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := GetPlaneInstallationRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return GetPlaneInstallationRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetPlaneInstallationRequestMultiError is an error wrapping multiple
+// validation errors returned by GetPlaneInstallationRequest.ValidateAll() if
+// the designated constraints aren't met.
+type GetPlaneInstallationRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetPlaneInstallationRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetPlaneInstallationRequestMultiError) AllErrors() []error { return m }
+
+// GetPlaneInstallationRequestValidationError is the validation error returned
+// by GetPlaneInstallationRequest.Validate if the designated constraints
+// aren't met.
+type GetPlaneInstallationRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetPlaneInstallationRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetPlaneInstallationRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetPlaneInstallationRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetPlaneInstallationRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetPlaneInstallationRequestValidationError) ErrorName() string {
+	return "GetPlaneInstallationRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetPlaneInstallationRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetPlaneInstallationRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetPlaneInstallationRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetPlaneInstallationRequestValidationError{}
+
+// Validate checks the field values on GetPlaneInstallationResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetPlaneInstallationResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetPlaneInstallationResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetPlaneInstallationResponseMultiError, or nil if none found.
+func (m *GetPlaneInstallationResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetPlaneInstallationResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetInstallation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetPlaneInstallationResponseValidationError{
+					field:  "Installation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetPlaneInstallationResponseValidationError{
+					field:  "Installation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetInstallation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetPlaneInstallationResponseValidationError{
+				field:  "Installation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetPlaneInstallationResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetPlaneInstallationResponseMultiError is an error wrapping multiple
+// validation errors returned by GetPlaneInstallationResponse.ValidateAll() if
+// the designated constraints aren't met.
+type GetPlaneInstallationResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetPlaneInstallationResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetPlaneInstallationResponseMultiError) AllErrors() []error { return m }
+
+// GetPlaneInstallationResponseValidationError is the validation error returned
+// by GetPlaneInstallationResponse.Validate if the designated constraints
+// aren't met.
+type GetPlaneInstallationResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetPlaneInstallationResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetPlaneInstallationResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetPlaneInstallationResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetPlaneInstallationResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetPlaneInstallationResponseValidationError) ErrorName() string {
+	return "GetPlaneInstallationResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetPlaneInstallationResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetPlaneInstallationResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetPlaneInstallationResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetPlaneInstallationResponseValidationError{}
+
 // Validate checks the field values on PlaneSettings with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

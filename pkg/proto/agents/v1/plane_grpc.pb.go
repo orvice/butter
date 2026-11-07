@@ -26,6 +26,9 @@ const (
 	PlaneAppService_UpdatePlaneApp_FullMethodName          = "/agents.v1.PlaneAppService/UpdatePlaneApp"
 	PlaneAppService_PutPlaneAppCredentials_FullMethodName  = "/agents.v1.PlaneAppService/PutPlaneAppCredentials"
 	PlaneAppService_DeletePlaneApp_FullMethodName          = "/agents.v1.PlaneAppService/DeletePlaneApp"
+	PlaneAppService_BeginPlaneInstall_FullMethodName       = "/agents.v1.PlaneAppService/BeginPlaneInstall"
+	PlaneAppService_ListPlaneInstallations_FullMethodName  = "/agents.v1.PlaneAppService/ListPlaneInstallations"
+	PlaneAppService_GetPlaneInstallation_FullMethodName    = "/agents.v1.PlaneAppService/GetPlaneInstallation"
 )
 
 // PlaneAppServiceClient is the client API for PlaneAppService service.
@@ -50,6 +53,12 @@ type PlaneAppServiceClient interface {
 	// DeletePlaneApp removes the App. An Agent it routes to cannot be deleted
 	// until the App is repointed or deleted.
 	DeletePlaneApp(ctx context.Context, in *DeletePlaneAppRequest, opts ...grpc.CallOption) (*DeletePlaneAppResponse, error)
+	// BeginPlaneInstall creates a one-use, bounded OAuth state and returns the
+	// provider authorize URL. CompletePlaneInstall is called by the public
+	// callback handler after exchanging and validating the installation.
+	BeginPlaneInstall(ctx context.Context, in *BeginPlaneInstallRequest, opts ...grpc.CallOption) (*BeginPlaneInstallResponse, error)
+	ListPlaneInstallations(ctx context.Context, in *ListPlaneInstallationsRequest, opts ...grpc.CallOption) (*ListPlaneInstallationsResponse, error)
+	GetPlaneInstallation(ctx context.Context, in *GetPlaneInstallationRequest, opts ...grpc.CallOption) (*GetPlaneInstallationResponse, error)
 }
 
 type planeAppServiceClient struct {
@@ -130,6 +139,36 @@ func (c *planeAppServiceClient) DeletePlaneApp(ctx context.Context, in *DeletePl
 	return out, nil
 }
 
+func (c *planeAppServiceClient) BeginPlaneInstall(ctx context.Context, in *BeginPlaneInstallRequest, opts ...grpc.CallOption) (*BeginPlaneInstallResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BeginPlaneInstallResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_BeginPlaneInstall_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *planeAppServiceClient) ListPlaneInstallations(ctx context.Context, in *ListPlaneInstallationsRequest, opts ...grpc.CallOption) (*ListPlaneInstallationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPlaneInstallationsResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_ListPlaneInstallations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *planeAppServiceClient) GetPlaneInstallation(ctx context.Context, in *GetPlaneInstallationRequest, opts ...grpc.CallOption) (*GetPlaneInstallationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPlaneInstallationResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_GetPlaneInstallation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PlaneAppServiceServer is the server API for PlaneAppService service.
 // All implementations must embed UnimplementedPlaneAppServiceServer
 // for forward compatibility.
@@ -152,6 +191,12 @@ type PlaneAppServiceServer interface {
 	// DeletePlaneApp removes the App. An Agent it routes to cannot be deleted
 	// until the App is repointed or deleted.
 	DeletePlaneApp(context.Context, *DeletePlaneAppRequest) (*DeletePlaneAppResponse, error)
+	// BeginPlaneInstall creates a one-use, bounded OAuth state and returns the
+	// provider authorize URL. CompletePlaneInstall is called by the public
+	// callback handler after exchanging and validating the installation.
+	BeginPlaneInstall(context.Context, *BeginPlaneInstallRequest) (*BeginPlaneInstallResponse, error)
+	ListPlaneInstallations(context.Context, *ListPlaneInstallationsRequest) (*ListPlaneInstallationsResponse, error)
+	GetPlaneInstallation(context.Context, *GetPlaneInstallationRequest) (*GetPlaneInstallationResponse, error)
 	mustEmbedUnimplementedPlaneAppServiceServer()
 }
 
@@ -182,6 +227,15 @@ func (UnimplementedPlaneAppServiceServer) PutPlaneAppCredentials(context.Context
 }
 func (UnimplementedPlaneAppServiceServer) DeletePlaneApp(context.Context, *DeletePlaneAppRequest) (*DeletePlaneAppResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeletePlaneApp not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) BeginPlaneInstall(context.Context, *BeginPlaneInstallRequest) (*BeginPlaneInstallResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginPlaneInstall not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) ListPlaneInstallations(context.Context, *ListPlaneInstallationsRequest) (*ListPlaneInstallationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPlaneInstallations not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) GetPlaneInstallation(context.Context, *GetPlaneInstallationRequest) (*GetPlaneInstallationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPlaneInstallation not implemented")
 }
 func (UnimplementedPlaneAppServiceServer) mustEmbedUnimplementedPlaneAppServiceServer() {}
 func (UnimplementedPlaneAppServiceServer) testEmbeddedByValue()                         {}
@@ -330,6 +384,60 @@ func _PlaneAppService_DeletePlaneApp_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaneAppService_BeginPlaneInstall_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginPlaneInstallRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).BeginPlaneInstall(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_BeginPlaneInstall_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).BeginPlaneInstall(ctx, req.(*BeginPlaneInstallRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaneAppService_ListPlaneInstallations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPlaneInstallationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).ListPlaneInstallations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_ListPlaneInstallations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).ListPlaneInstallations(ctx, req.(*ListPlaneInstallationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaneAppService_GetPlaneInstallation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPlaneInstallationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).GetPlaneInstallation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_GetPlaneInstallation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).GetPlaneInstallation(ctx, req.(*GetPlaneInstallationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PlaneAppService_ServiceDesc is the grpc.ServiceDesc for PlaneAppService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -365,6 +473,18 @@ var PlaneAppService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeletePlaneApp",
 			Handler:    _PlaneAppService_DeletePlaneApp_Handler,
 		},
+		{
+			MethodName: "BeginPlaneInstall",
+			Handler:    _PlaneAppService_BeginPlaneInstall_Handler,
+		},
+		{
+			MethodName: "ListPlaneInstallations",
+			Handler:    _PlaneAppService_ListPlaneInstallations_Handler,
+		},
+		{
+			MethodName: "GetPlaneInstallation",
+			Handler:    _PlaneAppService_GetPlaneInstallation_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/plane.proto",
@@ -379,10 +499,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// =============================================================================
-// PlaneAdminService manages platform-level Plane settings.
-//
-// The public base URL is global, not per-workspace: it names the public
+// ============================================================================= is global, not per-workspace: it names the public
 // address of this deployment. Only global administrators may read or change
 // it, so workspace input can never redirect Plane callbacks or webhooks.
 // The provider profile itself is not writable through any RPC; it comes from
@@ -425,10 +542,7 @@ func (c *planeAdminServiceClient) UpdatePlaneSettings(ctx context.Context, in *U
 // All implementations must embed UnimplementedPlaneAdminServiceServer
 // for forward compatibility.
 //
-// =============================================================================
-// PlaneAdminService manages platform-level Plane settings.
-//
-// The public base URL is global, not per-workspace: it names the public
+// ============================================================================= is global, not per-workspace: it names the public
 // address of this deployment. Only global administrators may read or change
 // it, so workspace input can never redirect Plane callbacks or webhooks.
 // The provider profile itself is not writable through any RPC; it comes from

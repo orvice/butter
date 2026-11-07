@@ -56,6 +56,15 @@ const (
 	// PlaneAppServiceDeletePlaneAppProcedure is the fully-qualified name of the PlaneAppService's
 	// DeletePlaneApp RPC.
 	PlaneAppServiceDeletePlaneAppProcedure = "/agents.v1.PlaneAppService/DeletePlaneApp"
+	// PlaneAppServiceBeginPlaneInstallProcedure is the fully-qualified name of the PlaneAppService's
+	// BeginPlaneInstall RPC.
+	PlaneAppServiceBeginPlaneInstallProcedure = "/agents.v1.PlaneAppService/BeginPlaneInstall"
+	// PlaneAppServiceListPlaneInstallationsProcedure is the fully-qualified name of the
+	// PlaneAppService's ListPlaneInstallations RPC.
+	PlaneAppServiceListPlaneInstallationsProcedure = "/agents.v1.PlaneAppService/ListPlaneInstallations"
+	// PlaneAppServiceGetPlaneInstallationProcedure is the fully-qualified name of the PlaneAppService's
+	// GetPlaneInstallation RPC.
+	PlaneAppServiceGetPlaneInstallationProcedure = "/agents.v1.PlaneAppService/GetPlaneInstallation"
 	// PlaneAdminServiceGetPlaneSettingsProcedure is the fully-qualified name of the PlaneAdminService's
 	// GetPlaneSettings RPC.
 	PlaneAdminServiceGetPlaneSettingsProcedure = "/agents.v1.PlaneAdminService/GetPlaneSettings"
@@ -81,6 +90,12 @@ type PlaneAppServiceClient interface {
 	// DeletePlaneApp removes the App. An Agent it routes to cannot be deleted
 	// until the App is repointed or deleted.
 	DeletePlaneApp(context.Context, *connect.Request[v1.DeletePlaneAppRequest]) (*connect.Response[v1.DeletePlaneAppResponse], error)
+	// BeginPlaneInstall creates a one-use, bounded OAuth state and returns the
+	// provider authorize URL. CompletePlaneInstall is called by the public
+	// callback handler after exchanging and validating the installation.
+	BeginPlaneInstall(context.Context, *connect.Request[v1.BeginPlaneInstallRequest]) (*connect.Response[v1.BeginPlaneInstallResponse], error)
+	ListPlaneInstallations(context.Context, *connect.Request[v1.ListPlaneInstallationsRequest]) (*connect.Response[v1.ListPlaneInstallationsResponse], error)
+	GetPlaneInstallation(context.Context, *connect.Request[v1.GetPlaneInstallationRequest]) (*connect.Response[v1.GetPlaneInstallationResponse], error)
 }
 
 // NewPlaneAppServiceClient constructs a client for the agents.v1.PlaneAppService service. By
@@ -136,6 +151,24 @@ func NewPlaneAppServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(planeAppServiceMethods.ByName("DeletePlaneApp")),
 			connect.WithClientOptions(opts...),
 		),
+		beginPlaneInstall: connect.NewClient[v1.BeginPlaneInstallRequest, v1.BeginPlaneInstallResponse](
+			httpClient,
+			baseURL+PlaneAppServiceBeginPlaneInstallProcedure,
+			connect.WithSchema(planeAppServiceMethods.ByName("BeginPlaneInstall")),
+			connect.WithClientOptions(opts...),
+		),
+		listPlaneInstallations: connect.NewClient[v1.ListPlaneInstallationsRequest, v1.ListPlaneInstallationsResponse](
+			httpClient,
+			baseURL+PlaneAppServiceListPlaneInstallationsProcedure,
+			connect.WithSchema(planeAppServiceMethods.ByName("ListPlaneInstallations")),
+			connect.WithClientOptions(opts...),
+		),
+		getPlaneInstallation: connect.NewClient[v1.GetPlaneInstallationRequest, v1.GetPlaneInstallationResponse](
+			httpClient,
+			baseURL+PlaneAppServiceGetPlaneInstallationProcedure,
+			connect.WithSchema(planeAppServiceMethods.ByName("GetPlaneInstallation")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -148,6 +181,9 @@ type planeAppServiceClient struct {
 	updatePlaneApp          *connect.Client[v1.UpdatePlaneAppRequest, v1.UpdatePlaneAppResponse]
 	putPlaneAppCredentials  *connect.Client[v1.PutPlaneAppCredentialsRequest, v1.PutPlaneAppCredentialsResponse]
 	deletePlaneApp          *connect.Client[v1.DeletePlaneAppRequest, v1.DeletePlaneAppResponse]
+	beginPlaneInstall       *connect.Client[v1.BeginPlaneInstallRequest, v1.BeginPlaneInstallResponse]
+	listPlaneInstallations  *connect.Client[v1.ListPlaneInstallationsRequest, v1.ListPlaneInstallationsResponse]
+	getPlaneInstallation    *connect.Client[v1.GetPlaneInstallationRequest, v1.GetPlaneInstallationResponse]
 }
 
 // ListPlaneApps calls agents.v1.PlaneAppService.ListPlaneApps.
@@ -185,6 +221,21 @@ func (c *planeAppServiceClient) DeletePlaneApp(ctx context.Context, req *connect
 	return c.deletePlaneApp.CallUnary(ctx, req)
 }
 
+// BeginPlaneInstall calls agents.v1.PlaneAppService.BeginPlaneInstall.
+func (c *planeAppServiceClient) BeginPlaneInstall(ctx context.Context, req *connect.Request[v1.BeginPlaneInstallRequest]) (*connect.Response[v1.BeginPlaneInstallResponse], error) {
+	return c.beginPlaneInstall.CallUnary(ctx, req)
+}
+
+// ListPlaneInstallations calls agents.v1.PlaneAppService.ListPlaneInstallations.
+func (c *planeAppServiceClient) ListPlaneInstallations(ctx context.Context, req *connect.Request[v1.ListPlaneInstallationsRequest]) (*connect.Response[v1.ListPlaneInstallationsResponse], error) {
+	return c.listPlaneInstallations.CallUnary(ctx, req)
+}
+
+// GetPlaneInstallation calls agents.v1.PlaneAppService.GetPlaneInstallation.
+func (c *planeAppServiceClient) GetPlaneInstallation(ctx context.Context, req *connect.Request[v1.GetPlaneInstallationRequest]) (*connect.Response[v1.GetPlaneInstallationResponse], error) {
+	return c.getPlaneInstallation.CallUnary(ctx, req)
+}
+
 // PlaneAppServiceHandler is an implementation of the agents.v1.PlaneAppService service.
 type PlaneAppServiceHandler interface {
 	ListPlaneApps(context.Context, *connect.Request[v1.ListPlaneAppsRequest]) (*connect.Response[v1.ListPlaneAppsResponse], error)
@@ -202,6 +253,12 @@ type PlaneAppServiceHandler interface {
 	// DeletePlaneApp removes the App. An Agent it routes to cannot be deleted
 	// until the App is repointed or deleted.
 	DeletePlaneApp(context.Context, *connect.Request[v1.DeletePlaneAppRequest]) (*connect.Response[v1.DeletePlaneAppResponse], error)
+	// BeginPlaneInstall creates a one-use, bounded OAuth state and returns the
+	// provider authorize URL. CompletePlaneInstall is called by the public
+	// callback handler after exchanging and validating the installation.
+	BeginPlaneInstall(context.Context, *connect.Request[v1.BeginPlaneInstallRequest]) (*connect.Response[v1.BeginPlaneInstallResponse], error)
+	ListPlaneInstallations(context.Context, *connect.Request[v1.ListPlaneInstallationsRequest]) (*connect.Response[v1.ListPlaneInstallationsResponse], error)
+	GetPlaneInstallation(context.Context, *connect.Request[v1.GetPlaneInstallationRequest]) (*connect.Response[v1.GetPlaneInstallationResponse], error)
 }
 
 // NewPlaneAppServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -253,6 +310,24 @@ func NewPlaneAppServiceHandler(svc PlaneAppServiceHandler, opts ...connect.Handl
 		connect.WithSchema(planeAppServiceMethods.ByName("DeletePlaneApp")),
 		connect.WithHandlerOptions(opts...),
 	)
+	planeAppServiceBeginPlaneInstallHandler := connect.NewUnaryHandler(
+		PlaneAppServiceBeginPlaneInstallProcedure,
+		svc.BeginPlaneInstall,
+		connect.WithSchema(planeAppServiceMethods.ByName("BeginPlaneInstall")),
+		connect.WithHandlerOptions(opts...),
+	)
+	planeAppServiceListPlaneInstallationsHandler := connect.NewUnaryHandler(
+		PlaneAppServiceListPlaneInstallationsProcedure,
+		svc.ListPlaneInstallations,
+		connect.WithSchema(planeAppServiceMethods.ByName("ListPlaneInstallations")),
+		connect.WithHandlerOptions(opts...),
+	)
+	planeAppServiceGetPlaneInstallationHandler := connect.NewUnaryHandler(
+		PlaneAppServiceGetPlaneInstallationProcedure,
+		svc.GetPlaneInstallation,
+		connect.WithSchema(planeAppServiceMethods.ByName("GetPlaneInstallation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.PlaneAppService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case PlaneAppServiceListPlaneAppsProcedure:
@@ -269,6 +344,12 @@ func NewPlaneAppServiceHandler(svc PlaneAppServiceHandler, opts ...connect.Handl
 			planeAppServicePutPlaneAppCredentialsHandler.ServeHTTP(w, r)
 		case PlaneAppServiceDeletePlaneAppProcedure:
 			planeAppServiceDeletePlaneAppHandler.ServeHTTP(w, r)
+		case PlaneAppServiceBeginPlaneInstallProcedure:
+			planeAppServiceBeginPlaneInstallHandler.ServeHTTP(w, r)
+		case PlaneAppServiceListPlaneInstallationsProcedure:
+			planeAppServiceListPlaneInstallationsHandler.ServeHTTP(w, r)
+		case PlaneAppServiceGetPlaneInstallationProcedure:
+			planeAppServiceGetPlaneInstallationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -304,6 +385,18 @@ func (UnimplementedPlaneAppServiceHandler) PutPlaneAppCredentials(context.Contex
 
 func (UnimplementedPlaneAppServiceHandler) DeletePlaneApp(context.Context, *connect.Request[v1.DeletePlaneAppRequest]) (*connect.Response[v1.DeletePlaneAppResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.DeletePlaneApp is not implemented"))
+}
+
+func (UnimplementedPlaneAppServiceHandler) BeginPlaneInstall(context.Context, *connect.Request[v1.BeginPlaneInstallRequest]) (*connect.Response[v1.BeginPlaneInstallResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.BeginPlaneInstall is not implemented"))
+}
+
+func (UnimplementedPlaneAppServiceHandler) ListPlaneInstallations(context.Context, *connect.Request[v1.ListPlaneInstallationsRequest]) (*connect.Response[v1.ListPlaneInstallationsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.ListPlaneInstallations is not implemented"))
+}
+
+func (UnimplementedPlaneAppServiceHandler) GetPlaneInstallation(context.Context, *connect.Request[v1.GetPlaneInstallationRequest]) (*connect.Response[v1.GetPlaneInstallationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.GetPlaneInstallation is not implemented"))
 }
 
 // PlaneAdminServiceClient is a client for the agents.v1.PlaneAdminService service.

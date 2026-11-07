@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"connectrpc.com/connect"
@@ -15,6 +16,7 @@ import (
 	"go.orx.me/apps/butter/internal/planeapi"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
+	planestate "go.orx.me/apps/butter/internal/repo/planestate"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -42,11 +44,14 @@ const (
 //   - the provider profile is server-assigned and immutable, and the fixed
 //     origins live in deployment configuration, not workspace input.
 type PlaneAppServiceServer struct {
-	repo          planerepo.Repository
-	workspaceRepo workspacerepo.Repository
-	agentRepo     configrepo.AgentRepository
-	keyring       *secretbox.Keyring
-	profile       func() (planeapi.Profile, error)
+	repo             planerepo.Repository
+	workspaceRepo    workspacerepo.Repository
+	agentRepo        configrepo.AgentRepository
+	keyring          *secretbox.Keyring
+	profile          func() (planeapi.Profile, error)
+	installStates    planestate.Repository
+	clock            func() time.Time
+	dashboardBaseURL func() string
 }
 
 func NewPlaneAppServiceServer(repo planerepo.Repository) *PlaneAppServiceServer {

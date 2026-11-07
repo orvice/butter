@@ -167,6 +167,13 @@ service PlaneAppService {
   // DeletePlaneApp removes the App. An Agent it routes to cannot be deleted
   // until the App is repointed or deleted.
   rpc DeletePlaneApp(DeletePlaneAppRequest) returns (DeletePlaneAppResponse);
+
+  // BeginPlaneInstall creates a one-use, bounded OAuth state and returns the
+  // provider authorize URL. CompletePlaneInstall is called by the public
+  // callback handler after exchanging and validating the installation.
+  rpc BeginPlaneInstall(BeginPlaneInstallRequest) returns (BeginPlaneInstallResponse);
+  rpc ListPlaneInstallations(ListPlaneInstallationsRequest) returns (ListPlaneInstallationsResponse);
+  rpc GetPlaneInstallation(GetPlaneInstallationRequest) returns (GetPlaneInstallationResponse);
 }
 
 message ListPlaneAppsRequest {}
@@ -236,10 +243,32 @@ message DeletePlaneAppRequest {
 
 message DeletePlaneAppResponse {}
 
-// =============================================================================
-// PlaneAdminService manages platform-level Plane settings.
-//
-// The public base URL is global, not per-workspace: it names the public
+message PlaneInstallation {
+  string id = 1;
+  string app_id = 2;
+  string plane_workspace_id = 3;
+  string workspace_slug = 4;
+  string app_installation_id = 5;
+  string app_bot_user_id = 6;
+  string app_bot_name = 7;
+  repeated string granted_scopes = 8;
+  string status = 9;
+  string credential_state = 10;
+  google.protobuf.Timestamp token_expires_at = 11;
+  google.protobuf.Timestamp installed_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+message BeginPlaneInstallRequest {
+  string app_id = 1 [(validate.rules).string.min_len = 1];
+  string return_url = 2;
+}
+message BeginPlaneInstallResponse { string authorize_url = 1; }
+message ListPlaneInstallationsRequest { string app_id = 1 [(validate.rules).string.min_len = 1]; }
+message ListPlaneInstallationsResponse { repeated PlaneInstallation installations = 1; }
+message GetPlaneInstallationRequest { string id = 1 [(validate.rules).string.min_len = 1]; }
+message GetPlaneInstallationResponse { PlaneInstallation installation = 1; }
+
+// ============================================================================= is global, not per-workspace: it names the public
 // address of this deployment. Only global administrators may read or change
 // it, so workspace input can never redirect Plane callbacks or webhooks.
 // The provider profile itself is not writable through any RPC; it comes from
