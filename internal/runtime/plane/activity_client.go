@@ -23,11 +23,11 @@ const (
 )
 
 type ActivityRequest struct {
-	WorkspaceSlug, RunID, InstallationID string
-	Type                                 ActivityType
-	Body                                 string
-	Signal                               string
-	Metadata                             map[string]any
+	WorkspaceID, AppID, WorkspaceSlug, RunID, InstallationID string
+	Type                                                     ActivityType
+	Body                                                     string
+	Signal                                                   string
+	Metadata                                                 map[string]any
 }
 type ActivityResult struct {
 	ID     string
@@ -38,12 +38,14 @@ type Activity struct {
 	Type ActivityType `json:"type"`
 	Body string       `json:"body"`
 }
-type ActivityQuery struct{ WorkspaceSlug, RunID, InstallationID string }
+type ActivityQuery struct {
+	WorkspaceID, AppID, WorkspaceSlug, RunID, InstallationID string
+}
 type ActivityClient interface {
 	CreateActivity(context.Context, ActivityRequest) (ActivityResult, error)
 	ListActivities(context.Context, ActivityQuery) ([]Activity, error)
 }
-type ActivityTokenSource func(context.Context, string) (string, error)
+type ActivityTokenSource func(context.Context, string, string, string) (string, error)
 type ActivityHTTPClient struct {
 	BaseURL    string
 	HTTPClient *http.Client
@@ -77,7 +79,7 @@ func (c *ActivityHTTPClient) CreateActivity(ctx context.Context, a ActivityReque
 	if c == nil || c.Token == nil {
 		return ActivityResult{}, &activityError{kind: DeliveryPermanentFailure, err: ErrReplyUnavailable}
 	}
-	tok, err := c.Token(ctx, a.InstallationID)
+	tok, err := c.Token(ctx, a.WorkspaceID, a.AppID, a.InstallationID)
 	if err != nil {
 		return ActivityResult{}, &activityError{kind: DeliveryUnknown, err: err}
 	}
@@ -129,7 +131,7 @@ func (c *ActivityHTTPClient) ListActivities(ctx context.Context, q ActivityQuery
 	if c == nil || c.Token == nil {
 		return nil, ErrReplyUnavailable
 	}
-	tok, err := c.Token(ctx, q.InstallationID)
+	tok, err := c.Token(ctx, q.WorkspaceID, q.AppID, q.InstallationID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +165,6 @@ func (p ActivityReplyPublisher) PublishReply(ctx context.Context, e *Event, repl
 	if p.Client == nil {
 		return ErrReplyUnavailable
 	}
-	_, err := p.Client.CreateActivity(ctx, ActivityRequest{WorkspaceSlug: e.PlaneWorkspaceID, RunID: e.AgentRunID, InstallationID: e.InstallationID, Type: ActivityResponse, Body: reply})
+	_, err := p.Client.CreateActivity(ctx, ActivityRequest{WorkspaceID: e.WorkspaceID, AppID: e.AppID, WorkspaceSlug: e.PlaneWorkspaceID, RunID: e.AgentRunID, InstallationID: e.InstallationID, Type: ActivityResponse, Body: reply})
 	return err
 }
