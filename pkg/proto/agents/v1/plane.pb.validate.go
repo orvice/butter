@@ -2973,6 +2973,862 @@ var _ interface {
 	ErrorName() string
 } = GetPlaneInstallationResponseValidationError{}
 
+// Validate checks the field values on PlaneWebhookActivity with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *PlaneWebhookActivity) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PlaneWebhookActivity with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// PlaneWebhookActivityMultiError, or nil if none found.
+func (m *PlaneWebhookActivity) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PlaneWebhookActivity) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for RunId
+
+	// no validation rules for ActivityType
+
+	// no validation rules for Action
+
+	// no validation rules for Status
+
+	// no validation rules for FailureReason
+
+	if all {
+		switch v := interface{}(m.GetReceivedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PlaneWebhookActivityValidationError{
+					field:  "ReceivedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PlaneWebhookActivityValidationError{
+					field:  "ReceivedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetReceivedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PlaneWebhookActivityValidationError{
+				field:  "ReceivedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return PlaneWebhookActivityMultiError(errors)
+	}
+
+	return nil
+}
+
+// PlaneWebhookActivityMultiError is an error wrapping multiple validation
+// errors returned by PlaneWebhookActivity.ValidateAll() if the designated
+// constraints aren't met.
+type PlaneWebhookActivityMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PlaneWebhookActivityMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PlaneWebhookActivityMultiError) AllErrors() []error { return m }
+
+// PlaneWebhookActivityValidationError is the validation error returned by
+// PlaneWebhookActivity.Validate if the designated constraints aren't met.
+type PlaneWebhookActivityValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PlaneWebhookActivityValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PlaneWebhookActivityValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PlaneWebhookActivityValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PlaneWebhookActivityValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PlaneWebhookActivityValidationError) ErrorName() string {
+	return "PlaneWebhookActivityValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e PlaneWebhookActivityValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPlaneWebhookActivity.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PlaneWebhookActivityValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PlaneWebhookActivityValidationError{}
+
+// Validate checks the field values on PlaneProcessingRecord with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *PlaneProcessingRecord) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PlaneProcessingRecord with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// PlaneProcessingRecordMultiError, or nil if none found.
+func (m *PlaneProcessingRecord) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PlaneProcessingRecord) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	// no validation rules for WorkspaceId
+
+	// no validation rules for AppId
+
+	// no validation rules for InstallationId
+
+	// no validation rules for PlaneWorkspaceId
+
+	// no validation rules for BotUserId
+
+	// no validation rules for RunId
+
+	// no validation rules for ActivityId
+
+	// no validation rules for EventType
+
+	// no validation rules for EventAction
+
+	// no validation rules for DeliveryId
+
+	// no validation rules for Status
+
+	// no validation rules for FailureReason
+
+	if all {
+		switch v := interface{}(m.GetReceivedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PlaneProcessingRecordValidationError{
+					field:  "ReceivedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PlaneProcessingRecordValidationError{
+					field:  "ReceivedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetReceivedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PlaneProcessingRecordValidationError{
+				field:  "ReceivedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdatedAt()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PlaneProcessingRecordValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PlaneProcessingRecordValidationError{
+					field:  "UpdatedAt",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdatedAt()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PlaneProcessingRecordValidationError{
+				field:  "UpdatedAt",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetActivity()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PlaneProcessingRecordValidationError{
+					field:  "Activity",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PlaneProcessingRecordValidationError{
+					field:  "Activity",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetActivity()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PlaneProcessingRecordValidationError{
+				field:  "Activity",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return PlaneProcessingRecordMultiError(errors)
+	}
+
+	return nil
+}
+
+// PlaneProcessingRecordMultiError is an error wrapping multiple validation
+// errors returned by PlaneProcessingRecord.ValidateAll() if the designated
+// constraints aren't met.
+type PlaneProcessingRecordMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PlaneProcessingRecordMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PlaneProcessingRecordMultiError) AllErrors() []error { return m }
+
+// PlaneProcessingRecordValidationError is the validation error returned by
+// PlaneProcessingRecord.Validate if the designated constraints aren't met.
+type PlaneProcessingRecordValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PlaneProcessingRecordValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PlaneProcessingRecordValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PlaneProcessingRecordValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PlaneProcessingRecordValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PlaneProcessingRecordValidationError) ErrorName() string {
+	return "PlaneProcessingRecordValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e PlaneProcessingRecordValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPlaneProcessingRecord.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PlaneProcessingRecordValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PlaneProcessingRecordValidationError{}
+
+// Validate checks the field values on ListPlaneProcessingRecordsRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *ListPlaneProcessingRecordsRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListPlaneProcessingRecordsRequest
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// ListPlaneProcessingRecordsRequestMultiError, or nil if none found.
+func (m *ListPlaneProcessingRecordsRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListPlaneProcessingRecordsRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for AppId
+
+	// no validation rules for Status
+
+	// no validation rules for PageSize
+
+	if len(errors) > 0 {
+		return ListPlaneProcessingRecordsRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListPlaneProcessingRecordsRequestMultiError is an error wrapping multiple
+// validation errors returned by
+// ListPlaneProcessingRecordsRequest.ValidateAll() if the designated
+// constraints aren't met.
+type ListPlaneProcessingRecordsRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListPlaneProcessingRecordsRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListPlaneProcessingRecordsRequestMultiError) AllErrors() []error { return m }
+
+// ListPlaneProcessingRecordsRequestValidationError is the validation error
+// returned by ListPlaneProcessingRecordsRequest.Validate if the designated
+// constraints aren't met.
+type ListPlaneProcessingRecordsRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListPlaneProcessingRecordsRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListPlaneProcessingRecordsRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListPlaneProcessingRecordsRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListPlaneProcessingRecordsRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListPlaneProcessingRecordsRequestValidationError) ErrorName() string {
+	return "ListPlaneProcessingRecordsRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListPlaneProcessingRecordsRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListPlaneProcessingRecordsRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListPlaneProcessingRecordsRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListPlaneProcessingRecordsRequestValidationError{}
+
+// Validate checks the field values on ListPlaneProcessingRecordsResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *ListPlaneProcessingRecordsResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListPlaneProcessingRecordsResponse
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// ListPlaneProcessingRecordsResponseMultiError, or nil if none found.
+func (m *ListPlaneProcessingRecordsResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListPlaneProcessingRecordsResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetRecords() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListPlaneProcessingRecordsResponseValidationError{
+						field:  fmt.Sprintf("Records[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListPlaneProcessingRecordsResponseValidationError{
+						field:  fmt.Sprintf("Records[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListPlaneProcessingRecordsResponseValidationError{
+					field:  fmt.Sprintf("Records[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListPlaneProcessingRecordsResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListPlaneProcessingRecordsResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// ListPlaneProcessingRecordsResponse.ValidateAll() if the designated
+// constraints aren't met.
+type ListPlaneProcessingRecordsResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListPlaneProcessingRecordsResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListPlaneProcessingRecordsResponseMultiError) AllErrors() []error { return m }
+
+// ListPlaneProcessingRecordsResponseValidationError is the validation error
+// returned by ListPlaneProcessingRecordsResponse.Validate if the designated
+// constraints aren't met.
+type ListPlaneProcessingRecordsResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListPlaneProcessingRecordsResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListPlaneProcessingRecordsResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListPlaneProcessingRecordsResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListPlaneProcessingRecordsResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListPlaneProcessingRecordsResponseValidationError) ErrorName() string {
+	return "ListPlaneProcessingRecordsResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListPlaneProcessingRecordsResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListPlaneProcessingRecordsResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListPlaneProcessingRecordsResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListPlaneProcessingRecordsResponseValidationError{}
+
+// Validate checks the field values on GetPlaneProcessingRecordRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetPlaneProcessingRecordRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetPlaneProcessingRecordRequest with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetPlaneProcessingRecordRequestMultiError, or nil if none found.
+func (m *GetPlaneProcessingRecordRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetPlaneProcessingRecordRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := GetPlaneProcessingRecordRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return GetPlaneProcessingRecordRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetPlaneProcessingRecordRequestMultiError is an error wrapping multiple
+// validation errors returned by GetPlaneProcessingRecordRequest.ValidateAll()
+// if the designated constraints aren't met.
+type GetPlaneProcessingRecordRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetPlaneProcessingRecordRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetPlaneProcessingRecordRequestMultiError) AllErrors() []error { return m }
+
+// GetPlaneProcessingRecordRequestValidationError is the validation error
+// returned by GetPlaneProcessingRecordRequest.Validate if the designated
+// constraints aren't met.
+type GetPlaneProcessingRecordRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetPlaneProcessingRecordRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetPlaneProcessingRecordRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetPlaneProcessingRecordRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetPlaneProcessingRecordRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetPlaneProcessingRecordRequestValidationError) ErrorName() string {
+	return "GetPlaneProcessingRecordRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetPlaneProcessingRecordRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetPlaneProcessingRecordRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetPlaneProcessingRecordRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetPlaneProcessingRecordRequestValidationError{}
+
+// Validate checks the field values on GetPlaneProcessingRecordResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *GetPlaneProcessingRecordResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetPlaneProcessingRecordResponse with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GetPlaneProcessingRecordResponseMultiError, or nil if none found.
+func (m *GetPlaneProcessingRecordResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetPlaneProcessingRecordResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetRecord()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetPlaneProcessingRecordResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetPlaneProcessingRecordResponseValidationError{
+					field:  "Record",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRecord()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetPlaneProcessingRecordResponseValidationError{
+				field:  "Record",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetPlaneProcessingRecordResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetPlaneProcessingRecordResponseMultiError is an error wrapping multiple
+// validation errors returned by
+// GetPlaneProcessingRecordResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetPlaneProcessingRecordResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetPlaneProcessingRecordResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetPlaneProcessingRecordResponseMultiError) AllErrors() []error { return m }
+
+// GetPlaneProcessingRecordResponseValidationError is the validation error
+// returned by GetPlaneProcessingRecordResponse.Validate if the designated
+// constraints aren't met.
+type GetPlaneProcessingRecordResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetPlaneProcessingRecordResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetPlaneProcessingRecordResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetPlaneProcessingRecordResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetPlaneProcessingRecordResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetPlaneProcessingRecordResponseValidationError) ErrorName() string {
+	return "GetPlaneProcessingRecordResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetPlaneProcessingRecordResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetPlaneProcessingRecordResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetPlaneProcessingRecordResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetPlaneProcessingRecordResponseValidationError{}
+
 // Validate checks the field values on PlaneSettings with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

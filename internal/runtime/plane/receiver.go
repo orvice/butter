@@ -15,6 +15,7 @@ import (
 
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
+	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	"go.orx.me/apps/butter/internal/secretbox"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -50,6 +51,7 @@ type Queue interface {
 type Receiver struct {
 	apps          planerepo.Repository
 	installations planeinstallation.Repository
+	processing    planeprocessing.Repository
 	keyring       *secretbox.Keyring
 	queue         Queue
 	now           func() time.Time
@@ -58,6 +60,8 @@ type Receiver struct {
 func NewReceiver(apps planerepo.Repository, installations planeinstallation.Repository, keyring *secretbox.Keyring, queue Queue) *Receiver {
 	return &Receiver{apps: apps, installations: installations, keyring: keyring, queue: queue, now: time.Now}
 }
+
+func (r *Receiver) SetProcessingRepo(repo planeprocessing.Repository) { r.processing = repo }
 
 type appLookup interface {
 	FindAppByID(context.Context, string) (*agentsv1.PlaneApp, error)
@@ -139,6 +143,9 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 			return DecisionDuplicate, nil
 		}
 		return "", err
+	}
+	if r.processing != nil {
+		_, _ = r.processing.Create(ctx, &agentsv1.PlaneProcessingRecord{WorkspaceId: e.WorkspaceID, AppId: e.AppID, InstallationId: e.InstallationID, PlaneWorkspaceId: e.PlaneWorkspaceID, BotUserId: e.BotUserID, RunId: e.AgentRunID, ActivityId: e.ActivityID, EventType: e.Type, EventAction: e.Action, DeliveryId: e.DeliveryID, Status: agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_RECEIVED})
 	}
 	return DecisionAccepted, nil
 }

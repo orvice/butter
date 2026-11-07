@@ -19,16 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PlaneAppService_ListPlaneApps_FullMethodName           = "/agents.v1.PlaneAppService/ListPlaneApps"
-	PlaneAppService_GetPlaneApp_FullMethodName             = "/agents.v1.PlaneAppService/GetPlaneApp"
-	PlaneAppService_GetPlaneProviderProfile_FullMethodName = "/agents.v1.PlaneAppService/GetPlaneProviderProfile"
-	PlaneAppService_CreatePlaneApp_FullMethodName          = "/agents.v1.PlaneAppService/CreatePlaneApp"
-	PlaneAppService_UpdatePlaneApp_FullMethodName          = "/agents.v1.PlaneAppService/UpdatePlaneApp"
-	PlaneAppService_PutPlaneAppCredentials_FullMethodName  = "/agents.v1.PlaneAppService/PutPlaneAppCredentials"
-	PlaneAppService_DeletePlaneApp_FullMethodName          = "/agents.v1.PlaneAppService/DeletePlaneApp"
-	PlaneAppService_BeginPlaneInstall_FullMethodName       = "/agents.v1.PlaneAppService/BeginPlaneInstall"
-	PlaneAppService_ListPlaneInstallations_FullMethodName  = "/agents.v1.PlaneAppService/ListPlaneInstallations"
-	PlaneAppService_GetPlaneInstallation_FullMethodName    = "/agents.v1.PlaneAppService/GetPlaneInstallation"
+	PlaneAppService_ListPlaneApps_FullMethodName              = "/agents.v1.PlaneAppService/ListPlaneApps"
+	PlaneAppService_GetPlaneApp_FullMethodName                = "/agents.v1.PlaneAppService/GetPlaneApp"
+	PlaneAppService_GetPlaneProviderProfile_FullMethodName    = "/agents.v1.PlaneAppService/GetPlaneProviderProfile"
+	PlaneAppService_CreatePlaneApp_FullMethodName             = "/agents.v1.PlaneAppService/CreatePlaneApp"
+	PlaneAppService_UpdatePlaneApp_FullMethodName             = "/agents.v1.PlaneAppService/UpdatePlaneApp"
+	PlaneAppService_PutPlaneAppCredentials_FullMethodName     = "/agents.v1.PlaneAppService/PutPlaneAppCredentials"
+	PlaneAppService_DeletePlaneApp_FullMethodName             = "/agents.v1.PlaneAppService/DeletePlaneApp"
+	PlaneAppService_BeginPlaneInstall_FullMethodName          = "/agents.v1.PlaneAppService/BeginPlaneInstall"
+	PlaneAppService_ListPlaneInstallations_FullMethodName     = "/agents.v1.PlaneAppService/ListPlaneInstallations"
+	PlaneAppService_GetPlaneInstallation_FullMethodName       = "/agents.v1.PlaneAppService/GetPlaneInstallation"
+	PlaneAppService_ListPlaneProcessingRecords_FullMethodName = "/agents.v1.PlaneAppService/ListPlaneProcessingRecords"
+	PlaneAppService_GetPlaneProcessingRecord_FullMethodName   = "/agents.v1.PlaneAppService/GetPlaneProcessingRecord"
 )
 
 // PlaneAppServiceClient is the client API for PlaneAppService service.
@@ -59,6 +61,8 @@ type PlaneAppServiceClient interface {
 	BeginPlaneInstall(ctx context.Context, in *BeginPlaneInstallRequest, opts ...grpc.CallOption) (*BeginPlaneInstallResponse, error)
 	ListPlaneInstallations(ctx context.Context, in *ListPlaneInstallationsRequest, opts ...grpc.CallOption) (*ListPlaneInstallationsResponse, error)
 	GetPlaneInstallation(ctx context.Context, in *GetPlaneInstallationRequest, opts ...grpc.CallOption) (*GetPlaneInstallationResponse, error)
+	ListPlaneProcessingRecords(ctx context.Context, in *ListPlaneProcessingRecordsRequest, opts ...grpc.CallOption) (*ListPlaneProcessingRecordsResponse, error)
+	GetPlaneProcessingRecord(ctx context.Context, in *GetPlaneProcessingRecordRequest, opts ...grpc.CallOption) (*GetPlaneProcessingRecordResponse, error)
 }
 
 type planeAppServiceClient struct {
@@ -169,6 +173,26 @@ func (c *planeAppServiceClient) GetPlaneInstallation(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *planeAppServiceClient) ListPlaneProcessingRecords(ctx context.Context, in *ListPlaneProcessingRecordsRequest, opts ...grpc.CallOption) (*ListPlaneProcessingRecordsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPlaneProcessingRecordsResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_ListPlaneProcessingRecords_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *planeAppServiceClient) GetPlaneProcessingRecord(ctx context.Context, in *GetPlaneProcessingRecordRequest, opts ...grpc.CallOption) (*GetPlaneProcessingRecordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPlaneProcessingRecordResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_GetPlaneProcessingRecord_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PlaneAppServiceServer is the server API for PlaneAppService service.
 // All implementations must embed UnimplementedPlaneAppServiceServer
 // for forward compatibility.
@@ -197,6 +221,8 @@ type PlaneAppServiceServer interface {
 	BeginPlaneInstall(context.Context, *BeginPlaneInstallRequest) (*BeginPlaneInstallResponse, error)
 	ListPlaneInstallations(context.Context, *ListPlaneInstallationsRequest) (*ListPlaneInstallationsResponse, error)
 	GetPlaneInstallation(context.Context, *GetPlaneInstallationRequest) (*GetPlaneInstallationResponse, error)
+	ListPlaneProcessingRecords(context.Context, *ListPlaneProcessingRecordsRequest) (*ListPlaneProcessingRecordsResponse, error)
+	GetPlaneProcessingRecord(context.Context, *GetPlaneProcessingRecordRequest) (*GetPlaneProcessingRecordResponse, error)
 	mustEmbedUnimplementedPlaneAppServiceServer()
 }
 
@@ -236,6 +262,12 @@ func (UnimplementedPlaneAppServiceServer) ListPlaneInstallations(context.Context
 }
 func (UnimplementedPlaneAppServiceServer) GetPlaneInstallation(context.Context, *GetPlaneInstallationRequest) (*GetPlaneInstallationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlaneInstallation not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) ListPlaneProcessingRecords(context.Context, *ListPlaneProcessingRecordsRequest) (*ListPlaneProcessingRecordsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPlaneProcessingRecords not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) GetPlaneProcessingRecord(context.Context, *GetPlaneProcessingRecordRequest) (*GetPlaneProcessingRecordResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPlaneProcessingRecord not implemented")
 }
 func (UnimplementedPlaneAppServiceServer) mustEmbedUnimplementedPlaneAppServiceServer() {}
 func (UnimplementedPlaneAppServiceServer) testEmbeddedByValue()                         {}
@@ -438,6 +470,42 @@ func _PlaneAppService_GetPlaneInstallation_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaneAppService_ListPlaneProcessingRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPlaneProcessingRecordsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).ListPlaneProcessingRecords(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_ListPlaneProcessingRecords_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).ListPlaneProcessingRecords(ctx, req.(*ListPlaneProcessingRecordsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaneAppService_GetPlaneProcessingRecord_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPlaneProcessingRecordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).GetPlaneProcessingRecord(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_GetPlaneProcessingRecord_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).GetPlaneProcessingRecord(ctx, req.(*GetPlaneProcessingRecordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PlaneAppService_ServiceDesc is the grpc.ServiceDesc for PlaneAppService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -484,6 +552,14 @@ var PlaneAppService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlaneInstallation",
 			Handler:    _PlaneAppService_GetPlaneInstallation_Handler,
+		},
+		{
+			MethodName: "ListPlaneProcessingRecords",
+			Handler:    _PlaneAppService_ListPlaneProcessingRecords_Handler,
+		},
+		{
+			MethodName: "GetPlaneProcessingRecord",
+			Handler:    _PlaneAppService_GetPlaneProcessingRecord_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file agents/v1/plane.proto.
  */
 export const file_agents_v1_plane: GenFile = /*@__PURE__*/
-  fileDesc("ChVhZ2VudHMvdjEvcGxhbmUucHJvdG8SCWFnZW50cy52MSLZAwoIUGxhbmVBcHASCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhgKEHByb3ZpZGVyX3Byb2ZpbGUYAyABKAkSEQoJY2xpZW50X2lkGAQgASgJEhAKCGFnZW50X2lkGAUgASgJEhcKD2luYm91bmRfZW5hYmxlZBgGIAEoCBIYChBhbGxvd2VkX3VzZXJfaWRzGAcgAygJEhwKD21heF9ydW5fc2Vjb25kcxgIIAEoBUgAiAEBEhAKCHJldmlzaW9uGAkgASgDEjwKEGNyZWRlbnRpYWxfc3RhdGUYCiABKA4yIi5hZ2VudHMudjEuUGxhbmVBcHBDcmVkZW50aWFsU3RhdGUSGQoRY2xpZW50X3NlY3JldF9zZXQYCyABKAgSGgoSd2ViaG9va19zZWNyZXRfc2V0GAwgASgIEi4KCmNyZWF0ZWRfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYECABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDHdvcmtzcGFjZV9pZBhkIAEoCUISChBfbWF4X3J1bl9zZWNvbmRzSgQIDRAOSgQIDhAPIosBChRQbGFuZVByb3ZpZGVyUHJvZmlsZRIMCgRuYW1lGAEgASgJEhQKDGFwaV9iYXNlX3VybBgCIAEoCRIWCg5vYXV0aF9iYXNlX3VybBgDIAEoCRIUCgx3ZWJfYmFzZV91cmwYBCABKAkSDwoHZWRpdGlvbhgFIAEoCRIQCgh2ZXJpZmllZBgGIAEoCCIWChRMaXN0UGxhbmVBcHBzUmVxdWVzdCI6ChVMaXN0UGxhbmVBcHBzUmVzcG9uc2USIQoEYXBwcxgBIAMoCzITLmFnZW50cy52MS5QbGFuZUFwcCIpChJHZXRQbGFuZUFwcFJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiNwoTR2V0UGxhbmVBcHBSZXNwb25zZRIgCgNhcHAYASABKAsyEy5hZ2VudHMudjEuUGxhbmVBcHAiIAoeR2V0UGxhbmVQcm92aWRlclByb2ZpbGVSZXF1ZXN0IlMKH0dldFBsYW5lUHJvdmlkZXJQcm9maWxlUmVzcG9uc2USMAoHcHJvZmlsZRgBIAEoCzIfLmFnZW50cy52MS5QbGFuZVByb3ZpZGVyUHJvZmlsZSKXAQoVQ3JlYXRlUGxhbmVBcHBSZXF1ZXN0EiAKA2FwcBgBIAEoCzITLmFnZW50cy52MS5QbGFuZUFwcBIaCg1jbGllbnRfc2VjcmV0GAIgASgJSACIAQESGwoOd2ViaG9va19zZWNyZXQYAyABKAlIAYgBAUIQCg5fY2xpZW50X3NlY3JldEIRCg9fd2ViaG9va19zZWNyZXQiOgoWQ3JlYXRlUGxhbmVBcHBSZXNwb25zZRIgCgNhcHAYASABKAsyEy5hZ2VudHMudjEuUGxhbmVBcHAiOQoVVXBkYXRlUGxhbmVBcHBSZXF1ZXN0EiAKA2FwcBgBIAEoCzITLmFnZW50cy52MS5QbGFuZUFwcCI6ChZVcGRhdGVQbGFuZUFwcFJlc3BvbnNlEiAKA2FwcBgBIAEoCzITLmFnZW50cy52MS5QbGFuZUFwcCKWAQodUHV0UGxhbmVBcHBDcmVkZW50aWFsc1JlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABEhoKDWNsaWVudF9zZWNyZXQYAiABKAlIAIgBARIbCg53ZWJob29rX3NlY3JldBgDIAEoCUgBiAEBQhAKDl9jbGllbnRfc2VjcmV0QhEKD193ZWJob29rX3NlY3JldCJCCh5QdXRQbGFuZUFwcENyZWRlbnRpYWxzUmVzcG9uc2USIAoDYXBwGAEgASgLMhMuYWdlbnRzLnYxLlBsYW5lQXBwIiwKFURlbGV0ZVBsYW5lQXBwUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASIYChZEZWxldGVQbGFuZUFwcFJlc3BvbnNlIokDChFQbGFuZUluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIOCgZhcHBfaWQYAiABKAkSGgoScGxhbmVfd29ya3NwYWNlX2lkGAMgASgJEhYKDndvcmtzcGFjZV9zbHVnGAQgASgJEhsKE2FwcF9pbnN0YWxsYXRpb25faWQYBSABKAkSFwoPYXBwX2JvdF91c2VyX2lkGAYgASgJEhQKDGFwcF9ib3RfbmFtZRgHIAEoCRIWCg5ncmFudGVkX3Njb3BlcxgIIAMoCRIOCgZzdGF0dXMYCSABKAkSGAoQY3JlZGVudGlhbF9zdGF0ZRgKIAEoCRI0ChB0b2tlbl9leHBpcmVzX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxpbnN0YWxsZWRfYXQYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkcKGEJlZ2luUGxhbmVJbnN0YWxsUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESEgoKcmV0dXJuX3VybBgCIAEoCSIyChlCZWdpblBsYW5lSW5zdGFsbFJlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkiOAodTGlzdFBsYW5lSW5zdGFsbGF0aW9uc1JlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABIlUKHkxpc3RQbGFuZUluc3RhbGxhdGlvbnNSZXNwb25zZRIzCg1pbnN0YWxsYXRpb25zGAEgAygLMhwuYWdlbnRzLnYxLlBsYW5lSW5zdGFsbGF0aW9uIjIKG0dldFBsYW5lSW5zdGFsbGF0aW9uUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASJSChxHZXRQbGFuZUluc3RhbGxhdGlvblJlc3BvbnNlEjIKDGluc3RhbGxhdGlvbhgBIAEoCzIcLmFnZW50cy52MS5QbGFuZUluc3RhbGxhdGlvbiJYCg1QbGFuZVNldHRpbmdzEhcKD3B1YmxpY19iYXNlX3VybBgBIAEoCRIuCgp1cGRhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIZChdHZXRQbGFuZVNldHRpbmdzUmVxdWVzdCJ5ChhHZXRQbGFuZVNldHRpbmdzUmVzcG9uc2USKgoIc2V0dGluZ3MYASABKAsyGC5hZ2VudHMudjEuUGxhbmVTZXR0aW5ncxIxCghwcm92aWRlchgCIAEoCzIfLmFnZW50cy52MS5QbGFuZVByb3ZpZGVyUHJvZmlsZSJIChpVcGRhdGVQbGFuZVNldHRpbmdzUmVxdWVzdBIqCghzZXR0aW5ncxgBIAEoCzIYLmFnZW50cy52MS5QbGFuZVNldHRpbmdzInwKG1VwZGF0ZVBsYW5lU2V0dGluZ3NSZXNwb25zZRIqCghzZXR0aW5ncxgBIAEoCzIYLmFnZW50cy52MS5QbGFuZVNldHRpbmdzEjEKCHByb3ZpZGVyGAIgASgLMh8uYWdlbnRzLnYxLlBsYW5lUHJvdmlkZXJQcm9maWxlKpkBChdQbGFuZUFwcENyZWRlbnRpYWxTdGF0ZRIqCiZQTEFORV9BUFBfQ1JFREVOVElBTF9TVEFURV9VTlNQRUNJRklFRBAAEikKJVBMQU5FX0FQUF9DUkVERU5USUFMX1NUQVRFX0lOQ09NUExFVEUQARInCiNQTEFORV9BUFBfQ1JFREVOVElBTF9TVEFURV9DT01QTEVURRACMtEHCg9QbGFuZUFwcFNlcnZpY2USUgoNTGlzdFBsYW5lQXBwcxIfLmFnZW50cy52MS5MaXN0UGxhbmVBcHBzUmVxdWVzdBogLmFnZW50cy52MS5MaXN0UGxhbmVBcHBzUmVzcG9uc2USTAoLR2V0UGxhbmVBcHASHS5hZ2VudHMudjEuR2V0UGxhbmVBcHBSZXF1ZXN0Gh4uYWdlbnRzLnYxLkdldFBsYW5lQXBwUmVzcG9uc2UScAoXR2V0UGxhbmVQcm92aWRlclByb2ZpbGUSKS5hZ2VudHMudjEuR2V0UGxhbmVQcm92aWRlclByb2ZpbGVSZXF1ZXN0GiouYWdlbnRzLnYxLkdldFBsYW5lUHJvdmlkZXJQcm9maWxlUmVzcG9uc2USVQoOQ3JlYXRlUGxhbmVBcHASIC5hZ2VudHMudjEuQ3JlYXRlUGxhbmVBcHBSZXF1ZXN0GiEuYWdlbnRzLnYxLkNyZWF0ZVBsYW5lQXBwUmVzcG9uc2USVQoOVXBkYXRlUGxhbmVBcHASIC5hZ2VudHMudjEuVXBkYXRlUGxhbmVBcHBSZXF1ZXN0GiEuYWdlbnRzLnYxLlVwZGF0ZVBsYW5lQXBwUmVzcG9uc2USbQoWUHV0UGxhbmVBcHBDcmVkZW50aWFscxIoLmFnZW50cy52MS5QdXRQbGFuZUFwcENyZWRlbnRpYWxzUmVxdWVzdBopLmFnZW50cy52MS5QdXRQbGFuZUFwcENyZWRlbnRpYWxzUmVzcG9uc2USVQoORGVsZXRlUGxhbmVBcHASIC5hZ2VudHMudjEuRGVsZXRlUGxhbmVBcHBSZXF1ZXN0GiEuYWdlbnRzLnYxLkRlbGV0ZVBsYW5lQXBwUmVzcG9uc2USXgoRQmVnaW5QbGFuZUluc3RhbGwSIy5hZ2VudHMudjEuQmVnaW5QbGFuZUluc3RhbGxSZXF1ZXN0GiQuYWdlbnRzLnYxLkJlZ2luUGxhbmVJbnN0YWxsUmVzcG9uc2USbQoWTGlzdFBsYW5lSW5zdGFsbGF0aW9ucxIoLmFnZW50cy52MS5MaXN0UGxhbmVJbnN0YWxsYXRpb25zUmVxdWVzdBopLmFnZW50cy52MS5MaXN0UGxhbmVJbnN0YWxsYXRpb25zUmVzcG9uc2USZwoUR2V0UGxhbmVJbnN0YWxsYXRpb24SJi5hZ2VudHMudjEuR2V0UGxhbmVJbnN0YWxsYXRpb25SZXF1ZXN0GicuYWdlbnRzLnYxLkdldFBsYW5lSW5zdGFsbGF0aW9uUmVzcG9uc2Uy1gEKEVBsYW5lQWRtaW5TZXJ2aWNlElsKEEdldFBsYW5lU2V0dGluZ3MSIi5hZ2VudHMudjEuR2V0UGxhbmVTZXR0aW5nc1JlcXVlc3QaIy5hZ2VudHMudjEuR2V0UGxhbmVTZXR0aW5nc1Jlc3BvbnNlEmQKE1VwZGF0ZVBsYW5lU2V0dGluZ3MSJS5hZ2VudHMudjEuVXBkYXRlUGxhbmVTZXR0aW5nc1JlcXVlc3QaJi5hZ2VudHMudjEuVXBkYXRlUGxhbmVTZXR0aW5nc1Jlc3BvbnNlQjRaMmdvLm9yeC5tZS9hcHBzL2J1dHRlci9wa2cvcHJvdG8vYWdlbnRzL3YxO2FnZW50c3YxYgZwcm90bzM", [file_google_protobuf_timestamp, file_validate_validate]);
+  fileDesc("ChVhZ2VudHMvdjEvcGxhbmUucHJvdG8SCWFnZW50cy52MSLZAwoIUGxhbmVBcHASCgoCaWQYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhgKEHByb3ZpZGVyX3Byb2ZpbGUYAyABKAkSEQoJY2xpZW50X2lkGAQgASgJEhAKCGFnZW50X2lkGAUgASgJEhcKD2luYm91bmRfZW5hYmxlZBgGIAEoCBIYChBhbGxvd2VkX3VzZXJfaWRzGAcgAygJEhwKD21heF9ydW5fc2Vjb25kcxgIIAEoBUgAiAEBEhAKCHJldmlzaW9uGAkgASgDEjwKEGNyZWRlbnRpYWxfc3RhdGUYCiABKA4yIi5hZ2VudHMudjEuUGxhbmVBcHBDcmVkZW50aWFsU3RhdGUSGQoRY2xpZW50X3NlY3JldF9zZXQYCyABKAgSGgoSd2ViaG9va19zZWNyZXRfc2V0GAwgASgIEi4KCmNyZWF0ZWRfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYECABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDHdvcmtzcGFjZV9pZBhkIAEoCUISChBfbWF4X3J1bl9zZWNvbmRzSgQIDRAOSgQIDhAPIosBChRQbGFuZVByb3ZpZGVyUHJvZmlsZRIMCgRuYW1lGAEgASgJEhQKDGFwaV9iYXNlX3VybBgCIAEoCRIWCg5vYXV0aF9iYXNlX3VybBgDIAEoCRIUCgx3ZWJfYmFzZV91cmwYBCABKAkSDwoHZWRpdGlvbhgFIAEoCRIQCgh2ZXJpZmllZBgGIAEoCCIWChRMaXN0UGxhbmVBcHBzUmVxdWVzdCI6ChVMaXN0UGxhbmVBcHBzUmVzcG9uc2USIQoEYXBwcxgBIAMoCzITLmFnZW50cy52MS5QbGFuZUFwcCIpChJHZXRQbGFuZUFwcFJlcXVlc3QSEwoCaWQYASABKAlCB/pCBHICEAEiNwoTR2V0UGxhbmVBcHBSZXNwb25zZRIgCgNhcHAYASABKAsyEy5hZ2VudHMudjEuUGxhbmVBcHAiIAoeR2V0UGxhbmVQcm92aWRlclByb2ZpbGVSZXF1ZXN0IlMKH0dldFBsYW5lUHJvdmlkZXJQcm9maWxlUmVzcG9uc2USMAoHcHJvZmlsZRgBIAEoCzIfLmFnZW50cy52MS5QbGFuZVByb3ZpZGVyUHJvZmlsZSKXAQoVQ3JlYXRlUGxhbmVBcHBSZXF1ZXN0EiAKA2FwcBgBIAEoCzITLmFnZW50cy52MS5QbGFuZUFwcBIaCg1jbGllbnRfc2VjcmV0GAIgASgJSACIAQESGwoOd2ViaG9va19zZWNyZXQYAyABKAlIAYgBAUIQCg5fY2xpZW50X3NlY3JldEIRCg9fd2ViaG9va19zZWNyZXQiOgoWQ3JlYXRlUGxhbmVBcHBSZXNwb25zZRIgCgNhcHAYASABKAsyEy5hZ2VudHMudjEuUGxhbmVBcHAiOQoVVXBkYXRlUGxhbmVBcHBSZXF1ZXN0EiAKA2FwcBgBIAEoCzITLmFnZW50cy52MS5QbGFuZUFwcCI6ChZVcGRhdGVQbGFuZUFwcFJlc3BvbnNlEiAKA2FwcBgBIAEoCzITLmFnZW50cy52MS5QbGFuZUFwcCKWAQodUHV0UGxhbmVBcHBDcmVkZW50aWFsc1JlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABEhoKDWNsaWVudF9zZWNyZXQYAiABKAlIAIgBARIbCg53ZWJob29rX3NlY3JldBgDIAEoCUgBiAEBQhAKDl9jbGllbnRfc2VjcmV0QhEKD193ZWJob29rX3NlY3JldCJCCh5QdXRQbGFuZUFwcENyZWRlbnRpYWxzUmVzcG9uc2USIAoDYXBwGAEgASgLMhMuYWdlbnRzLnYxLlBsYW5lQXBwIiwKFURlbGV0ZVBsYW5lQXBwUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASIYChZEZWxldGVQbGFuZUFwcFJlc3BvbnNlIokDChFQbGFuZUluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIOCgZhcHBfaWQYAiABKAkSGgoScGxhbmVfd29ya3NwYWNlX2lkGAMgASgJEhYKDndvcmtzcGFjZV9zbHVnGAQgASgJEhsKE2FwcF9pbnN0YWxsYXRpb25faWQYBSABKAkSFwoPYXBwX2JvdF91c2VyX2lkGAYgASgJEhQKDGFwcF9ib3RfbmFtZRgHIAEoCRIWCg5ncmFudGVkX3Njb3BlcxgIIAMoCRIOCgZzdGF0dXMYCSABKAkSGAoQY3JlZGVudGlhbF9zdGF0ZRgKIAEoCRI0ChB0b2tlbl9leHBpcmVzX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxpbnN0YWxsZWRfYXQYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkcKGEJlZ2luUGxhbmVJbnN0YWxsUmVxdWVzdBIXCgZhcHBfaWQYASABKAlCB/pCBHICEAESEgoKcmV0dXJuX3VybBgCIAEoCSIyChlCZWdpblBsYW5lSW5zdGFsbFJlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkiOAodTGlzdFBsYW5lSW5zdGFsbGF0aW9uc1JlcXVlc3QSFwoGYXBwX2lkGAEgASgJQgf6QgRyAhABIlUKHkxpc3RQbGFuZUluc3RhbGxhdGlvbnNSZXNwb25zZRIzCg1pbnN0YWxsYXRpb25zGAEgAygLMhwuYWdlbnRzLnYxLlBsYW5lSW5zdGFsbGF0aW9uIjIKG0dldFBsYW5lSW5zdGFsbGF0aW9uUmVxdWVzdBITCgJpZBgBIAEoCUIH+kIEcgIQASJSChxHZXRQbGFuZUluc3RhbGxhdGlvblJlc3BvbnNlEjIKDGluc3RhbGxhdGlvbhgBIAEoCzIcLmFnZW50cy52MS5QbGFuZUluc3RhbGxhdGlvbiKyAQoUUGxhbmVXZWJob29rQWN0aXZpdHkSCgoCaWQYASABKAkSDgoGcnVuX2lkGAIgASgJEhUKDWFjdGl2aXR5X3R5cGUYAyABKAkSDgoGYWN0aW9uGAQgASgJEg4KBnN0YXR1cxgFIAEoCRIWCg5mYWlsdXJlX3JlYXNvbhgGIAEoCRIvCgtyZWNlaXZlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAi1QMKFVBsYW5lUHJvY2Vzc2luZ1JlY29yZBIKCgJpZBgBIAEoCRIUCgx3b3Jrc3BhY2VfaWQYAiABKAkSDgoGYXBwX2lkGAMgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgEIAEoCRIaChJwbGFuZV93b3Jrc3BhY2VfaWQYBSABKAkSEwoLYm90X3VzZXJfaWQYBiABKAkSDgoGcnVuX2lkGAcgASgJEhMKC2FjdGl2aXR5X2lkGAggASgJEhIKCmV2ZW50X3R5cGUYCSABKAkSFAoMZXZlbnRfYWN0aW9uGAogASgJEhMKC2RlbGl2ZXJ5X2lkGAsgASgJEjAKBnN0YXR1cxgMIAEoDjIgLmFnZW50cy52MS5QbGFuZVByb2Nlc3NpbmdTdGF0dXMSFgoOZmFpbHVyZV9yZWFzb24YDSABKAkSLwoLcmVjZWl2ZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKCGFjdGl2aXR5GBAgASgLMh8uYWdlbnRzLnYxLlBsYW5lV2ViaG9va0FjdGl2aXR5IngKIUxpc3RQbGFuZVByb2Nlc3NpbmdSZWNvcmRzUmVxdWVzdBIOCgZhcHBfaWQYASABKAkSMAoGc3RhdHVzGAIgASgOMiAuYWdlbnRzLnYxLlBsYW5lUHJvY2Vzc2luZ1N0YXR1cxIRCglwYWdlX3NpemUYAyABKAUiVwoiTGlzdFBsYW5lUHJvY2Vzc2luZ1JlY29yZHNSZXNwb25zZRIxCgdyZWNvcmRzGAEgAygLMiAuYWdlbnRzLnYxLlBsYW5lUHJvY2Vzc2luZ1JlY29yZCI2Ch9HZXRQbGFuZVByb2Nlc3NpbmdSZWNvcmRSZXF1ZXN0EhMKAmlkGAEgASgJQgf6QgRyAhABIlQKIEdldFBsYW5lUHJvY2Vzc2luZ1JlY29yZFJlc3BvbnNlEjAKBnJlY29yZBgBIAEoCzIgLmFnZW50cy52MS5QbGFuZVByb2Nlc3NpbmdSZWNvcmQiWAoNUGxhbmVTZXR0aW5ncxIXCg9wdWJsaWNfYmFzZV91cmwYASABKAkSLgoKdXBkYXRlZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiGQoXR2V0UGxhbmVTZXR0aW5nc1JlcXVlc3QieQoYR2V0UGxhbmVTZXR0aW5nc1Jlc3BvbnNlEioKCHNldHRpbmdzGAEgASgLMhguYWdlbnRzLnYxLlBsYW5lU2V0dGluZ3MSMQoIcHJvdmlkZXIYAiABKAsyHy5hZ2VudHMudjEuUGxhbmVQcm92aWRlclByb2ZpbGUiSAoaVXBkYXRlUGxhbmVTZXR0aW5nc1JlcXVlc3QSKgoIc2V0dGluZ3MYASABKAsyGC5hZ2VudHMudjEuUGxhbmVTZXR0aW5ncyJ8ChtVcGRhdGVQbGFuZVNldHRpbmdzUmVzcG9uc2USKgoIc2V0dGluZ3MYASABKAsyGC5hZ2VudHMudjEuUGxhbmVTZXR0aW5ncxIxCghwcm92aWRlchgCIAEoCzIfLmFnZW50cy52MS5QbGFuZVByb3ZpZGVyUHJvZmlsZSqZAQoXUGxhbmVBcHBDcmVkZW50aWFsU3RhdGUSKgomUExBTkVfQVBQX0NSRURFTlRJQUxfU1RBVEVfVU5TUEVDSUZJRUQQABIpCiVQTEFORV9BUFBfQ1JFREVOVElBTF9TVEFURV9JTkNPTVBMRVRFEAESJwojUExBTkVfQVBQX0NSRURFTlRJQUxfU1RBVEVfQ09NUExFVEUQAirZAQoVUGxhbmVQcm9jZXNzaW5nU3RhdHVzEicKI1BMQU5FX1BST0NFU1NJTkdfU1RBVFVTX1VOU1BFQ0lGSUVEEAASJAogUExBTkVfUFJPQ0VTU0lOR19TVEFUVVNfUkVDRUlWRUQQARImCiJQTEFORV9QUk9DRVNTSU5HX1NUQVRVU19QUk9DRVNTSU5HEAISJQohUExBTkVfUFJPQ0VTU0lOR19TVEFUVVNfU1VDQ0VFREVEEAMSIgoeUExBTkVfUFJPQ0VTU0lOR19TVEFUVVNfRkFJTEVEEAQywQkKD1BsYW5lQXBwU2VydmljZRJSCg1MaXN0UGxhbmVBcHBzEh8uYWdlbnRzLnYxLkxpc3RQbGFuZUFwcHNSZXF1ZXN0GiAuYWdlbnRzLnYxLkxpc3RQbGFuZUFwcHNSZXNwb25zZRJMCgtHZXRQbGFuZUFwcBIdLmFnZW50cy52MS5HZXRQbGFuZUFwcFJlcXVlc3QaHi5hZ2VudHMudjEuR2V0UGxhbmVBcHBSZXNwb25zZRJwChdHZXRQbGFuZVByb3ZpZGVyUHJvZmlsZRIpLmFnZW50cy52MS5HZXRQbGFuZVByb3ZpZGVyUHJvZmlsZVJlcXVlc3QaKi5hZ2VudHMudjEuR2V0UGxhbmVQcm92aWRlclByb2ZpbGVSZXNwb25zZRJVCg5DcmVhdGVQbGFuZUFwcBIgLmFnZW50cy52MS5DcmVhdGVQbGFuZUFwcFJlcXVlc3QaIS5hZ2VudHMudjEuQ3JlYXRlUGxhbmVBcHBSZXNwb25zZRJVCg5VcGRhdGVQbGFuZUFwcBIgLmFnZW50cy52MS5VcGRhdGVQbGFuZUFwcFJlcXVlc3QaIS5hZ2VudHMudjEuVXBkYXRlUGxhbmVBcHBSZXNwb25zZRJtChZQdXRQbGFuZUFwcENyZWRlbnRpYWxzEiguYWdlbnRzLnYxLlB1dFBsYW5lQXBwQ3JlZGVudGlhbHNSZXF1ZXN0GikuYWdlbnRzLnYxLlB1dFBsYW5lQXBwQ3JlZGVudGlhbHNSZXNwb25zZRJVCg5EZWxldGVQbGFuZUFwcBIgLmFnZW50cy52MS5EZWxldGVQbGFuZUFwcFJlcXVlc3QaIS5hZ2VudHMudjEuRGVsZXRlUGxhbmVBcHBSZXNwb25zZRJeChFCZWdpblBsYW5lSW5zdGFsbBIjLmFnZW50cy52MS5CZWdpblBsYW5lSW5zdGFsbFJlcXVlc3QaJC5hZ2VudHMudjEuQmVnaW5QbGFuZUluc3RhbGxSZXNwb25zZRJtChZMaXN0UGxhbmVJbnN0YWxsYXRpb25zEiguYWdlbnRzLnYxLkxpc3RQbGFuZUluc3RhbGxhdGlvbnNSZXF1ZXN0GikuYWdlbnRzLnYxLkxpc3RQbGFuZUluc3RhbGxhdGlvbnNSZXNwb25zZRJnChRHZXRQbGFuZUluc3RhbGxhdGlvbhImLmFnZW50cy52MS5HZXRQbGFuZUluc3RhbGxhdGlvblJlcXVlc3QaJy5hZ2VudHMudjEuR2V0UGxhbmVJbnN0YWxsYXRpb25SZXNwb25zZRJ5ChpMaXN0UGxhbmVQcm9jZXNzaW5nUmVjb3JkcxIsLmFnZW50cy52MS5MaXN0UGxhbmVQcm9jZXNzaW5nUmVjb3Jkc1JlcXVlc3QaLS5hZ2VudHMudjEuTGlzdFBsYW5lUHJvY2Vzc2luZ1JlY29yZHNSZXNwb25zZRJzChhHZXRQbGFuZVByb2Nlc3NpbmdSZWNvcmQSKi5hZ2VudHMudjEuR2V0UGxhbmVQcm9jZXNzaW5nUmVjb3JkUmVxdWVzdBorLmFnZW50cy52MS5HZXRQbGFuZVByb2Nlc3NpbmdSZWNvcmRSZXNwb25zZTLWAQoRUGxhbmVBZG1pblNlcnZpY2USWwoQR2V0UGxhbmVTZXR0aW5ncxIiLmFnZW50cy52MS5HZXRQbGFuZVNldHRpbmdzUmVxdWVzdBojLmFnZW50cy52MS5HZXRQbGFuZVNldHRpbmdzUmVzcG9uc2USZAoTVXBkYXRlUGxhbmVTZXR0aW5ncxIlLmFnZW50cy52MS5VcGRhdGVQbGFuZVNldHRpbmdzUmVxdWVzdBomLmFnZW50cy52MS5VcGRhdGVQbGFuZVNldHRpbmdzUmVzcG9uc2VCNFoyZ28ub3J4Lm1lL2FwcHMvYnV0dGVyL3BrZy9wcm90by9hZ2VudHMvdjE7YWdlbnRzdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_validate_validate]);
 
 /**
  * PlaneApp is one Plane app registered in a workspace.
@@ -666,6 +666,223 @@ export const GetPlaneInstallationResponseSchema: GenMessage<GetPlaneInstallation
   messageDesc(file_agents_v1_plane, 22);
 
 /**
+ * @generated from message agents.v1.PlaneWebhookActivity
+ */
+export type PlaneWebhookActivity = Message<"agents.v1.PlaneWebhookActivity"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string run_id = 2;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: string activity_type = 3;
+   */
+  activityType: string;
+
+  /**
+   * @generated from field: string action = 4;
+   */
+  action: string;
+
+  /**
+   * @generated from field: string status = 5;
+   */
+  status: string;
+
+  /**
+   * @generated from field: string failure_reason = 6;
+   */
+  failureReason: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp received_at = 7;
+   */
+  receivedAt?: Timestamp;
+};
+
+/**
+ * Describes the message agents.v1.PlaneWebhookActivity.
+ * Use `create(PlaneWebhookActivitySchema)` to create a new message.
+ */
+export const PlaneWebhookActivitySchema: GenMessage<PlaneWebhookActivity> = /*@__PURE__*/
+  messageDesc(file_agents_v1_plane, 23);
+
+/**
+ * @generated from message agents.v1.PlaneProcessingRecord
+ */
+export type PlaneProcessingRecord = Message<"agents.v1.PlaneProcessingRecord"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string workspace_id = 2;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: string app_id = 3;
+   */
+  appId: string;
+
+  /**
+   * @generated from field: string installation_id = 4;
+   */
+  installationId: string;
+
+  /**
+   * @generated from field: string plane_workspace_id = 5;
+   */
+  planeWorkspaceId: string;
+
+  /**
+   * @generated from field: string bot_user_id = 6;
+   */
+  botUserId: string;
+
+  /**
+   * @generated from field: string run_id = 7;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: string activity_id = 8;
+   */
+  activityId: string;
+
+  /**
+   * @generated from field: string event_type = 9;
+   */
+  eventType: string;
+
+  /**
+   * @generated from field: string event_action = 10;
+   */
+  eventAction: string;
+
+  /**
+   * @generated from field: string delivery_id = 11;
+   */
+  deliveryId: string;
+
+  /**
+   * @generated from field: agents.v1.PlaneProcessingStatus status = 12;
+   */
+  status: PlaneProcessingStatus;
+
+  /**
+   * @generated from field: string failure_reason = 13;
+   */
+  failureReason: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp received_at = 14;
+   */
+  receivedAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 15;
+   */
+  updatedAt?: Timestamp;
+
+  /**
+   * @generated from field: agents.v1.PlaneWebhookActivity activity = 16;
+   */
+  activity?: PlaneWebhookActivity;
+};
+
+/**
+ * Describes the message agents.v1.PlaneProcessingRecord.
+ * Use `create(PlaneProcessingRecordSchema)` to create a new message.
+ */
+export const PlaneProcessingRecordSchema: GenMessage<PlaneProcessingRecord> = /*@__PURE__*/
+  messageDesc(file_agents_v1_plane, 24);
+
+/**
+ * @generated from message agents.v1.ListPlaneProcessingRecordsRequest
+ */
+export type ListPlaneProcessingRecordsRequest = Message<"agents.v1.ListPlaneProcessingRecordsRequest"> & {
+  /**
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * @generated from field: agents.v1.PlaneProcessingStatus status = 2;
+   */
+  status: PlaneProcessingStatus;
+
+  /**
+   * @generated from field: int32 page_size = 3;
+   */
+  pageSize: number;
+};
+
+/**
+ * Describes the message agents.v1.ListPlaneProcessingRecordsRequest.
+ * Use `create(ListPlaneProcessingRecordsRequestSchema)` to create a new message.
+ */
+export const ListPlaneProcessingRecordsRequestSchema: GenMessage<ListPlaneProcessingRecordsRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_plane, 25);
+
+/**
+ * @generated from message agents.v1.ListPlaneProcessingRecordsResponse
+ */
+export type ListPlaneProcessingRecordsResponse = Message<"agents.v1.ListPlaneProcessingRecordsResponse"> & {
+  /**
+   * @generated from field: repeated agents.v1.PlaneProcessingRecord records = 1;
+   */
+  records: PlaneProcessingRecord[];
+};
+
+/**
+ * Describes the message agents.v1.ListPlaneProcessingRecordsResponse.
+ * Use `create(ListPlaneProcessingRecordsResponseSchema)` to create a new message.
+ */
+export const ListPlaneProcessingRecordsResponseSchema: GenMessage<ListPlaneProcessingRecordsResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_plane, 26);
+
+/**
+ * @generated from message agents.v1.GetPlaneProcessingRecordRequest
+ */
+export type GetPlaneProcessingRecordRequest = Message<"agents.v1.GetPlaneProcessingRecordRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message agents.v1.GetPlaneProcessingRecordRequest.
+ * Use `create(GetPlaneProcessingRecordRequestSchema)` to create a new message.
+ */
+export const GetPlaneProcessingRecordRequestSchema: GenMessage<GetPlaneProcessingRecordRequest> = /*@__PURE__*/
+  messageDesc(file_agents_v1_plane, 27);
+
+/**
+ * @generated from message agents.v1.GetPlaneProcessingRecordResponse
+ */
+export type GetPlaneProcessingRecordResponse = Message<"agents.v1.GetPlaneProcessingRecordResponse"> & {
+  /**
+   * @generated from field: agents.v1.PlaneProcessingRecord record = 1;
+   */
+  record?: PlaneProcessingRecord;
+};
+
+/**
+ * Describes the message agents.v1.GetPlaneProcessingRecordResponse.
+ * Use `create(GetPlaneProcessingRecordResponseSchema)` to create a new message.
+ */
+export const GetPlaneProcessingRecordResponseSchema: GenMessage<GetPlaneProcessingRecordResponse> = /*@__PURE__*/
+  messageDesc(file_agents_v1_plane, 28);
+
+/**
  * PlaneSettings holds platform-level Plane configuration.
  *
  * @generated from message agents.v1.PlaneSettings
@@ -694,7 +911,7 @@ export type PlaneSettings = Message<"agents.v1.PlaneSettings"> & {
  * Use `create(PlaneSettingsSchema)` to create a new message.
  */
 export const PlaneSettingsSchema: GenMessage<PlaneSettings> = /*@__PURE__*/
-  messageDesc(file_agents_v1_plane, 23);
+  messageDesc(file_agents_v1_plane, 29);
 
 /**
  * @generated from message agents.v1.GetPlaneSettingsRequest
@@ -707,7 +924,7 @@ export type GetPlaneSettingsRequest = Message<"agents.v1.GetPlaneSettingsRequest
  * Use `create(GetPlaneSettingsRequestSchema)` to create a new message.
  */
 export const GetPlaneSettingsRequestSchema: GenMessage<GetPlaneSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_plane, 24);
+  messageDesc(file_agents_v1_plane, 30);
 
 /**
  * @generated from message agents.v1.GetPlaneSettingsResponse
@@ -731,7 +948,7 @@ export type GetPlaneSettingsResponse = Message<"agents.v1.GetPlaneSettingsRespon
  * Use `create(GetPlaneSettingsResponseSchema)` to create a new message.
  */
 export const GetPlaneSettingsResponseSchema: GenMessage<GetPlaneSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_plane, 25);
+  messageDesc(file_agents_v1_plane, 31);
 
 /**
  * @generated from message agents.v1.UpdatePlaneSettingsRequest
@@ -748,7 +965,7 @@ export type UpdatePlaneSettingsRequest = Message<"agents.v1.UpdatePlaneSettingsR
  * Use `create(UpdatePlaneSettingsRequestSchema)` to create a new message.
  */
 export const UpdatePlaneSettingsRequestSchema: GenMessage<UpdatePlaneSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_agents_v1_plane, 26);
+  messageDesc(file_agents_v1_plane, 32);
 
 /**
  * @generated from message agents.v1.UpdatePlaneSettingsResponse
@@ -772,7 +989,7 @@ export type UpdatePlaneSettingsResponse = Message<"agents.v1.UpdatePlaneSettings
  * Use `create(UpdatePlaneSettingsResponseSchema)` to create a new message.
  */
 export const UpdatePlaneSettingsResponseSchema: GenMessage<UpdatePlaneSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_agents_v1_plane, 27);
+  messageDesc(file_agents_v1_plane, 33);
 
 /**
  * PlaneAppCredentialState reports whether both App secrets are stored
@@ -806,6 +1023,42 @@ export enum PlaneAppCredentialState {
  */
 export const PlaneAppCredentialStateSchema: GenEnum<PlaneAppCredentialState> = /*@__PURE__*/
   enumDesc(file_agents_v1_plane, 0);
+
+/**
+ * @generated from enum agents.v1.PlaneProcessingStatus
+ */
+export enum PlaneProcessingStatus {
+  /**
+   * @generated from enum value: PLANE_PROCESSING_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: PLANE_PROCESSING_STATUS_RECEIVED = 1;
+   */
+  RECEIVED = 1,
+
+  /**
+   * @generated from enum value: PLANE_PROCESSING_STATUS_PROCESSING = 2;
+   */
+  PROCESSING = 2,
+
+  /**
+   * @generated from enum value: PLANE_PROCESSING_STATUS_SUCCEEDED = 3;
+   */
+  SUCCEEDED = 3,
+
+  /**
+   * @generated from enum value: PLANE_PROCESSING_STATUS_FAILED = 4;
+   */
+  FAILED = 4,
+}
+
+/**
+ * Describes the enum agents.v1.PlaneProcessingStatus.
+ */
+export const PlaneProcessingStatusSchema: GenEnum<PlaneProcessingStatus> = /*@__PURE__*/
+  enumDesc(file_agents_v1_plane, 1);
 
 /**
  * PlaneAppService manages a workspace's Plane Apps. Members may read;
@@ -910,6 +1163,22 @@ export const PlaneAppService: GenService<{
     methodKind: "unary";
     input: typeof GetPlaneInstallationRequestSchema;
     output: typeof GetPlaneInstallationResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.PlaneAppService.ListPlaneProcessingRecords
+   */
+  listPlaneProcessingRecords: {
+    methodKind: "unary";
+    input: typeof ListPlaneProcessingRecordsRequestSchema;
+    output: typeof ListPlaneProcessingRecordsResponseSchema;
+  },
+  /**
+   * @generated from rpc agents.v1.PlaneAppService.GetPlaneProcessingRecord
+   */
+  getPlaneProcessingRecord: {
+    methodKind: "unary";
+    input: typeof GetPlaneProcessingRecordRequestSchema;
+    output: typeof GetPlaneProcessingRecordResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_agents_v1_plane, 0);

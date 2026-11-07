@@ -588,6 +588,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		if h.planeAppSvcServer != nil {
 			h.planeAppSvcServer.SetRepo(result.PlaneRepo)
 			h.planeAppSvcServer.SetPlaneInstallationRepo(result.PlaneInstallationRepo)
+			h.planeAppSvcServer.SetPlaneProcessingRepo(result.PlaneProcessingRepo)
 			h.planeAppSvcServer.SetPlaneInstallStateRepo(result.PlaneInstallStateRepo)
 			h.planeAppSvcServer.SetKeyring(planeKeyring)
 			h.planeAppSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
