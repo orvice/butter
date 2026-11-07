@@ -16,10 +16,11 @@ type Store struct {
 	mu      sync.RWMutex
 	records map[string]*agentsv1.PlaneProcessingRecord
 	keys    map[string]string
+	claims  map[string]planeprocessing.Claim
 }
 
 func New() *Store {
-	return &Store{records: map[string]*agentsv1.PlaneProcessingRecord{}, keys: map[string]string{}}
+	return &Store{records: map[string]*agentsv1.PlaneProcessingRecord{}, keys: map[string]string{}, claims: map[string]planeprocessing.Claim{}}
 }
 func (s *Store) EnsureIndexes(context.Context) error { return nil }
 func (s *Store) Create(_ context.Context, r *agentsv1.PlaneProcessingRecord) (*agentsv1.PlaneProcessingRecord, error) {
@@ -51,6 +52,58 @@ func (s *Store) Get(_ context.Context, ws, id string) (*agentsv1.PlaneProcessing
 	}
 	return proto.Clone(r).(*agentsv1.PlaneProcessingRecord), nil
 }
+
+func (s *Store) Claim(_ context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := ws + ":" + app + ":" + installation + ":" + run
+	c, ok := s.claims[key]
+	now := time.Now()
+	if ok && c.ExpiresAt.After(now) && c.Owner != owner {
+		return planeprocessing.Claim{}, planeprocessing.ErrClaimConflict
+	}
+	c.Owner = owner
+	c.Revision++
+	c.Fence++
+	c.ExpiresAt = expiry
+	s.claims[key] = c
+	return c, nil
+}
+func (s *Store) Renew(_ context.Context, key string, in planeprocessing.Claim, expiry time.Time) (planeprocessing.Claim, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.claims[key]
+	if !ok || c.Owner != in.Owner || c.Revision != in.Revision || c.Fence != in.Fence || !c.ExpiresAt.After(time.Now()) {
+		return planeprocessing.Claim{}, planeprocessing.ErrClaimExpired
+	}
+	c.ExpiresAt = expiry
+	s.claims[key] = c
+	return c, nil
+}
+func (s *Store) Complete(_ context.Context, key string, in planeprocessing.Claim) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.claims[key]
+	if !ok || c.Owner != in.Owner || c.Revision != in.Revision || c.Fence != in.Fence || !c.ExpiresAt.After(time.Now()) {
+		return planeprocessing.ErrClaimExpired
+	}
+	delete(s.claims, key)
+	return nil
+}
+func (s *Store) ReclaimExpired(_ context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
+	return s.Claim(context.Background(), ws, app, installation, run, owner, expiry)
+}
+func (s *Store) RecoverExpired(_ context.Context, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, c := range s.claims {
+		if !c.ExpiresAt.After(now) {
+			delete(s.claims, k)
+		}
+	}
+	return nil
+}
+
 func (s *Store) List(_ context.Context, f planeprocessing.Filter) ([]*agentsv1.PlaneProcessingRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

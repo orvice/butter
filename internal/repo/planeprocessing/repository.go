@@ -4,10 +4,28 @@ import (
 	"context"
 	"errors"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
+	"time"
 )
+
+type Claim struct {
+	Owner     string
+	Revision  int64
+	Fence     uint64
+	ExpiresAt time.Time
+}
+type ClaimRepository interface {
+	Claim(context.Context, string, string, string, string, string, time.Time) (Claim, error)
+	Renew(context.Context, string, Claim, time.Time) (Claim, error)
+	Complete(context.Context, string, Claim) error
+	ReclaimExpired(context.Context, string, string, string, string, string, time.Time) (Claim, error)
+	RecoverExpired(context.Context, time.Time) error
+}
 
 var ErrNotFound = errors.New("plane processing record not found")
 var ErrDuplicate = errors.New("plane processing activity already recorded")
+
+var ErrClaimConflict = errors.New("plane processing claim conflict")
+var ErrClaimExpired = errors.New("plane processing claim expired")
 
 type Filter struct {
 	WorkspaceID, AppID string
