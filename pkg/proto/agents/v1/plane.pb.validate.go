@@ -3829,6 +3829,829 @@ var _ interface {
 	ErrorName() string
 } = GetPlaneProcessingRecordResponseValidationError{}
 
+// Validate checks the field values on PlaneDelivery with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *PlaneDelivery) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PlaneDelivery with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in PlaneDeliveryMultiError, or
+// nil if none found.
+func (m *PlaneDelivery) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PlaneDelivery) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Key
+
+	// no validation rules for Status
+
+	// no validation rules for Attempts
+
+	// no validation rules for LastError
+
+	// no validation rules for UpdatedAt
+
+	// no validation rules for OwnerConfirmed
+
+	if len(errors) > 0 {
+		return PlaneDeliveryMultiError(errors)
+	}
+
+	return nil
+}
+
+// PlaneDeliveryMultiError is an error wrapping multiple validation errors
+// returned by PlaneDelivery.ValidateAll() if the designated constraints
+// aren't met.
+type PlaneDeliveryMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PlaneDeliveryMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PlaneDeliveryMultiError) AllErrors() []error { return m }
+
+// PlaneDeliveryValidationError is the validation error returned by
+// PlaneDelivery.Validate if the designated constraints aren't met.
+type PlaneDeliveryValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PlaneDeliveryValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PlaneDeliveryValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PlaneDeliveryValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PlaneDeliveryValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PlaneDeliveryValidationError) ErrorName() string { return "PlaneDeliveryValidationError" }
+
+// Error satisfies the builtin error interface
+func (e PlaneDeliveryValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPlaneDelivery.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PlaneDeliveryValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PlaneDeliveryValidationError{}
+
+// Validate checks the field values on ListPlaneDeliveriesRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListPlaneDeliveriesRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListPlaneDeliveriesRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListPlaneDeliveriesRequestMultiError, or nil if none found.
+func (m *ListPlaneDeliveriesRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListPlaneDeliveriesRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return ListPlaneDeliveriesRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListPlaneDeliveriesRequestMultiError is an error wrapping multiple
+// validation errors returned by ListPlaneDeliveriesRequest.ValidateAll() if
+// the designated constraints aren't met.
+type ListPlaneDeliveriesRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListPlaneDeliveriesRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListPlaneDeliveriesRequestMultiError) AllErrors() []error { return m }
+
+// ListPlaneDeliveriesRequestValidationError is the validation error returned
+// by ListPlaneDeliveriesRequest.Validate if the designated constraints aren't met.
+type ListPlaneDeliveriesRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListPlaneDeliveriesRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListPlaneDeliveriesRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListPlaneDeliveriesRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListPlaneDeliveriesRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListPlaneDeliveriesRequestValidationError) ErrorName() string {
+	return "ListPlaneDeliveriesRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListPlaneDeliveriesRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListPlaneDeliveriesRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListPlaneDeliveriesRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListPlaneDeliveriesRequestValidationError{}
+
+// Validate checks the field values on ListPlaneDeliveriesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ListPlaneDeliveriesResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ListPlaneDeliveriesResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ListPlaneDeliveriesResponseMultiError, or nil if none found.
+func (m *ListPlaneDeliveriesResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ListPlaneDeliveriesResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetDeliveries() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ListPlaneDeliveriesResponseValidationError{
+						field:  fmt.Sprintf("Deliveries[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ListPlaneDeliveriesResponseValidationError{
+						field:  fmt.Sprintf("Deliveries[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ListPlaneDeliveriesResponseValidationError{
+					field:  fmt.Sprintf("Deliveries[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ListPlaneDeliveriesResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// ListPlaneDeliveriesResponseMultiError is an error wrapping multiple
+// validation errors returned by ListPlaneDeliveriesResponse.ValidateAll() if
+// the designated constraints aren't met.
+type ListPlaneDeliveriesResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ListPlaneDeliveriesResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ListPlaneDeliveriesResponseMultiError) AllErrors() []error { return m }
+
+// ListPlaneDeliveriesResponseValidationError is the validation error returned
+// by ListPlaneDeliveriesResponse.Validate if the designated constraints
+// aren't met.
+type ListPlaneDeliveriesResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ListPlaneDeliveriesResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ListPlaneDeliveriesResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ListPlaneDeliveriesResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ListPlaneDeliveriesResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ListPlaneDeliveriesResponseValidationError) ErrorName() string {
+	return "ListPlaneDeliveriesResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ListPlaneDeliveriesResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sListPlaneDeliveriesResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ListPlaneDeliveriesResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ListPlaneDeliveriesResponseValidationError{}
+
+// Validate checks the field values on GetPlaneDeliveryRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetPlaneDeliveryRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetPlaneDeliveryRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetPlaneDeliveryRequestMultiError, or nil if none found.
+func (m *GetPlaneDeliveryRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetPlaneDeliveryRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Key
+
+	if len(errors) > 0 {
+		return GetPlaneDeliveryRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetPlaneDeliveryRequestMultiError is an error wrapping multiple validation
+// errors returned by GetPlaneDeliveryRequest.ValidateAll() if the designated
+// constraints aren't met.
+type GetPlaneDeliveryRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetPlaneDeliveryRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetPlaneDeliveryRequestMultiError) AllErrors() []error { return m }
+
+// GetPlaneDeliveryRequestValidationError is the validation error returned by
+// GetPlaneDeliveryRequest.Validate if the designated constraints aren't met.
+type GetPlaneDeliveryRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetPlaneDeliveryRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetPlaneDeliveryRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetPlaneDeliveryRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetPlaneDeliveryRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetPlaneDeliveryRequestValidationError) ErrorName() string {
+	return "GetPlaneDeliveryRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetPlaneDeliveryRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetPlaneDeliveryRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetPlaneDeliveryRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetPlaneDeliveryRequestValidationError{}
+
+// Validate checks the field values on GetPlaneDeliveryResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *GetPlaneDeliveryResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GetPlaneDeliveryResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GetPlaneDeliveryResponseMultiError, or nil if none found.
+func (m *GetPlaneDeliveryResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GetPlaneDeliveryResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetDelivery()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GetPlaneDeliveryResponseValidationError{
+					field:  "Delivery",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GetPlaneDeliveryResponseValidationError{
+					field:  "Delivery",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDelivery()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return GetPlaneDeliveryResponseValidationError{
+				field:  "Delivery",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return GetPlaneDeliveryResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// GetPlaneDeliveryResponseMultiError is an error wrapping multiple validation
+// errors returned by GetPlaneDeliveryResponse.ValidateAll() if the designated
+// constraints aren't met.
+type GetPlaneDeliveryResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GetPlaneDeliveryResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GetPlaneDeliveryResponseMultiError) AllErrors() []error { return m }
+
+// GetPlaneDeliveryResponseValidationError is the validation error returned by
+// GetPlaneDeliveryResponse.Validate if the designated constraints aren't met.
+type GetPlaneDeliveryResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e GetPlaneDeliveryResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e GetPlaneDeliveryResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e GetPlaneDeliveryResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e GetPlaneDeliveryResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e GetPlaneDeliveryResponseValidationError) ErrorName() string {
+	return "GetPlaneDeliveryResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e GetPlaneDeliveryResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sGetPlaneDeliveryResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = GetPlaneDeliveryResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = GetPlaneDeliveryResponseValidationError{}
+
+// Validate checks the field values on RetryPlaneDeliveryRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RetryPlaneDeliveryRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RetryPlaneDeliveryRequest with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RetryPlaneDeliveryRequestMultiError, or nil if none found.
+func (m *RetryPlaneDeliveryRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RetryPlaneDeliveryRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Key
+
+	// no validation rules for Owner
+
+	if len(errors) > 0 {
+		return RetryPlaneDeliveryRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// RetryPlaneDeliveryRequestMultiError is an error wrapping multiple validation
+// errors returned by RetryPlaneDeliveryRequest.ValidateAll() if the
+// designated constraints aren't met.
+type RetryPlaneDeliveryRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RetryPlaneDeliveryRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RetryPlaneDeliveryRequestMultiError) AllErrors() []error { return m }
+
+// RetryPlaneDeliveryRequestValidationError is the validation error returned by
+// RetryPlaneDeliveryRequest.Validate if the designated constraints aren't met.
+type RetryPlaneDeliveryRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RetryPlaneDeliveryRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RetryPlaneDeliveryRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RetryPlaneDeliveryRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RetryPlaneDeliveryRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RetryPlaneDeliveryRequestValidationError) ErrorName() string {
+	return "RetryPlaneDeliveryRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RetryPlaneDeliveryRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRetryPlaneDeliveryRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RetryPlaneDeliveryRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RetryPlaneDeliveryRequestValidationError{}
+
+// Validate checks the field values on RetryPlaneDeliveryResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RetryPlaneDeliveryResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RetryPlaneDeliveryResponse with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RetryPlaneDeliveryResponseMultiError, or nil if none found.
+func (m *RetryPlaneDeliveryResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RetryPlaneDeliveryResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetDelivery()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RetryPlaneDeliveryResponseValidationError{
+					field:  "Delivery",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RetryPlaneDeliveryResponseValidationError{
+					field:  "Delivery",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDelivery()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RetryPlaneDeliveryResponseValidationError{
+				field:  "Delivery",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return RetryPlaneDeliveryResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// RetryPlaneDeliveryResponseMultiError is an error wrapping multiple
+// validation errors returned by RetryPlaneDeliveryResponse.ValidateAll() if
+// the designated constraints aren't met.
+type RetryPlaneDeliveryResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RetryPlaneDeliveryResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RetryPlaneDeliveryResponseMultiError) AllErrors() []error { return m }
+
+// RetryPlaneDeliveryResponseValidationError is the validation error returned
+// by RetryPlaneDeliveryResponse.Validate if the designated constraints aren't met.
+type RetryPlaneDeliveryResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RetryPlaneDeliveryResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RetryPlaneDeliveryResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RetryPlaneDeliveryResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RetryPlaneDeliveryResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RetryPlaneDeliveryResponseValidationError) ErrorName() string {
+	return "RetryPlaneDeliveryResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RetryPlaneDeliveryResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRetryPlaneDeliveryResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RetryPlaneDeliveryResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RetryPlaneDeliveryResponseValidationError{}
+
 // Validate checks the field values on PlaneSettings with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

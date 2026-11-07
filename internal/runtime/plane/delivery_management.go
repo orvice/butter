@@ -35,6 +35,13 @@ func (m *DeliveryManagement) List(ctx context.Context) ([]DeliveryView, error) {
 	}
 	return out, nil
 }
+func (m *DeliveryManagement) Get(ctx context.Context, key string) (DeliveryView, error) {
+	r, err := m.store.Get(ctx, key)
+	if err != nil {
+		return DeliveryView{}, err
+	}
+	return deliveryView(r), nil
+}
 func (m *DeliveryManagement) ConfirmRetry(ctx context.Context, key, owner string) error {
 	return m.publisher.ConfirmAndRetry(ctx, key, owner)
 }

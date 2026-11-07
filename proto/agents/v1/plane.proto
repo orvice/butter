@@ -176,6 +176,9 @@ service PlaneAppService {
   rpc GetPlaneInstallation(GetPlaneInstallationRequest) returns (GetPlaneInstallationResponse);
   rpc ListPlaneProcessingRecords(ListPlaneProcessingRecordsRequest) returns (ListPlaneProcessingRecordsResponse);
   rpc GetPlaneProcessingRecord(GetPlaneProcessingRecordRequest) returns (GetPlaneProcessingRecordResponse);
+  rpc ListPlaneDeliveries(ListPlaneDeliveriesRequest) returns (ListPlaneDeliveriesResponse);
+  rpc GetPlaneDelivery(GetPlaneDeliveryRequest) returns (GetPlaneDeliveryResponse);
+  rpc RetryPlaneDelivery(RetryPlaneDeliveryRequest) returns (RetryPlaneDeliveryResponse);
 }
 
 message ListPlaneAppsRequest {}
@@ -331,6 +334,21 @@ message GetPlaneProcessingRecordRequest {
 message GetPlaneProcessingRecordResponse {
   PlaneProcessingRecord record = 1;
 }
+
+message PlaneDelivery {
+  string key = 1;
+  string status = 2;
+  int32 attempts = 3;
+  string last_error = 4;
+  string updated_at = 5;
+  bool owner_confirmed = 6;
+}
+message ListPlaneDeliveriesRequest {}
+message ListPlaneDeliveriesResponse { repeated PlaneDelivery deliveries = 1; }
+message GetPlaneDeliveryRequest { string key = 1; }
+message GetPlaneDeliveryResponse { PlaneDelivery delivery = 1; }
+message RetryPlaneDeliveryRequest { string key = 1; string owner = 2; }
+message RetryPlaneDeliveryResponse { PlaneDelivery delivery = 1; }
 
 // ============================================================================= is global, not per-workspace: it names the public
 // address of this deployment. Only global administrators may read or change

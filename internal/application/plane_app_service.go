@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"butterfly.orx.me/core/log"
-	"go.orx.me/apps/butter/internal/planeapi"
+	planeapi "go.orx.me/apps/butter/internal/planeapi"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
@@ -21,6 +21,7 @@ import (
 	planeprocessingmemory "go.orx.me/apps/butter/internal/repo/planeprocessing/memory"
 	planestate "go.orx.me/apps/butter/internal/repo/planestate"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
+	plane "go.orx.me/apps/butter/internal/runtime/plane"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -57,6 +58,7 @@ type PlaneAppServiceServer struct {
 	dashboardBaseURL func() string
 	installRepo      planeinstallation.Repository
 	processingRepo   planeprocessing.Repository
+	delivery         *plane.DeliveryManagement
 	planeHTTPClient  *planeapi.Client
 }
 
@@ -81,6 +83,10 @@ func (s *PlaneAppServiceServer) SetPlaneProcessingRepo(repo planeprocessing.Repo
 
 func (s *PlaneAppServiceServer) PlaneProcessingRepository() planeprocessing.Repository {
 	return s.processingRepo
+}
+
+func (s *PlaneAppServiceServer) SetPlaneDeliveryManagement(m *plane.DeliveryManagement) {
+	s.delivery = m
 }
 
 // SetProfileProvider wires the fixed provider profile built from startup

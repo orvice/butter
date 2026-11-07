@@ -71,6 +71,15 @@ const (
 	// PlaneAppServiceGetPlaneProcessingRecordProcedure is the fully-qualified name of the
 	// PlaneAppService's GetPlaneProcessingRecord RPC.
 	PlaneAppServiceGetPlaneProcessingRecordProcedure = "/agents.v1.PlaneAppService/GetPlaneProcessingRecord"
+	// PlaneAppServiceListPlaneDeliveriesProcedure is the fully-qualified name of the PlaneAppService's
+	// ListPlaneDeliveries RPC.
+	PlaneAppServiceListPlaneDeliveriesProcedure = "/agents.v1.PlaneAppService/ListPlaneDeliveries"
+	// PlaneAppServiceGetPlaneDeliveryProcedure is the fully-qualified name of the PlaneAppService's
+	// GetPlaneDelivery RPC.
+	PlaneAppServiceGetPlaneDeliveryProcedure = "/agents.v1.PlaneAppService/GetPlaneDelivery"
+	// PlaneAppServiceRetryPlaneDeliveryProcedure is the fully-qualified name of the PlaneAppService's
+	// RetryPlaneDelivery RPC.
+	PlaneAppServiceRetryPlaneDeliveryProcedure = "/agents.v1.PlaneAppService/RetryPlaneDelivery"
 	// PlaneAdminServiceGetPlaneSettingsProcedure is the fully-qualified name of the PlaneAdminService's
 	// GetPlaneSettings RPC.
 	PlaneAdminServiceGetPlaneSettingsProcedure = "/agents.v1.PlaneAdminService/GetPlaneSettings"
@@ -104,6 +113,9 @@ type PlaneAppServiceClient interface {
 	GetPlaneInstallation(context.Context, *connect.Request[v1.GetPlaneInstallationRequest]) (*connect.Response[v1.GetPlaneInstallationResponse], error)
 	ListPlaneProcessingRecords(context.Context, *connect.Request[v1.ListPlaneProcessingRecordsRequest]) (*connect.Response[v1.ListPlaneProcessingRecordsResponse], error)
 	GetPlaneProcessingRecord(context.Context, *connect.Request[v1.GetPlaneProcessingRecordRequest]) (*connect.Response[v1.GetPlaneProcessingRecordResponse], error)
+	ListPlaneDeliveries(context.Context, *connect.Request[v1.ListPlaneDeliveriesRequest]) (*connect.Response[v1.ListPlaneDeliveriesResponse], error)
+	GetPlaneDelivery(context.Context, *connect.Request[v1.GetPlaneDeliveryRequest]) (*connect.Response[v1.GetPlaneDeliveryResponse], error)
+	RetryPlaneDelivery(context.Context, *connect.Request[v1.RetryPlaneDeliveryRequest]) (*connect.Response[v1.RetryPlaneDeliveryResponse], error)
 }
 
 // NewPlaneAppServiceClient constructs a client for the agents.v1.PlaneAppService service. By
@@ -189,6 +201,24 @@ func NewPlaneAppServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(planeAppServiceMethods.ByName("GetPlaneProcessingRecord")),
 			connect.WithClientOptions(opts...),
 		),
+		listPlaneDeliveries: connect.NewClient[v1.ListPlaneDeliveriesRequest, v1.ListPlaneDeliveriesResponse](
+			httpClient,
+			baseURL+PlaneAppServiceListPlaneDeliveriesProcedure,
+			connect.WithSchema(planeAppServiceMethods.ByName("ListPlaneDeliveries")),
+			connect.WithClientOptions(opts...),
+		),
+		getPlaneDelivery: connect.NewClient[v1.GetPlaneDeliveryRequest, v1.GetPlaneDeliveryResponse](
+			httpClient,
+			baseURL+PlaneAppServiceGetPlaneDeliveryProcedure,
+			connect.WithSchema(planeAppServiceMethods.ByName("GetPlaneDelivery")),
+			connect.WithClientOptions(opts...),
+		),
+		retryPlaneDelivery: connect.NewClient[v1.RetryPlaneDeliveryRequest, v1.RetryPlaneDeliveryResponse](
+			httpClient,
+			baseURL+PlaneAppServiceRetryPlaneDeliveryProcedure,
+			connect.WithSchema(planeAppServiceMethods.ByName("RetryPlaneDelivery")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -206,6 +236,9 @@ type planeAppServiceClient struct {
 	getPlaneInstallation       *connect.Client[v1.GetPlaneInstallationRequest, v1.GetPlaneInstallationResponse]
 	listPlaneProcessingRecords *connect.Client[v1.ListPlaneProcessingRecordsRequest, v1.ListPlaneProcessingRecordsResponse]
 	getPlaneProcessingRecord   *connect.Client[v1.GetPlaneProcessingRecordRequest, v1.GetPlaneProcessingRecordResponse]
+	listPlaneDeliveries        *connect.Client[v1.ListPlaneDeliveriesRequest, v1.ListPlaneDeliveriesResponse]
+	getPlaneDelivery           *connect.Client[v1.GetPlaneDeliveryRequest, v1.GetPlaneDeliveryResponse]
+	retryPlaneDelivery         *connect.Client[v1.RetryPlaneDeliveryRequest, v1.RetryPlaneDeliveryResponse]
 }
 
 // ListPlaneApps calls agents.v1.PlaneAppService.ListPlaneApps.
@@ -268,6 +301,21 @@ func (c *planeAppServiceClient) GetPlaneProcessingRecord(ctx context.Context, re
 	return c.getPlaneProcessingRecord.CallUnary(ctx, req)
 }
 
+// ListPlaneDeliveries calls agents.v1.PlaneAppService.ListPlaneDeliveries.
+func (c *planeAppServiceClient) ListPlaneDeliveries(ctx context.Context, req *connect.Request[v1.ListPlaneDeliveriesRequest]) (*connect.Response[v1.ListPlaneDeliveriesResponse], error) {
+	return c.listPlaneDeliveries.CallUnary(ctx, req)
+}
+
+// GetPlaneDelivery calls agents.v1.PlaneAppService.GetPlaneDelivery.
+func (c *planeAppServiceClient) GetPlaneDelivery(ctx context.Context, req *connect.Request[v1.GetPlaneDeliveryRequest]) (*connect.Response[v1.GetPlaneDeliveryResponse], error) {
+	return c.getPlaneDelivery.CallUnary(ctx, req)
+}
+
+// RetryPlaneDelivery calls agents.v1.PlaneAppService.RetryPlaneDelivery.
+func (c *planeAppServiceClient) RetryPlaneDelivery(ctx context.Context, req *connect.Request[v1.RetryPlaneDeliveryRequest]) (*connect.Response[v1.RetryPlaneDeliveryResponse], error) {
+	return c.retryPlaneDelivery.CallUnary(ctx, req)
+}
+
 // PlaneAppServiceHandler is an implementation of the agents.v1.PlaneAppService service.
 type PlaneAppServiceHandler interface {
 	ListPlaneApps(context.Context, *connect.Request[v1.ListPlaneAppsRequest]) (*connect.Response[v1.ListPlaneAppsResponse], error)
@@ -293,6 +341,9 @@ type PlaneAppServiceHandler interface {
 	GetPlaneInstallation(context.Context, *connect.Request[v1.GetPlaneInstallationRequest]) (*connect.Response[v1.GetPlaneInstallationResponse], error)
 	ListPlaneProcessingRecords(context.Context, *connect.Request[v1.ListPlaneProcessingRecordsRequest]) (*connect.Response[v1.ListPlaneProcessingRecordsResponse], error)
 	GetPlaneProcessingRecord(context.Context, *connect.Request[v1.GetPlaneProcessingRecordRequest]) (*connect.Response[v1.GetPlaneProcessingRecordResponse], error)
+	ListPlaneDeliveries(context.Context, *connect.Request[v1.ListPlaneDeliveriesRequest]) (*connect.Response[v1.ListPlaneDeliveriesResponse], error)
+	GetPlaneDelivery(context.Context, *connect.Request[v1.GetPlaneDeliveryRequest]) (*connect.Response[v1.GetPlaneDeliveryResponse], error)
+	RetryPlaneDelivery(context.Context, *connect.Request[v1.RetryPlaneDeliveryRequest]) (*connect.Response[v1.RetryPlaneDeliveryResponse], error)
 }
 
 // NewPlaneAppServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -374,6 +425,24 @@ func NewPlaneAppServiceHandler(svc PlaneAppServiceHandler, opts ...connect.Handl
 		connect.WithSchema(planeAppServiceMethods.ByName("GetPlaneProcessingRecord")),
 		connect.WithHandlerOptions(opts...),
 	)
+	planeAppServiceListPlaneDeliveriesHandler := connect.NewUnaryHandler(
+		PlaneAppServiceListPlaneDeliveriesProcedure,
+		svc.ListPlaneDeliveries,
+		connect.WithSchema(planeAppServiceMethods.ByName("ListPlaneDeliveries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	planeAppServiceGetPlaneDeliveryHandler := connect.NewUnaryHandler(
+		PlaneAppServiceGetPlaneDeliveryProcedure,
+		svc.GetPlaneDelivery,
+		connect.WithSchema(planeAppServiceMethods.ByName("GetPlaneDelivery")),
+		connect.WithHandlerOptions(opts...),
+	)
+	planeAppServiceRetryPlaneDeliveryHandler := connect.NewUnaryHandler(
+		PlaneAppServiceRetryPlaneDeliveryProcedure,
+		svc.RetryPlaneDelivery,
+		connect.WithSchema(planeAppServiceMethods.ByName("RetryPlaneDelivery")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/agents.v1.PlaneAppService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case PlaneAppServiceListPlaneAppsProcedure:
@@ -400,6 +469,12 @@ func NewPlaneAppServiceHandler(svc PlaneAppServiceHandler, opts ...connect.Handl
 			planeAppServiceListPlaneProcessingRecordsHandler.ServeHTTP(w, r)
 		case PlaneAppServiceGetPlaneProcessingRecordProcedure:
 			planeAppServiceGetPlaneProcessingRecordHandler.ServeHTTP(w, r)
+		case PlaneAppServiceListPlaneDeliveriesProcedure:
+			planeAppServiceListPlaneDeliveriesHandler.ServeHTTP(w, r)
+		case PlaneAppServiceGetPlaneDeliveryProcedure:
+			planeAppServiceGetPlaneDeliveryHandler.ServeHTTP(w, r)
+		case PlaneAppServiceRetryPlaneDeliveryProcedure:
+			planeAppServiceRetryPlaneDeliveryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -455,6 +530,18 @@ func (UnimplementedPlaneAppServiceHandler) ListPlaneProcessingRecords(context.Co
 
 func (UnimplementedPlaneAppServiceHandler) GetPlaneProcessingRecord(context.Context, *connect.Request[v1.GetPlaneProcessingRecordRequest]) (*connect.Response[v1.GetPlaneProcessingRecordResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.GetPlaneProcessingRecord is not implemented"))
+}
+
+func (UnimplementedPlaneAppServiceHandler) ListPlaneDeliveries(context.Context, *connect.Request[v1.ListPlaneDeliveriesRequest]) (*connect.Response[v1.ListPlaneDeliveriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.ListPlaneDeliveries is not implemented"))
+}
+
+func (UnimplementedPlaneAppServiceHandler) GetPlaneDelivery(context.Context, *connect.Request[v1.GetPlaneDeliveryRequest]) (*connect.Response[v1.GetPlaneDeliveryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.GetPlaneDelivery is not implemented"))
+}
+
+func (UnimplementedPlaneAppServiceHandler) RetryPlaneDelivery(context.Context, *connect.Request[v1.RetryPlaneDeliveryRequest]) (*connect.Response[v1.RetryPlaneDeliveryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("agents.v1.PlaneAppService.RetryPlaneDelivery is not implemented"))
 }
 
 // PlaneAdminServiceClient is a client for the agents.v1.PlaneAdminService service.
