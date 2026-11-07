@@ -344,18 +344,28 @@ message PlaneDelivery {
   bool owner_confirmed = 6;
 }
 message ListPlaneDeliveriesRequest {}
-message ListPlaneDeliveriesResponse { repeated PlaneDelivery deliveries = 1; }
-message GetPlaneDeliveryRequest { string key = 1; }
-message GetPlaneDeliveryResponse { PlaneDelivery delivery = 1; }
-message RetryPlaneDeliveryRequest { string key = 1; string owner = 2; }
-message RetryPlaneDeliveryResponse { PlaneDelivery delivery = 1; }
+message ListPlaneDeliveriesResponse {
+  repeated PlaneDelivery deliveries = 1;
+}
+message GetPlaneDeliveryRequest {
+  string key = 1;
+}
+message GetPlaneDeliveryResponse {
+  PlaneDelivery delivery = 1;
+}
+message RetryPlaneDeliveryRequest {
+  string key = 1;
+  string owner = 2;
+}
+message RetryPlaneDeliveryResponse {
+  PlaneDelivery delivery = 1;
+}
 
-// ============================================================================= is global, not per-workspace: it names the public
-// address of this deployment. Only global administrators may read or change
-// it, so workspace input can never redirect Plane callbacks or webhooks.
-// The provider profile itself is not writable through any RPC; it comes from
-// the deployment's startup configuration.
-// =============================================================================
+// Plane platform settings are global, not per-workspace: the base URL names
+// the public address of this deployment. Only global administrators may read
+// or change it, so workspace input can never redirect Plane callbacks or
+// webhooks. The provider profile itself is not writable through any RPC; it
+// comes from the deployment's startup configuration.
 service PlaneAdminService {
   rpc GetPlaneSettings(GetPlaneSettingsRequest) returns (GetPlaneSettingsResponse);
   rpc UpdatePlaneSettings(UpdatePlaneSettingsRequest) returns (UpdatePlaneSettingsResponse);
