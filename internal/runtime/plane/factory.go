@@ -16,11 +16,11 @@ type FencedTokenLease interface {
 }
 type TokenLeaseAdapter struct{ Lease FencedTokenLease }
 
-func (a TokenLeaseAdapter) Acquire(ctx context.Context, key string, revision int64, expiry time.Time) (uint64, error) {
+func (a TokenLeaseAdapter) Acquire(ctx context.Context, key, owner string, revision int64, expiry time.Time) (uint64, error) {
 	if a.Lease == nil {
 		return 0, ErrRuntimeDependency
 	}
-	return a.Lease.AcquireToken(ctx, key, "", revision, expiry)
+	return a.Lease.AcquireToken(ctx, key, owner, revision, expiry)
 }
 
 type PlaneRuntimeDependencies struct {
