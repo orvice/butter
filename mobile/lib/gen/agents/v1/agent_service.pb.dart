@@ -11285,8 +11285,9 @@ class SessionEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(6)
   $1.Timestamp ensureTimestamp() => $_ensure(5);
 
-  /// Trace id propagated to observability backends (e.g. Langfuse). Currently
-  /// mirrors invocation_id; consumers should treat it as opaque.
+  /// Trace id propagated to observability backends (e.g. Langfuse): the OTel
+  /// trace ID derived from invocation_id, which is what the backend names the
+  /// trace. Empty when the event has no invocation.
   @$pb.TagNumber(7)
   $core.String get traceId => $_getSZ(6);
   @$pb.TagNumber(7)
