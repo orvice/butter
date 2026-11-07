@@ -222,8 +222,17 @@ func rejectInboundEnablement(app *agentsv1.PlaneApp) error {
 	if !app.GetInboundEnabled() {
 		return nil
 	}
-	return connect.NewError(connect.CodeFailedPrecondition,
-		errors.New("plane inbound is not available yet: the Agent execution path ships in a later ticket (#487)"))
+	return connect.NewError(connect.CodeFailedPrecondition, errors.New("plane inbound requires an installed, authorized App and verified provider profile"))
+}
+
+func requireInboundEnablement(app *agentsv1.PlaneApp, profile planeapi.Profile) error {
+	if !app.GetInboundEnabled() {
+		return nil
+	}
+	if !app.GetClientSecretSet() || !app.GetWebhookSecretSet() || !profile.Verified {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("plane inbound requires an installed, authorized App and verified provider profile"))
+	}
+	return nil
 }
 
 // encryptPlaneSecret turns a write-only secret into a storable credential.
@@ -372,13 +381,22 @@ func (s *PlaneAppServiceServer) UpdatePlaneApp(ctx context.Context, req *connect
 	if input.GetRevision() <= 0 {
 		return nil, connectx.RequiredArgument("app.revision")
 	}
-	if err := rejectInboundEnablement(input); err != nil {
-		return nil, err
-	}
 	prev, err := s.repo.GetApp(ctx, workspaceID, input.GetId())
 	if err != nil {
 		return nil, mapPlaneRepoErr(err)
 	}
+	profile, err := s.requireProfile()
+	if err != nil {
+		return nil, err
+	}
+	if input.GetInboundEnabled() {
+		check := *prev
+		check.InboundEnabled = true
+		if err := requireInboundEnablement(&check, profile); err != nil {
+			return nil, err
+		}
+	}
+
 	// Identity and provider profile are immutable. Validating the stored
 	// values keeps the caller from having to resend them, and a differing
 	// profile is a different App, not an edit.
