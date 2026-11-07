@@ -103,3 +103,17 @@ func (s *Store) Get(_ context.Context, w, id string) (*agentsv1.PlaneInstallatio
 	}
 	return proto.Clone(r.inst).(*agentsv1.PlaneInstallation), nil
 }
+
+func (s *Store) GetScoped(_ context.Context, w, a, installation string) (*agentsv1.PlaneInstallation, error) {
+	if w == "" || a == "" || installation == "" {
+		return nil, repo.ErrNotFound
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, r := range s.rows {
+		if r.workspace == w && r.app == a && r.inst.GetAppInstallationId() == installation {
+			return proto.Clone(r.inst).(*agentsv1.PlaneInstallation), nil
+		}
+	}
+	return nil, repo.ErrNotFound
+}

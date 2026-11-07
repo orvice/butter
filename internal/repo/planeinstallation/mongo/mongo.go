@@ -90,3 +90,13 @@ func (s *Store) Get(ctx context.Context, w, id string) (*agentsv1.PlaneInstallat
 	}
 	return from(d), nil
 }
+func (s *Store) GetScoped(ctx context.Context, w, a, installation string) (*agentsv1.PlaneInstallation, error) {
+	if w == "" || a == "" || installation == "" {
+		return nil, repo.ErrNotFound
+	}
+	var d doc
+	if e := s.c.FindOne(ctx, bson.M{"workspace_id": w, "app_id": a, "app_installation_id": installation}).Decode(&d); e != nil {
+		return nil, repo.ErrNotFound
+	}
+	return from(d), nil
+}

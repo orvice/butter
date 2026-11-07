@@ -47,6 +47,9 @@ func (s *InstallationTokenSource) token(ctx context.Context, workspaceID, appID,
 		if err != nil {
 			return "", ErrTokenUnavailable
 		}
+		if _, err = s.Installations.GetScoped(ctx, workspaceID, appID, installationID); err != nil {
+			return "", ErrTokenUnavailable
+		}
 		if !force && m.AccessToken != "" && time.Until(m.ExpiresAt) > s.RefreshBefore {
 			return m.AccessToken, nil
 		}
