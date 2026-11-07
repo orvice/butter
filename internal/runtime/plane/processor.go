@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-	"sync"
-
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/genai"
+	"strings"
+	"sync"
 )
 
 var ErrPromptRequired = errors.New("plane activity prompt is required")
@@ -22,17 +21,6 @@ type Runner interface {
 type ReplyPublisher interface {
 	PublishReply(context.Context, *Event, string) error
 }
-type Processor struct {
-	runner    Runner
-	publisher ReplyPublisher
-	mu        sync.Mutex
-	active    map[string]struct{}
-	cancels   map[string]context.CancelFunc
-	states    map[string]RunState
-	seen      map[string]struct{}
-	maxReply  int
-}
-
 type RunState string
 
 const (
@@ -43,14 +31,40 @@ const (
 	RunStateFailed    RunState = "failed"
 )
 
+type ProgressEvent struct {
+	Key      string
+	Sequence int64
+	State    RunState
+	Error    string
+}
+type ProgressSink interface {
+	EmitProgress(context.Context, *Event, ProgressEvent) error
+}
 type StopAudit struct {
 	Key      string
 	State    RunState
 	Attempts int
 }
+type Processor struct {
+	runner    Runner
+	publisher ReplyPublisher
+	progress  ProgressSink
+	mu        sync.Mutex
+	active    map[string]struct{}
+	cancels   map[string]context.CancelFunc
+	states    map[string]RunState
+	seen      map[string]struct{}
+	maxReply  int
+}
 
 func NewProcessor(r Runner, p ReplyPublisher) *Processor {
 	return &Processor{runner: r, publisher: p, active: map[string]struct{}{}, cancels: map[string]context.CancelFunc{}, states: map[string]RunState{}, seen: map[string]struct{}{}, maxReply: 500}
+}
+func (p *Processor) SetProgressSink(s ProgressSink) { p.progress = s }
+func (p *Processor) emit(ctx context.Context, e *Event, k string, n int64, s RunState, err string) {
+	if p.progress != nil {
+		_ = p.progress.EmitProgress(ctx, e, ProgressEvent{Key: k, Sequence: n, State: s, Error: err})
+	}
 }
 func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Event) (string, error) {
 	if p == nil || p.runner == nil {
@@ -67,66 +81,76 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 		return "", ErrPromptRequired
 	}
 	key := e.InstallationID + ":" + e.AgentRunID + ":" + e.ActivityID
-	if !p.begin(key) {
+	p.mu.Lock()
+	if _, ok := p.seen[key]; ok {
+		p.mu.Unlock()
 		return "", ErrDuplicate
 	}
+	if _, ok := p.active[key]; ok {
+		p.mu.Unlock()
+		return "", ErrDuplicate
+	}
+	p.active[key] = struct{}{}
 	child, cancel := context.WithCancel(ctx)
-	p.mu.Lock()
 	p.cancels[key] = cancel
 	p.states[key] = RunStateRunning
 	p.mu.Unlock()
 	defer func() { cancel(); p.mu.Lock(); delete(p.cancels, key); delete(p.active, key); p.mu.Unlock() }()
+	p.emit(ctx, e, key, 1, RunStateRunning, "")
 	out, err := p.runner.Run(child, app.GetAgentId(), []*genai.Part{{Text: prompt}}, "", &agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
 	if err != nil {
-		p.mu.Lock()
+		state := RunStateFailed
 		if errors.Is(err, context.Canceled) {
-			p.states[key] = RunStateStopped
-		} else {
-			p.states[key] = RunStateFailed
+			state = RunStateStopped
 		}
+		p.mu.Lock()
+		p.states[key] = state
 		p.mu.Unlock()
+		seq := int64(2)
+		if state == RunStateStopped {
+			seq = 3
+		}
+		p.emit(ctx, e, key, seq, state, err.Error())
 		return "", fmt.Errorf("plane runner: %w", err)
 	}
 	out = strings.TrimSpace(out)
 	if out == "" {
+		p.mu.Lock()
+		p.states[key] = RunStateFailed
+		p.mu.Unlock()
+		p.emit(ctx, e, key, 2, RunStateFailed, "empty reply")
 		return "", errors.New("plane runner returned empty reply")
 	}
 	if len(out) > p.maxReply {
 		out = out[:p.maxReply]
 	}
-	if err := p.publisher.PublishReply(ctx, e, out); err != nil {
+	if err = p.publisher.PublishReply(ctx, e, out); err != nil {
+		p.mu.Lock()
+		p.states[key] = RunStateFailed
+		p.mu.Unlock()
+		p.emit(ctx, e, key, 2, RunStateFailed, err.Error())
 		return "", fmt.Errorf("plane reply: %w", err)
 	}
 	p.mu.Lock()
 	p.seen[key] = struct{}{}
 	p.states[key] = RunStateSucceeded
 	p.mu.Unlock()
+	p.emit(ctx, e, key, 2, RunStateSucceeded, "")
 	return out, nil
 }
-func (p *Processor) begin(k string) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if _, ok := p.seen[k]; ok {
-		return false
-	}
-	if _, ok := p.active[k]; ok {
-		return false
-	}
-	p.active[k] = struct{}{}
-	return true
-}
-func (p *Processor) Stop(_ context.Context, e *Event) (StopAudit, error) {
+func (p *Processor) Stop(ctx context.Context, e *Event) (StopAudit, error) {
 	key := e.InstallationID + ":" + e.AgentRunID + ":" + e.ActivityID
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if cancel, ok := p.cancels[key]; ok {
+	if c, ok := p.cancels[key]; ok {
 		p.states[key] = RunStateStopping
-		cancel()
+		c()
+		p.emit(ctx, e, key, 2, RunStateStopping, "")
 		return StopAudit{Key: key, State: RunStateStopping, Attempts: 1}, nil
 	}
-	state, ok := p.states[key]
+	s, ok := p.states[key]
 	if !ok {
-		return StopAudit{Key: key, State: RunStateStopped}, nil
+		s = RunStateStopped
 	}
-	return StopAudit{Key: key, State: state, Attempts: 1}, nil
+	return StopAudit{Key: key, State: s, Attempts: 1}, nil
 }
