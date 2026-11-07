@@ -17,6 +17,8 @@ import (
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
+	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
+	planeprocessingmemory "go.orx.me/apps/butter/internal/repo/planeprocessing/memory"
 	planestate "go.orx.me/apps/butter/internal/repo/planestate"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/secretbox"
@@ -54,11 +56,12 @@ type PlaneAppServiceServer struct {
 	clock            func() time.Time
 	dashboardBaseURL func() string
 	installRepo      planeinstallation.Repository
+	processingRepo   planeprocessing.Repository
 	planeHTTPClient  *planeapi.Client
 }
 
 func NewPlaneAppServiceServer(repo planerepo.Repository) *PlaneAppServiceServer {
-	return &PlaneAppServiceServer{repo: repo}
+	return &PlaneAppServiceServer{repo: repo, processingRepo: planeprocessingmemory.New()}
 }
 
 func (s *PlaneAppServiceServer) SetRepo(repo planerepo.Repository) { s.repo = repo }
@@ -71,6 +74,14 @@ func (s *PlaneAppServiceServer) SetWorkspaceRepo(repo workspacerepo.Repository) 
 func (s *PlaneAppServiceServer) SetAgentRepo(repo configrepo.AgentRepository) { s.agentRepo = repo }
 
 func (s *PlaneAppServiceServer) SetKeyring(keyring *secretbox.Keyring) { s.keyring = keyring }
+
+func (s *PlaneAppServiceServer) SetPlaneProcessingRepo(repo planeprocessing.Repository) {
+	s.processingRepo = repo
+}
+
+func (s *PlaneAppServiceServer) PlaneProcessingRepository() planeprocessing.Repository {
+	return s.processingRepo
+}
 
 // SetProfileProvider wires the fixed provider profile built from startup
 // configuration. It is a provider rather than a value because SetupRoutes
