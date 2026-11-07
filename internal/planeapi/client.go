@@ -13,8 +13,9 @@ import (
 )
 
 type Token struct {
-	AccessToken string
-	ExpiresIn   time.Duration
+	AccessToken    string
+	ExpiresIn      time.Duration
+	InstallationID string
 }
 type Installation struct {
 	ID            string   `json:"id"`
@@ -40,6 +41,33 @@ func NewClient(h *http.Client, p Profile) *Client {
 func (c *Client) AuthorizeURL(clientID, redirectURI, state string) string {
 	q := url.Values{"client_id": {clientID}, "redirect_uri": {redirectURI}, "response_type": {"code"}, "state": {state}}
 	return strings.TrimRight(c.OAuthURL, "/") + "/oauth/authorize?" + q.Encode()
+}
+func (c *Client) ExchangeCode(ctx context.Context, clientID, secret, code string) (Token, error) {
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.OAuthURL, "/")+"/oauth/token", strings.NewReader(form.Encode()))
+	if err != nil {
+		return Token{}, err
+	}
+	req.SetBasicAuth(clientID, secret)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return Token{}, err
+	}
+	defer res.Body.Close()
+	var body struct {
+		AccessToken    string `json:"access_token"`
+		ExpiresIn      int64  `json:"expires_in"`
+		InstallationID string `json:"app_installation_id"`
+		Error          string `json:"error"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return Token{}, err
+	}
+	if res.StatusCode/100 != 2 || body.AccessToken == "" || body.InstallationID == "" {
+		return Token{}, fmt.Errorf("plane authorization exchange failed: %s", body.Error)
+	}
+	return Token{AccessToken: body.AccessToken, ExpiresIn: time.Duration(body.ExpiresIn) * time.Second, InstallationID: body.InstallationID}, nil
 }
 func (c *Client) ClientCredentials(ctx context.Context, clientID, secret string) (Token, error) {
 	form := url.Values{"grant_type": {"client_credentials"}, "client_id": {clientID}, "client_secret": {secret}}

@@ -584,6 +584,8 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		planeKeyring := secretbox.NewKeyring(result.CryptoKeyRepo)
 		if h.planeAppSvcServer != nil {
 			h.planeAppSvcServer.SetRepo(result.PlaneRepo)
+			h.planeAppSvcServer.SetPlaneInstallationRepo(result.PlaneInstallationRepo)
+			h.planeAppSvcServer.SetPlaneInstallStateRepo(result.PlaneInstallStateRepo)
 			h.planeAppSvcServer.SetKeyring(planeKeyring)
 			h.planeAppSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
 			h.planeAppSvcServer.SetProfileProvider(planeProfileProvider(h.cfg))
@@ -918,6 +920,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		// browser arrives from Linear, authenticated only by the
 		// single-use install state (ADR-0015).
 		httpHandler.NewLinearOAuthHandler(linearAppSvcServer).Register(r)
+		httpHandler.NewPlaneOAuthHandler(planeAppSvcServer).Register(r)
 		// The Linear webhook is public and signed by Linear (ADR-0015).
 		httpHandler.NewLinearWebhookHandler(&handlers.linearReceiver).Register(r)
 

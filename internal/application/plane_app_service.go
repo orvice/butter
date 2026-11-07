@@ -16,6 +16,7 @@ import (
 	"go.orx.me/apps/butter/internal/planeapi"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
+	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	planestate "go.orx.me/apps/butter/internal/repo/planestate"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	"go.orx.me/apps/butter/internal/secretbox"
@@ -52,6 +53,8 @@ type PlaneAppServiceServer struct {
 	installStates    planestate.Repository
 	clock            func() time.Time
 	dashboardBaseURL func() string
+	installRepo      planeinstallation.Repository
+	planeHTTPClient  *planeapi.Client
 }
 
 func NewPlaneAppServiceServer(repo planerepo.Repository) *PlaneAppServiceServer {

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"go.orx.me/apps/butter/internal/planeapi"
+	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	planestate "go.orx.me/apps/butter/internal/repo/planestate"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -21,6 +22,10 @@ const planeInstallTTL = 10 * time.Minute
 func (s *PlaneAppServiceServer) SetPlaneInstallStateRepo(r planestate.Repository) {
 	s.installStates = r
 }
+func (s *PlaneAppServiceServer) SetPlaneInstallationRepo(r planeinstallation.Repository) {
+	s.installRepo = r
+}
+func (s *PlaneAppServiceServer) SetPlaneHTTPClient(c *planeapi.Client)    { s.planeHTTPClient = c }
 func (s *PlaneAppServiceServer) SetPlaneClock(now func() time.Time)       { s.clock = now }
 func (s *PlaneAppServiceServer) SetPlaneDashboardBaseURL(f func() string) { s.dashboardBaseURL = f }
 func (s *PlaneAppServiceServer) planeNow() time.Time {

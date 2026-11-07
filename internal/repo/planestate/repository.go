@@ -16,6 +16,7 @@ type Entry struct {
 	CreatedAt, ExpiresAt                                                time.Time
 }
 type Repository interface {
+	EnsureIndexes(context.Context) error
 	Create(context.Context, *Entry) error
 	Consume(context.Context, string, time.Time) (*Entry, error)
 }
@@ -24,10 +25,10 @@ type Memory struct {
 	entries map[string]Entry
 }
 
-func NewMemory() *Memory   { return &Memory{entries: map[string]Entry{}} }
-func Hash(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
+func NewMemory() *Memory                              { return &Memory{entries: map[string]Entry{}} }
+func Hash(s string) string                            { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
+func (s *Memory) EnsureIndexes(context.Context) error { return nil }
 func (s *Memory) Create(_ context.Context, e *Entry) error {
-	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.entries[Hash(e.State)] = *e
 	return nil

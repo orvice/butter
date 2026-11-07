@@ -77,9 +77,15 @@ import (
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
 	planememory "go.orx.me/apps/butter/internal/repo/plane/memory"
 	planemongo "go.orx.me/apps/butter/internal/repo/plane/mongo"
+	planeinstallationrepo "go.orx.me/apps/butter/internal/repo/planeinstallation"
+	planeinstallationmemory "go.orx.me/apps/butter/internal/repo/planeinstallation/memory"
+	planeinstallationmongo "go.orx.me/apps/butter/internal/repo/planeinstallation/mongo"
 	planesettingrepo "go.orx.me/apps/butter/internal/repo/planesetting"
 	planesettingmemory "go.orx.me/apps/butter/internal/repo/planesetting/memory"
 	planesettingmongo "go.orx.me/apps/butter/internal/repo/planesetting/mongo"
+	planestaterepo "go.orx.me/apps/butter/internal/repo/planestate"
+	planestatememory "go.orx.me/apps/butter/internal/repo/planestate/memory"
+	planestatemongo "go.orx.me/apps/butter/internal/repo/planestate/mongo"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
@@ -158,6 +164,8 @@ type BootstrapResult struct {
 	LinearStateRepo        linearstaterepo.Repository
 	LinearProcessingRepo   linearprocessingrepo.Repository
 	PlaneRepo              planerepo.Repository
+	PlaneInstallationRepo  planeinstallationrepo.Repository
+	PlaneInstallStateRepo  planestaterepo.Repository
 	PlaneSettingRepo       planesettingrepo.Repository
 	CryptoKeyRepo          cryptokeyrepo.Repository
 	RepoCacheRepo          repocache.Repository
@@ -229,6 +237,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearStateRepo        linearstaterepo.Repository
 		linearProcessingRepo   linearprocessingrepo.Repository
 		planeRepo              planerepo.Repository
+		planeInstallationRepo  planeinstallationrepo.Repository
+		planeInstallStateRepo  planestaterepo.Repository
 		planeSettingRepo       planesettingrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
@@ -288,6 +298,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearStateRepo = linearstatemongo.New(db)
 		linearProcessingRepo = linearprocessingmongo.New(db)
 		planeRepo = planemongo.New(db)
+		planeInstallationRepo = planeinstallationmongo.New(db)
+		planeInstallStateRepo = planestatemongo.New(db)
 		planeSettingRepo = planesettingmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
@@ -316,9 +328,17 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearStateRepo = linearstatememory.New()
 		linearProcessingRepo = linearprocessingmemory.New()
 		planeRepo = planememory.New()
+		planeInstallationRepo = planeinstallationmemory.New()
+		planeInstallStateRepo = planestatememory.New()
 		planeSettingRepo = planesettingmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
+	}
+	if err := planeInstallationRepo.EnsureIndexes(ctx); err != nil {
+		return nil, err
+	}
+	if err := planeInstallStateRepo.EnsureIndexes(ctx); err != nil {
+		return nil, err
 	}
 	if err := workStationRepo.EnsureIndexes(ctx); err != nil {
 		return nil, err
@@ -645,6 +665,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LinearStateRepo:        linearStateRepo,
 		LinearProcessingRepo:   linearProcessingRepo,
 		PlaneRepo:              planeRepo,
+		PlaneInstallationRepo:  planeInstallationRepo,
+		PlaneInstallStateRepo:  planeInstallStateRepo,
 		PlaneSettingRepo:       planeSettingRepo,
 		CryptoKeyRepo:          cryptoKeyRepo,
 		RepoCacheRepo:          cacheRepo,
