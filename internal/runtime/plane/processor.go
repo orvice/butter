@@ -129,13 +129,13 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	p.states[key] = RunStateRunning
 	p.mu.Unlock()
 	defer func() { cancel(); p.mu.Lock(); delete(p.cancels, key); delete(p.active, key); p.mu.Unlock() }()
-	p.emit(ctx, e, key, 1, RunStateRunning, "")
 	out, err := p.runner.Run(child, app.GetAgentId(), []*genai.Part{{Text: prompt}}, "", &agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
 	if claimed {
 		if completeErr := p.claimRepo.Complete(context.Background(), key, claim); completeErr != nil {
 			return "", errors.New("plane processing result was discarded after claim completion failure")
 		}
 	}
+	p.emit(ctx, e, key, 1, RunStateRunning, "")
 	if err != nil {
 		state := RunStateFailed
 		if errors.Is(err, context.Canceled) {
