@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	configmemory "go.orx.me/apps/butter/internal/repo/config/memory"
-	forummemory "go.orx.me/apps/butter/internal/repo/forum/memory"
-	workspacememory "go.orx.me/apps/butter/internal/repo/workspace/memory"
 	internalautomation "go.orx.me/apps/butter/internal/runtime/automation"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -163,17 +161,6 @@ func TestAgentIDCutoverVerifier_FlagsConsumerRecords(t *testing.T) {
 		t.Fatalf("seed channel: %v", err)
 	}
 
-	wsRepo := workspacememory.New()
-	if _, err := wsRepo.CreateWorkspace(context.Background(), &agentsv1.Workspace{Id: "ws-a", Name: "Workspace A"}); err != nil {
-		t.Fatalf("seed workspace: %v", err)
-	}
-	forumRepo := forummemory.New()
-	if err := forumRepo.CreateThread(context.Background(), &agentsv1.ForumThread{
-		Id: "t1", WorkspaceId: "ws-a", Title: "Legacy thread", AgentNames: []string{"Writer"},
-	}); err != nil {
-		t.Fatalf("seed thread: %v", err)
-	}
-
 	findings, err := RunAgentIDCutoverVerifier(context.Background(), AgentCutoverSources{
 		Agents:   store,
 		Channels: store,
@@ -185,8 +172,6 @@ func TestAgentIDCutoverVerifier_FlagsConsumerRecords(t *testing.T) {
 				{Name: "invoke", InvokeAgent: &agentsv1.AutomationInvokeAgentStep{AgentName: "Writer"}},
 			}},
 		}},
-		Forum:      forumRepo,
-		Workspaces: wsRepo,
 	})
 	if err != nil {
 		t.Fatalf("verifier: %v", err)
@@ -196,7 +181,6 @@ func TestAgentIDCutoverVerifier_FlagsConsumerRecords(t *testing.T) {
 		"channel_agent_id_missing",
 		"cron_agent_id_missing",
 		"automation_agent_id_missing",
-		"forum_agent_id_missing",
 	} {
 		if checks[check] != 1 {
 			t.Errorf("check %q: got %d findings, want 1 (all: %v)", check, checks[check], checks)

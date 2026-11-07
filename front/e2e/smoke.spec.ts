@@ -193,7 +193,6 @@ test.describe('Authenticated pages smoke test', () => {
       },
       shows: (page) => page.getByRole('heading', { name: 'Start a new chat' }),
     },
-    { path: '/forum', name: 'Forum' },
     { path: '/mcp-servers', name: 'MCP Servers' },
     { path: '/mcp-servers/create', name: 'Create MCP Server' },
     { path: '/model-providers', name: 'Model Providers' },

@@ -48,8 +48,6 @@ import { Route as AuthenticatedButterboxesIndexRouteImport } from './routes/_aut
 import { Route as AuthenticatedButterboxesCreateRouteImport } from './routes/_authenticated/butterboxes/create'
 import { Route as AuthenticatedCronIndexRouteImport } from './routes/_authenticated/cron/index'
 import { Route as AuthenticatedCronCreateRouteImport } from './routes/_authenticated/cron/create'
-import { Route as AuthenticatedForumIndexRouteImport } from './routes/_authenticated/forum/index'
-import { Route as AuthenticatedForumIdRouteImport } from './routes/_authenticated/forum/$id'
 import { Route as AuthenticatedLinearAppsIndexRouteImport } from './routes/_authenticated/linear-apps/index'
 import { Route as AuthenticatedLinearAppsCreateRouteImport } from './routes/_authenticated/linear-apps/create'
 import { Route as AuthenticatedMcpServersIndexRouteImport } from './routes/_authenticated/mcp-servers/index'
@@ -295,16 +293,6 @@ const AuthenticatedCronCreateRoute = AuthenticatedCronCreateRouteImport.update({
   path: '/cron/create',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedForumIndexRoute = AuthenticatedForumIndexRouteImport.update({
-  id: '/forum/',
-  path: '/forum/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedForumIdRoute = AuthenticatedForumIdRouteImport.update({
-  id: '/forum/$id',
-  path: '/forum/$id',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedLinearAppsIndexRoute =
   AuthenticatedLinearAppsIndexRouteImport.update({
     id: '/linear-apps/',
@@ -539,7 +527,6 @@ export interface FileRoutesByFullPath {
   '/automations/create': typeof AuthenticatedAutomationsCreateRoute
   '/butterboxes/create': typeof AuthenticatedButterboxesCreateRoute
   '/cron/create': typeof AuthenticatedCronCreateRoute
-  '/forum/$id': typeof AuthenticatedForumIdRoute
   '/linear-apps/create': typeof AuthenticatedLinearAppsCreateRoute
   '/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
@@ -554,7 +541,6 @@ export interface FileRoutesByFullPath {
   '/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/butterboxes/': typeof AuthenticatedButterboxesIndexRoute
   '/cron/': typeof AuthenticatedCronIndexRoute
-  '/forum/': typeof AuthenticatedForumIndexRoute
   '/linear-apps/': typeof AuthenticatedLinearAppsIndexRoute
   '/mcp-servers/': typeof AuthenticatedMcpServersIndexRoute
   '/model-providers/': typeof AuthenticatedModelProvidersIndexRoute
@@ -613,7 +599,6 @@ export interface FileRoutesByTo {
   '/automations/create': typeof AuthenticatedAutomationsCreateRoute
   '/butterboxes/create': typeof AuthenticatedButterboxesCreateRoute
   '/cron/create': typeof AuthenticatedCronCreateRoute
-  '/forum/$id': typeof AuthenticatedForumIdRoute
   '/linear-apps/create': typeof AuthenticatedLinearAppsCreateRoute
   '/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
@@ -628,7 +613,6 @@ export interface FileRoutesByTo {
   '/automations': typeof AuthenticatedAutomationsIndexRoute
   '/butterboxes': typeof AuthenticatedButterboxesIndexRoute
   '/cron': typeof AuthenticatedCronIndexRoute
-  '/forum': typeof AuthenticatedForumIndexRoute
   '/linear-apps': typeof AuthenticatedLinearAppsIndexRoute
   '/mcp-servers': typeof AuthenticatedMcpServersIndexRoute
   '/model-providers': typeof AuthenticatedModelProvidersIndexRoute
@@ -690,7 +674,6 @@ export interface FileRoutesById {
   '/_authenticated/automations/create': typeof AuthenticatedAutomationsCreateRoute
   '/_authenticated/butterboxes/create': typeof AuthenticatedButterboxesCreateRoute
   '/_authenticated/cron/create': typeof AuthenticatedCronCreateRoute
-  '/_authenticated/forum/$id': typeof AuthenticatedForumIdRoute
   '/_authenticated/linear-apps/create': typeof AuthenticatedLinearAppsCreateRoute
   '/_authenticated/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/_authenticated/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
@@ -705,7 +688,6 @@ export interface FileRoutesById {
   '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/_authenticated/butterboxes/': typeof AuthenticatedButterboxesIndexRoute
   '/_authenticated/cron/': typeof AuthenticatedCronIndexRoute
-  '/_authenticated/forum/': typeof AuthenticatedForumIndexRoute
   '/_authenticated/linear-apps/': typeof AuthenticatedLinearAppsIndexRoute
   '/_authenticated/mcp-servers/': typeof AuthenticatedMcpServersIndexRoute
   '/_authenticated/model-providers/': typeof AuthenticatedModelProvidersIndexRoute
@@ -767,7 +749,6 @@ export interface FileRouteTypes {
     | '/automations/create'
     | '/butterboxes/create'
     | '/cron/create'
-    | '/forum/$id'
     | '/linear-apps/create'
     | '/mcp-servers/create'
     | '/model-providers/create'
@@ -782,7 +763,6 @@ export interface FileRouteTypes {
     | '/automations/'
     | '/butterboxes/'
     | '/cron/'
-    | '/forum/'
     | '/linear-apps/'
     | '/mcp-servers/'
     | '/model-providers/'
@@ -841,7 +821,6 @@ export interface FileRouteTypes {
     | '/automations/create'
     | '/butterboxes/create'
     | '/cron/create'
-    | '/forum/$id'
     | '/linear-apps/create'
     | '/mcp-servers/create'
     | '/model-providers/create'
@@ -856,7 +835,6 @@ export interface FileRouteTypes {
     | '/automations'
     | '/butterboxes'
     | '/cron'
-    | '/forum'
     | '/linear-apps'
     | '/mcp-servers'
     | '/model-providers'
@@ -917,7 +895,6 @@ export interface FileRouteTypes {
     | '/_authenticated/automations/create'
     | '/_authenticated/butterboxes/create'
     | '/_authenticated/cron/create'
-    | '/_authenticated/forum/$id'
     | '/_authenticated/linear-apps/create'
     | '/_authenticated/mcp-servers/create'
     | '/_authenticated/model-providers/create'
@@ -932,7 +909,6 @@ export interface FileRouteTypes {
     | '/_authenticated/automations/'
     | '/_authenticated/butterboxes/'
     | '/_authenticated/cron/'
-    | '/_authenticated/forum/'
     | '/_authenticated/linear-apps/'
     | '/_authenticated/mcp-servers/'
     | '/_authenticated/model-providers/'
@@ -1244,20 +1220,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCronCreateRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/forum/': {
-      id: '/_authenticated/forum/'
-      path: '/forum'
-      fullPath: '/forum/'
-      preLoaderRoute: typeof AuthenticatedForumIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/forum/$id': {
-      id: '/_authenticated/forum/$id'
-      path: '/forum/$id'
-      fullPath: '/forum/$id'
-      preLoaderRoute: typeof AuthenticatedForumIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/linear-apps/': {
       id: '/_authenticated/linear-apps/'
       path: '/linear-apps'
@@ -1539,7 +1501,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutomationsCreateRoute: typeof AuthenticatedAutomationsCreateRoute
   AuthenticatedButterboxesCreateRoute: typeof AuthenticatedButterboxesCreateRoute
   AuthenticatedCronCreateRoute: typeof AuthenticatedCronCreateRoute
-  AuthenticatedForumIdRoute: typeof AuthenticatedForumIdRoute
   AuthenticatedLinearAppsCreateRoute: typeof AuthenticatedLinearAppsCreateRoute
   AuthenticatedMcpServersCreateRoute: typeof AuthenticatedMcpServersCreateRoute
   AuthenticatedModelProvidersCreateRoute: typeof AuthenticatedModelProvidersCreateRoute
@@ -1552,7 +1513,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutomationsIndexRoute: typeof AuthenticatedAutomationsIndexRoute
   AuthenticatedButterboxesIndexRoute: typeof AuthenticatedButterboxesIndexRoute
   AuthenticatedCronIndexRoute: typeof AuthenticatedCronIndexRoute
-  AuthenticatedForumIndexRoute: typeof AuthenticatedForumIndexRoute
   AuthenticatedLinearAppsIndexRoute: typeof AuthenticatedLinearAppsIndexRoute
   AuthenticatedMcpServersIndexRoute: typeof AuthenticatedMcpServersIndexRoute
   AuthenticatedModelProvidersIndexRoute: typeof AuthenticatedModelProvidersIndexRoute
@@ -1606,7 +1566,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutomationsCreateRoute: AuthenticatedAutomationsCreateRoute,
   AuthenticatedButterboxesCreateRoute: AuthenticatedButterboxesCreateRoute,
   AuthenticatedCronCreateRoute: AuthenticatedCronCreateRoute,
-  AuthenticatedForumIdRoute: AuthenticatedForumIdRoute,
   AuthenticatedLinearAppsCreateRoute: AuthenticatedLinearAppsCreateRoute,
   AuthenticatedMcpServersCreateRoute: AuthenticatedMcpServersCreateRoute,
   AuthenticatedModelProvidersCreateRoute:
@@ -1622,7 +1581,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutomationsIndexRoute: AuthenticatedAutomationsIndexRoute,
   AuthenticatedButterboxesIndexRoute: AuthenticatedButterboxesIndexRoute,
   AuthenticatedCronIndexRoute: AuthenticatedCronIndexRoute,
-  AuthenticatedForumIndexRoute: AuthenticatedForumIndexRoute,
   AuthenticatedLinearAppsIndexRoute: AuthenticatedLinearAppsIndexRoute,
   AuthenticatedMcpServersIndexRoute: AuthenticatedMcpServersIndexRoute,
   AuthenticatedModelProvidersIndexRoute: AuthenticatedModelProvidersIndexRoute,

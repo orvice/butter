@@ -10,8 +10,6 @@ import (
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
-	forumrepo "go.orx.me/apps/butter/internal/repo/forum"
-	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	internalautomation "go.orx.me/apps/butter/internal/runtime/automation"
 	internalcron "go.orx.me/apps/butter/internal/runtime/cron"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -26,8 +24,6 @@ type AgentCutoverSources struct {
 	Channels    configrepo.ChannelRepository
 	CronJobs    internalcron.JobRepo
 	Automations internalautomation.DefinitionRepo
-	Forum       forumrepo.Repository
-	Workspaces  workspacerepo.Repository
 	// ReservedName reports whether a runtime name is reserved by a built-in
 	// agent (the runner refuses to register such agents). Nil skips the check.
 	ReservedName func(name string) bool
@@ -116,14 +112,6 @@ func RunAgentIDCutoverVerifier(ctx context.Context, src AgentCutoverSources) ([]
 					fmt.Sprintf("automation %q step %q (agent_name %q) carries no agent_id; the engine will reject it", a.GetName(), step.GetName(), inv.GetAgentName())))
 			}
 		}
-	}
-
-	if src.Forum != nil && src.Workspaces != nil {
-		threadFindings, err := forumCutoverFindings(ctx, src.Forum, src.Workspaces)
-		if err != nil {
-			return nil, err
-		}
-		findings = append(findings, threadFindings...)
 	}
 
 	sort.Slice(findings, func(i, j int) bool {
@@ -261,34 +249,4 @@ func agentCutoverFindings(agents []*agentsv1.Agent, reserved func(string) bool) 
 	}
 
 	return findings
-}
-
-// forumCutoverFindings pages every workspace's threads looking for records
-// that reference agents only by legacy names.
-func forumCutoverFindings(ctx context.Context, forum forumrepo.Repository, workspaces workspacerepo.Repository) ([]*agentsv1.AgentIDCutoverFinding, error) {
-	wss, err := workspaces.ListWorkspaces(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list workspaces: %w", err)
-	}
-	var findings []*agentsv1.AgentIDCutoverFinding
-	for _, ws := range wss {
-		token := ""
-		for {
-			threads, next, _, err := forum.ListThreads(ctx, forumrepo.ThreadListFilter{WorkspaceID: ws.GetId()}, 200, token)
-			if err != nil {
-				return nil, fmt.Errorf("list forum threads (workspace %q): %w", ws.GetId(), err)
-			}
-			for _, t := range threads {
-				if len(t.GetAgentNames()) > 0 && len(t.GetAgentIds()) == 0 {
-					findings = append(findings, finding(ws.GetId(), "forum_agent_id_missing", "forum_thread", t.GetId(),
-						fmt.Sprintf("forum thread %q references agents by legacy names %v without agent_ids", t.GetTitle(), t.GetAgentNames())))
-				}
-			}
-			if next == "" {
-				break
-			}
-			token = next
-		}
-	}
-	return findings, nil
 }

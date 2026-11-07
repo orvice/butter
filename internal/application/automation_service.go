@@ -19,6 +19,12 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+// removedForumEventTrigger is the now-reserved enum number of the removed
+// AUTOMATION_TRIGGER_TYPE_FORUM_EVENT (issue #494). Protobuf keeps unknown
+// enum numbers verbatim, so it is rejected explicitly instead of being
+// accepted as an opaque value the runtime never executes.
+const removedForumEventTrigger = int32(4)
+
 // AutomationServiceServer implements workspace-scoped automation CRUD,
 // manual execution, and run history APIs.
 type AutomationServiceServer struct {
@@ -274,6 +280,9 @@ func validateAutomation(a *agentsv1.Automation, agent automationAgentValidator) 
 	if a.GetTrigger() == nil || a.GetTrigger().GetType() == agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_UNSPECIFIED {
 		return connectx.RequiredArgument("automation.trigger.type")
 	}
+	if int32(a.GetTrigger().GetType()) == removedForumEventTrigger {
+		return connectx.InvalidArgument("automation.trigger.type", "is unsupported; the Butter Forum event trigger was removed")
+	}
 	if a.GetTrigger().GetType() == agentsv1.AutomationTriggerType_AUTOMATION_TRIGGER_TYPE_SCHEDULE {
 		if strings.TrimSpace(a.GetTrigger().GetSchedule().GetSchedule()) == "" {
 			return connectx.RequiredArgument("automation.trigger.schedule.schedule")
@@ -342,13 +351,6 @@ func validateAutomation(a *agentsv1.Automation, agent automationAgentValidator) 
 		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP:
 			if strings.TrimSpace(step.GetSendNotifyGroup().GetNotifyGroupName()) == "" {
 				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].send_notify_group.notify_group_name", i))
-			}
-		case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CREATE_FORUM_POST:
-			if strings.TrimSpace(step.GetCreateForumPost().GetThreadId()) == "" {
-				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].create_forum_post.thread_id", i))
-			}
-			if strings.TrimSpace(step.GetCreateForumPost().GetBody()) == "" {
-				return connectx.RequiredArgument(fmt.Sprintf("automation.steps[%d].create_forum_post.body", i))
 			}
 		default:
 			return connectx.InvalidArgument(fmt.Sprintf("automation.steps[%d].type", i), "is unsupported")

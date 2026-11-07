@@ -104,8 +104,6 @@ String automationTriggerLabel(AutomationTriggerType t) => switch (t) {
   AutomationTriggerType.AUTOMATION_TRIGGER_TYPE_SCHEDULE => 'Schedule',
   AutomationTriggerType.AUTOMATION_TRIGGER_TYPE_WEBHOOK =>
     'Webhook (not wired)',
-  AutomationTriggerType.AUTOMATION_TRIGGER_TYPE_FORUM_EVENT =>
-    'Forum event (not wired)',
   AutomationTriggerType.AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT =>
     'Channel event (not wired)',
   AutomationTriggerType.AUTOMATION_TRIGGER_TYPE_DAEMON_EVENT =>

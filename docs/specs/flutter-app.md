@@ -22,7 +22,7 @@
 
 ### 不在本次范围
 
-- Forum：暂不实现独立的 Forum Thread/Post 浏览、创建、回复或管理，不改变后端与 Web 已有 Forum 能力。
+- Forum：Butter 自带的 Forum 已在 issue #494 中从产品与后端移除，App 不再规划 Forum 功能。
 - Skills 独立管理：暂不实现 Skill CRUD、SKILL.md 编辑或 Skill Resource 管理；Agent 配置中关联已有 Skill 的能力保留，不改变后端 Skills 功能。
 - 全局管理员功能：用户创建/停用/重置他人密码、Git Host CRUD、全局 MCP 预设 CRUD、Telegram/Linear 公网 endpoint 配置及全局诊断管理等；继续由 Web/运维配置。个人资料、本人密码修改与 Workspace 成员管理仍在范围内。
 - 在手机上启动 Go 服务、ADK、Pi、Cursor 或 Daemon worker。
@@ -236,7 +236,7 @@ mobile/
 3. Workflow 采用图查看 + 结构化编辑，不要求触屏拖拽画布。
 4. 暂不支持多个服务器地址；用户在 App 内填写、保存及修改唯一服务端地址。
 5. 暂不做 Skills 独立管理；保留 Agent 关联已有 Skill。
-6. 暂不做 Forum，不纳入当前 App 功能矩阵与验收。
+6. Butter Forum 已移除（#494），不纳入 App 功能矩阵与验收。
 
 ### 待确认
 

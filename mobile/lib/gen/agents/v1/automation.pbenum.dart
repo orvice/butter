@@ -27,9 +27,6 @@ class AutomationTriggerType extends $pb.ProtobufEnum {
   static const AutomationTriggerType AUTOMATION_TRIGGER_TYPE_WEBHOOK =
       AutomationTriggerType._(
           3, _omitEnumNames ? '' : 'AUTOMATION_TRIGGER_TYPE_WEBHOOK');
-  static const AutomationTriggerType AUTOMATION_TRIGGER_TYPE_FORUM_EVENT =
-      AutomationTriggerType._(
-          4, _omitEnumNames ? '' : 'AUTOMATION_TRIGGER_TYPE_FORUM_EVENT');
   static const AutomationTriggerType AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT =
       AutomationTriggerType._(
           5, _omitEnumNames ? '' : 'AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT');
@@ -43,7 +40,6 @@ class AutomationTriggerType extends $pb.ProtobufEnum {
     AUTOMATION_TRIGGER_TYPE_MANUAL,
     AUTOMATION_TRIGGER_TYPE_SCHEDULE,
     AUTOMATION_TRIGGER_TYPE_WEBHOOK,
-    AUTOMATION_TRIGGER_TYPE_FORUM_EVENT,
     AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT,
     AUTOMATION_TRIGGER_TYPE_DAEMON_EVENT,
   ];
@@ -111,20 +107,16 @@ class AutomationStepType extends $pb.ProtobufEnum {
   static const AutomationStepType AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP =
       AutomationStepType._(
           3, _omitEnumNames ? '' : 'AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP');
-  static const AutomationStepType AUTOMATION_STEP_TYPE_CREATE_FORUM_POST =
-      AutomationStepType._(
-          4, _omitEnumNames ? '' : 'AUTOMATION_STEP_TYPE_CREATE_FORUM_POST');
 
   static const $core.List<AutomationStepType> values = <AutomationStepType>[
     AUTOMATION_STEP_TYPE_UNSPECIFIED,
     AUTOMATION_STEP_TYPE_INVOKE_AGENT,
     AUTOMATION_STEP_TYPE_CALL_WEBHOOK,
     AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP,
-    AUTOMATION_STEP_TYPE_CREATE_FORUM_POST,
   ];
 
   static final $core.List<AutomationStepType?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 4);
+      $pb.ProtobufEnum.$_initByValueList(values, 3);
   static AutomationStepType? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

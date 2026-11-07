@@ -63,7 +63,10 @@ enum AutomationTriggerType {
   AUTOMATION_TRIGGER_TYPE_MANUAL = 1;
   AUTOMATION_TRIGGER_TYPE_SCHEDULE = 2;
   AUTOMATION_TRIGGER_TYPE_WEBHOOK = 3;
-  AUTOMATION_TRIGGER_TYPE_FORUM_EVENT = 4;
+  // Removed with the Butter Forum (issue #494). Reserved so the number and
+  // name are never reused for another trigger.
+  reserved 4;
+  reserved "AUTOMATION_TRIGGER_TYPE_FORUM_EVENT";
   AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT = 5;
   AUTOMATION_TRIGGER_TYPE_DAEMON_EVENT = 6;
 }
@@ -84,7 +87,7 @@ message AutomationWebhookTrigger {
 }
 
 message AutomationEventTrigger {
-  // Event kind, e.g. "forum.post.created" or "daemon.task.failed".
+  // Event kind, e.g. "daemon.task.failed".
   // @gotags: json:"event_type,omitempty" yaml:"event_type,omitempty" bson:"event_type,omitempty"
   string event_type = 1;
 
@@ -130,8 +133,10 @@ message AutomationStep {
   // @gotags: json:"send_notify_group,omitempty" yaml:"send_notify_group,omitempty" bson:"send_notify_group,omitempty"
   AutomationSendNotifyGroupStep send_notify_group = 5;
 
-  // @gotags: json:"create_forum_post,omitempty" yaml:"create_forum_post,omitempty" bson:"create_forum_post,omitempty"
-  AutomationCreateForumPostStep create_forum_post = 6;
+  // Removed with the Butter Forum (issue #494). Reserved so the number and
+  // name are never reused for another step.
+  reserved 6;
+  reserved "create_forum_post";
 
   // Optional per-step overrides for retry/timeout/output policy.
   // @gotags: json:"policy,omitempty" yaml:"policy,omitempty" bson:"policy,omitempty"
@@ -143,7 +148,10 @@ enum AutomationStepType {
   AUTOMATION_STEP_TYPE_INVOKE_AGENT = 1;
   AUTOMATION_STEP_TYPE_CALL_WEBHOOK = 2;
   AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP = 3;
-  AUTOMATION_STEP_TYPE_CREATE_FORUM_POST = 4;
+  // Removed with the Butter Forum (issue #494). Reserved so the number and
+  // name are never reused for another step type.
+  reserved 4;
+  reserved "AUTOMATION_STEP_TYPE_CREATE_FORUM_POST";
 }
 
 message AutomationInvokeAgentStep {
@@ -187,14 +195,6 @@ message AutomationSendNotifyGroupStep {
 
   // @gotags: json:"message,omitempty" yaml:"message,omitempty" bson:"message,omitempty"
   string message = 3;
-}
-
-message AutomationCreateForumPostStep {
-  // @gotags: json:"thread_id,omitempty" yaml:"thread_id,omitempty" bson:"thread_id,omitempty"
-  string thread_id = 1 [(validate.rules).string.min_len = 1];
-
-  // @gotags: json:"body,omitempty" yaml:"body,omitempty" bson:"body,omitempty"
-  string body = 2 [(validate.rules).string.min_len = 1];
 }
 
 message AutomationPolicy {

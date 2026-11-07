@@ -141,10 +141,5 @@ func renderStepTemplates(step *agentsv1.AutomationStep, state *executionState) (
 			return nil, err
 		}
 	}
-	if post := out.GetCreateForumPost(); post != nil {
-		if err := render("create_forum_post.body", &post.Body); err != nil {
-			return nil, err
-		}
-	}
 	return out, nil
 }

@@ -52,8 +52,6 @@ class StepDraft {
   String notifyGroupName = '';
   String notifyTitle = '';
   String notifyMessage = '';
-  String forumThreadId = '';
-  String forumBody = '';
 
   factory StepDraft.fromProto(AutomationStep s) {
     final d = StepDraft(name: s.name, type: s.type);
@@ -73,10 +71,6 @@ class StepDraft {
       d.notifyGroupName = s.sendNotifyGroup.notifyGroupName;
       d.notifyTitle = s.sendNotifyGroup.title;
       d.notifyMessage = s.sendNotifyGroup.message;
-    }
-    if (s.hasCreateForumPost()) {
-      d.forumThreadId = s.createForumPost.threadId;
-      d.forumBody = s.createForumPost.body;
     }
     return d;
   }
@@ -102,11 +96,6 @@ class StepDraft {
           title: notifyTitle,
           message: notifyMessage,
         );
-      case AutomationStepType.AUTOMATION_STEP_TYPE_CREATE_FORUM_POST:
-        s.createForumPost = AutomationCreateForumPostStep(
-          threadId: forumThreadId.trim(),
-          body: forumBody,
-        );
       default:
         break;
     }
@@ -130,10 +119,6 @@ class StepDraft {
       case AutomationStepType.AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP:
         if (notifyGroupName.trim().isEmpty) {
           return 'Choose a Notify Group for this step.';
-        }
-      case AutomationStepType.AUTOMATION_STEP_TYPE_CREATE_FORUM_POST:
-        if (forumThreadId.trim().isEmpty || forumBody.trim().isEmpty) {
-          return 'Forum thread ID and body are required.';
         }
       default:
         return 'Choose a step type.';
@@ -285,8 +270,6 @@ String automationStepTypeLabel(AutomationStepType t) => switch (t) {
   AutomationStepType.AUTOMATION_STEP_TYPE_CALL_WEBHOOK => 'Call webhook',
   AutomationStepType.AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP =>
     'Send Notify Group',
-  AutomationStepType.AUTOMATION_STEP_TYPE_CREATE_FORUM_POST =>
-    'Create forum post',
   _ => 'Unspecified',
 };
 

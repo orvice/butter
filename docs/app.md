@@ -6,18 +6,18 @@ Butter 是基于 Butterfly 框架的 Agent 服务，核心使命是把多种入�
 
 ## 0. Workspace 多租户
 
-- **Workspace 实体**：所有 Agent / Channel / MCP Server / Remote Agent / Model Provider / Notify Group / Agent File / Forum / Cron Job / Automation / API Token / Invocation / Cron Execution / Automation Run / Workspace Memory Config 必须归属一个 workspace。`WorkspaceService` 暴露 workspace 与成员（`owner` / `admin` / `member`）的 CRUD。
+- **Workspace 实体**：所有 Agent / Channel / MCP Server / Remote Agent / Model Provider / Notify Group / Agent File / Cron Job / Automation / API Token / Invocation / Cron Execution / Automation Run / Workspace Memory Config 必须归属一个 workspace。`WorkspaceService` 暴露 workspace 与成员（`owner` / `admin` / `member`）的 CRUD。
 - **请求级别 workspace 选择**：客户端通过 `X-Workspace-ID` HTTP 头选择活跃 workspace；`AuthMiddleware` 校验该用户是 workspace 成员（全局 `admin` 角色旁路）。workspace-scoped RPC 缺失 header 时返回 `failed_precondition`；`AuthService` / `WorkspaceService` / `DashboardService` 不需要该 header，`DaemonService` 的配置、credential 签发、在线 daemon / task 查询需要 workspace，daemon 原生 gRPC `Connect` 由 daemon credential 自带 workspace。`SessionService.ReplySession` 建议带 header 以便 runner 在正确 workspace 解析 agent。
 - **登录返回 workspace 列表**：`AuthService.Login` 在响应中带 `workspaces`，dashboard 登录后弹 workspace 选择器，把选中的 workspace 写入后续请求头。
 - **API token 自带 workspace**：`CreateAPIToken` 时记录创建上下文的 workspace；用 API token 鉴权时直接绑定到 token 的 workspace，忽略 header。
 - **DaemonRuntime 自带 workspace**：daemon 执行面是配置仓库中的 `DaemonRuntime` 资源，runtime token 绑定 workspace + daemon_runtime_id；daemon-backed RemoteAgent 在 runtime 上选择 `opencode` / `codex` 这类 ACP runtime。
 - **默认 workspace 自举**：进程启动时若 `workspaces` 集合为空，会自动创建 slug 为 `default` 的 workspace，并把现有所有 user 加为 `owner`。
-- **运行时行为**：runner / channel manager / cron scheduler / automation scheduler 跨 workspace 拉平所有配置作为全局视图运行（agent 运行时名字目前需全局唯一，但引用统一以 `agent_id` 解析，agent_id-only）；`ContextInfo.workspace_id` 把所属 workspace 沿调用链透传，写 invocation / cron execution / automation run 时回填 workspace 与 `agent_id`。启动时运行只读的 Agent-ID cutover 校验器（`application.RunAgentIDCutoverVerifier`，替代已退役的 #213 启动回填）：仍按 legacy name 引用 agent 的 channel / cron / automation / forum 旧记录会被逐条 warning 日志报告（不再自动修补，也不阻断启动），并可通过 `VerifyAgentIDCutover` RPC 按需诊断。
+- **运行时行为**：runner / channel manager / cron scheduler / automation scheduler 跨 workspace 拉平所有配置作为全局视图运行（agent 运行时名字目前需全局唯一，但引用统一以 `agent_id` 解析，agent_id-only）；`ContextInfo.workspace_id` 把所属 workspace 沿调用链透传，写 invocation / cron execution / automation run 时回填 workspace 与 `agent_id`。启动时运行只读的 Agent-ID cutover 校验器（`application.RunAgentIDCutoverVerifier`，替代已退役的 #213 启动回填）：仍按 legacy name 引用 agent 的 channel / cron / automation 旧记录会被逐条 warning 日志报告（不再自动修补，也不阻断启动），并可通过 `VerifyAgentIDCutover` RPC 按需诊断。
 - **System agent**：仍为全局注册，其 `list_agents` / `list_cron_jobs` 等读工具跨 workspace，写工具（`create/update/delete_cron_job` 等）要求显式传入 `workspace_id` 参数。
 
 ## 1. Agent 编排
 
-- **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation/forum 绑定、A2A、OpenAI 兼容 API）的**唯一键**（agent_id-only）：调用/绑定时 `agent_id` 必填，缺失 → `InvalidArgument`，未知 → `NotFound`，绝不回退 name。`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）不再作为输入，仅保留为服务端回写的显示名与历史记录字段。`CreateAgent` 要求 `agent_id`；`(workspace_id, agent_id)` 也是持久层的逻辑主键（Get/Update/Delete/CAS 一律按 ID 定位，ADR-0010）。迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役（恒返回 `Unimplemented`）；`VerifyAgentIDCutover`（全局管理员）提供只读的 cutover 校验诊断。
+- **Agent ID 身份**：每个 Agent 由不可变、workspace 内唯一的 **Agent ID**（`agent_id`，slug 形如 `assistant`；规则 `^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$`，保留字 `user`/`system`/`admin`/`start`/`default`/`api`/`new`）标识，是所有引用（interactive 调用、channel/cron/automation 绑定、A2A、OpenAI 兼容 API）的**唯一键**（agent_id-only）：调用/绑定时 `agent_id` 必填，缺失 → `InvalidArgument`，未知 → `NotFound`，绝不回退 name。`display_name` 是可变的 UI 显示名，不参与解析。旧的 `agent_name`（运行时名字）不再作为输入，仅保留为服务端回写的显示名与历史记录字段。`CreateAgent` 要求 `agent_id`；`(workspace_id, agent_id)` 也是持久层的逻辑主键（Get/Update/Delete/CAS 一律按 ID 定位，ADR-0010）。迁移期 RPC `AssignAgentID` / `GetMigrationReadiness` / `MigrateAgentsV2` 已退役（恒返回 `Unimplemented`）；`VerifyAgentIDCutover`（全局管理员）提供只读的 cutover 校验诊断。
 - **多类型 Agent 构建**：通过 `agents.v1.Agent` 配置统一生成 ADK Agent，支持七种类型：
   - `AGENT_TYPE_LLM`：LLM Agent，支持 instruction、global instruction、input/output JSON schema、`output_key`、`context_guard`、`include_contents` 等参数。
   - `AGENT_TYPE_LOOP`：Loop workflow，支持 `max_iterations`。
@@ -189,7 +189,6 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - `ModelProviderService`：LLM Provider 配置 CRUD（workspace 范围）。
 - `NotifyGroupService`：通知组 CRUD，供 cron 投递。
 - `AgentFileService`：workspace 范围的文件空间与文件 CRUD（含 `SearchAgentFiles`）。
-- `ForumService`：论坛 thread / post 管理。
 
 运维类：
 
@@ -375,7 +374,7 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 
 **需要知道的后果：**
 
-- **workspace 内共享**：任何成员、任何入口（dashboard、API、OpenAI 兼容 API、AG-UI、A2A、Telegram、cron、automation、forum）、任何开了记忆的 agent，读写的都是同一个池子。A 在 Telegram 里告诉 agent X 的事，B 用 agent Y 时也可能被召回。
+- **workspace 内共享**：任何成员、任何入口（dashboard、API、OpenAI 兼容 API、AG-UI、A2A、Telegram、cron、automation）、任何开了记忆的 agent，读写的都是同一个池子。A 在 Telegram 里告诉 agent X 的事，B 用 agent Y 时也可能被召回。
 - **投毒风险**：能和开了记忆的 agent 对话的人，都能影响其他 agent 召回到什么。如果一个 Telegram Destination 的 `allowed_user_ids` 为空，任何能找到这个 bot 的人都能往 workspace 记忆里写东西。给开放的 bot 开启记忆要谨慎。
 - **cron / automation 也会写入**：定时任务重复的提示词和输出也会进入记忆池。不需要的话，在对应 agent 上关闭自动写入。
 - **记忆只增不改**：mem0 OSS v3 的提取只会新增，旧事实、换个说法的近似重复会一直累积。可以在 `/memory` 页面的 Memories 区域查看、搜索、删除记忆（#339）。
@@ -384,10 +383,10 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 
 ## 9. 自动化工作流
 
-- **Automation 配置**：workspace-scoped，包含 name、enabled、trigger、conditions、ordered steps、policy、metadata。v1 运行 manual 和 schedule trigger，同时在模型中保留 webhook / forum / channel / daemon event trigger 形状，便于后续事件触发接入。
+- **Automation 配置**：workspace-scoped，包含 name、enabled、trigger、conditions、ordered steps、policy、metadata。v1 运行 manual 和 schedule trigger，同时在模型中保留 webhook / channel / daemon event trigger 形状，便于后续事件触发接入。
 - **条件模型**：每个 condition 用 selector + operator + value 表达，支持 equals / not equals / contains / regex match / exists / not exists。所有条件都通过后才执行 steps；任一失败则 run 标记为 skipped 且不创建 step-run。
-- **线性 steps**：按定义顺序串行执行，默认首个失败 step 会停止整个 run。支持 `INVOKE_AGENT`、`CALL_WEBHOOK`、`SEND_NOTIFY_GROUP`、`CREATE_FORUM_POST`。
-- **Step 模板插值**：step 输入支持 `{{ selector }}` 占位符，执行时按 conditions 相同的数据根解析——`payload`（触发 payload）、`context`（automation 名、workspace、trigger type）、`steps.<name>`（前序 step 的解析输出，invoke_agent 暴露 `steps.<name>.response`）。可插值字段：`invoke_agent.input`、`call_webhook.url` / `payload_json` / header 值、`send_notify_group.title` / `message`、`create_forum_post.body`；`payload_json` 内用 `{{ selector | json }}` 保证字符串值仍是合法 JSON。selector 解析不到时该 step 显式失败，不会静默渲染为空。
+- **线性 steps**：按定义顺序串行执行，默认首个失败 step 会停止整个 run。支持 `INVOKE_AGENT`、`CALL_WEBHOOK`、`SEND_NOTIFY_GROUP`。
+- **Step 模板插值**：step 输入支持 `{{ selector }}` 占位符，执行时按 conditions 相同的数据根解析——`payload`（触发 payload）、`context`（automation 名、workspace、trigger type）、`steps.<name>`（前序 step 的解析输出，invoke_agent 暴露 `steps.<name>.response`）。可插值字段：`invoke_agent.input`、`call_webhook.url` / `payload_json` / header 值、`send_notify_group.title` / `message`；`payload_json` 内用 `{{ selector | json }}` 保证字符串值仍是合法 JSON。selector 解析不到时该 step 显式失败，不会静默渲染为空。
 - **执行策略**：Automation 级 policy 支持 timeout、retry/backoff、concurrency、max_output_bytes；step 可覆盖自身 policy。concurrency 通过每个 automation 的 Redis lease 跨 Pod 生效：SKIP 在另一实例持锁时直接记 skipped，QUEUE 轮询等待锁释放；REPLACE 无法取消另一实例上的 run，跨实例退化为 QUEUE（本实例内仍会取消并接替）。
 - **手动执行为异步**：`RunAutomationNow` 同步接受并返回 `RUNNING` 状态的 run，实际执行在后台进行（客户端断开不会取消 run）；通过 `GetAutomationRun` / `ListAutomationStepRuns` 跟进结果。
 - **运行记录**：每次执行写 `automation_runs`，包含 trigger type、status、trigger payload preview、error、起止时间和 duration；每个实际执行的 step 写 `automation_step_runs`，包含 step type、attempt_count、input/output preview、invocation_id、truncated、duration 等。已完成的 run 与 step-run 依 `finished_at` 上的 TTL 索引保留 30 天（RUNNING / WAITING_INPUT 不设 `finished_at`，不受 TTL 影响）；run 列表使用 `(started_at, id)` 游标分页。启动时会把超过 24 小时仍处于 RUNNING 的 run 标记为 FAILED（进程崩溃遗留），WAITING_INPUT 不受影响。
@@ -428,7 +427,6 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
   - 运行时配置：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemon_runtimes` / legacy `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键
   - Telegram：`telegram_channels` / `telegram_destinations` / `telegram_processing_records`、Telegram 设置和数据库主密钥
   - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`
-  - Forum：`forum_threads` / `forum_posts`
   - `cron_jobs` / `cron_executions`，`_id` 为 `"{workspace_id}:{name}"`（job）或随机 uuid（execution，带 `workspace_id` 字段）
   - `automations` / `automation_runs` / `automation_step_runs`，分别保存 workflow 定义、run 历史和 step-run 历史；definition `name` 在 workspace 内唯一，run/step-run 按 workspace + automation/run 建索引。
   - `invocations`：runner 持久化的每次调用记录（`agent_id` + `agent_display_name` 快照 / legacy `agent_name` / app / user / session / status / input / output / latency / workspace_id；历史记录只保留 `agent_name`）
@@ -488,7 +486,7 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 
 - `front/` 是 Vite + React 19 + shadcn/ui 应用，TanStack Query 做数据层。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）输出到 `front/src/gen/`，service 定义和 message 类型都包含在内（connect-es v2 直接消费 `GenService`）。每个 service 一个 `front/src/api/*.ts`，用 `makeClient(XxxService)` 拿到类型化 client；共享 `transport.ts` 注入 `Authorization` / `X-Workspace-ID`，默认 **binary protobuf**（`useBinaryFormat: true`），并处理 401 跳登录。手写 `front/src/types/api.ts` 仍保留 snake_case 形状作为 route/feature 层 boundary。Chat 走 AG-UI 端点（`POST /api/agui/:agent_id`，见下文）；同步兼容入口仍可使用 `AgentService.StreamAgent`。头像上传走 REST multipart（`uploads.ts`），上传后再调 `AuthService.UpdateProfile` 写 `avatar_url`。
-- 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Forum / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Memory / Users / Profile / Integrations / Admin。
+- 一级路由（`front/src/routes/`）和资源实现（`front/src/features/`）包含 Login / Chat / Dashboard / Agents / MCP Servers / Remote Agents / Daemons / Telegram Channels/Destinations / Sessions / Automations / API Tokens / Model Providers / Notify Groups / Agent Files / Workspaces / Memory / Users / Profile / Integrations / Admin。
 - Chat 的消息渲染在 `front/src/components/chat`：同一个 Markdown 渲染器（GFM，链接在新标签页打开，行内代码、代码块和表格有样式），用户消息也按 Markdown 显示并保留输入的换行；每条回答带 Agent 的头像和名称；工具调用默认折叠成名称和状态，展开后显示参数和结果。`render_ui` 调用不单独显示，回答里显示它画出的卡片，调用失败时才显示这次调用；`adk_request_input` 显示为 Human Input 问题卡。这两个工具通过 assistant-ui toolkit 的 `backend` 条目注册，只负责渲染，不会作为前端工具发给 agent。AG-UI 不会把 `adk_request_input` 作为工具调用发出（问题以 Interrupt 到达），所以这张问题卡已不会出现：只有 AG-UI 之前的 Chat 收到过这个调用。加载历史时显示骨架，没有消息的 thread 显示 Agent 介绍，composer 下方提示 “Butter can make mistakes”。某条消息渲染失败时，只有这条换成一行提示，其余对话照常；整段对话渲染失败时显示 “Try again”，composer 仍可用。
 - 全部页面消费上面 12-16 节描述的 RPC；细节见 `docs/api.md`。
 - Chat（`/chat`，`front/src/features/agui-chat`）是 dashboard 唯一的聊天（#409），基于 `@ag-ui/client` HttpAgent + assistant-ui，并用 `@a2ui/react` / `@a2ui/web_core` 0.12.0 按 dashboard 设计系统渲染 `butter-basic-v1`。卡片出现在产生它的回答里，同一卡片的更新原地刷新；无法渲染的 surface 只显示其可读 fallback，不影响文字和工具调用。表单提交中禁用按钮、失败保留草稿并显示字段错误、成功后以一条可读回复出现在对话里并变为不可再提交。打开哪个 thread 由 URL 决定：`?thread=<id>` 打开该 thread，Agent 取自 thread 的 binding（thread 一旦存在，Agent 就固定）；没有 `thread` 时是新对话草稿，显示 Agent 头像和可搜索的 Agent 选择器（`?agent=<agent_id>` 预选，否则预选本 Workspace 上次选过的 Agent），第一条消息创建 thread，并以 replace 方式把 `?thread=` 写进 URL。旧地址 `/agui-chat` 带着原查询参数（如 `?thread=`、`?agent=`）重定向到 `/chat`；AG-UI 之前的 Chat 的参数（`session`、`new`、`pending_message`、`invocation`）进入新对话草稿：那时的 `web-chat` 会话不迁移，也没有只读视图（由 #411 清理）。打开 thread 时依次可能显示加载中、加载失败（可 Retry）或找不到：会话不存在、binding 属于其他 Workspace、或指向本 Workspace 无法运行的 Agent，都显示“Thread not found”和“Start a new chat”；发送时服务端以 403 拒绝该 thread（`threadId is not available` / `threadId belongs to another agent`）也显示同一状态。thread 顶栏显示标题（无标题时用 Agent 名）、Agent 头像和名称，可就地重命名，菜单里可删除；删除当前 thread 后回到新对话草稿。打开 thread（包括刷新、切换到旧 thread）时，同时读取历史和 UI 快照：对话文字按顺序还原，工具调用带结果；卡片和未答表单回到产生它的那条回答里；未回答的问题仍是可直接作答的提示。问题一次回答一个：某个问题的文字提示只回答它自己（请求只带这一条 `resume`），其余问题保持待回答，run 结束时服务端会再次列出；有问题待回答时，composer 发出的消息不带 `resume`，服务端把它当作最早那个问题的回答（ADR-0002），composer 上方会提示这一点。找不到所属回答的卡片单独显示在“Restored from earlier in this conversation”下。之后再接收增量；打开另一个 thread 或点 “New thread” 会清掉上一个 thread 的 UI，切换 Workspace 会离开当前 thread，回到新对话草稿。thread 列表在全局侧边栏的 “Threads” 区，它就是 Chat 的历史，页面本身没有 thread 列表；窄屏时从侧边栏抽屉进入，点开 thread 后抽屉收起。它列出当前用户在本 Workspace 的全部 thread，不分 Agent：读完所有分页的 `agui` 会话，只保留 A2UI binding 属于本 Workspace 的（A2UI 之前创建、没有 binding 的 thread 无法归属，不列出）。按 Today / Previous 7 days / Older 分组，可按标题搜索；每行显示 binding 所指 Agent 的头像和标题（无标题时用 Agent 名），链接到 `?thread=`，当前打开的 thread 高亮，可重命名、删除。“New thread” 打开新对话草稿，沿用当前 thread 或草稿的 Agent。侧边栏和 thread 顶栏的删除是同一流程：删除当前 thread 时，页面只是不再跟随进行中的 run，停止它由服务端的删除完成，之后回到该 Agent 的新对话草稿。未提交的草稿不跨刷新保存。
@@ -558,7 +556,7 @@ cmd/butter-daemon (客户端)
 - `BridgeDiagnostics.memory_limit_bytes` 当前总是 0（未读 cgroup）。
 - 当前普通 API token 在所属 workspace 内拥有 `api:*` 权限；daemon token 只有 `daemon:connect`，并可设置 `expires_at`。
 - Workspace 跨租户隔离尚未到运行时：runner、channel manager、cron scheduler 共享同一个进程视图，**agent 运行时名字需在全部 workspace 内全局唯一**；不同 workspace 用同名 agent 会冲突。`agent_id` 只保证 workspace 内唯一，运行时通过 `ResolveAgentRef` 在 workspace scope 内**仅按 `agent_id`** 解析（无 legacy name 解析路径；跨 workspace 隔离在 ConnectRPC 边界与 runner 强制）。
-- Automation v1 是线性有序 step，不支持 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 字段已建模但尚未接入事件路由。
+- Automation v1 是线性有序 step，不支持 DAG、人工审批 gate 或持久化 worker queue；webhook/channel/daemon event trigger 字段已建模但尚未接入事件路由。
 - 内置 system agent 仍为全局注册；daemon connector 是 `/api` 下的长连接入口，但连接、registry、任务路由和配置均按 workspace 隔离。
 - `pkg/proto/agents/v1` 为生成代码，改动需在 `proto/agents/v1` 中完成后重新生成。
 - 长期记忆 v1：Workspace Memory 在 workspace 内共享，不区分人（按人区分的 scope 见 #347）；记忆管理只支持查看、搜索、删除单条，不支持修改和一键清空，列表最多显示 200 条，更早的记忆靠搜索找到；PI / Cursor agent 不支持；只对接 mem0 OSS，不支持 mem0 云平台。

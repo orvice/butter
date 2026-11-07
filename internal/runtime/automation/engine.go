@@ -25,7 +25,6 @@ import (
 
 	"go.orx.me/apps/butter/internal/notify"
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
-	"go.orx.me/apps/butter/internal/repo/forum"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -96,7 +95,6 @@ type EngineOptions struct {
 	Runner          runnerService
 	NotifyGroupRepo configrepo.NotifyGroupRepository
 	Notifier        notifySender
-	ForumRepo       forum.Repository
 	HTTPClient      httpDoer
 	// SessionService, if set, deletes a run's session when the run reaches a
 	// terminal state via the resume path.
@@ -120,7 +118,6 @@ type Engine struct {
 	runner          runnerService
 	notifyGroupRepo configrepo.NotifyGroupRepository
 	notifier        notifySender
-	forumRepo       forum.Repository
 	httpClient      httpDoer
 	sessionSvc      sessionDeleter
 	guard           RunGuard
@@ -164,7 +161,6 @@ func NewEngine(defRepo DefinitionRepo, runRepo RunRepo, stepRepo StepRunRepo, op
 		runner:          opts.Runner,
 		notifyGroupRepo: opts.NotifyGroupRepo,
 		notifier:        notifier,
-		forumRepo:       opts.ForumRepo,
 		httpClient:      httpClient,
 		sessionSvc:      opts.SessionService,
 		guard:           opts.RunGuard,
@@ -694,9 +690,6 @@ func (e *Engine) executeStepAction(ctx context.Context, a *agentsv1.Automation, 
 	case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP:
 		out, err := e.sendNotifyGroup(ctx, a.GetWorkspaceId(), step.GetSendNotifyGroup())
 		return out, "", nil, err
-	case agentsv1.AutomationStepType_AUTOMATION_STEP_TYPE_CREATE_FORUM_POST:
-		out, err := e.createForumPost(ctx, a, step.GetCreateForumPost())
-		return out, "", nil, err
 	default:
 		return "", "", nil, fmt.Errorf("unsupported automation step type %s", step.GetType())
 	}
@@ -829,34 +822,6 @@ func (e *Engine) sendNotifyGroup(ctx context.Context, workspaceID string, step *
 		return out, errors.New(strings.Join(errs, "; "))
 	}
 	return out, nil
-}
-
-func (e *Engine) createForumPost(ctx context.Context, a *agentsv1.Automation, step *agentsv1.AutomationCreateForumPostStep) (string, error) {
-	if e.forumRepo == nil {
-		return "", errors.New("forum repository is not configured")
-	}
-	if step.GetThreadId() == "" {
-		return "", errors.New("create_forum_post.thread_id is required")
-	}
-	if _, err := e.forumRepo.GetThread(ctx, a.GetWorkspaceId(), step.GetThreadId()); err != nil {
-		return "", fmt.Errorf("load forum thread %q: %w", step.GetThreadId(), err)
-	}
-	now := timestamppb.New(time.Now().UTC())
-	post := &agentsv1.ForumPost{
-		Id:              uuid.NewString(),
-		ThreadId:        step.GetThreadId(),
-		Body:            step.GetBody(),
-		AuthorUserId:    "automation:" + a.GetName(),
-		AuthorKind:      automationAuthorKind,
-		AuthorAgentName: a.GetName(),
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		WorkspaceId:     a.GetWorkspaceId(),
-	}
-	if err := e.forumRepo.CreatePost(ctx, post); err != nil {
-		return "", fmt.Errorf("create forum post: %w", err)
-	}
-	return marshalJSON(map[string]any{"post_id": post.GetId(), "thread_id": post.GetThreadId()}), nil
 }
 
 type executionState struct {

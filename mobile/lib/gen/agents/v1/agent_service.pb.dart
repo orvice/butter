@@ -3790,8 +3790,8 @@ class AgentIDCutoverFinding extends $pb.GeneratedMessage {
   /// "agent_id_duplicate", "embedded_sub_agents", "workflow_legacy_agent_ref",
   /// "child_agent_id_unresolved", "workflow_agent_id_unresolved",
   /// "lifecycle_migration_required", "channel_agent_id_missing",
-  /// "cron_agent_id_missing", "automation_agent_id_missing",
-  /// "forum_agent_id_missing", or "runtime_name_conflict".
+  /// "cron_agent_id_missing", "automation_agent_id_missing", or
+  /// "runtime_name_conflict".
   @$pb.TagNumber(2)
   $core.String get check_2 => $_getSZ(1);
   @$pb.TagNumber(2)
@@ -3801,8 +3801,8 @@ class AgentIDCutoverFinding extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearCheck_2() => $_clearField(2);
 
-  /// Kind of the offending entity: "agent", "channel", "cron_job",
-  /// "automation", or "forum_thread".
+  /// Kind of the offending entity: "agent", "channel", "cron_job", or
+  /// "automation".
   @$pb.TagNumber(3)
   $core.String get entityKind => $_getSZ(2);
   @$pb.TagNumber(3)
@@ -11428,7 +11428,7 @@ class AgentServiceApi {
   /// workspace-unique Agent IDs, no legacy embedded sub_agents or name-based
   /// workflow references remain, all child/workflow references resolve, no
   /// Agent is stuck in MIGRATION_REQUIRED, consumer records (channels, cron
-  /// jobs, automations, forum threads) carry Agent IDs, and no runtime-name
+  /// jobs, automations) carry Agent IDs, and no runtime-name
   /// conflict violates the runner's naming constraints. Global admins only.
   $async.Future<VerifyAgentIDCutoverResponse> verifyAgentIDCutover(
           $pb.ClientContext? ctx, VerifyAgentIDCutoverRequest request) =>
