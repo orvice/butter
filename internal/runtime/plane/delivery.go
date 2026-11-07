@@ -40,6 +40,9 @@ type DeliveryStore interface {
 	Put(context.Context, *DeliveryAttempt) error
 	ListRecoverable(context.Context) ([]*DeliveryAttempt, error)
 }
+type DeliveryAuditStore interface {
+	ListAll(context.Context) ([]*DeliveryAttempt, error)
+}
 type RetryableError interface{ Retryable() bool }
 type DurablePublisher struct {
 	target ReplyPublisher
@@ -214,6 +217,16 @@ func (s *MemoryDeliveryStore) Put(_ context.Context, r *DeliveryAttempt) error {
 	c := *r
 	s.rows[r.Key] = &c
 	return nil
+}
+func (s *MemoryDeliveryStore) ListAll(_ context.Context) ([]*DeliveryAttempt, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]*DeliveryAttempt, 0, len(s.rows))
+	for _, r := range s.rows {
+		c := *r
+		out = append(out, &c)
+	}
+	return out, nil
 }
 func (s *MemoryDeliveryStore) ListRecoverable(_ context.Context) ([]*DeliveryAttempt, error) {
 	s.mu.Lock()

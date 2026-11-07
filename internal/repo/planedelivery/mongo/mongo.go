@@ -35,6 +35,25 @@ func (s *Store) Put(ctx context.Context, r *plane.DeliveryAttempt) error {
 	_, e := s.col.ReplaceOne(ctx, bson.M{"_id": r.Key}, doc{Key: r.Key, Value: r}, options.Replace().SetUpsert(true))
 	return e
 }
+func (s *Store) ListAll(ctx context.Context) ([]*plane.DeliveryAttempt, error) {
+	cur, e := s.col.Find(ctx, bson.M{})
+	if e != nil {
+		return nil, e
+	}
+	defer cur.Close(ctx)
+	var ds []doc
+	if e = cur.All(ctx, &ds); e != nil {
+		return nil, e
+	}
+	out := make([]*plane.DeliveryAttempt, 0, len(ds))
+	for _, d := range ds {
+		if d.Value == nil {
+			return nil, errors.New("invalid plane delivery record")
+		}
+		out = append(out, d.Value)
+	}
+	return out, nil
+}
 func (s *Store) ListRecoverable(ctx context.Context) ([]*plane.DeliveryAttempt, error) {
 	cur, e := s.col.Find(ctx, bson.M{"value.status": bson.M{"$in": []string{string(plane.DeliveryPending), string(plane.DeliveryRetryable)}}})
 	if e != nil {
