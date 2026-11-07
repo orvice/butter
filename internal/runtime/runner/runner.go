@@ -34,6 +34,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/mem0memory"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
+	"go.orx.me/apps/butter/internal/runtime/tracing"
 	"go.orx.me/apps/butter/internal/skilltool"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -1215,6 +1216,21 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		}
 	}
 
+	// Pin the invocation ID before the run starts. The trace ID Butter renders
+	// into SessionEvent.trace_url is derived from it, and that link only
+	// addresses a Langfuse trace when the invocation ADK is about to create
+	// carries the pinned ID. A message answering a call already in the session
+	// continues that call's invocation; anything else starts a new one.
+	pinnedInvocationID := ""
+	if continued := tracing.InvocationIDForMessage(priorSession, parts); continued != "" {
+		logger.Debug("continuing invocation trace", "invocation_id", continued)
+		ctx = tracing.WithInvocationID(ctx, continued)
+		pinnedInvocationID = continued
+	} else {
+		ctx, pinnedInvocationID = tracing.StartInvocation(ctx)
+		logger.Debug("starting invocation trace", "invocation_id", pinnedInvocationID)
+	}
+
 	// Store compaction callback in context for the notifier plugin.
 	if onCompaction != nil {
 		ctx = WithCompactionCallback(ctx, onCompaction)
@@ -1246,6 +1262,17 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		turn.EventCount = eventCount
 		if turn.InvocationID == "" && evt.InvocationID != "" {
 			turn.InvocationID = evt.InvocationID
+			// The trace ID of this run was decided by the invocation ID pinned
+			// above — minted for a new invocation, or reused from the paused call
+			// this message answers. If ADK heads the invocation with a different ID
+			// instead, the spans went to another trace and trace_url points at a
+			// trace that does not exist — worth a warning rather than silence.
+			if pinnedInvocationID != "" && evt.InvocationID != pinnedInvocationID {
+				logger.Warn("invocation ID differs from the pinned one, Langfuse trace correlation is lost",
+					"pinned_invocation_id", pinnedInvocationID,
+					"invocation_id", evt.InvocationID,
+				)
+			}
 		}
 		if evt.FinishReason != "" && evt.FinishReason != genai.FinishReasonUnspecified {
 			turn.FinishReason = evt.FinishReason

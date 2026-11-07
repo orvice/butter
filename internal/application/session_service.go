@@ -28,6 +28,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/interrupt"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/sessionshare"
+	"go.orx.me/apps/butter/internal/runtime/tracing"
 	"go.orx.me/apps/butter/internal/transport/connectx"
 	"go.orx.me/apps/butter/internal/workspace"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -1276,13 +1277,17 @@ func (s *SessionServiceServer) TitleSession(ctx context.Context, appName, userID
 }
 
 func eventToProtoWithTrace(evt *session.Event, langfuseHost string) *agentsv1.SessionEvent {
+	// The trace ID is derived from the invocation ID (internal/runtime/tracing), so
+	// it is what Langfuse shows in a trace URL. The invocation ID itself is not a
+	// trace ID and addresses nothing there.
+	traceID := tracing.TraceIDString(evt.InvocationID)
 	pe := &agentsv1.SessionEvent{
 		EventId:      evt.ID,
 		InvocationId: evt.InvocationID,
 		Author:       evt.Author,
 		Branch:       evt.Branch,
 		Timestamp:    timestamppb.New(evt.Timestamp),
-		TraceId:      evt.InvocationID,
+		TraceId:      traceID,
 	}
 
 	if evt.Content != nil {
@@ -1291,8 +1296,8 @@ func eventToProtoWithTrace(evt *session.Event, langfuseHost string) *agentsv1.Se
 		}
 	}
 
-	if langfuseHost != "" && evt.InvocationID != "" {
-		pe.TraceUrl = langfuseHost + "/trace/" + evt.InvocationID
+	if langfuseHost != "" && traceID != "" {
+		pe.TraceUrl = langfuseHost + "/trace/" + traceID
 	}
 
 	return pe

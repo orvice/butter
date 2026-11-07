@@ -478,7 +478,7 @@ Agent 可以跨会话记住事实、偏好和决定。行为参照 mem0 官方 C
 ## 17. 可观测性
 
 - **OpenTelemetry Tracing**：`BUTTERFLY_TRACING_PROVIDER`、`BUTTERFLY_TRACING_ENDPOINT` 控制。
-- **Langfuse Plugin**：模型调用层 LLM 追踪。当 `cfg.Langfuse.Host` 设置时，`SessionEvent.trace_url = <host>/trace/<invocation_id>` 自动填充。
+- **Langfuse Plugin**：模型调用层 LLM 追踪。`SessionEvent.trace_id` 是 `invocation_id` 派生的 OTel trace id，当 `cfg.Langfuse.Host` 设置时 `trace_url = <host>/trace/<trace_id>` 自动填充。一个 invocation 一条 trace：workflow 暂停后在后续请求恢复也留在同一条 trace 里（插件按 `internal/runtime/tracing` 的 ID generator 决定 trace id）。
 - **Cron Execution / Automation Run / Invocation 历史**：作为业务级运行记录，分别支撑 Cron 时序图、Automation 详情页与 Activity Feed。
 - **Bridge Metrics**：见第 16 节，给运维屏提供 CPU / 内存 / latency 折线。
 

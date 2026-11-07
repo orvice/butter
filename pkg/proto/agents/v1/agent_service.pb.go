@@ -8817,8 +8817,9 @@ type SessionEvent struct {
 	// Content serialized as JSON string (genai.Content).
 	ContentJson string                 `protobuf:"bytes,5,opt,name=content_json,json=contentJson,proto3" json:"content_json,omitempty"`
 	Timestamp   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	// Trace id propagated to observability backends (e.g. Langfuse). Currently
-	// mirrors invocation_id; consumers should treat it as opaque.
+	// Trace id propagated to observability backends (e.g. Langfuse): the OTel
+	// trace ID derived from invocation_id, which is what the backend names the
+	// trace. Empty when the event has no invocation.
 	TraceId string `protobuf:"bytes,7,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
 	// Fully-qualified URL to the trace view in the configured observability
 	// backend, if one is wired. Empty otherwise.

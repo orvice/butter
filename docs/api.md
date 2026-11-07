@@ -3996,7 +3996,7 @@ auto-generation from overwriting user-chosen names.
 | `branch` | string | Branch identifier |
 | `content_json` | string | Content as JSON (genai.Content) |
 | `timestamp` | timestamp | Event timestamp |
-| `trace_id` | string | Mirrors `invocation_id`; consumers treat as opaque |
+| `trace_id` | string | OTel trace id derived from `invocation_id` (32 hex chars); empty when the event has no invocation |
 | `trace_url` | string | `<langfuse_host>/trace/<trace_id>` when Langfuse is configured |
 
 ---
