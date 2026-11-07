@@ -21,6 +21,8 @@ type InstallationTokenSource struct {
 	Keyring       *secretbox.Keyring
 	Client        *planeapi.Client
 	Lease         TokenLease
+	FencedLease   FencedTokenLease
+	Owner         string
 	RefreshBefore time.Duration
 	mu            sync.Mutex
 }
@@ -49,16 +51,37 @@ func (s *InstallationTokenSource) token(ctx context.Context, workspaceID, appID,
 			return m.AccessToken, nil
 		}
 		s.mu.Lock()
-		if s.Lease != nil {
-			ok, e := s.Lease.Acquire(ctx, workspaceID+":"+appID+":"+installationID)
-			if e != nil || !ok {
+		var release func()
+		if s.Lease != nil || s.FencedLease != nil {
+			key := workspaceID + ":" + appID + ":" + installationID
+			var ok bool
+			var fence uint64
+			var acquireErr error
+			if s.FencedLease != nil {
+				if s.Owner == "" {
+					s.mu.Unlock()
+					return "", ErrTokenUnavailable
+				}
+				fence, acquireErr = s.FencedLease.AcquireToken(ctx, key, s.Owner, m.Revision, time.Now().Add(5*time.Minute))
+				ok = acquireErr == nil && fence != 0
+			} else {
+				ok, acquireErr = s.Lease.Acquire(ctx, key)
+			}
+			if acquireErr != nil || !ok {
 				s.mu.Unlock()
-				if e != nil {
+				if acquireErr != nil {
 					return "", ErrTokenUnavailable
 				}
 				continue
 			}
-			defer func() { _ = s.Lease.Release(context.Background(), workspaceID+":"+appID+":"+installationID) }()
+			release = func() {
+				if s.FencedLease != nil {
+					_ = s.FencedLease.ReleaseToken(context.Background(), key, s.Owner, fence)
+				} else {
+					_ = s.Lease.Release(context.Background(), key)
+				}
+			}
+			defer release()
 		}
 		latest, e := s.Installations.GetRuntimeToken(ctx, workspaceID, appID, installationID)
 		if e != nil {
