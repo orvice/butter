@@ -8,7 +8,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 核心能力：
 
-- 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Notify Group / Agent File / Forum / Cron / Automation / API Token / Invocation / Cron Execution / Automation Run 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
+- 多租户 Workspace：所有 Agent / Channel / MCP / Remote / Model Provider / Notify Group / Agent File / Cron / Automation / API Token / Invocation / Cron Execution / Automation Run 都归属于一个 workspace；客户端通过 `X-Workspace-ID` 选择工作区。
 - Agent 配置化：从配置仓库（MongoDB）加载 `agents.v1.Agent`，构建 LLM、Loop、Sequential、Parallel、Workflow agent。YAML 不是 Agent 的配置入口。
 - 多入口接入：Gin HTTP、ConnectRPC（同 endpoint 同时支持 Connect/gRPC-Web/gRPC）、Telegram、Cron、Automation schedule、A2A、daemon connector 与 opencode HTTP server 直连。
 - 运行时热更新：Agent、MCP Server、Remote Agent、Channel 配置可通过 RPC 修改并触发 runner/channel reload；`AgentService.ReloadAgents` 公开触发。
@@ -18,7 +18,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 ## Workspace 多租户模型
 
-所有配置实体（`Agent` / `TelegramChannel` / `TelegramDestination` / legacy `AgentChannel` / `MCPServer` / `RemoteAgent` / `ModelProvider` / `NotifyGroup` / `CronJob` / `Automation` / `APIToken`）、内容实体（`AgentFileSpace` / `AgentFile` / `ForumThread` / `ForumPost`）以及运行时记录（`Invocation` / `CronExecution` / `AutomationRun` / `AutomationStepRun`）都归属于一个 workspace。`Workspace` 自身和 `WorkspaceMember` 由 `WorkspaceService` 管理，持久化为 MongoDB 的 `workspaces` 和 `workspace_members` 集合（`(workspace_id, user_id)` 唯一索引）。
+所有配置实体（`Agent` / `TelegramChannel` / `TelegramDestination` / legacy `AgentChannel` / `MCPServer` / `RemoteAgent` / `ModelProvider` / `NotifyGroup` / `CronJob` / `Automation` / `APIToken`）、内容实体（`AgentFileSpace` / `AgentFile`）以及运行时记录（`Invocation` / `CronExecution` / `AutomationRun` / `AutomationStepRun`）都归属于一个 workspace。`Workspace` 自身和 `WorkspaceMember` 由 `WorkspaceService` 管理，持久化为 MongoDB 的 `workspaces` 和 `workspace_members` 集合（`(workspace_id, user_id)` 唯一索引）。
 
 请求流：
 
@@ -30,7 +30,7 @@ Butter 是基于 Butterfly 框架的 Agent 服务。系统把 HTTP/RPC/channel �
 
 启动时 `application.BootstrapDefaultWorkspace` 检查 `workspaces` 集合是否为空，若为空则自动创建 slug 为 `default` 的 workspace，并把现有所有用户加为 `owner`。
 
-运行时（runner / channel manager / cron scheduler / automation scheduler）通过新增的 `*AcrossWorkspaces` repo 接口拉平所有 workspace 的配置，构建一个全局视图。**在当前阶段 agent 运行时名字仍要求跨 workspace 全局唯一**，但所有 agent 消费方（interactive RPC、channel、cron、automation、forum、A2A、OpenAI 兼容 API）已迁移到不可变的、workspace 内唯一的 **Agent ID**（`agent_id`）作为**唯一引用**（agent_id-only）：调用/绑定 agent 时 `agent_id` 必填，legacy `agent_name` 不再作为输入，仅保留为服务端回写的显示名与历史记录字段。channel、cron job 与 automation step 通过 `ContextInfo.workspace_id` 把所属 workspace 透传到执行链。
+运行时（runner / channel manager / cron scheduler / automation scheduler）通过新增的 `*AcrossWorkspaces` repo 接口拉平所有 workspace 的配置，构建一个全局视图。**在当前阶段 agent 运行时名字仍要求跨 workspace 全局唯一**，但所有 agent 消费方（interactive RPC、channel、cron、automation、A2A、OpenAI 兼容 API）已迁移到不可变的、workspace 内唯一的 **Agent ID**（`agent_id`）作为**唯一引用**（agent_id-only）：调用/绑定 agent 时 `agent_id` 必填，legacy `agent_name` 不再作为输入，仅保留为服务端回写的显示名与历史记录字段。channel、cron job 与 automation step 通过 `ContextInfo.workspace_id` 把所属 workspace 透传到执行链。
 
 ## 进程入口
 
@@ -99,7 +99,7 @@ Workspace Layer
 └── application.WorkspaceServiceServer    # CRUD + memberships
 
 Persistence
-├── MongoDB: session, memory, config, cron, automation, invocations, api_tokens, workspaces, workspace_members, agent files, forum
+├── MongoDB: session, memory, config, cron, automation, invocations, api_tokens, workspaces, workspace_members, agent files
 └── Redis: channel active agent/model selection
 ```
 
@@ -124,7 +124,7 @@ Persistence
 
 **旧 Chat 遗留数据的启动清理（#411，临时）**：每次启动时，`StartChannels` 在后台 goroutine 中以删除模式运行 `internal/maintenance/webchatcleanup`。它与一次性命令 `cmd/butter-delete-web-chat --confirm` 是同一份逻辑，按顺序删除：`web-chat` 会话的 Invocation 的 input parts；这些 Invocation（记录里写明其他 app 的除外）；会话的 events；最后是 `app_name: "web-chat"` 的 `adk_sessions`。多 Pod 时只有拿到 Redis 租约 `butter:maintenance:web-chat-cleanup` 的 Pod 运行它（`redislease.Guard`：TTL 30s，每 TTL/3 续期，丢失租约即取消清理），其余 Pod 跳过；取租约出错时也跳过，留给下次启动。没有 Redis 时只有本进程，直接运行，因为清理是幂等的。整次运行（含取租约）最长 10 分钟，未完成的部分由下次启动继续。它不写完成标记，每次启动都运行：没有剩余数据时只是一次走索引的查询；滚动发布期间旧 Pod 新建的 `web-chat` 会话，在下次重启时删除。按 workspace 与按集合的数量以 `web-chat cleanup:` 为前缀记 Info 日志，错误记 Warn（panic 也只记 Warn），从不阻塞或中断启动。删除 Invocation 会让 dashboard 过往的 Activity 计数下降。`maintenance.delete_web_chat: false` 关闭它。这是项目负责人确认的生产删除方式：在生产上运行过之后，后续版本移除这段启动逻辑和该配置项。
 
-启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation / forum 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
+启动时还会执行只读的 Agent-ID cutover 校验（`application.RunAgentIDCutoverVerifier`，替代已退役的一次性回填 `backfillConsumerAgentIDs`，ADR-0010）：逐条检查所有 workspace 的 agent（agent_id 缺失/非法/重复、内联 `sub_agents`、legacy workflow 名字引用、`child_agent_ids`/workflow 引用不可解析、`MIGRATION_REQUIRED`、运行时名字冲突）与 consumer 记录（channel / cron / automation 是否携带 `agent_id`），违规仅记 warning 日志、不自动修补、不阻断启动；`VerifyAgentIDCutover` RPC（全局管理员）提供同一诊断的按需版本。
 
 ## Agent 构建模型
 
@@ -158,7 +158,7 @@ Agent proto
           -> workflowagent.New(config)
 ```
 
-模型通过 `model_providers` 解析。alias-first 解析在 Agent 构建阶段完成，OpenAI-compatible 和 Gemini LLM 的 `Name()` 都返回实际 provider Model ID；ADK 在每个 model callback 前把该值写入 `LLMRequest.Model`。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会先把 alias 解析为实际 ID，再 clone proto 配置、替换 model，并缓存 override 后的 agent。
+模型通过 `model_providers` 解析。alias-first 解析在 Agent 构建阶段完成，OpenAI-compatible 和 Gemini LLM 的 `Name()` 都返回实际 provider Model ID；ADK 在每个 model callback 前把该值写入 `LLMRequest.Model`。OpenAI 两种 API 均使用 ADK v2.7 原生 `model/openaimodel`：Provider 的 `openai_api` 选择 `chat_completions` / `responses`；未设置时显式选择 Chat Completions，覆盖 ADK 默认 Responses，保持旧记录兼容。协议在保存和构建时共用校验，非 OpenAI 类型不可设置；没有运行中自动协议回退。Runner 支持运行时 model override：如果渠道选择了不同模型，`runner.Service` 会 clone proto 配置并保留所选模型引用（alias），由模型工厂同时解析实际 Model ID 和所属 Provider，再缓存 override 后的 agent；不能提前把 alias 丢成 Model ID，否则不同 Provider 下同名模型的凭据、endpoint 和协议会混淆。ADK 的 `LLM.Name()` 仍为实际 Model ID。Provider 协议更新复用现有 reload / generation 失效机制，不重置 session。
 
 Effective Context Window 仍由 ContextGuard 执行全部 compaction、buffer、summary、retry、session state 和通知语义，Butter 不复制其策略。Runner 从配置构建一个 source-aware `configuredModelRegistry`：配置容量覆盖 Crush/catwalk；内置 catalog 的 last-ID-wins 索引只用于准确区分 `embedded` 与数值同为 128,000 的 unknown `fallback`，output-token metadata 继续直接委托 Crush。Agent Threshold override 仍通过 `contextguard.WithMaxTokens` 传入，因此保持最高优先级；没有 Agent override 时，ContextGuard 在 callback 时按 `LLMRequest.Model` 查询实际选中 Model 的容量，model override 不会误用默认 Model 容量。
 
@@ -319,7 +319,6 @@ Automation trigger
       -> INVOKE_AGENT: runner.RunTurnSSE(...)  // 返回 TurnResult，携带 Pending Interrupt
       -> CALL_WEBHOOK: HTTP request
       -> SEND_NOTIFY_GROUP: NotifyGroup sender
-      -> CREATE_FORUM_POST: Forum repository/service path
   -> persist AutomationStepRun per executed step
   -> 若 INVOKE_AGENT 暂停于 Human Input Node：AutomationRun(WAITING_INPUT) + session 坐标
   -> 否则 finish AutomationRun(SUCCEEDED / FAILED / SKIPPED / CANCELLED)
@@ -380,8 +379,9 @@ webhook 注册——Telegram 在已注册 webhook 时对 `getUpdates` 返回 409
 匹配以 `(channel_id, chat_id, message_thread_id)` 精确进行；未配置的地址被忽略
 （`/where` 除外）。**缺省的 thread id 是一个地址，不是通配符**：群的普通会话与
 每个 Topic 是不同的 Destination，拥有各自的 session 与策略。所有出站消息——回复、
-处理中占位、命令回执、debug、分段的后续片段——都带上该 thread id，因此响应不会
-漏到群的 general。
+命令回执、debug、分段的后续片段——都带上该 thread id，因此响应不会漏到群的 general。
+Agent 执行前通过 `setMessageReaction` 给原消息加 👀，不再发送「处理中」占位；reaction
+以 chat id + 原消息 id 定位，无需 thread id。reaction 最多等待 3 秒，失败不阻止执行。
 
 ### 会话隔离
 
@@ -405,8 +405,10 @@ Topic 不能共享历史；切换 Agent 不能继承另一个 Agent 的上下文
 
 所有出站都经过 `internal/telegramsend`，入参是 Destination ID：Cron 投递、Notify
 Group、Dashboard 测试消息、Agent 回复。它统一做 Markdown → MarkdownV2 转换与纯文
-本回退、遵守 Telegram 的 `retry_after`、按 rune 边界分段（优先段落/换行/词边界）、
-把「处理中」占位编辑成第一段。唯一被允许的原始地址出口是
+本回退、遵守 Telegram 的 `retry_after`、按 rune 边界分段（优先段落/换行/词边界）。
+Agent 完成后以新消息发送回复（失败提示也是新消息），不再编辑占位，允许 Telegram
+正常通知；实际通知仍受用户的静音设置影响。旧处理记录的占位编辑仅保留用于恢复。
+唯一被允许的原始地址出口是
 `Sender.SendRaw`，只服务于传输层的 `/where` 命令。
 
 ### 遗留 Channel
@@ -490,6 +492,14 @@ App 的 client secret / webhook secret 与 Installation 的 access / refresh tok
 Redis 租约下进行，并按 token revision 做 compare-and-swap；`invalid_grant` 把
 installation 标为 `NEEDS_REINSTALL`，之后快速失败、不再联系 Linear。
 
+**Linear 剩余限制**：以上是当前实现与本地 fixture 的行为；截至本文更新，本仓库尚未在
+真实 Linear 组织里执行 live validation。真实 payload 字段、stop 形状、prompting user
+解析、`Linear-Delivery` / `organizationId` 的权威性，以及 Linear 的真实回复长度上限
+仍未确认；8000 rune 截断是沿用 butter-box#20 的实现假设。Pi / Cursor 在 box 层产出
+工具事件前只能显示确认与最终回复。管理员步骤、验证测量条件、证据规范与排错见
+[linear-agent-onboarding.md](linear-agent-onboarding.md)，未验证项清单见
+[docs/research/linear-protocol-validation.md](research/linear-protocol-validation.md)。
+
 ## HTTP 与 RPC
 
 HTTP handler 位于 `internal/handler/http`：
@@ -552,7 +562,6 @@ RPC 服务位于 `internal/application`，挂载在 `/api`，使用 ConnectRPC�
 - `ModelProviderService`：LLM Provider CRUD。
 - `NotifyGroupService`：通知组 CRUD，供 cron 投递使用。
 - `AgentFileService`：workspace 范围的文件空间与文件 CRUD（含 `SearchAgentFiles`）。
-- `ForumService`：论坛 thread / post 管理（`ListThreads` / `ListThreadLabels` / `GetThread` / `CreateThread` / `UpdateThread` / `DeleteThread` / `CreatePost` / `DeletePost` / `InvokeAgentInThread`）。
 
 运维：
 
@@ -640,7 +649,6 @@ RPC 修改配置后，service server 从 `ctx` 取 workspace id 后写入对应 
 - 配置仓库：`config_agents` / `config_mcpservers` / `config_remoteagents` / `config_daemon_runtimes` / legacy `config_channels` / `config_modelproviders` / `config_notifygroups`，`_id` 为 `"{workspace_id}:{name}"` 或 `"{workspace_id}:{id}"` 复合键，并对 `(workspace_id, name)` 建索引。
 - Agent Files：`agent_file_spaces` / `agent_files` / `agent_file_versions`。
 - Skills：`skills`（元数据 + 内容 key，`(workspace_id, name)` 唯一索引）与 `skill_resources`（资源路径索引，`(workspace_id, skill_name, path)` 索引）；`SKILL.md` 正文与资源内容走 `skill.ContentStore`（S3，未配置 bucket 时回退内存）。
-- Forum：`forum_threads` / `forum_posts`。
 - `workspaces`：workspace 元数据，`slug` 唯一索引。
 - `workspace_members`：用户与 workspace 的多对多关系，`(workspace_id, user_id)` 复合唯一索引、`user_id` 普通索引。
 - `users`：dashboard 用户、bcrypt password hash 与全局角色。
@@ -666,7 +674,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 
 ## 前端 Dashboard 与镜像
 
-- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。TanStack Router 路由位于 `front/src/routes/`，资源实现位于 `front/src/features/`；一级页包含 Login、Chat、Forum、Dashboard、Agents、MCP Servers、Remote Agents、Daemons、Telegram Channels/Destinations、Sessions、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Admin 等。
+- `front/`：Vite + React 19 + shadcn/ui + TanStack Query。TanStack Router 路由位于 `front/src/routes/`，资源实现位于 `front/src/features/`；一级页包含 Login、Chat、Dashboard、Agents、MCP Servers、Remote Agents、Daemons、Telegram Channels/Destinations、Sessions、Automations、API Tokens、Model Providers、Notify Groups、Agent Files、Workspaces、Users、Profile、Integrations、Admin 等。
 - Proto TS 绑定通过 `buf.build/bufbuild/es`（`include_imports: true`）生成到 `front/src/gen/`，运行时类型走 `@bufbuild/protobuf`。
 - 后端镜像：`ghcr.io/<owner>/<repo>`（根 `Dockerfile`，distroless static + cosign 签名）。
 - 前端镜像：`ghcr.io/<owner>/<repo>-front`（`front/Dockerfile`，node:22-alpine 编译 + nginx:1.27-alpine 运行 + SPA fallback + `/healthz`）。
@@ -690,5 +698,9 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - MCP toolset 当前支持 streamable HTTP 和 SSE transport。
 - A2A remote agent 需要 `url`；daemon remote agent 需要 `daemon_runtime_id`、`acp_runtime` 和在线 daemon runtime 连接。
 - 跨 workspace 共享同一个 runner / channel manager / cron scheduler / automation scheduler，**agent 运行时名字需在所有 workspace 内全局唯一**；引用 agent 的 channel、cron job 与 automation step 通过 `ResolveAgentRef` **仅按 `agent_id`** 解析（无 legacy name 解析路径）。启动时的 Agent-ID verifier 只读检查违规记录并记录 warning，不自动回填或修复；全局管理员可通过 `VerifyAgentIDCutover` 手动运行同一诊断。
-- Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/forum/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
+- Automation v1 是线性有序 step，不包含 DAG、人工审批 gate 或持久化 worker queue；webhook/channel/daemon event trigger 已在 proto 中预留，但当前运行时只执行 manual 和 schedule trigger。
 - 内置 system agent 仍为全局注册，其管理类工具读跨 workspace、写则要求显式传入 `workspace_id`。
+
+## Work Station（四平台只读预览）
+
+`application.WorkStationServiceServer` 从 Workspace context 与成员记录授权，调用 `internal/workstation` 的连接、选择、刷新和投影查询规则。只读 provider seam 不暴露写接口。Mongo 将配置/凭证/选中范围及 snapshot pointer 放在同一连接文档，逐事项 observation 独立存储；CAS version + attempt token + Mongo `$$NOW` lease fence 约束成功与错误发布。列表/详情通过 live connection/scope/snapshot join 重新授权后去重，旧来源撤权后回退到剩余来源正文。启动装配选择 memory/Mongo repo 并启动生命周期内的 reconciler，关闭时取消并等待退出。运行时根据每条连接的 provider、批准 Host 与租户选择四类 adapter，所有 HTTP 请求经过 DNS/HTTPS origin 约束和共享 Mongo 实例/账户预算。分页 cursor、注册 staging token 与 checkpoint/progress 和可见性位于同一 CAS 边界；未完成的大扫描可跨 worker 继续，GC 保护已注册 pending 引用。GitHub 使用重叠增量与有界隔离 ETag，其余平台仍以完整核对为主。独立 OS 进程的 Mongo 验证不等于实际两 Pod 验收。完整约束、索引查询与未完成的真实平台/规模门禁见 [Work Station](work-station.md)。

@@ -31,6 +31,7 @@ const CONNECT_ERROR_STATUS: Record<string, number> = {
   permission_denied: 403,
   unauthenticated: 401,
   invalid_argument: 400,
+  aborted: 409,
   internal: 500,
 }
 

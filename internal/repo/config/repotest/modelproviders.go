@@ -1,7 +1,6 @@
 package repotest
 
 import (
-	"context"
 	"testing"
 
 	configrepo "go.orx.me/apps/butter/internal/repo/config"
@@ -16,7 +15,47 @@ type ModelProviderFactory func(t *testing.T) configrepo.ModelProviderRepository
 // behavior.
 func RunModelProviders(t *testing.T, factory ModelProviderFactory) {
 	const workspaceID = "ws-models"
-	ctx := context.Background()
+	ctx := t.Context()
+
+	for _, api := range []string{"", "chat_completions", "responses"} {
+		t.Run("api_round_trip/"+api, func(t *testing.T) {
+			repo := factory(t)
+			provider := &agentsv1.ModelProvider{Name: "protocol", Type: "openai", OpenaiApi: api}
+			created, err := repo.CreateModelProvider(t.Context(), workspaceID, provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := repo.GetModelProvider(t.Context(), workspaceID, provider.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			listed, err := repo.ListModelProviders(t.Context(), workspaceID)
+			if err != nil || len(listed) != 1 {
+				t.Fatalf("list = (%v, %v), want one provider", listed, err)
+			}
+			across, err := repo.ListModelProvidersAcrossWorkspaces(t.Context())
+			if err != nil || len(across) != 1 {
+				t.Fatalf("list across workspaces = (%v, %v), want one provider", across, err)
+			}
+			for _, p := range []*agentsv1.ModelProvider{created, got, listed[0], across[0]} {
+				if p.GetOpenaiApi() != api {
+					t.Errorf("openai_api = %q, want %q", p.GetOpenaiApi(), api)
+				}
+			}
+			got.OpenaiApi = "responses"
+			if api == "responses" {
+				got.OpenaiApi = "chat_completions"
+			}
+			updated, err := repo.UpdateModelProvider(t.Context(), workspaceID, got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reloaded, err := repo.GetModelProvider(t.Context(), workspaceID, provider.Name)
+			if err != nil || reloaded.GetOpenaiApi() != got.OpenaiApi || updated.GetOpenaiApi() != got.OpenaiApi {
+				t.Fatalf("API update was not persisted: %v, %v", reloaded, err)
+			}
+		})
+	}
 
 	t.Run("context_capacity_round_trip", func(t *testing.T) {
 		repo := factory(t)

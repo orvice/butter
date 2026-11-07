@@ -47,6 +47,13 @@ type AppConfig struct {
 	AGUI           AGUIConfig        `yaml:"agui"`
 	Maintenance    MaintenanceConfig `yaml:"maintenance"`
 	StorageBackend string            `yaml:"storage_backend"` // "mongo" (default) or "memory"
+	WorkStation    WorkStationConfig `yaml:"work_station"`
+}
+
+type WorkStationConfig struct {
+	ProviderKind string `yaml:"provider_kind"`
+	Host         string `yaml:"host"`
+	Profile      string `yaml:"profile"`
 }
 
 // ArtifactConfig configures the S3-backed ADK artifact service. Artifacts are

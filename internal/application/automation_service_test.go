@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -232,4 +233,40 @@ func codeOf(err error) connect.Code {
 		return cerr.Code()
 	}
 	return connect.CodeUnknown
+}
+
+func TestAutomationServiceRejectsRemovedForumTypes(t *testing.T) {
+	svc, _, _, _, _ := newAutomationTestService()
+	ctx := testCtx()
+
+	// Enum number 4 was AUTOMATION_TRIGGER_TYPE_FORUM_EVENT before issue #494.
+	forumTrigger := validAutomation("legacy-trigger")
+	forumTrigger.Trigger = &agentsv1.AutomationTrigger{Type: agentsv1.AutomationTriggerType(4)}
+	_, err := svc.CreateAutomation(ctx, connect.NewRequest(&agentsv1.CreateAutomationRequest{Automation: forumTrigger}))
+	if err == nil {
+		t.Fatal("expected removed forum event trigger to be rejected")
+	}
+	if got := connect.CodeOf(err); got != connect.CodeInvalidArgument {
+		t.Fatalf("trigger code = %v, want invalid_argument", got)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "automation.trigger.type") {
+		t.Fatalf("trigger error = %q, want automation.trigger.type", msg)
+	}
+
+	// Enum number 4 was AUTOMATION_STEP_TYPE_CREATE_FORUM_POST before issue #494.
+	forumStep := validAutomation("legacy-step")
+	forumStep.Steps = []*agentsv1.AutomationStep{{
+		Name: "post",
+		Type: agentsv1.AutomationStepType(4),
+	}}
+	_, err = svc.CreateAutomation(ctx, connect.NewRequest(&agentsv1.CreateAutomationRequest{Automation: forumStep}))
+	if err == nil {
+		t.Fatal("expected removed forum step type to be rejected")
+	}
+	if got := connect.CodeOf(err); got != connect.CodeInvalidArgument {
+		t.Fatalf("step code = %v, want invalid_argument", got)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "automation.steps[0].type") {
+		t.Fatalf("step error = %q, want automation.steps[0].type", msg)
+	}
 }

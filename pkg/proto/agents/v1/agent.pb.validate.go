@@ -3039,6 +3039,17 @@ func (m *ModelProvider) validate(all bool) error {
 
 	}
 
+	if _, ok := _ModelProvider_OpenaiApi_InLookup[m.GetOpenaiApi()]; !ok {
+		err := ModelProviderValidationError{
+			field:  "OpenaiApi",
+			reason: "value must be in list [ chat_completions responses]",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	// no validation rules for WorkspaceId
 
 	if len(errors) > 0 {
@@ -3118,6 +3129,12 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ModelProviderValidationError{}
+
+var _ModelProvider_OpenaiApi_InLookup = map[string]struct{}{
+	"":                 {},
+	"chat_completions": {},
+	"responses":        {},
+}
 
 // Validate checks the field values on NotifyGroup with the rules defined in
 // the proto definition for this message. If any rules are violated, the first

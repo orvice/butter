@@ -39,6 +39,9 @@ func main() {
 		// startup).
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
+		if err := handlers.ShutdownWorkStation(shutdownCtx); err != nil {
+			slog.Warn("work station shutdown incomplete", "err", err)
+		}
 		if err := handlers.ShutdownAGUI(shutdownCtx); err != nil {
 			slog.Warn("detached AG-UI runs shutdown incomplete", "err", err)
 		}

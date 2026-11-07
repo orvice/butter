@@ -372,13 +372,11 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 		"agent", agentName, "agent_id", decision.AgentID, "model", decision.Model,
 		"session_id", decision.SessionID, "user_id", decision.UserID)
 
-	// A placeholder both acknowledges the message and becomes the first
-	// segment of the answer, so a long reply never leaves a stranded
-	// "working on it" above it.
-	placeholder, placeholderErr := o.sender.SendProcessing(ctx, event.WorkspaceID, event.DestinationID,
-		fmt.Sprintf("Working on it with %s…", agentName), decision.ReplyToMessageID)
-	if placeholderErr != nil {
-		logger.Debug("could not send a telegram placeholder", "err", placeholderErr)
+	// A reaction acknowledges receipt without an extra message. The answer
+	// is sent as a new message, not an edit, so Telegram can notify the user.
+	// Use the inbound ID even when the Destination does not quote replies.
+	if err := o.sender.React(ctx, event.WorkspaceID, event.DestinationID, decision.MessageID, "👀"); err != nil {
+		logger.Debug("could not react to a telegram message", "err", err)
 	}
 
 	// From here the Agent may run tools with external side effects, so a
@@ -396,7 +394,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 		// user waiting on silence, and mark the record uncertain: an
 		// automatic rerun could repeat whatever the agent already did.
 		_ = o.recordFailure(ctx, record, leaseToken, err, true)
-		_ = o.deliver(ctx, event, decision, placeholder, "The agent could not complete this request.")
+		_ = o.deliver(ctx, event, decision, "The agent could not complete this request.")
 		return fmt.Errorf("run telegram agent turn: %w", err)
 	}
 	output := strings.TrimSpace(turn.Output)
@@ -407,7 +405,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, event *telegramqueue.Event,
 	// Persist the complete response before delivery starts. A delivery
 	// failure then resends text that already exists rather than re-running
 	// the agent to reproduce it.
-	delivery := telegramsend.NewDelivery(output, placeholder, decision.ReplyToMessageID)
+	delivery := telegramsend.NewDelivery(output, "", decision.ReplyToMessageID)
 	if len(delivery.Segments) == 0 {
 		return o.recordProgress(ctx, record, leaseToken, agentsv1.TelegramProcessingStatus_TELEGRAM_PROCESSING_STATUS_SUCCEEDED)
 	}
@@ -436,7 +434,7 @@ func (o *Orchestrator) reply(ctx context.Context, event *telegramqueue.Event, de
 	// Command answers, status views, and errors take the same segmenting
 	// path as agent output, so any of them exceeding Telegram's limit is
 	// split rather than rejected.
-	return o.deliver(ctx, event, decision, "", text)
+	return o.deliver(ctx, event, decision, text)
 }
 
 // --- Selection ---------------------------------------------------------------
@@ -665,13 +663,13 @@ func (o *Orchestrator) inputParts(ctx context.Context, event *telegramqueue.Even
 }
 
 // deliver persists nothing itself but splits the response and delivers it in
-// order, editing the placeholder into the first segment.
+// order as new messages.
 //
 // Segmentation lives behind the sender so debug, status, and error responses
 // that happen to exceed Telegram's limit take the same safe path as agent
 // output.
-func (o *Orchestrator) deliver(ctx context.Context, event *telegramqueue.Event, decision Interaction, placeholder, text string) error {
-	delivery := telegramsend.NewDelivery(text, placeholder, decision.ReplyToMessageID)
+func (o *Orchestrator) deliver(ctx context.Context, event *telegramqueue.Event, decision Interaction, text string) error {
+	delivery := telegramsend.NewDelivery(text, "", decision.ReplyToMessageID)
 	if len(delivery.Segments) == 0 {
 		return nil
 	}

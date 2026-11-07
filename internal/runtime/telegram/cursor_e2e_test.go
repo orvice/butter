@@ -113,16 +113,16 @@ func TestCursorAgentAnswersInTelegramTopicWithContinuityAndPhoto(t *testing.T) {
 	}
 
 	sent := fx.bots.Sent()
-	if len(sent) != 4 {
-		t.Fatalf("telegram deliveries = %d, want two placeholders and two edits", len(sent))
+	if len(sent) != 2 || len(fx.bots.Reactions()) != 2 {
+		t.Fatalf("telegram deliveries = %d, reactions = %d, want two of each", len(sent), len(fx.bots.Reactions()))
 	}
 	for index, want := range []string{"cursor reply 1", "cursor reply 2"} {
-		delivery := sent[index*2+1]
-		if delivery.Edit == nil || !strings.Contains(delivery.Edit.Text, want) {
-			t.Fatalf("reply %d = %+v, want it to contain %q", index+1, delivery.Edit, want)
+		delivery := sent[index]
+		if delivery.Edit != nil || !strings.Contains(delivery.Params.Text, want) {
+			t.Fatalf("reply %d = %+v, want a new message containing %q", index+1, delivery, want)
 		}
-		if sent[index*2].Params.MessageThreadID != "42" {
-			t.Fatalf("placeholder %d left the topic", index+1)
+		if delivery.Params.MessageThreadID != "42" || delivery.Params.DisableNotification {
+			t.Fatalf("reply %d must stay in the topic and allow notifications: %+v", index+1, delivery.Params)
 		}
 	}
 }

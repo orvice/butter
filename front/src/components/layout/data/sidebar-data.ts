@@ -3,8 +3,8 @@ import {
   CalendarClock,
   LayoutDashboard,
   ListTodo,
+  PanelsTopLeft,
   MessageSquare,
-  MessagesSquare,
   Sparkles,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -37,6 +37,11 @@ export const sidebarData: SidebarData = {
           icon: MessageSquare,
         },
         {
+          title: 'Work Station',
+          url: '/work-station',
+          icon: PanelsTopLeft,
+        },
+        {
           title: 'Agents',
           url: '/agents',
           icon: Bot,
@@ -50,11 +55,6 @@ export const sidebarData: SidebarData = {
           title: 'Automations',
           url: '/automations',
           icon: CalendarClock,
-        },
-        {
-          title: 'Forum',
-          url: '/forum',
-          icon: MessagesSquare,
         },
       ],
     },

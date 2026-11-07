@@ -1,7 +1,11 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import { create, fromBinary } from '@bufbuild/protobuf'
 import {
+  CreateModelProviderRequestSchema,
+  CreateModelProviderResponseSchema,
+  type CreateModelProviderRequest,
   GetModelProviderResponseSchema,
+  ListModelProvidersResponseSchema,
   type UpdateModelProviderRequest,
   UpdateModelProviderRequestSchema,
   UpdateModelProviderResponseSchema,
@@ -34,8 +38,8 @@ function decodeRequest<T extends Parameters<typeof fromBinary>[0]>(
   return fromBinary(schema, body)
 }
 
-async function setupProviderEdit(page: Page) {
-  const state = { provider: SEED_PROVIDER }
+async function setupProviderEdit(page: Page, provider = SEED_PROVIDER) {
+  const state = { provider }
   let submitted: UpdateModelProviderRequest | undefined
 
   let resolveSaved!: () => void
@@ -44,6 +48,11 @@ async function setupProviderEdit(page: Page) {
   })
 
   await setupAuthenticatedConnectRoutes(page, async (route, url) => {
+    if (url.includes('ModelProviderService/ListModelProviders')) {
+      return fulfillProto(route, ListModelProvidersResponseSchema, {
+        modelProviders: [state.provider],
+      })
+    }
     if (url.includes('ModelProviderService/GetModelProvider')) {
       return fulfillProto(route, GetModelProviderResponseSchema, {
         modelProvider: state.provider,
@@ -75,6 +84,7 @@ test('edits model rows, submits them to UpdateModelProvider, and reflects persis
   const ctx = await setupProviderEdit(page)
 
   await page.goto('/model-providers/openai/edit')
+  await expect(page.getByRole('combobox', { name: 'API Protocol' })).toHaveText('Chat Completions')
 
   const rows = page.getByRole('list', { name: 'Models' }).getByRole('listitem')
 
@@ -124,6 +134,7 @@ test('edits model rows, submits them to UpdateModelProvider, and reflects persis
 
   await page.getByRole('button', { name: 'Save' }).click()
   await ctx.saved
+  await expect(page).toHaveURL(/\/model-providers$/)
 
   // The submitted payload carries exactly the edited rows, and the untouched
   // provider fields (name, type, credentials) are preserved.
@@ -167,6 +178,80 @@ test('edits model rows, submits them to UpdateModelProvider, and reflects persis
   await expect(
     rows.nth(1).getByRole('spinbutton', { name: 'Context Window' })
   ).toHaveValue('')
+})
+
+test('selects and persists both OpenAI protocols, including after reload', async ({ page }) => {
+  const ctx = await setupProviderEdit(page)
+  await page.goto('/model-providers/openai/edit')
+  const protocol = page.getByRole('combobox', { name: 'API Protocol' })
+  await expect(protocol).toHaveText('Chat Completions')
+  await protocol.click()
+  await page.getByRole('option', { name: 'Responses API', exact: true }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await ctx.saved
+  expect(ctx.submittedRequest()?.modelProvider?.openaiApi).toBe('responses')
+  await expect(page).toHaveURL(/\/model-providers$/)
+  await expect(page.getByRole('table').getByText('Responses API', { exact: true })).toBeVisible()
+
+  await page.goto('/model-providers/openai/edit')
+  await expect(protocol).toHaveText('Responses API')
+  // An unrelated edit must not reset a persisted Responses provider.
+  await page.getByRole('textbox', { name: 'Base URL' }).fill('https://changed.example/v1')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect.poll(() => ctx.submittedRequest()?.modelProvider?.baseUrl).toBe('https://changed.example/v1')
+  expect(ctx.submittedRequest()?.modelProvider?.openaiApi).toBe('responses')
+  await expect(page).toHaveURL(/\/model-providers$/)
+
+  await page.goto('/model-providers/openai/edit')
+  await expect(protocol).toHaveText('Responses API')
+  await protocol.click()
+  await page.getByRole('option', { name: 'Chat Completions', exact: true }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect.poll(() => ctx.submittedRequest()?.modelProvider?.openaiApi).toBe('chat_completions')
+  await expect(page).toHaveURL(/\/model-providers$/)
+  await page.goto('/model-providers/openai/edit')
+  await expect(protocol).toHaveText('Chat Completions')
+})
+
+test('hides and clears the OpenAI protocol when switching to Gemini', async ({ page }) => {
+  const ctx = await setupProviderEdit(page, create(ModelProviderSchema, { ...SEED_PROVIDER, openaiApi: 'responses' }))
+  await page.goto('/model-providers/openai/edit')
+  await expect(page.getByRole('combobox', { name: 'API Protocol' })).toHaveText('Responses API')
+  await page.getByRole('combobox', { name: 'Type', exact: true }).click()
+  await page.getByRole('option', { name: 'Gemini', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: 'API Protocol' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await ctx.saved
+  expect(ctx.submittedRequest()?.modelProvider?.type).toBe('gemini')
+  expect(ctx.submittedRequest()?.modelProvider?.openaiApi).toBe('')
+  await expect(page).toHaveURL(/\/model-providers$/)
+  await page.goto('/model-providers/openai/edit')
+  await expect(page.getByRole('combobox', { name: 'Type', exact: true })).toHaveText('Gemini')
+  await expect(page.getByRole('combobox', { name: 'API Protocol' })).toHaveCount(0)
+})
+
+test('creates an OpenAI provider with the selected protocol', async ({ page }) => {
+  let submitted: CreateModelProviderRequest | undefined
+  await setupAuthenticatedConnectRoutes(page, async (route, url) => {
+    if (url.includes('ModelProviderService/CreateModelProvider')) {
+      submitted = decodeRequest(CreateModelProviderRequestSchema, route)
+      return fulfillProto(route, CreateModelProviderResponseSchema, { modelProvider: submitted.modelProvider })
+    }
+    return false
+  })
+  await page.goto('/model-providers/create')
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill('responses-provider')
+  const protocol = page.getByRole('combobox', { name: 'API Protocol' })
+  await expect(protocol).toHaveText('Chat Completions')
+  await protocol.click()
+  await page.getByRole('option', { name: 'Responses API', exact: true }).click()
+  await page.getByRole('button', { name: 'Add model' }).click()
+  await page.getByRole('textbox', { name: 'Model ID' }).fill('gpt-4o')
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect.poll(() => submitted?.modelProvider?.openaiApi).toBe('responses')
+  expect(submitted?.modelProvider?.name).toBe('responses-provider')
+  expect(submitted?.modelProvider?.models[0]?.name).toBe('gpt-4o')
+  await expect(page).toHaveURL(/\/model-providers$/)
 })
 
 test('blocks submission without at least one model and flags the offending row', async ({

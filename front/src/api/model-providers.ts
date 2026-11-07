@@ -17,6 +17,7 @@ function toProto(p: ModelProvider): PbModelProvider {
     type: p.type,
     apiKey: p.api_key ?? "",
     baseUrl: p.base_url ?? "",
+    openaiApi: p.openai_api ?? "",
     models: (p.models ?? []).map((m) =>
       create(ModelConfigSchema, {
         name: m.name,
@@ -33,6 +34,7 @@ function fromProto(p: PbModelProvider): ModelProvider {
     type: p.type,
     api_key: p.apiKey,
     base_url: p.baseUrl,
+    openai_api: p.openaiApi || undefined,
     models: p.models.map((model) => ({
       name: model.name,
       alias: model.alias,

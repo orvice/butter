@@ -43,7 +43,10 @@ jobs:
       run: go test -v ./...
 
   integration:
-    runs-on: ubuntu-latest
+    # Temporary: mongo:8 refuses Linux kernels >=6.19 (SERVER-121912).
+    # Both ubuntu-latest (26.04) and 24.04 currently ship affected kernels;
+    # keep the Mongo-backed suite on 22.04's 6.8 kernel until that is resolved.
+    runs-on: ubuntu-22.04
     services:
       mongo:
         image: mongo:8

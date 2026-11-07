@@ -77,7 +77,7 @@ func (f telegramPiFactory) ClientFor(context.Context, string, string) (piv1conne
 
 // This crosses the whole in-process exit path: a topic update is admitted,
 // its photo is downloaded, the real runner and pibox bridge call PiService,
-// and the answer edits the processing message in the originating topic.
+// and the answer arrives as a new message in the originating topic.
 func TestPiAgentAnswersInTelegramTopicWithContinuityAndPhoto(t *testing.T) {
 	piClient := &telegramPiClient{}
 	sessions := adksession.InMemoryService()
@@ -142,22 +142,16 @@ func TestPiAgentAnswersInTelegramTopicWithContinuityAndPhoto(t *testing.T) {
 	}
 
 	sent := fx.bots.Sent()
-	if len(sent) != 4 {
-		t.Fatalf("telegram deliveries = %d, want two placeholders and two edits", len(sent))
-	}
-	for _, index := range []int{0, 2} {
-		if sent[index].Params.MessageThreadID != "42" {
-			t.Fatalf("placeholder %d left the topic: thread %q", index/2+1, sent[index].Params.MessageThreadID)
-		}
+	if len(sent) != 2 || len(fx.bots.Reactions()) != 2 {
+		t.Fatalf("telegram deliveries = %d, reactions = %d, want two of each", len(sent), len(fx.bots.Reactions()))
 	}
 	for index, want := range []string{"pi reply 1", "pi reply 2"} {
-		delivery := sent[index*2+1]
-		if delivery.Edit == nil || !strings.Contains(delivery.Edit.Text, want) {
-			got := ""
-			if delivery.Edit != nil {
-				got = delivery.Edit.Text
-			}
-			t.Fatalf("reply %d text = %q, want it to contain %q", index+1, got, want)
+		delivery := sent[index]
+		if delivery.Edit != nil || !strings.Contains(delivery.Params.Text, want) {
+			t.Fatalf("reply %d = %+v, want a new message containing %q", index+1, delivery, want)
+		}
+		if delivery.Params.MessageThreadID != "42" || delivery.Params.DisableNotification {
+			t.Fatalf("reply %d must stay in the topic and allow notifications: %+v", index+1, delivery.Params)
 		}
 	}
 }

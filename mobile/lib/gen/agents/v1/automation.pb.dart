@@ -504,7 +504,7 @@ class AutomationEventTrigger extends $pb.GeneratedMessage {
           AutomationEventTrigger.$_createMessage);
   static AutomationEventTrigger? _defaultInstance;
 
-  /// Event kind, e.g. "forum.post.created" or "daemon.task.failed".
+  /// Event kind, e.g. "daemon.task.failed".
   /// @gotags: json:"event_type,omitempty" yaml:"event_type,omitempty" bson:"event_type,omitempty"
   @$pb.TagNumber(1)
   $core.String get eventType => $_getSZ(0);
@@ -613,7 +613,6 @@ class AutomationStep extends $pb.GeneratedMessage {
     AutomationInvokeAgentStep? invokeAgent,
     AutomationCallWebhookStep? callWebhook,
     AutomationSendNotifyGroupStep? sendNotifyGroup,
-    AutomationCreateForumPostStep? createForumPost,
     AutomationPolicy? policy,
   }) {
     final result = AutomationStep._();
@@ -622,7 +621,6 @@ class AutomationStep extends $pb.GeneratedMessage {
     if (invokeAgent != null) result.invokeAgent = invokeAgent;
     if (callWebhook != null) result.callWebhook = callWebhook;
     if (sendNotifyGroup != null) result.sendNotifyGroup = sendNotifyGroup;
-    if (createForumPost != null) result.createForumPost = createForumPost;
     if (policy != null) result.policy = policy;
     return result;
   }
@@ -650,9 +648,6 @@ class AutomationStep extends $pb.GeneratedMessage {
     ..aOM<AutomationSendNotifyGroupStep>(
         5, _omitFieldNames ? '' : 'sendNotifyGroup',
         subBuilder: AutomationSendNotifyGroupStep.$_createMessage)
-    ..aOM<AutomationCreateForumPostStep>(
-        6, _omitFieldNames ? '' : 'createForumPost',
-        subBuilder: AutomationCreateForumPostStep.$_createMessage)
     ..aOM<AutomationPolicy>(10, _omitFieldNames ? '' : 'policy',
         subBuilder: AutomationPolicy.$_createMessage)
     ..hasRequiredFields = false;
@@ -737,31 +732,18 @@ class AutomationStep extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   AutomationSendNotifyGroupStep ensureSendNotifyGroup() => $_ensure(4);
 
-  /// @gotags: json:"create_forum_post,omitempty" yaml:"create_forum_post,omitempty" bson:"create_forum_post,omitempty"
-  @$pb.TagNumber(6)
-  AutomationCreateForumPostStep get createForumPost => $_getN(5);
-  @$pb.TagNumber(6)
-  set createForumPost(AutomationCreateForumPostStep value) =>
-      $_setField(6, value);
-  @$pb.TagNumber(6)
-  $core.bool hasCreateForumPost() => $_has(5);
-  @$pb.TagNumber(6)
-  void clearCreateForumPost() => $_clearField(6);
-  @$pb.TagNumber(6)
-  AutomationCreateForumPostStep ensureCreateForumPost() => $_ensure(5);
-
   /// Optional per-step overrides for retry/timeout/output policy.
   /// @gotags: json:"policy,omitempty" yaml:"policy,omitempty" bson:"policy,omitempty"
   @$pb.TagNumber(10)
-  AutomationPolicy get policy => $_getN(6);
+  AutomationPolicy get policy => $_getN(5);
   @$pb.TagNumber(10)
   set policy(AutomationPolicy value) => $_setField(10, value);
   @$pb.TagNumber(10)
-  $core.bool hasPolicy() => $_has(6);
+  $core.bool hasPolicy() => $_has(5);
   @$pb.TagNumber(10)
   void clearPolicy() => $_clearField(10);
   @$pb.TagNumber(10)
-  AutomationPolicy ensurePolicy() => $_ensure(6);
+  AutomationPolicy ensurePolicy() => $_ensure(5);
 }
 
 class AutomationInvokeAgentStep extends $pb.GeneratedMessage {
@@ -1056,83 +1038,6 @@ class AutomationSendNotifyGroupStep extends $pb.GeneratedMessage {
   $core.bool hasMessage() => $_has(2);
   @$pb.TagNumber(3)
   void clearMessage() => $_clearField(3);
-}
-
-class AutomationCreateForumPostStep extends $pb.GeneratedMessage {
-  factory AutomationCreateForumPostStep({
-    $core.String? threadId,
-    $core.String? body,
-  }) {
-    final result = AutomationCreateForumPostStep._();
-    if (threadId != null) result.threadId = threadId;
-    if (body != null) result.body = body;
-    return result;
-  }
-
-  AutomationCreateForumPostStep._();
-
-  factory AutomationCreateForumPostStep.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      AutomationCreateForumPostStep()..mergeFromBuffer(data, registry);
-  factory AutomationCreateForumPostStep.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      AutomationCreateForumPostStep()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'AutomationCreateForumPostStep',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'agents.v1'),
-      createEmptyInstance: AutomationCreateForumPostStep.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'threadId')
-    ..aOS(2, _omitFieldNames ? '' : 'body')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  AutomationCreateForumPostStep clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  AutomationCreateForumPostStep copyWith(
-          void Function(AutomationCreateForumPostStep) updates) =>
-      super.copyWith(
-              (message) => updates(message as AutomationCreateForumPostStep))
-          as AutomationCreateForumPostStep;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  @$core.Deprecated(
-      'Use AutomationCreateForumPostStep() / AutomationCreateForumPostStep.new instead')
-  static AutomationCreateForumPostStep create() =>
-      AutomationCreateForumPostStep._();
-  static $pb.GeneratedMessage $_createMessage() =>
-      AutomationCreateForumPostStep._();
-  @$core.override
-  AutomationCreateForumPostStep createEmptyInstance() =>
-      AutomationCreateForumPostStep._();
-  @$core.pragma('dart2js:noInline')
-  static AutomationCreateForumPostStep getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AutomationCreateForumPostStep>(
-          AutomationCreateForumPostStep.$_createMessage);
-  static AutomationCreateForumPostStep? _defaultInstance;
-
-  /// @gotags: json:"thread_id,omitempty" yaml:"thread_id,omitempty" bson:"thread_id,omitempty"
-  @$pb.TagNumber(1)
-  $core.String get threadId => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set threadId($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasThreadId() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearThreadId() => $_clearField(1);
-
-  /// @gotags: json:"body,omitempty" yaml:"body,omitempty" bson:"body,omitempty"
-  @$pb.TagNumber(2)
-  $core.String get body => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set body($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasBody() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearBody() => $_clearField(2);
 }
 
 class AutomationPolicy extends $pb.GeneratedMessage {

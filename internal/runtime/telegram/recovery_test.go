@@ -161,8 +161,8 @@ func TestUncertainFailureIsAcknowledgedWithoutRerunningTheAgent(t *testing.T) {
 // send*: the text exists, so nothing has to be recomputed.
 func TestDeliveryFailureKeepsTheOutputAndStaysRetryable(t *testing.T) {
 	fx, records := newRecoveryFixture(t)
-	// A response long enough to need several segments: the first edits the
-	// placeholder, the rest are sends, and the second send fails.
+	// A response long enough to need several segments: each is a new
+	// message, and the second send fails.
 	fx.agents.output = strings.Repeat("word ", 2000)
 	fx.bots.OnSend(func(attempt int, _ telegramapi.SendMessageParams) error {
 		if attempt > 1 {

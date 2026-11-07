@@ -385,6 +385,8 @@ export interface ModelProvider {
   type: string;
   api_key?: string;
   base_url?: string;
+  /** OpenAI only: chat_completions (also the legacy default) or responses. */
+  openai_api?: string;
   models?: ModelConfig[];
 }
 
@@ -456,40 +458,6 @@ export interface SessionDetail {
   session: SessionInfo;
   events: SessionEvent[];
   duration?: string; // protobuf Duration as "3.5s"
-}
-
-// --- Forum ---
-
-export interface ForumThread {
-  id: string;
-  title: string;
-  body?: string;
-  created_by?: string;
-  status?: string;
-  agent_names?: string[];
-  /** Immutable agent_ids of the participating agents. Preferred over agent_names. */
-  agent_ids?: string[];
-  labels?: string[];
-  metadata?: Record<string, string>;
-  created_at?: string;
-  updated_at?: string;
-  workspace_id?: string;
-}
-
-export interface ForumPost {
-  id: string;
-  thread_id: string;
-  body: string;
-  author_user_id?: string;
-  author_agent_name?: string;
-  /** Immutable agent_id of the authoring agent, when assigned. */
-  author_agent_id?: string;
-  author_kind?: "user" | "agent" | "system" | string;
-  invocation_id?: string;
-  parent_post_id?: string;
-  created_at?: string;
-  updated_at?: string;
-  workspace_id?: string;
 }
 
 // --- Channels ---
@@ -816,7 +784,6 @@ export type AutomationTriggerType =
   | "AUTOMATION_TRIGGER_TYPE_MANUAL"
   | "AUTOMATION_TRIGGER_TYPE_SCHEDULE"
   | "AUTOMATION_TRIGGER_TYPE_WEBHOOK"
-  | "AUTOMATION_TRIGGER_TYPE_FORUM_EVENT"
   | "AUTOMATION_TRIGGER_TYPE_CHANNEL_EVENT"
   | "AUTOMATION_TRIGGER_TYPE_DAEMON_EVENT";
 
@@ -833,8 +800,7 @@ export type AutomationStepType =
   | "AUTOMATION_STEP_TYPE_UNSPECIFIED"
   | "AUTOMATION_STEP_TYPE_INVOKE_AGENT"
   | "AUTOMATION_STEP_TYPE_CALL_WEBHOOK"
-  | "AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP"
-  | "AUTOMATION_STEP_TYPE_CREATE_FORUM_POST";
+  | "AUTOMATION_STEP_TYPE_SEND_NOTIFY_GROUP";
 
 export type AutomationConcurrencyPolicy =
   | "AUTOMATION_CONCURRENCY_POLICY_UNSPECIFIED"
@@ -883,7 +849,6 @@ export interface AutomationStep {
   invoke_agent?: { agent_name?: string; agent_id?: string; input?: string; model_override?: string };
   call_webhook?: { url: string; method?: string; payload_json?: string; headers?: Record<string, string> };
   send_notify_group?: { notify_group_name: string; title?: string; message?: string };
-  create_forum_post?: { thread_id: string; body: string };
   policy?: AutomationPolicy;
 }
 

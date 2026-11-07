@@ -88,6 +88,9 @@ type Client interface {
 
 	// EditMessageText replaces the text of a message this Bot sent.
 	EditMessageText(ctx context.Context, params EditMessageParams) (Message, error)
+
+	// SetMessageReaction sets this Bot's emoji reaction on an existing message.
+	SetMessageReaction(ctx context.Context, params ReactionParams) error
 }
 
 // Factory builds a Client for a decrypted Bot Token. Services hold a Factory

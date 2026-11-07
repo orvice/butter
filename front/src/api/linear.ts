@@ -199,14 +199,33 @@ export function useDeleteLinearInstallation() {
 // --- Processing records -------------------------------------------------------
 
 export function useLinearProcessingRecords(
-  filter: { appId?: string; status?: LinearProcessingStatus } = {}
+  filter: {
+    appId?: string
+    status?: LinearProcessingStatus
+    pageSize?: number
+  } = {},
+  options: {
+    // A live read only re-asks while the page is visible; leaving the page
+    // or hiding the tab stops the polling.
+    live?: boolean
+    intervalMs?: number
+  } = {}
 ) {
   return useQuery({
     queryKey: [...PROCESSING_KEY, filter],
+    refetchInterval:
+      options.live === true
+        ? () =>
+            document.visibilityState === 'visible'
+              ? (options.intervalMs ?? 5000)
+              : false
+        : false,
+    refetchIntervalInBackground: false,
     queryFn: async (): Promise<LinearProcessingRecord[]> => {
       const res = await processingClient.listLinearProcessingRecords({
         appId: filter.appId ?? '',
         status: filter.status,
+        pageSize: filter.pageSize,
       })
       return res.records
     },

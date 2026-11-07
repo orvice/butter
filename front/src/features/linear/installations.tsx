@@ -126,7 +126,7 @@ export function InstallationsCard({
                     LinearInstallationCredentialState.NEEDS_REINSTALL ? (
                       <Badge variant='destructive'>Needs reinstall</Badge>
                     ) : (
-                      <Badge variant='outline'>Connected</Badge>
+                      <Badge variant='outline'>Installed</Badge>
                     )}
                   </div>
                   <div className='text-xs text-muted-foreground'>

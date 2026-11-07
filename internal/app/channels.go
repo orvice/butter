@@ -41,9 +41,6 @@ import (
 	cryptokeyrepo "go.orx.me/apps/butter/internal/repo/cryptokey"
 	cryptokeymemory "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
 	cryptokeymongo "go.orx.me/apps/butter/internal/repo/cryptokey/mongo"
-	"go.orx.me/apps/butter/internal/repo/forum"
-	forummemory "go.orx.me/apps/butter/internal/repo/forum/memory"
-	forummongo "go.orx.me/apps/butter/internal/repo/forum/mongo"
 	githostrepo "go.orx.me/apps/butter/internal/repo/githost"
 	githostmemory "go.orx.me/apps/butter/internal/repo/githost/memory"
 	githostmongo "go.orx.me/apps/butter/internal/repo/githost/mongo"
@@ -109,6 +106,9 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	mongosession "go.orx.me/apps/butter/internal/runtime/session/mongo"
 	"go.orx.me/apps/butter/internal/secretbox"
+	"go.orx.me/apps/butter/internal/workstation"
+	workstationmemory "go.orx.me/apps/butter/internal/workstation/memory"
+	workstationmongo "go.orx.me/apps/butter/internal/workstation/mongostore"
 )
 
 // BootstrapResult holds the services created during bootstrap.
@@ -133,7 +133,6 @@ type BootstrapResult struct {
 	APITokenRepo           apitoken.Repository
 	InvocationRepo         invocation.Repository
 	InputPartRepo          inputpart.Repository
-	ForumRepo              forum.Repository
 	WorkspaceRepo          workspacerepo.Repository
 	MCPOAuthRepo           mcpoauthrepo.Repository
 	MCPOAuthSvc            *mcpoauth.Service
@@ -142,6 +141,7 @@ type BootstrapResult struct {
 	AgentFileMaxBytes      int64
 	GitHostRepo            githostrepo.Repository
 	ButterBoxRepo          butterboxrepo.Repository
+	WorkStationRepo        workstation.Repository
 	MemoryConfigRepo       memoryconfigrepo.Repository
 	RepoBindingRepo        repobindingrepo.Repository
 	TelegramRepo           telegramrepo.Repository
@@ -198,7 +198,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		tokenRepo              apitoken.Repository
 		invRepo                invocation.Repository
 		inputPartRepo          inputpart.Repository
-		forumRepo              forum.Repository
 		wsRepo                 workspacerepo.Repository
 		oauthRepo              mcpoauthrepo.Repository
 		fileRepo               agentfile.Repository
@@ -207,6 +206,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		oauthHandoffRepo       oauthhandoff.Repository
 		gitHostRepo            githostrepo.Repository
 		butterBoxRepo          butterboxrepo.Repository
+		workStationRepo        workstation.Repository
 		memoryConfigRepo       memoryconfigrepo.Repository
 		bindingRepo            repobindingrepo.Repository
 		cacheRepo              repocache.Repository
@@ -250,7 +250,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 			return nil, err
 		}
 		inputPartRepo = ipMongo
-		forumRepo = forummongo.New(db)
 		wsRepo = workspacemongo.New(db)
 		oauthRepo = mcpoauthmongo.New(db)
 		fileRepo = agentfilemongo.New(db, setupAgentFileContentStore(ctx, cfg))
@@ -260,6 +259,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo = githostmongo.New(db)
 		butterBoxRepo = butterboxmongo.New(db)
 		memoryConfigRepo = memoryconfigmongo.New(db)
+		workStationRepo = workstationmongo.New(db)
 		bindingRepo = repobindingmongo.New(db)
 		cacheRepo = repocachemongo.New(db)
 		contentRepo = agentcontentmongo.New(db)
@@ -281,7 +281,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New().WithOwner(live.instanceID)
 		inputPartRepo = inputpartmemory.New()
-		forumRepo = forummemory.New()
 		wsRepo = workspacememory.New()
 		oauthRepo = mcpoauthmemory.New()
 		fileRepo = agentfilememory.New()
@@ -291,6 +290,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		gitHostRepo = githostmemory.New()
 		butterBoxRepo = butterboxmemory.New()
 		memoryConfigRepo = memoryconfigmem.New()
+		workStationRepo = workstationmemory.New()
 		bindingRepo = repobindingmemory.New()
 		cacheRepo = repocachememory.New()
 		contentRepo = agentcontentmemory.New()
@@ -306,15 +306,12 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
+	if err := workStationRepo.EnsureIndexes(ctx); err != nil {
+		return nil, err
+	}
 	if err := wsRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create workspace indexes", "err", err)
 		return nil, err
-	}
-	if forumRepo != nil {
-		if err := forumRepo.EnsureIndexes(ctx); err != nil {
-			logger.Error("failed to create forum indexes", "err", err)
-			return nil, err
-		}
 	}
 	if err := application.BootstrapDefaultWorkspace(ctx, wsRepo, authRepo); err != nil {
 		logger.Error("failed to bootstrap default workspace", "err", err)
@@ -490,7 +487,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	automationEngine := internalautomation.NewEngine(automationDefRepo, automationRunRepo, automationStepRepo, internalautomation.EngineOptions{
 		Runner:          runnerSvc,
 		NotifyGroupRepo: notifyGroupRepo,
-		ForumRepo:       forumRepo,
 		SessionService:  sessionSvc,
 		RunGuard:        redislease.NewGuard(rdb, automationInstanceID, internalautomation.RunLeaseTTL),
 		Context:         ctx,
@@ -565,8 +561,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		Channels:     channelRepo,
 		CronJobs:     cronJobRepo,
 		Automations:  automationDefRepo,
-		Forum:        forumRepo,
-		Workspaces:   wsRepo,
 		ReservedName: runnerSvc.IsReservedAgentName,
 	}); vErr != nil {
 		logger.Warn("agent-id cutover verifier failed", "err", vErr)
@@ -609,7 +603,6 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		APITokenRepo:           tokenRepo,
 		InvocationRepo:         invRepo,
 		InputPartRepo:          inputPartRepo,
-		ForumRepo:              forumRepo,
 		WorkspaceRepo:          wsRepo,
 		MCPOAuthRepo:           oauthRepo,
 		MCPOAuthSvc:            oauthSvc,
@@ -618,6 +611,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		GitHostRepo:            gitHostRepo,
 		ButterBoxRepo:          butterBoxRepo,
 		MemoryConfigRepo:       memoryConfigRepo,
+		WorkStationRepo:        workStationRepo,
 		RepoBindingRepo:        bindingRepo,
 		TelegramRepo:           telegramRepo,
 		TelegramSettingRepo:    telegramSettingRepo,

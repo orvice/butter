@@ -39,60 +39,62 @@ import (
 
 // Handlers holds all HTTP and ConnectRPC handlers that need post-bootstrap wiring.
 type Handlers struct {
-	a2aHandler             *httpHandler.A2AHandler
-	openAIHandler          *httpHandler.OpenAIHandler
-	aguiHandler            *httpHandler.AGUIHandler
-	forumSvcServer         *application.ForumServiceServer
-	agentSvcServer         *application.AgentServiceServer
-	agentFileSvcServer     *application.AgentFileServiceServer
-	skillSvcServer         *application.SkillServiceServer
-	mcpSvcServer           *application.MCPServerServiceServer
-	modelProviderSvcServer *application.ModelProviderServiceServer
-	notifyGroupSvcServer   *application.NotifyGroupServiceServer
-	remoteSvcServer        *application.RemoteAgentServiceServer
-	automationSvcServer    *application.AutomationServiceServer
-	sessionSvcServer       *application.SessionServiceServer
-	cronSvcServer          *application.CronJobServiceServer
-	channelSvcServer       *application.ChannelServiceServer
-	dashboardSvcServer     *application.DashboardServiceServer
-	daemonSvcServer        *application.DaemonServiceServer
-	daemonConnectorHandler *daemon.GRPCHandler
-	apiTokenSvcServer      *application.APITokenServiceServer
-	authSvcServer          *application.AuthServiceServer
-	workspaceSvcServer     *application.WorkspaceServiceServer
-	gitHostSvcServer       *application.GitHostServiceServer
-	butterBoxSvcServer     *application.ButterBoxServiceServer
-	memoryConfigSvcServer  *application.WorkspaceMemoryConfigServiceServer
-	memoriesSvcServer      *application.WorkspaceMemoryServiceServer
-	repoBindingSvcServer   *application.RepoBindingServiceServer
-	tgChannelSvcServer     *application.TelegramChannelServiceServer
-	tgDestinationSvcServer *application.TelegramDestinationServiceServer
-	tgAdminSvcServer       *application.TelegramAdminServiceServer
-	tgProcessingSvcServer  *application.TelegramProcessingServiceServer
-	linearAppSvcServer     *application.LinearAppServiceServer
-	linearAdminSvcServer   *application.LinearAdminServiceServer
-	linearProcSvcServer    *application.LinearProcessingServiceServer
-	linearReceiver         linearReceiverHolder
-	linearWorker           *linearruntime.Worker
-	tgReceiver             atomic.Value // *telegram.Receiver
-	tgReconciler           *telegramruntime.Reconciler
-	tgWorker               *telegramruntime.Worker
-	tgPoller               *telegramruntime.Poller
-	workspaceMCPSvc        *workspacemcp.Service
-	authRepo               atomic.Value // auth.Repository
-	apiTokenRepo           atomic.Value // apitoken.Repository
-	forumRepo              atomic.Value // forum.Repository
-	workspaceRepo          atomic.Value // workspace.Repository
-	configStore            *ConfigStore
-	configRuntime          *ConfigRuntime
-	agentRepo              configrepo.AgentRepository
-	mcpServerRepo          configrepo.MCPServerRepository
-	modelProviderRepo      configrepo.ModelProviderRepository
-	notifyGroupRepo        configrepo.NotifyGroupRepository
-	remoteAgentRepo        configrepo.RemoteAgentRepository
-	channelRepo            configrepo.ChannelRepository
-	cfg                    *config.AppConfig
-	reconciler             *Reconciler
+	a2aHandler               *httpHandler.A2AHandler
+	openAIHandler            *httpHandler.OpenAIHandler
+	aguiHandler              *httpHandler.AGUIHandler
+	agentSvcServer           *application.AgentServiceServer
+	agentFileSvcServer       *application.AgentFileServiceServer
+	skillSvcServer           *application.SkillServiceServer
+	mcpSvcServer             *application.MCPServerServiceServer
+	modelProviderSvcServer   *application.ModelProviderServiceServer
+	notifyGroupSvcServer     *application.NotifyGroupServiceServer
+	remoteSvcServer          *application.RemoteAgentServiceServer
+	automationSvcServer      *application.AutomationServiceServer
+	sessionSvcServer         *application.SessionServiceServer
+	cronSvcServer            *application.CronJobServiceServer
+	channelSvcServer         *application.ChannelServiceServer
+	dashboardSvcServer       *application.DashboardServiceServer
+	daemonSvcServer          *application.DaemonServiceServer
+	daemonConnectorHandler   *daemon.GRPCHandler
+	apiTokenSvcServer        *application.APITokenServiceServer
+	authSvcServer            *application.AuthServiceServer
+	workspaceSvcServer       *application.WorkspaceServiceServer
+	gitHostSvcServer         *application.GitHostServiceServer
+	butterBoxSvcServer       *application.ButterBoxServiceServer
+	workStationSvcServer     *application.WorkStationServiceServer
+	workStationHostSvcServer *application.WorkStationHostServiceServer
+	stopWorkStation          context.CancelFunc
+	workStationDone          chan struct{}
+	memoryConfigSvcServer    *application.WorkspaceMemoryConfigServiceServer
+	memoriesSvcServer        *application.WorkspaceMemoryServiceServer
+	repoBindingSvcServer     *application.RepoBindingServiceServer
+	tgChannelSvcServer       *application.TelegramChannelServiceServer
+	tgDestinationSvcServer   *application.TelegramDestinationServiceServer
+	tgAdminSvcServer         *application.TelegramAdminServiceServer
+	tgProcessingSvcServer    *application.TelegramProcessingServiceServer
+	linearAppSvcServer       *application.LinearAppServiceServer
+	linearAdminSvcServer     *application.LinearAdminServiceServer
+	linearProcSvcServer      *application.LinearProcessingServiceServer
+	linearReceiver           linearReceiverHolder
+	linearWorker             *linearruntime.Worker
+	tgReceiver               atomic.Value // *telegram.Receiver
+	tgReconciler             *telegramruntime.Reconciler
+	tgWorker                 *telegramruntime.Worker
+	tgPoller                 *telegramruntime.Poller
+	workspaceMCPSvc          *workspacemcp.Service
+	authRepo                 atomic.Value // auth.Repository
+	apiTokenRepo             atomic.Value // apitoken.Repository
+	workspaceRepo            atomic.Value // workspace.Repository
+	configStore              *ConfigStore
+	configRuntime            *ConfigRuntime
+	agentRepo                configrepo.AgentRepository
+	mcpServerRepo            configrepo.MCPServerRepository
+	modelProviderRepo        configrepo.ModelProviderRepository
+	notifyGroupRepo          configrepo.NotifyGroupRepository
+	remoteAgentRepo          configrepo.RemoteAgentRepository
+	channelRepo              configrepo.ChannelRepository
+	cfg                      *config.AppConfig
+	reconciler               *Reconciler
 }
 
 // Authenticate implements httpHandler.TelegramReceiver. The public callback
@@ -248,9 +250,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		}
 		h.sessionSvcServer.SetRunnerService(result.RunnerSvc)
 		h.agentSvcServer.SetRunnerService(result.RunnerSvc)
-		if h.forumSvcServer != nil {
-			h.forumSvcServer.SetRunnerService(result.RunnerSvc)
-		}
 	}
 	if result.InvocationRepo != nil {
 		h.agentSvcServer.SetInvocationRepo(result.InvocationRepo)
@@ -288,12 +287,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	}
 	if result.MCPAuthResolver != nil {
 		h.mcpSvcServer.SetMCPHTTPClientFactory(result.MCPAuthResolver)
-	}
-	if result.ForumRepo != nil {
-		h.forumRepo.Store(result.ForumRepo)
-		if h.forumSvcServer != nil {
-			h.forumSvcServer.SetRepo(result.ForumRepo)
-		}
 	}
 	if result.LangfuseHost != "" {
 		h.sessionSvcServer.SetLangfuseHost(result.LangfuseHost)
@@ -418,8 +411,6 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		Channels:    h.configStore,
 		CronJobs:    result.CronJobRepo,
 		Automations: result.AutomationDefRepo,
-		Forum:       result.ForumRepo,
-		Workspaces:  result.WorkspaceRepo,
 	}
 	if result.RunnerSvc != nil {
 		cutoverSources.ReservedName = result.RunnerSvc.IsReservedAgentName
@@ -438,6 +429,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.butterBoxSvcServer.SetAgentRepo(h.agentRepo)
 		h.agentSvcServer.SetButterBoxRepo(result.ButterBoxRepo)
 	}
+	h.wireWorkStation(result)
 	// Workspace Memory Config (ADR-0013). The mem0 API key goes through the
 	// same database-backed master key as ButterBox and Telegram tokens.
 	if h.memoryConfigSvcServer != nil && result.MemoryConfigRepo != nil {
@@ -713,8 +705,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	// connected_daemons / base_url / space_id without camelCase fallbacks
 	// silently see undefined.
 	connectOpts := connectx.HandlerOptions()
-	forumSvcServer := application.NewForumServiceServer(nil)
-	forumConnectPath, forumConnectHandler := agentsv1connect.NewForumServiceHandler(forumSvcServer, connectOpts...)
 	agentConnectPath, agentConnectHandler := agentsv1connect.NewAgentServiceHandler(agentSvcServer, connectOpts...)
 	agentFileConnectPath, agentFileConnectHandler := agentsv1connect.NewAgentFileServiceHandler(agentFileSvcServer, connectOpts...)
 	skillConnectPath, skillConnectHandler := agentsv1connect.NewSkillServiceHandler(skillSvcServer, connectOpts...)
@@ -759,6 +749,10 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	gitHostConnectPath, gitHostConnectHandler := agentsv1connect.NewGitHostServiceHandler(gitHostSvcServer, connectOpts...)
 	butterBoxSvcServer := application.NewButterBoxServiceServer(nil)
 	butterBoxConnectPath, butterBoxConnectHandler := agentsv1connect.NewButterBoxServiceHandler(butterBoxSvcServer, connectOpts...)
+	workStationHostSvcServer := application.NewWorkStationHostServiceServer()
+	workStationHostConnectPath, workStationHostConnectHandler := agentsv1connect.NewWorkStationHostServiceHandler(workStationHostSvcServer, connectOpts...)
+	workStationSvcServer := application.NewWorkStationServiceServer()
+	workStationConnectPath, workStationConnectHandler := agentsv1connect.NewWorkStationServiceHandler(workStationSvcServer, connectOpts...)
 	memoryConfigSvcServer := application.NewWorkspaceMemoryConfigServiceServer(nil)
 	memoryConfigConnectPath, memoryConfigConnectHandler := agentsv1connect.NewWorkspaceMemoryConfigServiceHandler(memoryConfigSvcServer, connectOpts...)
 	memoriesSvcServer := application.NewWorkspaceMemoryServiceServer(nil)
@@ -793,49 +787,50 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
-		a2aHandler:             a2aHandler,
-		openAIHandler:          openAIHandler,
-		aguiHandler:            aguiHandler,
-		forumSvcServer:         forumSvcServer,
-		agentSvcServer:         agentSvcServer,
-		agentFileSvcServer:     agentFileSvcServer,
-		skillSvcServer:         skillSvcServer,
-		mcpSvcServer:           mcpSvcServer,
-		modelProviderSvcServer: modelProviderSvcServer,
-		notifyGroupSvcServer:   notifyGroupSvcServer,
-		remoteSvcServer:        remoteSvcServer,
-		automationSvcServer:    automationSvcServer,
-		sessionSvcServer:       sessionSvcServer,
-		cronSvcServer:          cronSvcServer,
-		channelSvcServer:       channelSvcServer,
-		dashboardSvcServer:     dashboardSvcServer,
-		daemonSvcServer:        daemonSvcServer,
-		daemonConnectorHandler: daemonConnectorHandler,
-		apiTokenSvcServer:      apiTokenSvcServer,
-		authSvcServer:          authSvcServer,
-		workspaceSvcServer:     workspaceSvcServer,
-		gitHostSvcServer:       gitHostSvcServer,
-		butterBoxSvcServer:     butterBoxSvcServer,
-		memoryConfigSvcServer:  memoryConfigSvcServer,
-		memoriesSvcServer:      memoriesSvcServer,
-		repoBindingSvcServer:   repoBindingSvcServer,
-		tgChannelSvcServer:     tgChannelSvcServer,
-		tgDestinationSvcServer: tgDestinationSvcServer,
-		tgAdminSvcServer:       tgAdminSvcServer,
-		tgProcessingSvcServer:  tgProcessingSvcServer,
-		linearAppSvcServer:     linearAppSvcServer,
-		linearAdminSvcServer:   linearAdminSvcServer,
-		linearProcSvcServer:    linearProcSvcServer,
-		workspaceMCPSvc:        workspaceMCPSvc,
-		configStore:            configStore,
-		configRuntime:          configRuntime,
-		agentRepo:              configStore,
-		mcpServerRepo:          configStore,
-		modelProviderRepo:      configStore,
-		notifyGroupRepo:        configStore,
-		remoteAgentRepo:        configStore,
-		channelRepo:            configStore,
-		cfg:                    cfg,
+		a2aHandler:               a2aHandler,
+		openAIHandler:            openAIHandler,
+		aguiHandler:              aguiHandler,
+		agentSvcServer:           agentSvcServer,
+		agentFileSvcServer:       agentFileSvcServer,
+		skillSvcServer:           skillSvcServer,
+		mcpSvcServer:             mcpSvcServer,
+		modelProviderSvcServer:   modelProviderSvcServer,
+		notifyGroupSvcServer:     notifyGroupSvcServer,
+		remoteSvcServer:          remoteSvcServer,
+		automationSvcServer:      automationSvcServer,
+		sessionSvcServer:         sessionSvcServer,
+		cronSvcServer:            cronSvcServer,
+		channelSvcServer:         channelSvcServer,
+		dashboardSvcServer:       dashboardSvcServer,
+		daemonSvcServer:          daemonSvcServer,
+		daemonConnectorHandler:   daemonConnectorHandler,
+		apiTokenSvcServer:        apiTokenSvcServer,
+		authSvcServer:            authSvcServer,
+		workspaceSvcServer:       workspaceSvcServer,
+		gitHostSvcServer:         gitHostSvcServer,
+		butterBoxSvcServer:       butterBoxSvcServer,
+		workStationSvcServer:     workStationSvcServer,
+		workStationHostSvcServer: workStationHostSvcServer,
+		memoryConfigSvcServer:    memoryConfigSvcServer,
+		memoriesSvcServer:        memoriesSvcServer,
+		repoBindingSvcServer:     repoBindingSvcServer,
+		tgChannelSvcServer:       tgChannelSvcServer,
+		tgDestinationSvcServer:   tgDestinationSvcServer,
+		tgAdminSvcServer:         tgAdminSvcServer,
+		tgProcessingSvcServer:    tgProcessingSvcServer,
+		linearAppSvcServer:       linearAppSvcServer,
+		linearAdminSvcServer:     linearAdminSvcServer,
+		linearProcSvcServer:      linearProcSvcServer,
+		workspaceMCPSvc:          workspaceMCPSvc,
+		configStore:              configStore,
+		configRuntime:            configRuntime,
+		agentRepo:                configStore,
+		mcpServerRepo:            configStore,
+		modelProviderRepo:        configStore,
+		notifyGroupRepo:          configStore,
+		remoteAgentRepo:          configStore,
+		channelRepo:              configStore,
+		cfg:                      cfg,
 	}
 
 	router := func(r *gin.Engine) {
@@ -863,7 +858,6 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+remoteConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", remoteConnectHandler)))
 		r.Any("/api"+automationConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", automationConnectHandler)))
 		r.Any("/api"+channelConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", channelConnectHandler)))
-		r.Any("/api"+forumConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", forumConnectHandler)))
 		r.Any("/api"+agentFileConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", agentFileConnectHandler)))
 		r.Any("/api"+skillConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", skillConnectHandler)))
 		r.Any("/api"+sessionConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", sessionConnectHandler)))
@@ -874,6 +868,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+globalMCPConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", globalMCPConnectHandler)))
 		r.Any("/api"+gitHostConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", gitHostConnectHandler)))
 		r.Any("/api"+butterBoxConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", butterBoxConnectHandler)))
+		r.Any("/api"+workStationHostConnectPath+"*path", gin.WrapH(workStationNoCache(http.StripPrefix("/api", workStationHostConnectHandler))))
+		r.Any("/api"+workStationConnectPath+"*path", gin.WrapH(workStationNoCache(http.StripPrefix("/api", workStationConnectHandler))))
 		r.Any("/api"+memoryConfigConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", memoryConfigConnectHandler)))
 		r.Any("/api"+memoriesConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", memoriesConnectHandler)))
 		r.Any("/api"+repoBindingConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", repoBindingConnectHandler)))
@@ -907,5 +903,12 @@ func enableFullDuplex(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = http.NewResponseController(w).EnableFullDuplex()
 		handler.ServeHTTP(w, r)
+	})
+}
+
+func workStationNoCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
 	})
 }

@@ -89,7 +89,6 @@ butter/
 │   │   ├── cron_service.go
 │   │   ├── daemon_service.go
 │   │   ├── dashboard_service.go
-│   │   ├── forum_service.go
 │   │   ├── githost_service.go         # platform Git host allowlist
 │   │   ├── globalmcp_service.go
 │   │   ├── linear_app_service.go       # Linear Apps (ADR-0015)
@@ -168,10 +167,6 @@ butter/
 │   │   │   ├── mongo/
 │   │   │   └── repository.go
 │   │   ├── cryptokey/           # database-backed master key for credential encryption
-│   │   ├── forum/               # forum threads + posts (workspace-scoped)
-│   │   │   ├── memory/
-│   │   │   ├── mongo/
-│   │   │   └── repository.go
 │   │   ├── githost/             # platform allowlist of Git hosts
 │   │   ├── inputpart/           # input parts the retired async chat left; deleted with their session
 │   │   ├── invocation/          # interface + memory + mongo; owner stamp + stale sweep
@@ -256,7 +251,6 @@ butter/
 │       ├── butterbox.proto
 │       ├── githost.proto
 │       ├── linear.proto
-│       ├── forum.proto
 │       ├── repobinding.proto
 │       ├── skill.proto
 │       ├── telegram.proto
@@ -292,16 +286,16 @@ butter/
 - `cmd/`：进程入口。`butter` 是服务端；`butter-daemon` 是通过 `/api` ConnectRPC 反连服务端的 daemon client（自报 version / os / executors）；`butter-delete-web-chat` 是一次性维护命令（#411），删除旧 Chat 遗留的 `web-chat` 会话、其事件、其 Invocation 记录和 input parts。默认 dry run，加 `--confirm` 才删除；未经项目负责人当场明确确认、未审阅 dry run、未做备份或快照，不得对生产库运行。清理逻辑在 `internal/maintenance/webchatcleanup`，服务每次启动时也会自动运行它（临时，见下文）。
 - `internal/maintenance/`：服务启动时运行的维护任务。`webchatcleanup` 删除旧 Chat 遗留的 `web-chat` 数据（#411），由一次性命令和启动清理（`internal/app/webchat_cleanup.go`）共用。启动清理在后台、只在持有 Redis 租约的那个 Pod 上运行，`maintenance.delete_web_chat: false` 可关闭；它是临时的，在生产上运行过之后的版本里移除。
 - `internal/app/`：应用装配与初始化（路由、运行时、配置仓库、渠道、Cron、系统 Agent、token / workspace 仓库选择、初始 admin 与 default workspace bootstrap、Langfuse host 透传）。
-- `internal/application/`：RPC 服务实现（Agent/lifecycle、AgentFile、Skill、MCPServer、GlobalMCPServer、ModelProvider、NotifyGroup、RemoteAgent、legacy Channel、Telegram、Linear、Session、Cron、Automation、Dashboard、Daemon、APIToken、Auth、Forum、Workspace、GitHost、ButterBox、WorkspaceRepoBinding）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
+- `internal/application/`：RPC 服务实现（Agent/lifecycle、AgentFile、Skill、MCPServer、GlobalMCPServer、ModelProvider、NotifyGroup、RemoteAgent、legacy Channel、Telegram、Linear、Session、Cron、Automation、Dashboard、Daemon、APIToken、Auth、Workspace、GitHost、ButterBox、WorkspaceRepoBinding）。每个服务一个 `*_service.go`，方法签名是原生 ConnectRPC 形式 `(ctx, *connect.Request[Req]) (*connect.Response[Res], error)`，直接满足 `agentsv1connect.XxxServiceHandler` 接口，由 `routes.go` 通过 `agentsv1connect.NewXxxServiceHandler(svc, ...)` 挂载。错误用 `connect.NewError` 或 `connectx` helper 构造。
 - `internal/transport/connectx/`：ConnectRPC 共享 plumbing。`RequiredArgument` / `InvalidArgument` / `NotFound` / `Internal` / `InternalWith` 是 `connect.Error` 的常用构造短手；`HandlerOptions()` 含 snake_case JSON codec（`UseProtoNames=true`）供 curl/非浏览器调用；dashboard 浏览器默认 binary protobuf（`front/src/api/transport.ts`）。
 - `internal/workspace/`：workspace context 包，提供 `WithID` / `FromContext` / `HeaderName="X-Workspace-ID"` / `DefaultSlug="default"`。
 - `internal/repo/workspace/`：`workspaces` + `workspace_members` 仓库（memory + mongo），支撑 `WorkspaceService` 和 auth middleware 的成员校验。
 - `internal/channel/`：只保留 legacy `AgentChannel` 报告器；Telegram 适配与运行时位于 `internal/runtime/telegram/`。
 - `internal/runtime/`：运行时能力 —— `runner`（含 invocation 记录与 cancel 注册）、`cron`（含 RunJobNow / 时序聚合）、`daemon`（registry / connection / bridge / grpc_handler / metrics）、`session`、`interrupt`、`streamorch`、`automation`、`telegram`、`linear` / `linearconn`、`sessionguard`、`liveness`（进程存活键，供 invocation 遗留清理判断 owner 是否已退出）、`runstate`（AG-UI 运行在 thread 租约旁记录的 run state，只在持有租约期间续期；结束的 Detached Run 标记为 ended，与其 Run Log 保留同样久）、`runlog`（Detached Run 的 Run Log：每次运行一条有上限的 Redis Stream，观察者从 `RUN_STARTED` 重放；每个进程用一条 `XREAD` 复用等待），Workspace Memory 的 `memoryhook` / `mem0memory` / `memoryconn`，以及 ButterBox 的 `pibox` / `cursorbox` / `butterboxconn`。
 - Agent 工具：`a2uitool`（`render_ui`）、`aguitool`（AG-UI 客户端工具）、`agentfiletool`、`memorytool`、`skilltool`；A2UI 的 catalog、卡片与表单逻辑在 `internal/a2ui/`。
-- `internal/repo/`：仓库层。除 `config/`、`apitoken/`、`invocation/` 外，还包含 Agent Content/lifecycle operation、Agent Files、Skills、Telegram resources/processing/settings、Linear Apps/installations/processing/settings/install states、ButterBoxes、Git hosts/repo bindings/cache、input parts、OAuth、forum、workspace、auth、cryptokey 等 memory/mongo 实现。
+- `internal/repo/`：仓库层。除 `config/`、`apitoken/`、`invocation/` 外，还包含 Agent Content/lifecycle operation、Agent Files、Skills、Telegram resources/processing/settings、Linear Apps/installations/processing/settings/install states、ButterBoxes、Git hosts/repo bindings/cache、input parts、OAuth、workspace、auth、cryptokey 等 memory/mongo 实现。
 - `front/`：Vite + React 19 dashboard。TanStack Router 路由在 `src/routes/`，资源实现位于 `src/features/`；`src/api/` 是类型化的 ConnectRPC 客户端，`uploads.ts` 是唯一仍用裸 `fetch` + multipart 的 API 模块。`src/gen/` 是 buf 生成的 TS proto 类型。
-- `proto/`：Proto 定义源文件，包含 Agent/lifecycle、Telegram、Linear、Automation、Skills、Git binding、Daemon、Dashboard、Workspace、Forum、Cron、Content 等服务和消息。
+- `proto/`：Proto 定义源文件，包含 Agent/lifecycle、Telegram、Linear、Automation、Skills、Git binding、Daemon、Dashboard、Workspace、Cron、Content 等服务和消息。
 - `pkg/proto/`：Proto 生成代码（Go + Connect + grpc + grpc-gateway + validate）；不要手改。Twirp 生成产物已在 ConnectRPC Phase 3 移除。
 - `.github/workflows/`：CI。后端走 `docker-publish.yml`，前端独立 `front-publish.yml`（`paths: front/**` 过滤），均推 ghcr 并 cosign 签名。
 - `docs/`：项目文档。系统架构见 `architecture.md`；API 契约与外部 App 开发接入说明见 `api.md`；功能总览见 `app.md`。
@@ -313,3 +307,20 @@ butter/
 - 新增 RPC service：在 `proto/agents/v1/*.proto` 定义 service + messages → `make buf` 生成代码 → 在 `internal/application/` 加 `<svc>_service.go`，每个 RPC 方法签名为 `func (s *XxxServiceServer) Method(ctx context.Context, req *connect.Request[agentsv1.YyyRequest]) (*connect.Response[agentsv1.YyyResponse], error)`，方法体访问 `req.Msg.GetX()`，返回 `connect.NewResponse(&agentsv1.YyyResponse{...})` → 在 `internal/app/routes.go` 用 `agentsv1connect.NewXxxServiceHandler(svc, connectOpts...)` 创建 handler，并挂到 `/api/agents.v1.XxxService/*`（`http.StripPrefix("/api", handler)`）→ 前端在 `front/src/api/` 加文件，`makeClient(XxxService)` 拿到类型化 client。
 - 新增 MongoDB collection：在 `internal/repo/` 下加同名子包，提供 interface + memory + mongo 两实现，在 `internal/app/channels.go` 按 `storage_backend` 选择后端并注入 BootstrapResult。
 - 结构变更后同步更新本文件，保证文档与仓库一致。
+
+## Work Station four-provider preview
+
+- `proto/agents/v1/workstation.proto`: workspace ConnectRPC contract and generated Go/TypeScript bindings.
+- `internal/app/workstation.go`: runtime wiring and bounded graceful shutdown.
+- `internal/application/workstation_service.go`: membership, owner-only management and sanitized RPC errors.
+- `internal/workstation/`: projection, credential/config CAS, durable claims and fenced snapshot publication.
+- `internal/workstation/{github,linear,gitlab,plane}/`: read-only fixed profiles, full-scan page resume and HTTP fixtures; GitHub adds incremental/ETag.
+- `internal/workstation/outbound/`: approved HTTPS origin and public DNS-at-dial confinement.
+- `internal/application/workstation_providers.go`: perconnection approved registry resolution and shared budget transport.
+- `internal/application/workstation_host_service.go`: authenticated approved Plane choices and global-admin Host mutations.
+- `internal/workstation/{memory,mongostore,repotest}/`: storage implementations and shared behavioral contract.
+- `front/src/features/work-station/`: shared list/detail and connection/scope management at `/work-station`.
+- `front/src/features/admin/git-hosts.tsx`: global Plane Host administration alongside approved Git hosts.
+- `front/e2e/work-station.spec.ts`: 14 browser fixture journeys; `.github/workflows/work-station-ui.yml` defines their CI job.
+- `internal/workstation/acceptance/` and `docs/work-station-acceptance.md`: opt-in real read runner, B01–B16 evidence map and external acceptance blockers.
+- `docs/work-station.md`: preview scope, operations and pending release acceptance.

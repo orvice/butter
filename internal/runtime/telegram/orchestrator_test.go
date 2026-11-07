@@ -20,6 +20,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	"go.orx.me/apps/butter/internal/runtime/sessionshare"
 	"go.orx.me/apps/butter/internal/secretbox"
+	"go.orx.me/apps/butter/internal/telegramapi"
 	"go.orx.me/apps/butter/internal/telegramapi/telegramtest"
 	"go.orx.me/apps/butter/internal/telegramqueue"
 	"go.orx.me/apps/butter/internal/telegramsend"
@@ -32,6 +33,7 @@ type fakeAgentRunner struct {
 	calls               []fakeAgentCall
 	output              string
 	failErr             error
+	onRun               func()
 	known               map[string]string
 	modelOverrideLocked map[string]bool
 }
@@ -61,6 +63,9 @@ func (r *fakeAgentRunner) RunTurnSSE(ctx context.Context, agentName string, part
 	_ runner.CompactionCallback) (*runner.TurnResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.onRun != nil {
+		r.onRun()
+	}
 	text := ""
 	if len(parts) > 0 {
 		text = parts[0].Text
@@ -144,6 +149,15 @@ func (fx *orchestratorFixture) eventForStored(raw string) *telegramqueue.Event {
 
 func TestOneAcceptedUpdateReachesTheAgentOnceAndRepliesInTheTopic(t *testing.T) {
 	fx := newOrchestratorFixture(t, nil)
+	fx.agents.onRun = func() {
+		reactions := fx.bots.Reactions()
+		if len(reactions) != 1 || reactions[0].Params.MessageID != "9" || reactions[0].Params.Emoji != "👀" {
+			t.Errorf("expected a reaction on the inbound message before the Agent runs, got %+v", reactions)
+		}
+		if len(fx.bots.Sent()) != 0 {
+			t.Error("no message should be sent before the Agent finishes")
+		}
+	}
 
 	if err := fx.orchestrator.Handle(t.Context(),
 		fx.eventForStored(message(realUser, "hello", ""))); err != nil {
@@ -163,23 +177,22 @@ func TestOneAcceptedUpdateReachesTheAgentOnceAndRepliesInTheTopic(t *testing.T) 
 		t.Error("the Telegram turn must be allowed to share its session ID")
 	}
 
-	// A placeholder acknowledges the message, then becomes the answer: one
-	// send followed by one edit, both inside the topic (#270).
+	// Only the completed answer is sent, as a fresh, non-silent reply.
 	sent := fx.bots.Sent()
-	if len(sent) != 2 {
-		t.Fatalf("sent %d messages, want a placeholder and its edit", len(sent))
+	if len(sent) != 1 {
+		t.Fatalf("sent %d messages, want only the completed reply", len(sent))
 	}
 	if sent[0].Params.MessageThreadID != "42" {
-		t.Errorf("placeholder left the topic: thread %q", sent[0].Params.MessageThreadID)
+		t.Errorf("reply left the topic: thread %q", sent[0].Params.MessageThreadID)
 	}
 	if sent[0].Params.ReplyToMessageID != "9" {
 		t.Errorf("reply_to = %q, want the inbound message quoted", sent[0].Params.ReplyToMessageID)
 	}
-	if sent[1].Edit == nil {
-		t.Fatal("the answer was sent as a new message instead of replacing the placeholder")
+	if sent[0].Edit != nil || sent[0].Params.DisableNotification {
+		t.Fatal("the answer must be a new, non-silent message")
 	}
-	if !strings.Contains(sent[1].Edit.Text, "agent reply") {
-		t.Errorf("edited text = %q, want the agent output", sent[1].Edit.Text)
+	if !strings.Contains(sent[0].Params.Text, "agent reply") {
+		t.Errorf("reply text = %q, want the agent output", sent[0].Params.Text)
 	}
 }
 
@@ -194,16 +207,47 @@ func TestAgentFailureIsReportedInTheTopic(t *testing.T) {
 		t.Fatal("expected the failure to surface so the event is retried")
 	}
 	sent := fx.bots.Sent()
-	if len(sent) != 2 {
-		t.Fatalf("sent %d messages, want a placeholder and a failure notice", len(sent))
+	if len(sent) != 1 {
+		t.Fatalf("sent %d messages, want only a failure notice", len(sent))
 	}
-	if sent[0].Params.MessageThreadID != "42" {
-		t.Errorf("the placeholder left the topic: %q", sent[0].Params.MessageThreadID)
+	if sent[0].Params.MessageThreadID != "42" || sent[0].Params.ReplyToMessageID != "9" {
+		t.Errorf("failure notice lost the topic or reply target: %+v", sent[0].Params)
 	}
-	// The failure replaces the placeholder rather than leaving "working on
-	// it" as the last thing the user sees.
-	if sent[1].Edit == nil || !strings.Contains(sent[1].Edit.Text, "could not complete") {
-		t.Errorf("failure notice = %+v", sent[1])
+	if sent[0].Edit != nil || sent[0].Params.DisableNotification || !strings.Contains(sent[0].Params.Text, "could not complete") {
+		t.Errorf("failure notice = %+v", sent[0])
+	}
+}
+
+func TestReactionFailureDoesNotPreventAgentReply(t *testing.T) {
+	fx := newOrchestratorFixture(t, nil)
+	fx.bots.OnReaction(func(context.Context, telegramapi.ReactionParams) error {
+		return &telegramapi.APIError{Code: 400, Description: "REACTION_INVALID"}
+	})
+	if err := fx.orchestrator.Handle(t.Context(), fx.eventForStored(message(realUser, "hello", ""))); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	if len(fx.agents.calls) != 1 || len(fx.bots.Sent()) != 1 {
+		t.Fatal("reaction rejection must not prevent invocation or delivery")
+	}
+	if got := fx.bots.Sent()[0]; got.Edit != nil || !strings.Contains(got.Params.Text, "agent reply") {
+		t.Fatalf("expected a fresh answer despite reaction failure: %+v", got)
+	}
+}
+
+func TestReactionTargetsInboundMessageWhenRepliesDoNotQuote(t *testing.T) {
+	fx := newOrchestratorFixture(t, func(c *agentsv1.TelegramDestinationConfig) {
+		c.ReplyMode = agentsv1.TelegramReplyMode_TELEGRAM_REPLY_MODE_NEW_MESSAGE
+	})
+	if err := fx.orchestrator.Handle(t.Context(), fx.eventForStored(message(realUser, "hello", ""))); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	reactions := fx.bots.Reactions()
+	if len(reactions) != 1 || reactions[0].Params.MessageID != "9" {
+		t.Fatalf("reaction must still target the inbound message: %+v", reactions)
+	}
+	sent := fx.bots.Sent()
+	if len(sent) != 1 || sent[0].Params.ReplyToMessageID != "" || sent[0].Params.MessageThreadID != "42" {
+		t.Fatalf("standalone reply lost its configured mode or topic: %+v", sent)
 	}
 }
 

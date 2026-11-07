@@ -44,6 +44,15 @@ export function ModelProviderList() {
       cell: (row) => <Badge variant='outline' className='font-mono text-[10px]'>{row.type || '-'}</Badge>,
     },
     {
+      header: 'API Protocol',
+      cell: (row) => row.type === 'openai' ? (
+        <Badge variant='outline' className='text-[10px]'>
+          {row.openai_api === 'responses' ? 'Responses API' :
+            !row.openai_api || row.openai_api === 'chat_completions' ? 'Chat Completions' : row.openai_api}
+        </Badge>
+      ) : <span className='text-sm text-muted-foreground'>-</span>,
+    },
+    {
       header: 'Models',
       cell: (row) => (
         <div className='flex flex-wrap gap-1'>

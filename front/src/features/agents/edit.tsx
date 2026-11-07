@@ -350,6 +350,15 @@ export function AgentEdit() {
         className='max-w-4xl'
         title='Edit Agent'
         subtitle='Use the guided form for common settings or JSON mode for advanced agent topology.'
+        actions={
+          data?.agent?.agent_id ? (
+            <Button variant='outline' asChild>
+              <Link to='/agents/$name/linear' params={{ name: data.agent.agent_id }}>
+                Connect Linear
+              </Link>
+            </Button>
+          ) : undefined
+        }
         breadcrumb={
           <Link to='/agents' className='inline-flex min-w-0 items-center gap-1.5 hover:text-foreground'>
             <ArrowLeft className='size-3.5 shrink-0' />

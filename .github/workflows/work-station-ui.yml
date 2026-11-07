@@ -1,0 +1,30 @@
+name: Work Station UI
+
+on:
+  pull_request:
+    paths:
+      - 'front/**'
+      - 'proto/agents/v1/workstation.proto'
+      - '.github/workflows/work-station-ui.yml'
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck:e2e
+      - run: npx playwright install --with-deps chromium
+      - name: Browser contract journeys (intercepted RPCs)
+        env:
+          PLAYWRIGHT_PORT: '5285'
+        run: npx playwright test e2e/work-station.spec.ts --workers=1

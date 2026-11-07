@@ -32,6 +32,7 @@ import { Route as AuthenticatedRepoBindingRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedTelegramUpdatesRouteImport } from './routes/_authenticated/telegram-updates'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
+import { Route as AuthenticatedWorkStationRouteImport } from './routes/_authenticated/work-station'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminEndpointsRouteImport } from './routes/_authenticated/admin/endpoints'
 import { Route as AuthenticatedAdminGitHostsRouteImport } from './routes/_authenticated/admin/git-hosts'
@@ -47,8 +48,6 @@ import { Route as AuthenticatedButterboxesIndexRouteImport } from './routes/_aut
 import { Route as AuthenticatedButterboxesCreateRouteImport } from './routes/_authenticated/butterboxes/create'
 import { Route as AuthenticatedCronIndexRouteImport } from './routes/_authenticated/cron/index'
 import { Route as AuthenticatedCronCreateRouteImport } from './routes/_authenticated/cron/create'
-import { Route as AuthenticatedForumIndexRouteImport } from './routes/_authenticated/forum/index'
-import { Route as AuthenticatedForumIdRouteImport } from './routes/_authenticated/forum/$id'
 import { Route as AuthenticatedLinearAppsIndexRouteImport } from './routes/_authenticated/linear-apps/index'
 import { Route as AuthenticatedLinearAppsCreateRouteImport } from './routes/_authenticated/linear-apps/create'
 import { Route as AuthenticatedMcpServersIndexRouteImport } from './routes/_authenticated/mcp-servers/index'
@@ -68,6 +67,7 @@ import { Route as AuthenticatedTelegramChannelsIndexRouteImport } from './routes
 import { Route as AuthenticatedTelegramChannelsCreateRouteImport } from './routes/_authenticated/telegram-channels/create'
 import { Route as AuthenticatedTelegramDestinationsIdRouteImport } from './routes/_authenticated/telegram-destinations/$id'
 import { Route as AuthenticatedAgentsNameEditRouteImport } from './routes/_authenticated/agents/$name.edit'
+import { Route as AuthenticatedAgentsNameLinearRouteImport } from './routes/_authenticated/agents/$name.linear'
 import { Route as AuthenticatedAutomationsNameIndexRouteImport } from './routes/_authenticated/automations/$name.index'
 import { Route as AuthenticatedAutomationsNameEditRouteImport } from './routes/_authenticated/automations/$name.edit'
 import { Route as AuthenticatedButterboxesIdEditRouteImport } from './routes/_authenticated/butterboxes/$id.edit'
@@ -201,6 +201,12 @@ const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWorkStationRoute =
+  AuthenticatedWorkStationRouteImport.update({
+    id: '/work-station',
+    path: '/work-station',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
@@ -285,16 +291,6 @@ const AuthenticatedCronIndexRoute = AuthenticatedCronIndexRouteImport.update({
 const AuthenticatedCronCreateRoute = AuthenticatedCronCreateRouteImport.update({
   id: '/cron/create',
   path: '/cron/create',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedForumIndexRoute = AuthenticatedForumIndexRouteImport.update({
-  id: '/forum/',
-  path: '/forum/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedForumIdRoute = AuthenticatedForumIdRouteImport.update({
-  id: '/forum/$id',
-  path: '/forum/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedLinearAppsIndexRoute =
@@ -411,6 +407,12 @@ const AuthenticatedAgentsNameEditRoute =
     path: '/agents/$name/edit',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAgentsNameLinearRoute =
+  AuthenticatedAgentsNameLinearRouteImport.update({
+    id: '/agents/$name/linear',
+    path: '/agents/$name/linear',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAutomationsNameIndexRoute =
   AuthenticatedAutomationsNameIndexRouteImport.update({
     id: '/automations/$name/',
@@ -513,6 +515,7 @@ export interface FileRoutesByFullPath {
   '/repo-binding': typeof AuthenticatedRepoBindingRoute
   '/telegram-updates': typeof AuthenticatedTelegramUpdatesRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/work-station': typeof AuthenticatedWorkStationRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/endpoints': typeof AuthenticatedAdminEndpointsRoute
   '/admin/git-hosts': typeof AuthenticatedAdminGitHostsRoute
@@ -524,7 +527,6 @@ export interface FileRoutesByFullPath {
   '/automations/create': typeof AuthenticatedAutomationsCreateRoute
   '/butterboxes/create': typeof AuthenticatedButterboxesCreateRoute
   '/cron/create': typeof AuthenticatedCronCreateRoute
-  '/forum/$id': typeof AuthenticatedForumIdRoute
   '/linear-apps/create': typeof AuthenticatedLinearAppsCreateRoute
   '/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
@@ -539,7 +541,6 @@ export interface FileRoutesByFullPath {
   '/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/butterboxes/': typeof AuthenticatedButterboxesIndexRoute
   '/cron/': typeof AuthenticatedCronIndexRoute
-  '/forum/': typeof AuthenticatedForumIndexRoute
   '/linear-apps/': typeof AuthenticatedLinearAppsIndexRoute
   '/mcp-servers/': typeof AuthenticatedMcpServersIndexRoute
   '/model-providers/': typeof AuthenticatedModelProvidersIndexRoute
@@ -549,6 +550,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
+  '/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -584,6 +586,7 @@ export interface FileRoutesByTo {
   '/repo-binding': typeof AuthenticatedRepoBindingRoute
   '/telegram-updates': typeof AuthenticatedTelegramUpdatesRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/work-station': typeof AuthenticatedWorkStationRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/endpoints': typeof AuthenticatedAdminEndpointsRoute
@@ -596,7 +599,6 @@ export interface FileRoutesByTo {
   '/automations/create': typeof AuthenticatedAutomationsCreateRoute
   '/butterboxes/create': typeof AuthenticatedButterboxesCreateRoute
   '/cron/create': typeof AuthenticatedCronCreateRoute
-  '/forum/$id': typeof AuthenticatedForumIdRoute
   '/linear-apps/create': typeof AuthenticatedLinearAppsCreateRoute
   '/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
@@ -611,7 +613,6 @@ export interface FileRoutesByTo {
   '/automations': typeof AuthenticatedAutomationsIndexRoute
   '/butterboxes': typeof AuthenticatedButterboxesIndexRoute
   '/cron': typeof AuthenticatedCronIndexRoute
-  '/forum': typeof AuthenticatedForumIndexRoute
   '/linear-apps': typeof AuthenticatedLinearAppsIndexRoute
   '/mcp-servers': typeof AuthenticatedMcpServersIndexRoute
   '/model-providers': typeof AuthenticatedModelProvidersIndexRoute
@@ -621,6 +622,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/telegram-channels': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
+  '/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -659,6 +661,7 @@ export interface FileRoutesById {
   '/_authenticated/repo-binding': typeof AuthenticatedRepoBindingRoute
   '/_authenticated/telegram-updates': typeof AuthenticatedTelegramUpdatesRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
+  '/_authenticated/work-station': typeof AuthenticatedWorkStationRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/endpoints': typeof AuthenticatedAdminEndpointsRoute
@@ -671,7 +674,6 @@ export interface FileRoutesById {
   '/_authenticated/automations/create': typeof AuthenticatedAutomationsCreateRoute
   '/_authenticated/butterboxes/create': typeof AuthenticatedButterboxesCreateRoute
   '/_authenticated/cron/create': typeof AuthenticatedCronCreateRoute
-  '/_authenticated/forum/$id': typeof AuthenticatedForumIdRoute
   '/_authenticated/linear-apps/create': typeof AuthenticatedLinearAppsCreateRoute
   '/_authenticated/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/_authenticated/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
@@ -686,7 +688,6 @@ export interface FileRoutesById {
   '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
   '/_authenticated/butterboxes/': typeof AuthenticatedButterboxesIndexRoute
   '/_authenticated/cron/': typeof AuthenticatedCronIndexRoute
-  '/_authenticated/forum/': typeof AuthenticatedForumIndexRoute
   '/_authenticated/linear-apps/': typeof AuthenticatedLinearAppsIndexRoute
   '/_authenticated/mcp-servers/': typeof AuthenticatedMcpServersIndexRoute
   '/_authenticated/model-providers/': typeof AuthenticatedModelProvidersIndexRoute
@@ -696,6 +697,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/_authenticated/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
+  '/_authenticated/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
   '/_authenticated/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/_authenticated/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/_authenticated/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -735,6 +737,7 @@ export interface FileRouteTypes {
     | '/repo-binding'
     | '/telegram-updates'
     | '/users'
+    | '/work-station'
     | '/workspaces'
     | '/admin/endpoints'
     | '/admin/git-hosts'
@@ -746,7 +749,6 @@ export interface FileRouteTypes {
     | '/automations/create'
     | '/butterboxes/create'
     | '/cron/create'
-    | '/forum/$id'
     | '/linear-apps/create'
     | '/mcp-servers/create'
     | '/model-providers/create'
@@ -761,7 +763,6 @@ export interface FileRouteTypes {
     | '/automations/'
     | '/butterboxes/'
     | '/cron/'
-    | '/forum/'
     | '/linear-apps/'
     | '/mcp-servers/'
     | '/model-providers/'
@@ -771,6 +772,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/telegram-channels/'
     | '/agents/$name/edit'
+    | '/agents/$name/linear'
     | '/automations/$name/edit'
     | '/butterboxes/$id/edit'
     | '/cron/$name/edit'
@@ -806,6 +808,7 @@ export interface FileRouteTypes {
     | '/repo-binding'
     | '/telegram-updates'
     | '/users'
+    | '/work-station'
     | '/workspaces'
     | '/'
     | '/admin/endpoints'
@@ -818,7 +821,6 @@ export interface FileRouteTypes {
     | '/automations/create'
     | '/butterboxes/create'
     | '/cron/create'
-    | '/forum/$id'
     | '/linear-apps/create'
     | '/mcp-servers/create'
     | '/model-providers/create'
@@ -833,7 +835,6 @@ export interface FileRouteTypes {
     | '/automations'
     | '/butterboxes'
     | '/cron'
-    | '/forum'
     | '/linear-apps'
     | '/mcp-servers'
     | '/model-providers'
@@ -843,6 +844,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/telegram-channels'
     | '/agents/$name/edit'
+    | '/agents/$name/linear'
     | '/automations/$name/edit'
     | '/butterboxes/$id/edit'
     | '/cron/$name/edit'
@@ -880,6 +882,7 @@ export interface FileRouteTypes {
     | '/_authenticated/repo-binding'
     | '/_authenticated/telegram-updates'
     | '/_authenticated/users'
+    | '/_authenticated/work-station'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/endpoints'
@@ -892,7 +895,6 @@ export interface FileRouteTypes {
     | '/_authenticated/automations/create'
     | '/_authenticated/butterboxes/create'
     | '/_authenticated/cron/create'
-    | '/_authenticated/forum/$id'
     | '/_authenticated/linear-apps/create'
     | '/_authenticated/mcp-servers/create'
     | '/_authenticated/model-providers/create'
@@ -907,7 +909,6 @@ export interface FileRouteTypes {
     | '/_authenticated/automations/'
     | '/_authenticated/butterboxes/'
     | '/_authenticated/cron/'
-    | '/_authenticated/forum/'
     | '/_authenticated/linear-apps/'
     | '/_authenticated/mcp-servers/'
     | '/_authenticated/model-providers/'
@@ -917,6 +918,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/telegram-channels/'
     | '/_authenticated/agents/$name/edit'
+    | '/_authenticated/agents/$name/linear'
     | '/_authenticated/automations/$name/edit'
     | '/_authenticated/butterboxes/$id/edit'
     | '/_authenticated/cron/$name/edit'
@@ -1106,6 +1108,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/work-station': {
+      id: '/_authenticated/work-station'
+      path: '/work-station'
+      fullPath: '/work-station'
+      preLoaderRoute: typeof AuthenticatedWorkStationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
       path: '/workspaces'
@@ -1209,20 +1218,6 @@ declare module '@tanstack/react-router' {
       path: '/cron/create'
       fullPath: '/cron/create'
       preLoaderRoute: typeof AuthenticatedCronCreateRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/forum/': {
-      id: '/_authenticated/forum/'
-      path: '/forum'
-      fullPath: '/forum/'
-      preLoaderRoute: typeof AuthenticatedForumIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/forum/$id': {
-      id: '/_authenticated/forum/$id'
-      path: '/forum/$id'
-      fullPath: '/forum/$id'
-      preLoaderRoute: typeof AuthenticatedForumIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/linear-apps/': {
@@ -1358,6 +1353,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgentsNameEditRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agents/$name/linear': {
+      id: '/_authenticated/agents/$name/linear'
+      path: '/agents/$name/linear'
+      fullPath: '/agents/$name/linear'
+      preLoaderRoute: typeof AuthenticatedAgentsNameLinearRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/automations/$name/': {
       id: '/_authenticated/automations/$name/'
       path: '/automations/$name'
@@ -1486,6 +1488,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRepoBindingRoute: typeof AuthenticatedRepoBindingRoute
   AuthenticatedTelegramUpdatesRoute: typeof AuthenticatedTelegramUpdatesRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
+  AuthenticatedWorkStationRoute: typeof AuthenticatedWorkStationRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminEndpointsRoute: typeof AuthenticatedAdminEndpointsRoute
@@ -1498,7 +1501,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutomationsCreateRoute: typeof AuthenticatedAutomationsCreateRoute
   AuthenticatedButterboxesCreateRoute: typeof AuthenticatedButterboxesCreateRoute
   AuthenticatedCronCreateRoute: typeof AuthenticatedCronCreateRoute
-  AuthenticatedForumIdRoute: typeof AuthenticatedForumIdRoute
   AuthenticatedLinearAppsCreateRoute: typeof AuthenticatedLinearAppsCreateRoute
   AuthenticatedMcpServersCreateRoute: typeof AuthenticatedMcpServersCreateRoute
   AuthenticatedModelProvidersCreateRoute: typeof AuthenticatedModelProvidersCreateRoute
@@ -1511,7 +1513,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutomationsIndexRoute: typeof AuthenticatedAutomationsIndexRoute
   AuthenticatedButterboxesIndexRoute: typeof AuthenticatedButterboxesIndexRoute
   AuthenticatedCronIndexRoute: typeof AuthenticatedCronIndexRoute
-  AuthenticatedForumIndexRoute: typeof AuthenticatedForumIndexRoute
   AuthenticatedLinearAppsIndexRoute: typeof AuthenticatedLinearAppsIndexRoute
   AuthenticatedMcpServersIndexRoute: typeof AuthenticatedMcpServersIndexRoute
   AuthenticatedModelProvidersIndexRoute: typeof AuthenticatedModelProvidersIndexRoute
@@ -1520,6 +1521,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSessionsIndexRoute: typeof AuthenticatedSessionsIndexRoute
   AuthenticatedTelegramChannelsIndexRoute: typeof AuthenticatedTelegramChannelsIndexRoute
   AuthenticatedAgentsNameEditRoute: typeof AuthenticatedAgentsNameEditRoute
+  AuthenticatedAgentsNameLinearRoute: typeof AuthenticatedAgentsNameLinearRoute
   AuthenticatedAutomationsNameEditRoute: typeof AuthenticatedAutomationsNameEditRoute
   AuthenticatedButterboxesIdEditRoute: typeof AuthenticatedButterboxesIdEditRoute
   AuthenticatedCronNameEditRoute: typeof AuthenticatedCronNameEditRoute
@@ -1550,6 +1552,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRepoBindingRoute: AuthenticatedRepoBindingRoute,
   AuthenticatedTelegramUpdatesRoute: AuthenticatedTelegramUpdatesRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
+  AuthenticatedWorkStationRoute: AuthenticatedWorkStationRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminEndpointsRoute: AuthenticatedAdminEndpointsRoute,
@@ -1563,7 +1566,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutomationsCreateRoute: AuthenticatedAutomationsCreateRoute,
   AuthenticatedButterboxesCreateRoute: AuthenticatedButterboxesCreateRoute,
   AuthenticatedCronCreateRoute: AuthenticatedCronCreateRoute,
-  AuthenticatedForumIdRoute: AuthenticatedForumIdRoute,
   AuthenticatedLinearAppsCreateRoute: AuthenticatedLinearAppsCreateRoute,
   AuthenticatedMcpServersCreateRoute: AuthenticatedMcpServersCreateRoute,
   AuthenticatedModelProvidersCreateRoute:
@@ -1579,7 +1581,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutomationsIndexRoute: AuthenticatedAutomationsIndexRoute,
   AuthenticatedButterboxesIndexRoute: AuthenticatedButterboxesIndexRoute,
   AuthenticatedCronIndexRoute: AuthenticatedCronIndexRoute,
-  AuthenticatedForumIndexRoute: AuthenticatedForumIndexRoute,
   AuthenticatedLinearAppsIndexRoute: AuthenticatedLinearAppsIndexRoute,
   AuthenticatedMcpServersIndexRoute: AuthenticatedMcpServersIndexRoute,
   AuthenticatedModelProvidersIndexRoute: AuthenticatedModelProvidersIndexRoute,
@@ -1589,6 +1590,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTelegramChannelsIndexRoute:
     AuthenticatedTelegramChannelsIndexRoute,
   AuthenticatedAgentsNameEditRoute: AuthenticatedAgentsNameEditRoute,
+  AuthenticatedAgentsNameLinearRoute: AuthenticatedAgentsNameLinearRoute,
   AuthenticatedAutomationsNameEditRoute: AuthenticatedAutomationsNameEditRoute,
   AuthenticatedButterboxesIdEditRoute: AuthenticatedButterboxesIdEditRoute,
   AuthenticatedCronNameEditRoute: AuthenticatedCronNameEditRoute,

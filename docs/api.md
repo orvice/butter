@@ -77,7 +77,7 @@ display name lives in `display_name` and never participates in lookup.
 
 `agent_id` is **required** wherever an agent is invoked or bound —
 `InvokeAgent`, `StreamAgent`, `ReplySession`, channel / cron / automation
-create-update, forum threads and `InvokeAgentInThread`, the A2A endpoints, and
+create-update, the A2A endpoints, and
 the OpenAI-compatible API. A missing `agent_id` fails with `invalid_argument`
 ("agent_id is required"); an id that matches no agent fails with `not_found` —
 there is never a fallback to the name.
@@ -91,7 +91,7 @@ execution history carries `agent_name` as a display snapshot, and
 `ListAgentInvocations` still accepts a legacy name filter for those
 historical rows.
 
-Consumer records (channels, cron jobs, automations, forum threads) must carry
+Consumer records (channels, cron jobs, automations) must carry
 an `agent_id`; the read-only cutover verifier (`VerifyAgentIDCutover`, also
 run non-fatally at startup) reports any record that still references an agent
 only by legacy name instead of silently rewriting it.
@@ -266,7 +266,7 @@ composite or Workflow root still drives memory for the whole tree.
 
 Every mem0 failure degrades to "no memory" and never fails a turn.
 **Workspace Memory is shared** by every member, entry point (dashboard, API,
-OpenAI-compatible API, AG-UI, A2A, Telegram, cron, automation, forum), and
+OpenAI-compatible API, AG-UI, A2A, Telegram, cron, automation), and
 memory-enabled Agent of the workspace. Anyone who can talk to a
 memory-enabled Agent can therefore influence what the others recall. This
 includes everyone who can reach a Telegram Bot whose Destination has an empty
@@ -532,7 +532,6 @@ The header is required for most methods on these app-facing services:
 | `ChannelService` | **Deprecated.** Legacy generic channels: read and delete only |
 | `AutomationService` | Workspace automation definitions, runs, and step runs |
 | `CronJobService` | Workspace cron jobs and executions |
-| `ForumService` | Workspace forum threads/posts and agent replies |
 | `APITokenService` | Tokens are listed within the selected workspace; only owners/admins create or revoke them |
 | `DaemonService` | Workspace daemon configs, credentials, online daemon/task views |
 | `GitHostService` | Platform Git endpoint allowlist |
@@ -2325,15 +2324,15 @@ workspace. Global admins only; no workspace header required. Reports each
 record that still violates the agent_id contract: missing/invalid/duplicate
 Agent IDs, embedded `sub_agents`, legacy name-based workflow node refs,
 unresolved `child_agent_ids`/workflow refs, `MIGRATION_REQUIRED` lifecycle,
-consumer records (channels, cron jobs, automations, forum threads) without
+consumer records (channels, cron jobs, automations) without
 Agent IDs, and runtime-name conflicts.
 
 **Request:** `{}`
 
 **Response:** `{ "passed": bool, "findings": AgentIDCutoverFinding[] }` —
 each finding carries `workspace_id`, a machine-readable `check`,
-`entity_kind` (`agent`, `channel`, `cron_job`, `automation`,
-`forum_thread`), the offending `entity` identifier, and a human-readable
+`entity_kind` (`agent`, `channel`, `cron_job`, `automation`), the offending
+`entity` identifier, and a human-readable
 `detail`.
 
 The migration-era RPCs `AssignAgentID`, `GetMigrationReadiness`, and
@@ -3165,8 +3164,44 @@ POST /api/agents.v1.ModelProviderService/DeleteModelProvider
 | `type` | string | Provider backend, e.g. `gemini` or `openai` |
 | `api_key` | string | API key or env-injected value |
 | `base_url` | string | Base URL for OpenAI-compatible endpoints |
+| `openai_api` | string | OpenAI providers only: `chat_completions` or `responses`; empty/unset preserves Chat Completions |
 | `models` | ModelConfig[] | Models served by this provider |
 | `workspace_id` | string | Owning workspace |
+
+Both OpenAI protocols use ADK's native `model/openaimodel` adapter. The
+selection applies to every model in this provider: `chat_completions` sends
+`POST {base_url}/chat/completions`, while `responses` sends
+`POST {base_url}/responses`. For OpenAI itself the base URL is normally
+`https://api.openai.com/v1`. The endpoint and model must support the selected
+API, including any images or tools being used; Butter does not automatically
+probe or fall back to a different protocol after an error.
+
+For example, an opt-in Responses provider can be created with:
+
+```json
+{
+  "model_provider": {
+    "name": "openai-responses",
+    "type": "openai",
+    "openai_api": "responses",
+    "base_url": "https://api.openai.com/v1",
+    "api_key": "<provider-key>",
+    "models": [{ "name": "gpt-4o", "alias": "responses-model" }]
+  }
+}
+```
+
+Existing records without `openai_api` require no migration and keep Chat
+Completions. Unknown values, and any non-empty `openai_api` on a non-OpenAI
+provider (including `gemini`), return `invalid_argument` before persistence or
+runtime reload. Create/Get/List/Update round-trip the field. A successful
+update reloads future turns and invalidates model-override runner caches;
+session history remains in place. A failed runtime reload rolls the provider
+configuration back. If models on one endpoint need different APIs, configure
+separate providers with distinct model aliases (especially when they share an
+actual Model ID). Alias-based model overrides retain the selected provider's
+endpoint, credentials and API. This setting changes outbound model requests, not Butter's
+inbound OpenAI-compatible API; it does not add a `/responses` HTTP handler.
 
 | ModelConfig | Type | Description |
 |-------|------|-------------|
@@ -3469,7 +3504,9 @@ retry; `400` means the payload can never be processed.
 
 ### Linear services
 
-Linear Agent Sessions are an entry point for any Agent type (ADR-0015). A
+Linear Agent Sessions are an entry point for any Agent type (ADR-0015). The
+administrator runbook, verification measurements and troubleshooting live in
+[linear-agent-onboarding.md](linear-agent-onboarding.md). A
 **Linear App** is one Linear OAuth application registered in one workspace
 and routed to exactly one Agent. Its app user is that Agent's identity in
 Linear: people delegate an issue to it or mention it, and the routed Agent
@@ -3542,9 +3579,15 @@ naming the App IDs).
 Statuses: `QUEUED` (a follow-up waiting behind the session's turn),
 `RECEIVED`, `PROCESSING`, `READY_TO_DELIVER`, `SUCCEEDED`, `FAILED`,
 `FAILED_UNCERTAIN`, `CANCELLED` (stopped by the user, or discarded by a stop
-while queued). Records expire after 30 days. As with Telegram there is **no
-rerun action**: `FAILED_UNCERTAIN` means the Agent may have run tools
-(ADR-0009).
+while queued). Records expire after 30 days and listings are capped at 200,
+so they are evidence of a read window, not a health signal. The dashboard
+labels a "last successful run" only for a record of the current App and
+Installation and the current Agent that is `SUCCEEDED`, carries an
+invocation ID, and has delivered its reply; anything else is reported as
+"not observed in the current record range" or by its concrete failure. As
+with Telegram there is **no rerun action**: `FAILED_UNCERTAIN` means the
+Agent may have run tools (ADR-0009). `ResendLinearReply` posts a persisted
+reply and never invokes the Agent.
 
 #### Linear webhook
 
@@ -3563,13 +3606,19 @@ Public (no session, no workspace header); the workspace comes from the App.
 | Signature missing or wrong | `401` |
 | Malformed JSON | `400` |
 | `webhookTimestamp` more than ±60 s off | `401` |
-| Not an `AgentSessionEvent`, App not inbound-enabled, or organization not installed | `200` (ignored) |
+| Not an `AgentSessionEvent`, an `AgentSessionEvent` whose `action` is neither `created` nor `prompted`, App not inbound-enabled, or organization not installed | `200` (ignored) |
 | Accepted, or a duplicate delivery | `200` |
 | Queue or credential failure | `503` (Linear redelivers) |
 
 Deliveries are deduplicated by `Linear-Delivery`, or by the SHA-256 of the
 raw body when the header is missing. An event without a top-level
-`organizationId` resolves to the App's only installation.
+`organizationId` resolves to the App's only installation. A rejected
+signature or stale timestamp writes nothing, so a genuine retry of the same
+delivery is still accepted afterwards.
+
+`200` covers three different outcomes: accepted, duplicate, and deliberately
+ignored. Use a processing record (or the debug log) to tell them apart; the
+response body carries `decision`.
 
 #### Linear OAuth callback
 
@@ -3956,7 +4005,7 @@ auto-generation from overwriting user-chosen names.
 
 Manages workspace-scoped automation workflows. An automation has one trigger,
 optional conditions, ordered steps, and an execution policy. Manual and schedule
-triggers execute in the current implementation; webhook/forum/channel/daemon
+triggers execute in the current implementation; webhook/channel/daemon
 trigger shapes are reserved for follow-up event routing.
 
 #### ListAutomations
@@ -4000,7 +4049,7 @@ resolved at execution time against the same roots conditions read — `payload`
 and `steps.<name>` (the parsed output of every earlier step; an invoke_agent
 step exposes `steps.<name>.response`). Templated fields: `invoke_agent.input`,
 `call_webhook.url` / `payload_json` / header values, `send_notify_group.title`
-/ `message`, and `create_forum_post.body`. Inside `payload_json`, use the
+/ `message`. Inside `payload_json`, use the
 `{{ selector | json }}` filter so string values stay valid JSON. A placeholder
 whose selector resolves to nothing fails the step explicitly.
 
@@ -4138,11 +4187,11 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | enum | `MANUAL`, `SCHEDULE`, plus reserved `WEBHOOK`, `FORUM_EVENT`, `CHANNEL_EVENT`, `DAEMON_EVENT` |
+| `type` | enum | `MANUAL`, `SCHEDULE`, plus reserved `WEBHOOK`, `CHANNEL_EVENT`, `DAEMON_EVENT` |
 | `schedule.schedule` | string | Cron expression or predefined schedule for schedule triggers |
 | `schedule.timezone` | string | IANA timezone; defaults to UTC |
 | `webhook.token` | string | Reserved stable token for webhook routing |
-| `event.event_type` | string | Reserved event kind such as `forum.post.created` |
+| `event.event_type` | string | Reserved event kind such as `daemon.task.failed` |
 | `event.filters` | map\<string,string\> | Reserved event filters |
 
 #### AutomationCondition Object
@@ -4158,11 +4207,10 @@ POST /api/agents.v1.AutomationService/ListAutomationStepRuns
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Stable step name recorded in step-run history |
-| `type` | enum | `INVOKE_AGENT`, `CALL_WEBHOOK`, `SEND_NOTIFY_GROUP`, `CREATE_FORUM_POST` |
+| `type` | enum | `INVOKE_AGENT`, `CALL_WEBHOOK`, `SEND_NOTIFY_GROUP` |
 | `invoke_agent` | object | `agent_id` (**required**), `input`, optional `model_override`. `agent_id` is validated against the workspace on write and the resolved runtime name is stamped into `agent_name` for display; legacy `agent_name` is not accepted as an input, and an unknown `agent_id` fails validation |
 | `call_webhook` | object | `url`, `method`, `payload_json`, `headers` |
 | `send_notify_group` | object | `notify_group_name`, `title`, `message` |
-| `create_forum_post` | object | `thread_id`, `body` |
 | `policy` | AutomationPolicy | Optional step-level overrides |
 
 #### AutomationPolicy Object
@@ -4897,31 +4945,6 @@ POST /api/agents.v1.WorkspaceService/RemoveWorkspaceMember
 
 ---
 
-### ForumService
-
-Manages forum threads and posts within a workspace. Requires `X-Workspace-ID`.
-
-| RPC | Path | Notes |
-|-----|------|-------|
-| `ListThreads` | `POST /api/agents.v1.ForumService/ListThreads` | Paginated; filter by label |
-| `ListThreadLabels` | `POST /api/agents.v1.ForumService/ListThreadLabels` | Labels in use across threads |
-| `GetThread` | `POST /api/agents.v1.ForumService/GetThread` | Includes posts |
-| `CreateThread` | `POST /api/agents.v1.ForumService/CreateThread` | Creates thread with optional initial post |
-| `UpdateThread` | `POST /api/agents.v1.ForumService/UpdateThread` | Updates title/labels |
-| `DeleteThread` | `POST /api/agents.v1.ForumService/DeleteThread` | Deletes thread and all posts |
-| `CreatePost` | `POST /api/agents.v1.ForumService/CreatePost` | Appends a post to a thread |
-| `DeletePost` | `POST /api/agents.v1.ForumService/DeletePost` | Deletes a single post |
-| `InvokeAgentInThread` | `POST /api/agents.v1.ForumService/InvokeAgentInThread` | Invokes an agent in thread context |
-
-Agents are referenced by Agent ID throughout: `ForumThread.agent_ids` and
-`ForumPost.author_agent_id` carry the immutable IDs. Create/Update thread take
-`agent_ids` and `InvokeAgentInThread` **requires** `agent_id`; `agent_names` is
-no longer an input. The service resolves each id, stamps the runtime name into
-the read-only `agent_names` / `agent_name` output fields, and skips any id that
-does not resolve.
-
----
-
 ### APITokenService
 
 Manages API bearer tokens. The plaintext secret is only returned at create time; subsequent reads expose the prefix only. Each token is scoped to one workspace (taken from `X-Workspace-ID` at create time); authentication automatically scopes the request to that workspace. A token is not tied to the person who made it and acts for the whole workspace — it reaches every session there ([Session access](#session-access)) — so `CreateAPIToken` and `RevokeAPIToken` require a workspace owner or admin (or a global admin) and answer `permission_denied` to members; any member may list tokens. A request authenticated by a token cannot mint or revoke tokens.
@@ -5172,6 +5195,10 @@ server holds (#339).
 | `score` | double | Relevance, on search results only |
 
 ---
+
+### WorkStationService / WorkStationHostService (four-provider preview)
+
+The authenticated workspace-scoped `/api/agents.v1.WorkStationService/` exposes connection create/update/delete/get/test/discovery/selection, durable Refresh, local ListItems/GetItem and searchable paginated ListFilterOptions. Connections select github/gitlab/linear/plane; GitLab MERGE_REQUEST is distinct from GitHub PULL_REQUEST. Plane adds an explicit external workspace slug. Only workspace owners and global admins manage connections; workspace admins and members read and refresh. Readable messages never contain credentials. Updates use `expected_revision`; optional `api_key` means absent=keep, nonempty=replace, empty=clear and hide. Responses use `Cache-Control: no-store`. WorkStationHostService List/Get exposes approved Plane hosts to authenticated callers; mutations require global admin and revision CAS. Existing GitHostService remains the registry for GitHub/GitLab. Scope health includes scan progress, last full reconciliation and stale/partial status; existing protobuf field numbers remain compatible. See [the preview RPC/storage and acceptance contract](work-station.md). Real source-platform and deployed two-Pod acceptance is still BLOCKED.
 
 ## Error Handling
 
