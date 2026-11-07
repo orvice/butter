@@ -1,18 +1,18 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useId, type ReactNode } from 'react'
 import {
+  Card,
+  Column,
+  Divider,
+  Row as StandardRow,
   createComponentImplementation,
   type ReactComponentImplementation,
 } from '@a2ui/react/v0_9'
 import {
   ButtonApi,
-  CardApi,
   Catalog,
   ChoicePickerApi,
-  ColumnApi,
   CommonSchemas,
-  DividerApi,
-  RowApi,
   TextApi,
   TextFieldApi,
 } from '@a2ui/web_core/v0_9'
@@ -23,17 +23,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { CATALOG_ID } from './protocol'
+import styles from './surface.module.css'
 
-// The butter-basic-v1 catalog, rendered with the dashboard's own components.
-// Names and shapes follow A2UI's basic catalog where one exists; KeyValue and
-// Status are butter additions for result cards. Schemas are derived from the
-// renderer's own component APIs so they share its zod instance. The server
-// validates every model-produced message before it is sent
-// (internal/a2ui/catalog.go); models may only use the read-only components,
-// while TextField, ChoicePicker and Button appear only in server-built forms.
+// The butter-basic-v1 catalog reuses A2UI's standard layout components, themed
+// by surface.module.css. Butter keeps plain Text, KeyValue/Status and its form
+// controls for the read-only card policy and server-owned submission state.
+// Schemas share the renderer's zod instance. The server validates every model
+// message (internal/a2ui/catalog.go); only server-built forms contain inputs
+// or actions. Register implementations explicitly, not the whole basicCatalog,
+// so importing a standard component never expands that allowlist or functions.
 
 // FormState is what a form surface's inputs need beyond their A2UI props:
 // the submission status and the per-field errors to show.
@@ -48,62 +48,24 @@ export const FormStateContext = createContext<FormState | null>(null)
 const text = (v: unknown): string =>
   typeof v === 'string' ? v : v == null ? '' : String(v)
 
-const justifyClass: Record<string, string> = {
-  start: 'justify-start',
-  center: 'justify-center',
-  end: 'justify-end',
-  spaceBetween: 'justify-between',
-  spaceAround: 'justify-around',
-  spaceEvenly: 'justify-evenly',
-  stretch: 'justify-stretch',
-}
-const alignClass: Record<string, string> = {
-  start: 'items-start',
-  center: 'items-center',
-  end: 'items-end',
-  stretch: 'items-stretch',
-}
-
-function childIds(children: unknown): string[] {
-  if (!Array.isArray(children)) return []
-  return children
-    .map((c) => (typeof c === 'string' ? c : (c as { id?: string })?.id))
-    .filter((id): id is string => !!id)
-}
-
-const Column = createComponentImplementation(
-  ColumnApi,
-  ({ props, buildChild }) => (
-    <div
-      className={cn(
-        'flex flex-col gap-2',
-        justifyClass[props.justify ?? 'start'],
-        alignClass[props.align ?? 'stretch']
-      )}
-    >
-      {childIds(props.children).map((id) => (
-        <FragmentWithKey key={id}>{buildChild(id)}</FragmentWithKey>
-      ))}
+// Official Row deliberately does not wrap. Keep Butter's responsive wrapping
+// without duplicating its bindings, child resolution or alignment rules. Both
+// SDK render paths use the same presentation-only wrapper (display: contents).
+const StandardRowView = StandardRow.view
+const Row: ReactComponentImplementation = {
+  ...StandardRow,
+  render: (props) => (
+    <div className={styles.row} data-a2ui-layout='row'>
+      <StandardRow.render {...props} />
     </div>
-  )
-)
-
-const Row = createComponentImplementation(RowApi, ({ props, buildChild }) => (
-  <div
-    className={cn(
-      'flex flex-row flex-wrap gap-3',
-      justifyClass[props.justify ?? 'start'],
-      alignClass[props.align ?? 'stretch']
-    )}
-  >
-    {childIds(props.children).map((id) => (
-      <FragmentWithKey key={id}>{buildChild(id)}</FragmentWithKey>
-    ))}
-  </div>
-))
-
-function FragmentWithKey({ children }: { children: ReactNode }) {
-  return <>{children}</>
+  ),
+  view: StandardRowView
+    ? (props) => (
+        <div className={styles.row} data-a2ui-layout='row'>
+          <StandardRowView {...props} />
+        </div>
+      )
+    : undefined,
 }
 
 const textVariantClass: Record<string, string> = {
@@ -135,18 +97,6 @@ const Text = createComponentImplementation(TextApi, ({ props }) => {
     </span>
   )
 })
-
-const Card = createComponentImplementation(CardApi, ({ props, buildChild }) => (
-  <div className='rounded-lg border border-border bg-card p-3 text-card-foreground shadow-xs'>
-    {props.child ? buildChild(props.child) : null}
-  </div>
-))
-
-const Divider = createComponentImplementation(DividerApi, ({ props }) => (
-  <Separator
-    orientation={props.axis === 'vertical' ? 'vertical' : 'horizontal'}
-  />
-))
 
 const KeyValueApi = {
   name: 'KeyValue',
