@@ -85,7 +85,8 @@ for (const width of [1100, 390]) {
     // implementation. The tokens supply the dashboard's compact spacing.
     const column = card.locator(':scope > div')
     const row = column.locator('[data-a2ui-layout="row"] > div')
-    const divider = column.locator(':scope > div').nth(1)
+    // The divider is the column's direct div child that is not the Row shell.
+    const divider = column.locator(':scope > div:not([data-a2ui-layout])')
     await expect(column).toHaveCSS('flex-direction', 'column')
     await expect(column).toHaveCSS('gap', '8px')
     await expect(row).toHaveCSS('flex-direction', 'row')
@@ -99,10 +100,19 @@ for (const width of [1100, 390]) {
     await expect(card).toHaveCSS('margin', '0px')
 
     const backgrounds: string[] = []
+    const schemes: string[] = []
     for (const dark of [false, true]) {
       await page.evaluate((dark) => {
         document.documentElement.classList.toggle('dark', dark)
       }, dark)
+      // The SDK's default sheet declares `color-scheme: light dark` on :root
+      // once its components mount. Native controls (date/time pickers, select
+      // popups) must follow the app theme, so theme.css has to win.
+      schemes.push(
+        await page.evaluate(
+          () => getComputedStyle(document.documentElement).colorScheme
+        )
+      )
       const theme = await card.evaluate((element) => {
         const probe = document.createElement('div')
         probe.style.backgroundColor = 'var(--card)'
@@ -129,6 +139,7 @@ for (const width of [1100, 390]) {
       backgrounds.push(theme.background)
     }
     expect(backgrounds[0]).not.toBe(backgrounds[1])
+    expect(schemes).toEqual(['light', 'dark'])
 
     // A long unbroken value must not escape its unweighted column or card on
     // mobile. Checking the surface (not the page's hidden overflow) catches it.

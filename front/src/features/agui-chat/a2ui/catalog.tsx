@@ -50,20 +50,30 @@ const text = (v: unknown): string =>
 
 // Official Row deliberately does not wrap. Keep Butter's responsive wrapping
 // without duplicating its bindings, child resolution or alignment rules. Both
-// SDK render paths use the same presentation-only wrapper (display: contents).
+// SDK render paths get the same presentation-only shell (display: contents).
+// The `view` guard is only a type guard: 0.12.0's built-ins always carry one,
+// and if an upgrade drops it the surface falls back to `render`, which wraps.
+function RowShell({ children }: { children: ReactNode }) {
+  return (
+    <div className={styles.row} data-a2ui-layout='row'>
+      {children}
+    </div>
+  )
+}
+
 const StandardRowView = StandardRow.view
 const Row: ReactComponentImplementation = {
   ...StandardRow,
   render: (props) => (
-    <div className={styles.row} data-a2ui-layout='row'>
+    <RowShell>
       <StandardRow.render {...props} />
-    </div>
+    </RowShell>
   ),
   view: StandardRowView
     ? (props) => (
-        <div className={styles.row} data-a2ui-layout='row'>
+        <RowShell>
           <StandardRowView {...props} />
-        </div>
+        </RowShell>
       )
     : undefined,
 }
