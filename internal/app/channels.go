@@ -76,7 +76,9 @@ import (
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
 	planedeliverymongo "go.orx.me/apps/butter/internal/repo/planedelivery/mongo"
+	planediagfactory "go.orx.me/apps/butter/internal/repo/planeproduction/mongo"
 	planedeliveryrepo "go.orx.me/apps/butter/internal/runtime/plane"
+	planediagnosticrepo "go.orx.me/apps/butter/internal/runtime/plane"
 
 	planememory "go.orx.me/apps/butter/internal/repo/plane/memory"
 	planemongo "go.orx.me/apps/butter/internal/repo/plane/mongo"
@@ -174,6 +176,8 @@ type BootstrapResult struct {
 	PlaneProcessingRepo    planeprocessingrepo.Repository
 	PlaneInstallStateRepo  planestaterepo.Repository
 	PlaneDeliveryStore     planedeliveryrepo.DeliveryStore
+	PlaneProgressStore     planediagnosticrepo.ProgressSink
+	PlaneDiagnosticStore   planediagnosticrepo.DiagnosticStore
 	PlaneActivityClient    planedeliveryrepo.ActivityClient
 	PlaneWorker            *planedeliveryrepo.Worker
 	PlaneSettingRepo       planesettingrepo.Repository
@@ -644,6 +648,10 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	if err := planeDeliveryStore.EnsureIndexes(ctx); err != nil {
 		return nil, err
 	}
+	stores, err := planediagfactory.New(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	return &BootstrapResult{
 		RunnerSvc:              runnerSvc,
 		SessionSvc:             sessionSvc,
@@ -687,6 +695,8 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LinearProcessingRepo:   linearProcessingRepo,
 		PlaneRepo:              planeRepo,
 		PlaneDeliveryStore:     planeDeliveryStore,
+		PlaneProgressStore:     stores.Progress,
+		PlaneDiagnosticStore:   stores.Diagnostics,
 
 		PlaneProcessingRepo:   planeProcessingRepo,
 		PlaneInstallStateRepo: planeInstallStateRepo,
