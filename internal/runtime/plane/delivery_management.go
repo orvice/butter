@@ -1,6 +1,9 @@
 package plane
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 type DeliveryManagement struct {
 	publisher *DurablePublisher
@@ -34,6 +37,30 @@ func (m *DeliveryManagement) List(ctx context.Context) ([]DeliveryView, error) {
 		out = append(out, deliveryView(r))
 	}
 	return out, nil
+}
+func (m *DeliveryManagement) ListScoped(ctx context.Context, workspace, app string) ([]DeliveryView, error) {
+	rows, err := m.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := rows[:0]
+	for _, v := range rows {
+		r, e := m.store.Get(ctx, v.Key)
+		if e == nil && r.WorkspaceID == workspace && (app == "" || r.AppID == app) {
+			out = append(out, v)
+		}
+	}
+	return out, nil
+}
+func (m *DeliveryManagement) GetScoped(ctx context.Context, workspace, key string) (DeliveryView, error) {
+	r, err := m.store.Get(ctx, key)
+	if err != nil {
+		return DeliveryView{}, err
+	}
+	if r.WorkspaceID != workspace {
+		return DeliveryView{}, errors.New("delivery not found")
+	}
+	return deliveryView(r), nil
 }
 func (m *DeliveryManagement) Get(ctx context.Context, key string) (DeliveryView, error) {
 	r, err := m.store.Get(ctx, key)

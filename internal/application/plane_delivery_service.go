@@ -22,10 +22,11 @@ func (s *PlaneAppServiceServer) deliveryReady(ctx context.Context) (string, erro
 	return ws, nil
 }
 func (s *PlaneAppServiceServer) ListPlaneDeliveries(ctx context.Context, _ *connect.Request[agentsv1.ListPlaneDeliveriesRequest]) (*connect.Response[agentsv1.ListPlaneDeliveriesResponse], error) {
-	if _, err := s.deliveryReady(ctx); err != nil {
+	ws, err := s.deliveryReady(ctx)
+	if err != nil {
 		return nil, err
 	}
-	rows, err := s.delivery.List(ctx)
+	rows, err := s.delivery.ListScoped(ctx, ws, "")
 	if err != nil {
 		return nil, connectx.InternalWith(err)
 	}
@@ -36,23 +37,28 @@ func (s *PlaneAppServiceServer) ListPlaneDeliveries(ctx context.Context, _ *conn
 	return connect.NewResponse(&agentsv1.ListPlaneDeliveriesResponse{Deliveries: out}), nil
 }
 func (s *PlaneAppServiceServer) GetPlaneDelivery(ctx context.Context, req *connect.Request[agentsv1.GetPlaneDeliveryRequest]) (*connect.Response[agentsv1.GetPlaneDeliveryResponse], error) {
-	if _, err := s.deliveryReady(ctx); err != nil {
+	ws, err := s.deliveryReady(ctx)
+	if err != nil {
 		return nil, err
 	}
-	r, err := s.delivery.Get(ctx, req.Msg.GetKey())
+	r, err := s.delivery.GetScoped(ctx, ws, req.Msg.GetKey())
 	if err != nil {
 		return nil, connectx.NotFound(err.Error())
 	}
 	return connect.NewResponse(&agentsv1.GetPlaneDeliveryResponse{Delivery: &agentsv1.PlaneDelivery{Key: r.Key, Status: string(r.Status), Attempts: int32(r.Attempts), LastError: r.LastError, UpdatedAt: r.UpdatedAt, OwnerConfirmed: r.OwnerConfirmed}}), nil
 }
 func (s *PlaneAppServiceServer) RetryPlaneDelivery(ctx context.Context, req *connect.Request[agentsv1.RetryPlaneDeliveryRequest]) (*connect.Response[agentsv1.RetryPlaneDeliveryResponse], error) {
-	if _, err := s.deliveryReady(ctx); err != nil {
+	ws, err := s.deliveryReady(ctx)
+	if err != nil {
 		return nil, err
+	}
+	if _, err := s.delivery.GetScoped(ctx, ws, req.Msg.GetKey()); err != nil {
+		return nil, connectx.NotFound(err.Error())
 	}
 	if err := s.delivery.ConfirmRetry(ctx, req.Msg.GetKey(), req.Msg.GetOwner()); err != nil {
 		return nil, connect.NewError(connect.CodePermissionDenied, err)
 	}
-	r, err := s.delivery.Get(ctx, req.Msg.GetKey())
+	r, err := s.delivery.GetScoped(ctx, ws, req.Msg.GetKey())
 	if err != nil {
 		return nil, connectx.NotFound(err.Error())
 	}

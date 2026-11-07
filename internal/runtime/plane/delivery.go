@@ -34,6 +34,9 @@ type DeliveryAttempt struct {
 	UpdatedAt      time.Time
 	ClaimedAt      *time.Time
 	OwnerConfirmed bool
+	WorkspaceID    string
+	AppID          string
+	InstallationID string
 }
 type DeliveryStore interface {
 	Get(context.Context, string) (*DeliveryAttempt, error)
@@ -79,10 +82,19 @@ func (p *DurablePublisher) PublishReply(ctx context.Context, e *Event, reply str
 		return ErrPermanentDelivery
 	}
 	if row == nil {
-		row = &DeliveryAttempt{Key: key, Event: e, Reply: reply}
+		row = &DeliveryAttempt{Key: key, Event: e, Reply: reply, WorkspaceID: e.WorkspaceID, AppID: e.AppID, InstallationID: e.InstallationID}
 	}
 	if row.Event == nil {
 		row.Event = e
+	}
+	if row.WorkspaceID == "" {
+		row.WorkspaceID = e.WorkspaceID
+	}
+	if row.AppID == "" {
+		row.AppID = e.AppID
+	}
+	if row.InstallationID == "" {
+		row.InstallationID = e.InstallationID
 	}
 	if row.Reply == "" {
 		row.Reply = reply
