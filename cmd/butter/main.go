@@ -29,6 +29,8 @@ func main() {
 
 	channelCtx, channelCancel := context.WithCancel(context.Background())
 
+	var bootstrapResult *butterapp.BootstrapResult
+
 	teardown := sync.OnceValue(func() error {
 		channelCancel()
 		// Stop the Detached AG-UI runs and wait for each in-flight run to
@@ -42,8 +44,10 @@ func main() {
 		if err := handlers.ShutdownWorkStation(shutdownCtx); err != nil {
 			slog.Warn("work station shutdown incomplete", "err", err)
 		}
-		if err := handlers.ShutdownAGUI(shutdownCtx); err != nil {
-			slog.Warn("detached AG-UI runs shutdown incomplete", "err", err)
+		if bootstrapResult != nil {
+			if err := bootstrapResult.Close(shutdownCtx); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -58,11 +62,12 @@ func main() {
 				if err := handlers.SeedConfig(channelCtx, cfg); err != nil {
 					return err
 				}
-				result, err := butterapp.StartChannels(channelCtx, cfg, handlers.AgentRepo(), handlers.ChannelRepo(), handlers.NotifyGroupRepo(), daemonRegistry)
+				var err error
+				bootstrapResult, err = butterapp.StartChannels(channelCtx, cfg, handlers.AgentRepo(), handlers.ChannelRepo(), handlers.NotifyGroupRepo(), daemonRegistry)
 				if err != nil {
 					return err
 				}
-				handlers.Wire(result)
+				handlers.Wire(bootstrapResult)
 
 				return nil
 			},

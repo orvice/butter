@@ -178,6 +178,7 @@ type BootstrapResult struct {
 	PlaneDeliveryStore     planedeliveryrepo.DeliveryStore
 	PlaneProgressStore     planediagnosticrepo.ProgressSink
 	PlaneDiagnosticStore   planediagnosticrepo.DiagnosticStore
+	PlaneResources         *planedeliveryrepo.PlaneResourceOwner
 	PlaneActivityClient    planedeliveryrepo.ActivityClient
 	PlaneWorker            *planedeliveryrepo.Worker
 	PlaneSettingRepo       planesettingrepo.Repository
@@ -195,6 +196,22 @@ type BootstrapResult struct {
 	SessionWSStore        application.WorkspaceSessionStore
 	SessionReadStore      application.SessionReadStore
 	ChatTitleModel        string
+}
+
+func (r *BootstrapResult) Close(ctx context.Context) error {
+	if r == nil {
+		return nil
+	}
+	if r.PlaneResources != nil {
+		r.PlaneResources.Stop()
+	}
+	if r.Redis != nil {
+		_ = r.Redis.Close()
+	}
+	if r.MongoDB != nil {
+		return r.MongoDB.Client().Disconnect(ctx)
+	}
+	return nil
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
