@@ -75,6 +75,8 @@ type Handlers struct {
 	linearAppSvcServer       *application.LinearAppServiceServer
 	linearAdminSvcServer     *application.LinearAdminServiceServer
 	linearProcSvcServer      *application.LinearProcessingServiceServer
+	planeAppSvcServer        *application.PlaneAppServiceServer
+	planeAdminSvcServer      *application.PlaneAdminServiceServer
 	linearReceiver           linearReceiverHolder
 	linearWorker             *linearruntime.Worker
 	tgReceiver               atomic.Value // *telegram.Receiver
@@ -574,6 +576,24 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if h.linearAdminSvcServer != nil && result.LinearSettingRepo != nil {
 		h.linearAdminSvcServer.SetRepo(result.LinearSettingRepo)
 	}
+	// Plane Apps (spec #487, ticket #497). #497 is registration only: no
+	// OAuth install state and no inbound queue are wired yet, so there is no
+	// callback or webhook route that could create an App. Secrets use the
+	// same database-backed master key as every other credential.
+	if result.PlaneRepo != nil {
+		planeKeyring := secretbox.NewKeyring(result.CryptoKeyRepo)
+		if h.planeAppSvcServer != nil {
+			h.planeAppSvcServer.SetRepo(result.PlaneRepo)
+			h.planeAppSvcServer.SetKeyring(planeKeyring)
+			h.planeAppSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+			h.planeAppSvcServer.SetProfileProvider(planeProfileProvider(h.cfg))
+		}
+		h.agentSvcServer.SetPlaneGuard(application.NewPlaneReferenceGuard(result.PlaneRepo))
+	}
+	if h.planeAdminSvcServer != nil && result.PlaneSettingRepo != nil {
+		h.planeAdminSvcServer.SetRepo(result.PlaneSettingRepo)
+		h.planeAdminSvcServer.SetProfileProvider(planeProfileProvider(h.cfg))
+	}
 	if result.WorkspaceRepo != nil {
 		if h.tgChannelSvcServer != nil {
 			h.tgChannelSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
@@ -784,6 +804,11 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	linearAdminConnectPath, linearAdminConnectHandler := agentsv1connect.NewLinearAdminServiceHandler(linearAdminSvcServer, connectOpts...)
 	linearProcSvcServer := application.NewLinearProcessingServiceServer(nil)
 	linearProcConnectPath, linearProcConnectHandler := agentsv1connect.NewLinearProcessingServiceHandler(linearProcSvcServer, connectOpts...)
+	planeAppSvcServer := application.NewPlaneAppServiceServer(nil)
+	planeAppSvcServer.SetAgentRepo(configStore)
+	planeAppConnectPath, planeAppConnectHandler := agentsv1connect.NewPlaneAppServiceHandler(planeAppSvcServer, connectOpts...)
+	planeAdminSvcServer := application.NewPlaneAdminServiceServer(nil)
+	planeAdminConnectPath, planeAdminConnectHandler := agentsv1connect.NewPlaneAdminServiceHandler(planeAdminSvcServer, connectOpts...)
 	workspaceMCPSvc := workspacemcp.NewService(configStore)
 
 	handlers := &Handlers{
@@ -821,6 +846,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		linearAppSvcServer:       linearAppSvcServer,
 		linearAdminSvcServer:     linearAdminSvcServer,
 		linearProcSvcServer:      linearProcSvcServer,
+		planeAppSvcServer:        planeAppSvcServer,
+		planeAdminSvcServer:      planeAdminSvcServer,
 		workspaceMCPSvc:          workspaceMCPSvc,
 		configStore:              configStore,
 		configRuntime:            configRuntime,
@@ -880,6 +907,8 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 		r.Any("/api"+linearAppConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearAppConnectHandler)))
 		r.Any("/api"+linearAdminConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearAdminConnectHandler)))
 		r.Any("/api"+linearProcConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", linearProcConnectHandler)))
+		r.Any("/api"+planeAppConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", planeAppConnectHandler)))
+		r.Any("/api"+planeAdminConnectPath+"*path", gin.WrapH(http.StripPrefix("/api", planeAdminConnectHandler)))
 
 		// The Telegram callback is public: it authenticates with the
 		// per-Channel secret Telegram echoes, not with a Butter session, and

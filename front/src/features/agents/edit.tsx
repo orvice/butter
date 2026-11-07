@@ -352,11 +352,24 @@ export function AgentEdit() {
         subtitle='Use the guided form for common settings or JSON mode for advanced agent topology.'
         actions={
           data?.agent?.agent_id ? (
-            <Button variant='outline' asChild>
-              <Link to='/agents/$name/linear' params={{ name: data.agent.agent_id }}>
-                Connect Linear
-              </Link>
-            </Button>
+            <div className='flex gap-2'>
+              <Button variant='outline' asChild>
+                <Link
+                  to='/agents/$name/linear'
+                  params={{ name: data.agent.agent_id }}
+                >
+                  Connect Linear
+                </Link>
+              </Button>
+              <Button variant='outline' asChild>
+                <Link
+                  to='/agents/$name/plane'
+                  params={{ name: data.agent.agent_id }}
+                >
+                  Connect Plane
+                </Link>
+              </Button>
+            </div>
           ) : undefined
         }
         breadcrumb={

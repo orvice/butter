@@ -48,6 +48,50 @@ type AppConfig struct {
 	Maintenance    MaintenanceConfig `yaml:"maintenance"`
 	StorageBackend string            `yaml:"storage_backend"` // "mongo" (default) or "memory"
 	WorkStation    WorkStationConfig `yaml:"work_station"`
+	Plane          PlaneConfig       `yaml:"plane"`
+}
+
+// PlaneConfig fixes the one Plane provider profile this deployment registers
+// Apps against (spec #487, ticket #497).
+//
+// The origins are operator configuration, not workspace input, so a tenant can
+// never redirect Plane credentials or callbacks. Empty fields fall back to
+// Plane Cloud only when the profile is the default "cloud" profile; naming
+// another profile without origins is a startup error, not a silent default.
+type PlaneConfig struct {
+	ProfileName    string `yaml:"profile_name"` // default "cloud"
+	APIBaseURL     string `yaml:"api_base_url"`
+	OAuthBaseURL   string `yaml:"oauth_base_url"`
+	WebBaseURL     string `yaml:"web_base_url"`
+	Edition        string `yaml:"edition"`         // "cloud" (default) or "selfhosted"
+	SchemaVerified bool   `yaml:"schema_verified"` // only after #496 confirms the protocol
+}
+
+// WithDefaults fills the Plane Cloud origins for the default profile. It
+// leaves a non-Cloud profile untouched so validation can reject it.
+func (c PlaneConfig) WithDefaults() PlaneConfig {
+	name := strings.TrimSpace(c.ProfileName)
+	if name == "" {
+		name = "cloud"
+	}
+	out := c
+	out.ProfileName = name
+	if name != "cloud" {
+		return out
+	}
+	if strings.TrimSpace(out.APIBaseURL) == "" {
+		out.APIBaseURL = "https://api.plane.so"
+	}
+	if strings.TrimSpace(out.OAuthBaseURL) == "" {
+		out.OAuthBaseURL = "https://api.plane.so"
+	}
+	if strings.TrimSpace(out.WebBaseURL) == "" {
+		out.WebBaseURL = "https://app.plane.so"
+	}
+	if strings.TrimSpace(out.Edition) == "" {
+		out.Edition = "cloud"
+	}
+	return out
 }
 
 type WorkStationConfig struct {

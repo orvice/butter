@@ -56,6 +56,8 @@ import { Route as AuthenticatedModelProvidersIndexRouteImport } from './routes/_
 import { Route as AuthenticatedModelProvidersCreateRouteImport } from './routes/_authenticated/model-providers/create'
 import { Route as AuthenticatedNotifyGroupsIndexRouteImport } from './routes/_authenticated/notify-groups/index'
 import { Route as AuthenticatedNotifyGroupsCreateRouteImport } from './routes/_authenticated/notify-groups/create'
+import { Route as AuthenticatedPlaneAppsIndexRouteImport } from './routes/_authenticated/plane-apps/index'
+import { Route as AuthenticatedPlaneAppsCreateRouteImport } from './routes/_authenticated/plane-apps/create'
 import { Route as AuthenticatedRemoteAgentsIndexRouteImport } from './routes/_authenticated/remote-agents/index'
 import { Route as AuthenticatedRemoteAgentsCreateRouteImport } from './routes/_authenticated/remote-agents/create'
 import { Route as AuthenticatedSessionsIndexRouteImport } from './routes/_authenticated/sessions/index'
@@ -68,6 +70,7 @@ import { Route as AuthenticatedTelegramChannelsCreateRouteImport } from './route
 import { Route as AuthenticatedTelegramDestinationsIdRouteImport } from './routes/_authenticated/telegram-destinations/$id'
 import { Route as AuthenticatedAgentsNameEditRouteImport } from './routes/_authenticated/agents/$name.edit'
 import { Route as AuthenticatedAgentsNameLinearRouteImport } from './routes/_authenticated/agents/$name.linear'
+import { Route as AuthenticatedAgentsNamePlaneRouteImport } from './routes/_authenticated/agents/$name.plane'
 import { Route as AuthenticatedAutomationsNameIndexRouteImport } from './routes/_authenticated/automations/$name.index'
 import { Route as AuthenticatedAutomationsNameEditRouteImport } from './routes/_authenticated/automations/$name.edit'
 import { Route as AuthenticatedButterboxesIdEditRouteImport } from './routes/_authenticated/butterboxes/$id.edit'
@@ -77,6 +80,7 @@ import { Route as AuthenticatedLinearAppsIdEditRouteImport } from './routes/_aut
 import { Route as AuthenticatedMcpServersIdEditRouteImport } from './routes/_authenticated/mcp-servers/$id.edit'
 import { Route as AuthenticatedModelProvidersNameEditRouteImport } from './routes/_authenticated/model-providers/$name.edit'
 import { Route as AuthenticatedNotifyGroupsNameEditRouteImport } from './routes/_authenticated/notify-groups/$name.edit'
+import { Route as AuthenticatedPlaneAppsIdEditRouteImport } from './routes/_authenticated/plane-apps/$id.edit'
 import { Route as AuthenticatedRemoteAgentsIdEditRouteImport } from './routes/_authenticated/remote-agents/$id.edit'
 import { Route as AuthenticatedTelegramChannelsIdIndexRouteImport } from './routes/_authenticated/telegram-channels/$id.index'
 import { Route as authAuthOauthCallbackProviderRouteImport } from './routes/(auth)/auth.oauth.callback.$provider'
@@ -341,6 +345,18 @@ const AuthenticatedNotifyGroupsCreateRoute =
     path: '/notify-groups/create',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPlaneAppsIndexRoute =
+  AuthenticatedPlaneAppsIndexRouteImport.update({
+    id: '/plane-apps/',
+    path: '/plane-apps/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPlaneAppsCreateRoute =
+  AuthenticatedPlaneAppsCreateRouteImport.update({
+    id: '/plane-apps/create',
+    path: '/plane-apps/create',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRemoteAgentsIndexRoute =
   AuthenticatedRemoteAgentsIndexRouteImport.update({
     id: '/remote-agents/',
@@ -413,6 +429,12 @@ const AuthenticatedAgentsNameLinearRoute =
     path: '/agents/$name/linear',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAgentsNamePlaneRoute =
+  AuthenticatedAgentsNamePlaneRouteImport.update({
+    id: '/agents/$name/plane',
+    path: '/agents/$name/plane',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAutomationsNameIndexRoute =
   AuthenticatedAutomationsNameIndexRouteImport.update({
     id: '/automations/$name/',
@@ -465,6 +487,12 @@ const AuthenticatedNotifyGroupsNameEditRoute =
   AuthenticatedNotifyGroupsNameEditRouteImport.update({
     id: '/notify-groups/$name/edit',
     path: '/notify-groups/$name/edit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPlaneAppsIdEditRoute =
+  AuthenticatedPlaneAppsIdEditRouteImport.update({
+    id: '/plane-apps/$id/edit',
+    path: '/plane-apps/$id/edit',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRemoteAgentsIdEditRoute =
@@ -531,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
   '/notify-groups/create': typeof AuthenticatedNotifyGroupsCreateRoute
+  '/plane-apps/create': typeof AuthenticatedPlaneAppsCreateRoute
   '/remote-agents/create': typeof AuthenticatedRemoteAgentsCreateRoute
   '/sessions/detail': typeof AuthenticatedSessionsDetailRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -545,12 +574,14 @@ export interface FileRoutesByFullPath {
   '/mcp-servers/': typeof AuthenticatedMcpServersIndexRoute
   '/model-providers/': typeof AuthenticatedModelProvidersIndexRoute
   '/notify-groups/': typeof AuthenticatedNotifyGroupsIndexRoute
+  '/plane-apps/': typeof AuthenticatedPlaneAppsIndexRoute
   '/remote-agents/': typeof AuthenticatedRemoteAgentsIndexRoute
   '/sessions/': typeof AuthenticatedSessionsIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
   '/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
+  '/agents/$name/plane': typeof AuthenticatedAgentsNamePlaneRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -559,6 +590,7 @@ export interface FileRoutesByFullPath {
   '/mcp-servers/$id/edit': typeof AuthenticatedMcpServersIdEditRoute
   '/model-providers/$name/edit': typeof AuthenticatedModelProvidersNameEditRoute
   '/notify-groups/$name/edit': typeof AuthenticatedNotifyGroupsNameEditRoute
+  '/plane-apps/$id/edit': typeof AuthenticatedPlaneAppsIdEditRoute
   '/remote-agents/$id/edit': typeof AuthenticatedRemoteAgentsIdEditRoute
   '/automations/$name/': typeof AuthenticatedAutomationsNameIndexRoute
   '/telegram-channels/$id/': typeof AuthenticatedTelegramChannelsIdIndexRoute
@@ -603,6 +635,7 @@ export interface FileRoutesByTo {
   '/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
   '/notify-groups/create': typeof AuthenticatedNotifyGroupsCreateRoute
+  '/plane-apps/create': typeof AuthenticatedPlaneAppsCreateRoute
   '/remote-agents/create': typeof AuthenticatedRemoteAgentsCreateRoute
   '/sessions/detail': typeof AuthenticatedSessionsDetailRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -617,12 +650,14 @@ export interface FileRoutesByTo {
   '/mcp-servers': typeof AuthenticatedMcpServersIndexRoute
   '/model-providers': typeof AuthenticatedModelProvidersIndexRoute
   '/notify-groups': typeof AuthenticatedNotifyGroupsIndexRoute
+  '/plane-apps': typeof AuthenticatedPlaneAppsIndexRoute
   '/remote-agents': typeof AuthenticatedRemoteAgentsIndexRoute
   '/sessions': typeof AuthenticatedSessionsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/telegram-channels': typeof AuthenticatedTelegramChannelsIndexRoute
   '/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
   '/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
+  '/agents/$name/plane': typeof AuthenticatedAgentsNamePlaneRoute
   '/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -631,6 +666,7 @@ export interface FileRoutesByTo {
   '/mcp-servers/$id/edit': typeof AuthenticatedMcpServersIdEditRoute
   '/model-providers/$name/edit': typeof AuthenticatedModelProvidersNameEditRoute
   '/notify-groups/$name/edit': typeof AuthenticatedNotifyGroupsNameEditRoute
+  '/plane-apps/$id/edit': typeof AuthenticatedPlaneAppsIdEditRoute
   '/remote-agents/$id/edit': typeof AuthenticatedRemoteAgentsIdEditRoute
   '/automations/$name': typeof AuthenticatedAutomationsNameIndexRoute
   '/telegram-channels/$id': typeof AuthenticatedTelegramChannelsIdIndexRoute
@@ -678,6 +714,7 @@ export interface FileRoutesById {
   '/_authenticated/mcp-servers/create': typeof AuthenticatedMcpServersCreateRoute
   '/_authenticated/model-providers/create': typeof AuthenticatedModelProvidersCreateRoute
   '/_authenticated/notify-groups/create': typeof AuthenticatedNotifyGroupsCreateRoute
+  '/_authenticated/plane-apps/create': typeof AuthenticatedPlaneAppsCreateRoute
   '/_authenticated/remote-agents/create': typeof AuthenticatedRemoteAgentsCreateRoute
   '/_authenticated/sessions/detail': typeof AuthenticatedSessionsDetailRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -692,12 +729,14 @@ export interface FileRoutesById {
   '/_authenticated/mcp-servers/': typeof AuthenticatedMcpServersIndexRoute
   '/_authenticated/model-providers/': typeof AuthenticatedModelProvidersIndexRoute
   '/_authenticated/notify-groups/': typeof AuthenticatedNotifyGroupsIndexRoute
+  '/_authenticated/plane-apps/': typeof AuthenticatedPlaneAppsIndexRoute
   '/_authenticated/remote-agents/': typeof AuthenticatedRemoteAgentsIndexRoute
   '/_authenticated/sessions/': typeof AuthenticatedSessionsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/telegram-channels/': typeof AuthenticatedTelegramChannelsIndexRoute
   '/_authenticated/agents/$name/edit': typeof AuthenticatedAgentsNameEditRoute
   '/_authenticated/agents/$name/linear': typeof AuthenticatedAgentsNameLinearRoute
+  '/_authenticated/agents/$name/plane': typeof AuthenticatedAgentsNamePlaneRoute
   '/_authenticated/automations/$name/edit': typeof AuthenticatedAutomationsNameEditRoute
   '/_authenticated/butterboxes/$id/edit': typeof AuthenticatedButterboxesIdEditRoute
   '/_authenticated/cron/$name/edit': typeof AuthenticatedCronNameEditRoute
@@ -706,6 +745,7 @@ export interface FileRoutesById {
   '/_authenticated/mcp-servers/$id/edit': typeof AuthenticatedMcpServersIdEditRoute
   '/_authenticated/model-providers/$name/edit': typeof AuthenticatedModelProvidersNameEditRoute
   '/_authenticated/notify-groups/$name/edit': typeof AuthenticatedNotifyGroupsNameEditRoute
+  '/_authenticated/plane-apps/$id/edit': typeof AuthenticatedPlaneAppsIdEditRoute
   '/_authenticated/remote-agents/$id/edit': typeof AuthenticatedRemoteAgentsIdEditRoute
   '/_authenticated/automations/$name/': typeof AuthenticatedAutomationsNameIndexRoute
   '/_authenticated/telegram-channels/$id/': typeof AuthenticatedTelegramChannelsIdIndexRoute
@@ -753,6 +793,7 @@ export interface FileRouteTypes {
     | '/mcp-servers/create'
     | '/model-providers/create'
     | '/notify-groups/create'
+    | '/plane-apps/create'
     | '/remote-agents/create'
     | '/sessions/detail'
     | '/settings/appearance'
@@ -767,12 +808,14 @@ export interface FileRouteTypes {
     | '/mcp-servers/'
     | '/model-providers/'
     | '/notify-groups/'
+    | '/plane-apps/'
     | '/remote-agents/'
     | '/sessions/'
     | '/settings/'
     | '/telegram-channels/'
     | '/agents/$name/edit'
     | '/agents/$name/linear'
+    | '/agents/$name/plane'
     | '/automations/$name/edit'
     | '/butterboxes/$id/edit'
     | '/cron/$name/edit'
@@ -781,6 +824,7 @@ export interface FileRouteTypes {
     | '/mcp-servers/$id/edit'
     | '/model-providers/$name/edit'
     | '/notify-groups/$name/edit'
+    | '/plane-apps/$id/edit'
     | '/remote-agents/$id/edit'
     | '/automations/$name/'
     | '/telegram-channels/$id/'
@@ -825,6 +869,7 @@ export interface FileRouteTypes {
     | '/mcp-servers/create'
     | '/model-providers/create'
     | '/notify-groups/create'
+    | '/plane-apps/create'
     | '/remote-agents/create'
     | '/sessions/detail'
     | '/settings/appearance'
@@ -839,12 +884,14 @@ export interface FileRouteTypes {
     | '/mcp-servers'
     | '/model-providers'
     | '/notify-groups'
+    | '/plane-apps'
     | '/remote-agents'
     | '/sessions'
     | '/settings'
     | '/telegram-channels'
     | '/agents/$name/edit'
     | '/agents/$name/linear'
+    | '/agents/$name/plane'
     | '/automations/$name/edit'
     | '/butterboxes/$id/edit'
     | '/cron/$name/edit'
@@ -853,6 +900,7 @@ export interface FileRouteTypes {
     | '/mcp-servers/$id/edit'
     | '/model-providers/$name/edit'
     | '/notify-groups/$name/edit'
+    | '/plane-apps/$id/edit'
     | '/remote-agents/$id/edit'
     | '/automations/$name'
     | '/telegram-channels/$id'
@@ -899,6 +947,7 @@ export interface FileRouteTypes {
     | '/_authenticated/mcp-servers/create'
     | '/_authenticated/model-providers/create'
     | '/_authenticated/notify-groups/create'
+    | '/_authenticated/plane-apps/create'
     | '/_authenticated/remote-agents/create'
     | '/_authenticated/sessions/detail'
     | '/_authenticated/settings/appearance'
@@ -913,12 +962,14 @@ export interface FileRouteTypes {
     | '/_authenticated/mcp-servers/'
     | '/_authenticated/model-providers/'
     | '/_authenticated/notify-groups/'
+    | '/_authenticated/plane-apps/'
     | '/_authenticated/remote-agents/'
     | '/_authenticated/sessions/'
     | '/_authenticated/settings/'
     | '/_authenticated/telegram-channels/'
     | '/_authenticated/agents/$name/edit'
     | '/_authenticated/agents/$name/linear'
+    | '/_authenticated/agents/$name/plane'
     | '/_authenticated/automations/$name/edit'
     | '/_authenticated/butterboxes/$id/edit'
     | '/_authenticated/cron/$name/edit'
@@ -927,6 +978,7 @@ export interface FileRouteTypes {
     | '/_authenticated/mcp-servers/$id/edit'
     | '/_authenticated/model-providers/$name/edit'
     | '/_authenticated/notify-groups/$name/edit'
+    | '/_authenticated/plane-apps/$id/edit'
     | '/_authenticated/remote-agents/$id/edit'
     | '/_authenticated/automations/$name/'
     | '/_authenticated/telegram-channels/$id/'
@@ -1276,6 +1328,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotifyGroupsCreateRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/plane-apps/': {
+      id: '/_authenticated/plane-apps/'
+      path: '/plane-apps'
+      fullPath: '/plane-apps/'
+      preLoaderRoute: typeof AuthenticatedPlaneAppsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plane-apps/create': {
+      id: '/_authenticated/plane-apps/create'
+      path: '/plane-apps/create'
+      fullPath: '/plane-apps/create'
+      preLoaderRoute: typeof AuthenticatedPlaneAppsCreateRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/remote-agents/': {
       id: '/_authenticated/remote-agents/'
       path: '/remote-agents'
@@ -1360,6 +1426,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgentsNameLinearRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agents/$name/plane': {
+      id: '/_authenticated/agents/$name/plane'
+      path: '/agents/$name/plane'
+      fullPath: '/agents/$name/plane'
+      preLoaderRoute: typeof AuthenticatedAgentsNamePlaneRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/automations/$name/': {
       id: '/_authenticated/automations/$name/'
       path: '/automations/$name'
@@ -1421,6 +1494,13 @@ declare module '@tanstack/react-router' {
       path: '/notify-groups/$name/edit'
       fullPath: '/notify-groups/$name/edit'
       preLoaderRoute: typeof AuthenticatedNotifyGroupsNameEditRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plane-apps/$id/edit': {
+      id: '/_authenticated/plane-apps/$id/edit'
+      path: '/plane-apps/$id/edit'
+      fullPath: '/plane-apps/$id/edit'
+      preLoaderRoute: typeof AuthenticatedPlaneAppsIdEditRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/remote-agents/$id/edit': {
@@ -1505,6 +1585,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMcpServersCreateRoute: typeof AuthenticatedMcpServersCreateRoute
   AuthenticatedModelProvidersCreateRoute: typeof AuthenticatedModelProvidersCreateRoute
   AuthenticatedNotifyGroupsCreateRoute: typeof AuthenticatedNotifyGroupsCreateRoute
+  AuthenticatedPlaneAppsCreateRoute: typeof AuthenticatedPlaneAppsCreateRoute
   AuthenticatedRemoteAgentsCreateRoute: typeof AuthenticatedRemoteAgentsCreateRoute
   AuthenticatedSessionsDetailRoute: typeof AuthenticatedSessionsDetailRoute
   AuthenticatedTelegramChannelsCreateRoute: typeof AuthenticatedTelegramChannelsCreateRoute
@@ -1517,11 +1598,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMcpServersIndexRoute: typeof AuthenticatedMcpServersIndexRoute
   AuthenticatedModelProvidersIndexRoute: typeof AuthenticatedModelProvidersIndexRoute
   AuthenticatedNotifyGroupsIndexRoute: typeof AuthenticatedNotifyGroupsIndexRoute
+  AuthenticatedPlaneAppsIndexRoute: typeof AuthenticatedPlaneAppsIndexRoute
   AuthenticatedRemoteAgentsIndexRoute: typeof AuthenticatedRemoteAgentsIndexRoute
   AuthenticatedSessionsIndexRoute: typeof AuthenticatedSessionsIndexRoute
   AuthenticatedTelegramChannelsIndexRoute: typeof AuthenticatedTelegramChannelsIndexRoute
   AuthenticatedAgentsNameEditRoute: typeof AuthenticatedAgentsNameEditRoute
   AuthenticatedAgentsNameLinearRoute: typeof AuthenticatedAgentsNameLinearRoute
+  AuthenticatedAgentsNamePlaneRoute: typeof AuthenticatedAgentsNamePlaneRoute
   AuthenticatedAutomationsNameEditRoute: typeof AuthenticatedAutomationsNameEditRoute
   AuthenticatedButterboxesIdEditRoute: typeof AuthenticatedButterboxesIdEditRoute
   AuthenticatedCronNameEditRoute: typeof AuthenticatedCronNameEditRoute
@@ -1530,6 +1613,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMcpServersIdEditRoute: typeof AuthenticatedMcpServersIdEditRoute
   AuthenticatedModelProvidersNameEditRoute: typeof AuthenticatedModelProvidersNameEditRoute
   AuthenticatedNotifyGroupsNameEditRoute: typeof AuthenticatedNotifyGroupsNameEditRoute
+  AuthenticatedPlaneAppsIdEditRoute: typeof AuthenticatedPlaneAppsIdEditRoute
   AuthenticatedRemoteAgentsIdEditRoute: typeof AuthenticatedRemoteAgentsIdEditRoute
   AuthenticatedAutomationsNameIndexRoute: typeof AuthenticatedAutomationsNameIndexRoute
   AuthenticatedTelegramChannelsIdIndexRoute: typeof AuthenticatedTelegramChannelsIdIndexRoute
@@ -1571,6 +1655,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedModelProvidersCreateRoute:
     AuthenticatedModelProvidersCreateRoute,
   AuthenticatedNotifyGroupsCreateRoute: AuthenticatedNotifyGroupsCreateRoute,
+  AuthenticatedPlaneAppsCreateRoute: AuthenticatedPlaneAppsCreateRoute,
   AuthenticatedRemoteAgentsCreateRoute: AuthenticatedRemoteAgentsCreateRoute,
   AuthenticatedSessionsDetailRoute: AuthenticatedSessionsDetailRoute,
   AuthenticatedTelegramChannelsCreateRoute:
@@ -1585,12 +1670,14 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMcpServersIndexRoute: AuthenticatedMcpServersIndexRoute,
   AuthenticatedModelProvidersIndexRoute: AuthenticatedModelProvidersIndexRoute,
   AuthenticatedNotifyGroupsIndexRoute: AuthenticatedNotifyGroupsIndexRoute,
+  AuthenticatedPlaneAppsIndexRoute: AuthenticatedPlaneAppsIndexRoute,
   AuthenticatedRemoteAgentsIndexRoute: AuthenticatedRemoteAgentsIndexRoute,
   AuthenticatedSessionsIndexRoute: AuthenticatedSessionsIndexRoute,
   AuthenticatedTelegramChannelsIndexRoute:
     AuthenticatedTelegramChannelsIndexRoute,
   AuthenticatedAgentsNameEditRoute: AuthenticatedAgentsNameEditRoute,
   AuthenticatedAgentsNameLinearRoute: AuthenticatedAgentsNameLinearRoute,
+  AuthenticatedAgentsNamePlaneRoute: AuthenticatedAgentsNamePlaneRoute,
   AuthenticatedAutomationsNameEditRoute: AuthenticatedAutomationsNameEditRoute,
   AuthenticatedButterboxesIdEditRoute: AuthenticatedButterboxesIdEditRoute,
   AuthenticatedCronNameEditRoute: AuthenticatedCronNameEditRoute,
@@ -1601,6 +1688,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedModelProvidersNameEditRoute,
   AuthenticatedNotifyGroupsNameEditRoute:
     AuthenticatedNotifyGroupsNameEditRoute,
+  AuthenticatedPlaneAppsIdEditRoute: AuthenticatedPlaneAppsIdEditRoute,
   AuthenticatedRemoteAgentsIdEditRoute: AuthenticatedRemoteAgentsIdEditRoute,
   AuthenticatedAutomationsNameIndexRoute:
     AuthenticatedAutomationsNameIndexRoute,
