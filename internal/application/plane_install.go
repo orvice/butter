@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"go.orx.me/apps/butter/internal/planeapi"
+	authrepo "go.orx.me/apps/butter/internal/repo/auth"
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	planestate "go.orx.me/apps/butter/internal/repo/planestate"
 	"go.orx.me/apps/butter/internal/transport/connectx"
@@ -52,6 +53,10 @@ func (s *PlaneAppServiceServer) BeginPlaneInstall(ctx context.Context, req *conn
 	if e != nil {
 		return nil, e
 	}
+	user, ok := authrepo.UserFromContext(ctx)
+	if !ok || user.GetId() == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authenticated initiating user is required"))
+	}
 	if e = requireWorkspaceManageRole(ctx, s.workspaceRepo, workspaceID, "plane"); e != nil {
 		return nil, e
 	}
@@ -78,7 +83,7 @@ func (s *PlaneAppServiceServer) BeginPlaneInstall(ctx context.Context, req *conn
 	redirect := base + "/api/plane/oauth/callback"
 	ret := sanitizePlaneReturn(req.Msg.GetReturnUrl(), base, app.GetId())
 	now := s.planeNow()
-	if e = s.installStates.Create(ctx, &planestate.Entry{State: state, WorkspaceID: workspaceID, AppID: app.GetId(), ClientID: app.GetClientId(), UserID: "", RedirectURI: redirect, ReturnURL: ret, CreatedAt: now, ExpiresAt: now.Add(planeInstallTTL)}); e != nil {
+	if e = s.installStates.Create(ctx, &planestate.Entry{State: state, WorkspaceID: workspaceID, AppID: app.GetId(), ClientID: app.GetClientId(), UserID: user.GetId(), RedirectURI: redirect, ReturnURL: ret, CreatedAt: now, ExpiresAt: now.Add(planeInstallTTL)}); e != nil {
 		return nil, connectx.InternalWith(e)
 	}
 	log.FromContext(ctx).Info("plane install started", "workspace_id", workspaceID, "app_id", app.GetId())

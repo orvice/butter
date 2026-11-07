@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"go.orx.me/apps/butter/internal/planeapi"
+	authrepo "go.orx.me/apps/butter/internal/repo/auth"
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"net/url"
@@ -19,6 +20,10 @@ func (s *PlaneAppServiceServer) CompletePlaneInstall(ctx context.Context, state,
 	fail := func(reason string, err error) string {
 		log.FromContext(ctx).Warn("plane install failed", "workspace_id", entry.WorkspaceID, "app_id", entry.AppID, "reason", reason, "err", err)
 		return s.planeInstallRedirect(entry.ReturnURL, "error", reason, "")
+	}
+	checkCtx := authrepo.WithAuthenticated(ctx, &agentsv1.User{Id: entry.UserID}, nil)
+	if e = requireWorkspaceManageRole(checkCtx, s.workspaceRepo, entry.WorkspaceID, "plane"); e != nil {
+		return fail("permission_changed", e)
 	}
 	if strings.TrimSpace(oauthErr) != "" || strings.TrimSpace(code) == "" {
 		return fail("denied", errors.New("authorization callback did not contain a code"))

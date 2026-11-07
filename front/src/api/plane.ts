@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-import {
   PlaneAdminService,
   PlaneAppService,
   type PlaneApp,
@@ -13,6 +12,7 @@ import { makeClient } from './transport'
 const appClient = makeClient(PlaneAppService)
 const adminClient = makeClient(PlaneAdminService)
 
+export const PLANE_APPS_KEY = ['plane-apps'] as const
 export const PLANE_INSTALLATIONS_KEY = ['plane-installations'] as const
 const PLANE_SETTINGS_KEY = ['plane-settings'] as const
 const PLANE_PROFILE_KEY = ['plane-provider-profile'] as const
@@ -114,7 +114,7 @@ export function usePlaneInstallations(appId: string | undefined) {
     },
   })
 }
-
+export function usePlaneApp(id: string | undefined) {
   return useQuery({
     queryKey: [...PLANE_APPS_KEY, id],
     enabled: Boolean(id),

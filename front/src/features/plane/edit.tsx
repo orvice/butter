@@ -32,6 +32,7 @@ export function PlaneAppEdit() {
   const queryClient = useQueryClient()
   const { data: app, isLoading } = usePlaneApp(id)
   const { data: installations = [] } = usePlaneInstallations(id)
+  const { data: profile } = usePlaneProviderProfile()
   const updateMutation = useUpdatePlaneApp()
   const [conflict, setConflict] = useState(false)
   // Bumped after a conflict (or a successful save) so the form re-seeds from
@@ -112,8 +113,11 @@ export function PlaneAppEdit() {
               edition={profile.edition}
             />
           )}
+          <PlaneInboundNotice />
           <Card>
-            <CardHeader className='pb-2'><CardTitle className='text-base'>Plane installations</CardTitle></CardHeader>
+            <CardHeader className='pb-2'>
+              <CardTitle className='text-base'>Plane installations</CardTitle>
+            </CardHeader>
             <CardContent className='space-y-2 text-sm'>
               {installations.length === 0 ? <p className='text-muted-foreground'>No verified installation.</p> : installations.map((installation) => <div key={installation.id} className='rounded border p-2'><div className='font-medium'>{installation.workspaceSlug || installation.planeWorkspaceId}</div><div className='text-muted-foreground'>Granted scopes: {installation.grantedScopes.join(', ') || 'none'}</div><div>Status: {installation.status} · {installation.credentialState}</div></div>)}
             </CardContent>
