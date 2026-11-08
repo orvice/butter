@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"go.orx.me/apps/butter/internal/eventqueue"
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmem "go.orx.me/apps/butter/internal/repo/invocation/memory"
 	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
@@ -239,6 +240,15 @@ func TestRedisBatchCrashBoundaryAndRecovery(t *testing.T) {
 	var consumed *consumedTurn
 	if err := source.prepare(t.Context(), events[1]); !errors.Is(err, ErrRunBusy) {
 		t.Fatalf("live execution was consumed: %v", err)
+	}
+	probe := batchProcessor(q, &batchRunner{}, processingmem.New(), "observer-pod")
+	observer := NewWorker(q, probe, &planeTestResolver{app: &agentsv1.PlaneApp{AgentId: "agent", InboundEnabled: true}}, "observer-pod")
+	pending, _ := events[1].Encode()
+	if err := observer.handle(t.Context(), eventqueue.Entry{Payload: pending}); !errors.Is(err, ErrRunBusy) {
+		t.Fatalf("active member replay=%v", err)
+	}
+	if len(probe.publisher.(*DurablePublisher).target.(*batchPublisher).events) != 0 {
+		t.Fatal("an active batch member was falsely told it was queued for another turn")
 	}
 	// Now the holder dies after execution started. Every member must recover
 	// the same invocation without calling the model or blocking a successor.

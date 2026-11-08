@@ -14,6 +14,8 @@ import (
 	"google.golang.org/genai"
 )
 
+var errTurnInProgress = fmt.Errorf("%w: this prompt is already in the active batch", ErrRunBusy)
+
 var ErrPromptRejected = errors.New("Plane prompt is no longer authorized")
 
 var ErrInvalidInput = errors.New("invalid Plane prompt input")
@@ -74,7 +76,7 @@ func (s *redisBatchSource) prepare(ctx context.Context, e *Event) error {
 	}
 	switch result[0] {
 	case "busy":
-		return ErrRunBusy
+		return errTurnInProgress
 	case "consumed":
 		return &consumedTurn{invocation: result[1], state: RunState(result[2])}
 	}

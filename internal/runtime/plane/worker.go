@@ -253,6 +253,9 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) (result err
 	if err == nil {
 		return nil
 	}
+	if errors.Is(err, errTurnInProgress) {
+		return err
+	}
 	if errors.Is(err, ErrRunBusy) || errors.Is(err, planeprocessing.ErrClaimConflict) {
 		return w.queued(ctx, e)
 	}
