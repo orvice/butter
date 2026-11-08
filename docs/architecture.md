@@ -669,7 +669,7 @@ Redis 地址默认 `localhost:6379`。Dashboard session 存在 Redis；Redis 不
 - `GetCronExecutionTimeseries` 用 `cron_executions.ListByTimeRange` + bucket 聚合（1D=1h / 7D=1d / 30D=1d）。
 - Automation list/detail 页直接读取 `automations`、`automation_runs` 和 `automation_step_runs`，展示 workflow 配置、手动 run 和 step 级历史。
 - `DaemonService.GetBridgeDiagnostics` 使用 `internal/runtime/daemon/metrics.go` 的 `Metrics` collector，记录每次 bridge 调用 latency 到 60 条 ring buffer，并按需读取 `runtime/metrics` 的 `/cpu/classes/total:cpu-seconds` 与 `runtime.MemStats.Sys` / `runtime.NumGoroutine()`。
-- `SessionEvent.trace_url` 当 `cfg.Langfuse.Host` 设置时拼接 `<host>/trace/<invocation_id>`，前端 Session detail 一键跳 Langfuse。
+- `SessionEvent.trace_id` 是由 `invocation_id` 派生的 OTel trace id（`internal/runtime/tracing`），`trace_url` 当 `cfg.Langfuse.Host` 设置时拼接 `<host>/trace/<trace_id>`，前端 Session detail 一键跳 Langfuse。一个 invocation 一条 trace：workflow 暂停后在下一个 HTTP 请求里恢复，ADK 复用暂停事件的 invocation id，因此两条链路落在同一条 Langfuse trace 里（ADR-0018）。
 
 ## 前端 Dashboard 与镜像
 

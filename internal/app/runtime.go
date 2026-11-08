@@ -10,12 +10,14 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/adk/v2/artifact"
 	adkrunner "google.golang.org/adk/v2/runner"
 
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/repo/agentfile"
 	skillrepo "go.orx.me/apps/butter/internal/repo/skill"
+	"go.orx.me/apps/butter/internal/runtime/tracing"
 	"go.orx.me/apps/butter/pkg/adkutils"
 )
 
@@ -164,6 +166,12 @@ func setupLangfuse(ctx context.Context, cfg *config.AppConfig) (adkrunner.Plugin
 	var pluginConfig adkrunner.PluginConfig
 	if cfg.Langfuse.IsEnabled() {
 		logger.Info("setting up langfuse plugin")
+		// One trace per invocation, named after its ID: the inverse of what
+		// SessionEvent.trace_url addresses, and what keeps a workflow resumed in a
+		// later request in the trace its pause started. See internal/runtime/tracing.
+		cfg.Langfuse.TracerProviderOptions = append(cfg.Langfuse.TracerProviderOptions,
+			sdktrace.WithIDGenerator(tracing.NewIDGenerator()),
+		)
 		pc, shutdown, err := langfuse.Setup(&cfg.Langfuse)
 		if err != nil {
 			logger.Error("failed to setup langfuse", "err", err)

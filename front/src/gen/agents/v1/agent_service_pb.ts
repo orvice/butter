@@ -3758,8 +3758,9 @@ export type SessionEvent = Message<"agents.v1.SessionEvent"> & {
   timestamp?: Timestamp;
 
   /**
-   * Trace id propagated to observability backends (e.g. Langfuse). Currently
-   * mirrors invocation_id; consumers should treat it as opaque.
+   * Trace id propagated to observability backends (e.g. Langfuse): the OTel
+   * trace ID derived from invocation_id, which is what the backend names the
+   * trace. Empty when the event has no invocation.
    *
    * @generated from field: string trace_id = 7;
    */
