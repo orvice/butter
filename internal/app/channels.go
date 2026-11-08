@@ -742,6 +742,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LinearStateRepo:        linearStateRepo,
 		LinearProcessingRepo:   linearProcessingRepo,
 		PlaneRepo:              planeRepo,
+		PlaneInstallationRepo:  planeInstallationRepo,
 		PlaneDeliveryStore:     planeDeliveryStore,
 		PlaneProgressStore:     stores.Progress,
 		PlaneDiagnosticStore:   stores.Diagnostics,
