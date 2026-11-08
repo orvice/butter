@@ -69,7 +69,9 @@ func (s *Store) Get(ctx context.Context, ws, id string) (*agentsv1.PlaneProcessi
 	return decode(d)
 }
 func (s *Store) List(ctx context.Context, f planeprocessing.Filter) ([]*agentsv1.PlaneProcessingRecord, error) {
-	q := bson.M{}
+	// Run lease documents share this collection but are not processing
+	// records and may have Mongo ObjectIDs rather than public string IDs.
+	q := bson.M{"spec": bson.M{"$exists": true}}
 	if f.WorkspaceID != "" {
 		q["workspace_id"] = f.WorkspaceID
 	}
@@ -111,15 +113,20 @@ func (s *Store) Claim(ctx context.Context, ws, app, installation, run, owner str
 		{"claim_expires_at": bson.M{"$exists": false}},
 	}}
 	u := bson.M{"$set": bson.M{"claim_owner": owner, "claim_expires_at": expiry}, "$inc": bson.M{"claim_revision": 1, "claim_fence": 1}, "$setOnInsert": bson.M{"workspace_id": ws, "app_id": app, "key": key}}
-	r, e := s.col.UpdateOne(ctx, f, u, options.UpdateOne().SetUpsert(true))
-	if e != nil {
-		return planeprocessing.Claim{}, e
+	// Return the claim from the same atomic operation that acquired it.
+	// A separate read could observe a later holder after lease expiry.
+	// Claim-only documents may have an ObjectID _id; decode only claim fields.
+	var d struct {
+		ClaimOwner     string    `bson:"claim_owner"`
+		ClaimRevision  int64     `bson:"claim_revision"`
+		ClaimFence     uint64    `bson:"claim_fence"`
+		ClaimExpiresAt time.Time `bson:"claim_expires_at"`
 	}
-	if r.MatchedCount != 1 && r.UpsertedCount != 1 {
+	e := s.col.FindOneAndUpdate(ctx, f, u, options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)).Decode(&d)
+	if mongo.IsDuplicateKeyError(e) {
 		return planeprocessing.Claim{}, planeprocessing.ErrClaimConflict
 	}
-	var d doc
-	if e = s.col.FindOne(ctx, bson.M{"key": key}).Decode(&d); e != nil {
+	if e != nil {
 		return planeprocessing.Claim{}, e
 	}
 	return planeprocessing.Claim{Owner: d.ClaimOwner, Revision: d.ClaimRevision, Fence: d.ClaimFence, ExpiresAt: d.ClaimExpiresAt}, nil
