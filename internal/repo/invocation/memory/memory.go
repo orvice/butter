@@ -23,10 +23,11 @@ type Store struct {
 
 // records is the data every view of one Store shares.
 type records struct {
-	mu      sync.RWMutex
-	byID    map[string]*agentsv1.Invocation
-	owners  map[string]string // invocation ID → owner stamp
-	ordered []string          // insertion order (oldest first); newest at end
+	mu        sync.RWMutex
+	byID      map[string]*agentsv1.Invocation
+	recovered map[string]bool   // permanently fences a Plane holder after lease-loss recovery
+	owners    map[string]string // invocation ID → owner stamp
+	ordered   []string          // insertion order (oldest first); newest at end
 }
 
 var _ invocation.Repository = (*Store)(nil)
@@ -34,8 +35,9 @@ var _ invocation.Repository = (*Store)(nil)
 // New returns an empty store whose records carry no owner stamp.
 func New() *Store {
 	return &Store{records: &records{
-		byID:   make(map[string]*agentsv1.Invocation),
-		owners: make(map[string]string),
+		byID:      make(map[string]*agentsv1.Invocation),
+		owners:    make(map[string]string),
+		recovered: make(map[string]bool),
 	}}
 }
 
@@ -51,6 +53,9 @@ func (s *Store) Save(_ context.Context, inv *agentsv1.Invocation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := inv.GetId()
+	if s.recovered[id] {
+		return nil
+	}
 	if _, exists := s.byID[id]; !exists {
 		s.ordered = append(s.ordered, id)
 		if s.owner != "" {
@@ -354,15 +359,27 @@ func (s *Store) FailActive(_ context.Context, ws, id, appName, reason string) er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	inv := s.byID[id]
-	if inv == nil || inv.GetWorkspaceId() != ws || inv.GetAppName() != appName {
-		return nil
+	if inv == nil {
+		// A holder can pause after StartBatch but before recording RUNNING.
+		// Fence the ID now so its delayed first Save cannot resurrect it.
+		inv = &agentsv1.Invocation{Id: id, WorkspaceId: ws, AppName: appName}
+		s.byID[id] = inv
+		s.ordered = append(s.ordered, id)
+	} else {
+		if inv.GetWorkspaceId() != ws || inv.GetAppName() != appName {
+			return nil
+		}
+		if !isActive(inv.GetStatus()) {
+			s.recovered[id] = true
+			return nil
+		}
 	}
-	if !isActive(inv.GetStatus()) {
-		return nil
-	}
+	s.recovered[id] = true
 	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
 	inv.Error = reason
 	inv.FinishedAt = timestamppb.Now()
-	inv.LatencyMs = inv.GetFinishedAt().AsTime().Sub(inv.GetStartedAt().AsTime()).Milliseconds()
+	if inv.GetStartedAt() != nil {
+		inv.LatencyMs = inv.GetFinishedAt().AsTime().Sub(inv.GetStartedAt().AsTime()).Milliseconds()
+	}
 	return nil
 }

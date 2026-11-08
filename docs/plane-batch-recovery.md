@@ -78,7 +78,10 @@ also cancels a reserved batch before its execution boundary.
 
 Processing projections use Mongo compare-and-swap and a monotonic claim
 fence. Late admission/queued projections cannot replace processing or
-terminal outcomes. Terminal execution is immutable; confirmed delivery
+terminal outcomes. Invocation recovery also persists a storage-only fence, including
+when the holder has not yet saved its first RUNNING record; delayed initial or
+terminal saves cannot resurrect it. Content redaction preserves that fence.
+Terminal execution is immutable; confirmed delivery
 cannot regress to an unconfirmed delivery. Legacy processing keys/status
 overlays remain readable and are upgraded when projected.
 

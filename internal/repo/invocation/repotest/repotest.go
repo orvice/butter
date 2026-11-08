@@ -119,6 +119,11 @@ func Run(t *testing.T, factory Factory) {
 				t.Fatal(err)
 			}
 		}
+		wantStatus(t, repo, "missing", failed)
+		delayedStart := record("missing", running, now)
+		delayedStart.AppName = "plane"
+		save(t, repo, delayedStart)
+		wantStatus(t, repo, "missing", failed)
 		wantStatus(t, repo, "lost", running)
 		wantStatus(t, repo, "completed", done)
 		wantStatus(t, repo, "other-entrypoint", running)
@@ -128,6 +133,20 @@ func Run(t *testing.T, factory Factory) {
 		failed := wantStatus(t, repo, "lost", agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED)
 		if failed.GetFinishedAt() == nil || failed.GetError() != "execution uncertain; never rerun" {
 			t.Fatalf("recovered invocation=%v", failed)
+		}
+		// A former holder may have taken this snapshot while its lease was
+		// valid, then have its terminal Save delayed past crash recovery.
+		late := record("lost", done, now)
+		late.AppName, late.Output = "plane", "late result from expired holder"
+		save(t, repo, late)
+		wantStatus(t, repo, "lost", agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED)
+		if err := repo.RedactContent(t.Context(), "ws-1", "lost"); err != nil {
+			t.Fatal(err)
+		}
+		save(t, repo, late)
+		redacted := get(t, repo, "lost")
+		if redacted.GetInput() != "" || redacted.GetOutput() != "" || redacted.GetError() != "" {
+			t.Fatalf("expired holder restored recovered/redacted content: %v", redacted)
 		}
 	})
 

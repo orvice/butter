@@ -46,6 +46,8 @@ type doc struct {
 	Fields fields `bson:",inline"`
 	// Owner is written once, when Save creates the record (#390).
 	Owner string `bson:"owner,omitempty"`
+	// PlaneRecovered fences delayed saves from a holder whose lease was lost.
+	PlaneRecovered bool `bson:"plane_recovered,omitempty"`
 }
 
 // fields are what every Save rewrites.
@@ -170,7 +172,14 @@ func (s *Store) Save(ctx context.Context, inv *agentsv1.Invocation) error {
 	if s.owner != "" {
 		update["$setOnInsert"] = bson.M{"owner": s.owner}
 	}
-	_, err = s.coll.UpdateOne(ctx, bson.M{"_id": inv.GetId()}, update, options.UpdateOne().SetUpsert(true))
+	_, err = s.coll.UpdateOne(ctx, bson.M{"_id": inv.GetId(), "plane_recovered": bson.M{"$ne": true}}, update, options.UpdateOne().SetUpsert(true))
+	if mongo.IsDuplicateKeyError(err) {
+		// Upsert cannot insert over a fenced _id. This was a delayed Save
+		// from the former holder; preserve recovery, including redaction.
+		if s.coll.FindOne(ctx, bson.M{"_id": inv.GetId(), "plane_recovered": true}).Err() == nil {
+			return nil
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("upsert invocation: %w", err)
 	}
@@ -491,14 +500,35 @@ func (s *Store) ListBySession(ctx context.Context, workspaceID, sessionID string
 }
 
 func (s *Store) RedactContent(ctx context.Context, workspaceID, id string) error {
-	inv, err := s.Get(ctx, workspaceID, id)
-	if err != nil {
-		return err
+	// Redaction may update a recovered record, but must preserve its storage
+	// fence and must not restore a status read before recovery won.
+	for range 8 {
+		var d doc
+		err := s.coll.FindOne(ctx, bson.M{"_id": id, "workspace_id": workspaceID}).Decode(&d)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return invocation.ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		inv, err := decode(&d)
+		if err != nil {
+			return err
+		}
+		inv.Input, inv.Output, inv.Error = "", "", ""
+		spec, err := protojson.Marshal(inv)
+		if err != nil {
+			return err
+		}
+		result, err := s.coll.UpdateOne(ctx, bson.M{"_id": id, "workspace_id": workspaceID, "spec": d.Fields.Spec}, bson.M{"$set": bson.M{"spec": string(spec)}})
+		if err != nil {
+			return err
+		}
+		if result.MatchedCount == 1 {
+			return nil
+		}
 	}
-	inv.Input = ""
-	inv.Output = ""
-	inv.Error = ""
-	return s.Save(ctx, inv)
+	return errors.New("invocation redaction contention")
 }
 
 func drain(ctx context.Context, cursor *mongo.Cursor) ([]*agentsv1.Invocation, error) {
@@ -545,26 +575,62 @@ func encodeToken(offset int) string {
 }
 
 func (s *Store) FailActive(ctx context.Context, ws, id, appName, reason string) error {
-	var d doc
-	err := s.coll.FindOne(ctx, bson.M{"_id": id, "workspace_id": ws, "app_name": appName, "status": bson.M{"$in": activeStatuses()}}).Decode(&d)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil
+	for range 8 {
+		var d doc
+		err := s.coll.FindOne(ctx, bson.M{"_id": id}).Decode(&d)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			// StartBatch may have happened before the holder's first Save.
+			// A failed placeholder fences that delayed creation as well.
+			inv := &agentsv1.Invocation{Id: id, WorkspaceId: ws, AppName: appName,
+				Status: agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED, Error: reason, FinishedAt: timestamppb.Now()}
+			spec, marshalErr := protojson.Marshal(inv)
+			if marshalErr != nil {
+				return marshalErr
+			}
+			_, err = s.coll.InsertOne(ctx, doc{ID: id, PlaneRecovered: true, Fields: fields{WorkspaceID: ws, AppName: appName, Status: inv.GetStatus().String(), Spec: string(spec)}})
+			if mongo.IsDuplicateKeyError(err) {
+				continue
+			}
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		if d.Fields.WorkspaceID != ws || d.Fields.AppName != appName {
+			return nil
+		}
+		inv, err := decode(&d)
+		if err != nil {
+			return err
+		}
+		if inv.GetStatus() != agentsv1.InvocationStatus_INVOCATION_STATUS_RUNNING && inv.GetStatus() != agentsv1.InvocationStatus_INVOCATION_STATUS_QUEUED {
+			// Preserve the known outcome while fencing any delayed write.
+			result, err := s.coll.UpdateOne(ctx, bson.M{"_id": id, "spec": d.Fields.Spec}, bson.M{"$set": bson.M{"plane_recovered": true}})
+			if err != nil {
+				return err
+			}
+			if result.MatchedCount == 1 {
+				return nil
+			}
+			continue
+		}
+		inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+		inv.Error = reason
+		inv.FinishedAt = timestamppb.Now()
+		if inv.GetStartedAt() != nil {
+			inv.LatencyMs = inv.GetFinishedAt().AsTime().Sub(inv.GetStartedAt().AsTime()).Milliseconds()
+		}
+		spec, err := protojson.Marshal(inv)
+		if err != nil {
+			return err
+		}
+		result, err := s.coll.UpdateOne(ctx, bson.M{"_id": id, "workspace_id": ws, "spec": d.Fields.Spec}, bson.M{"$set": bson.M{"status": inv.GetStatus().String(), "spec": string(spec), "plane_recovered": true}})
+		if err != nil {
+			return err
+		}
+		if result.MatchedCount == 1 {
+			return nil
+		}
 	}
-	if err != nil {
-		return err
-	}
-	inv, err := decode(&d)
-	if err != nil {
-		return err
-	}
-	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
-	inv.Error = reason
-	inv.FinishedAt = timestamppb.Now()
-	inv.LatencyMs = inv.GetFinishedAt().AsTime().Sub(inv.GetStartedAt().AsTime()).Milliseconds()
-	spec, err := protojson.Marshal(inv)
-	if err != nil {
-		return err
-	}
-	_, err = s.coll.UpdateOne(ctx, bson.M{"_id": id, "workspace_id": ws, "spec": d.Fields.Spec}, bson.M{"$set": bson.M{"status": inv.GetStatus().String(), "spec": string(spec)}})
-	return err
+	return errors.New("invocation recovery contention")
 }

@@ -18,7 +18,9 @@ func redisForTest(t *testing.T) *redis.Client {
 	if addr == "" {
 		t.Skip("REDIS_ADDR is required for Redis-backed queue tests")
 	}
-	rdb := redis.NewClient(&redis.Options{Addr: addr})
+	// App integration tests flush DB 0 in another Go package. Keep this
+	// contract suite isolated even when go test ./... runs both at once.
+	rdb := redis.NewClient(&redis.Options{Addr: addr, DB: 13})
 	if err := rdb.Ping(t.Context()).Err(); err != nil {
 		t.Fatalf("ping redis %s: %v", addr, err)
 	}
