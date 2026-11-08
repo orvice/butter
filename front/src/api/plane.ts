@@ -44,6 +44,7 @@ export interface UpdatePlaneAppInput extends PlaneAppInput {
   id: string
   /** Required. A stale revision is refused instead of overwriting. */
   revision: bigint
+  inboundEnabled: boolean
 }
 
 // --- Provider profile (platform-level, fixed by startup config) -------------
@@ -142,13 +143,27 @@ export function usePlaneApps() {
   })
 }
 
-export function usePlaneInstallations(appId: string | undefined) {
+export function usePlaneInstallations(
+  appId: string | undefined,
+  enabled = true
+) {
   return useQuery({
-    queryKey: [...PLANE_INSTALLATIONS_KEY, appId],
-    enabled: Boolean(appId),
+    queryKey: [...PLANE_INSTALLATIONS_KEY, appId, enabled],
+    enabled: Boolean(appId) && enabled,
     queryFn: async (): Promise<PlaneInstallation[]> => {
       const res = await appClient.listPlaneInstallations({ appId: appId! })
       return res.installations
+    },
+  })
+}
+
+export function useBeginPlaneInstall() {
+  return useMutation({
+    mutationFn: async (input: { appId: string; returnUrl: string }) => {
+      const res = await appClient.beginPlaneInstall(input)
+      if (!res.authorizeUrl)
+        throw new Error('Plane did not return an install URL')
+      return res.authorizeUrl
     },
   })
 }

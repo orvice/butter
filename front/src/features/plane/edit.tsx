@@ -1,12 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { KeyRound, Plane } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   PLANE_APPS_KEY,
   usePlaneApp,
-  usePlaneInstallations,
   usePlaneProviderProfile,
   usePutPlaneAppCredentials,
   useUpdatePlaneApp,
@@ -20,25 +19,36 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { PlaneAppForm, type PlaneAppFormValues } from './form'
+import { PlaneInboundCard } from './inbound'
+import { PlaneInstallationsCard, PlaneInstallResult } from './installations'
 import {
   PlaneCredentialBadge,
   PlaneEndpointCard,
-  PlaneInboundNotice,
   PlaneProviderNotice,
 } from './shared'
 
 export function PlaneAppEdit() {
   const { id } = useParams({ from: '/_authenticated/plane-apps/$id/edit' })
+  const search = useSearch({ from: '/_authenticated/plane-apps/$id/edit' })
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: app, isLoading } = usePlaneApp(id)
-  const { data: installations = [] } = usePlaneInstallations(id)
+  const [installationsEnabled, setInstallationsEnabled] = useState(
+    search.plane_install !== 'success'
+  )
   const { data: profile } = usePlaneProviderProfile()
   const updateMutation = useUpdatePlaneApp()
   const [conflict, setConflict] = useState(false)
   // Bumped after a conflict (or a successful save) so the form re-seeds from
   // the newest server revision even while it was dirty.
   const [reloadToken, setReloadToken] = useState(0)
+
+  useEffect(() => {
+    if (search.plane_install === 'success') {
+      queryClient.removeQueries({ queryKey: ['plane-installations', id] })
+      setInstallationsEnabled(true)
+    }
+  }, [id, queryClient, search.plane_install])
 
   function onSubmit(values: PlaneAppFormValues) {
     if (!app) return
@@ -48,7 +58,12 @@ export function PlaneAppEdit() {
       ...fields
     } = values
     updateMutation.mutate(
-      { ...fields, id, revision: app.revision },
+      {
+        ...fields,
+        id,
+        revision: app.revision,
+        inboundEnabled: app.inboundEnabled,
+      },
       {
         onSuccess: () => {
           setConflict(false)
@@ -98,6 +113,10 @@ export function PlaneAppEdit() {
       />
       <PageScroll className='max-w-3xl'>
         <div className='space-y-6'>
+          <PlaneInstallResult
+            outcome={search.plane_install}
+            reason={search.reason}
+          />
           {conflict && (
             <Alert variant='destructive'>
               <AlertTitle>The App changed elsewhere</AlertTitle>
@@ -114,16 +133,19 @@ export function PlaneAppEdit() {
               edition={profile.edition}
             />
           )}
-          <PlaneInboundNotice />
-          <PlaneEndpointCard callbackUrl={app.callbackUrl} webhookUrl={app.webhookUrl} />
-          <Card>
-            <CardHeader className='pb-2'>
-              <CardTitle className='text-base'>Plane installations</CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-2 text-sm'>
-              {installations.length === 0 ? <p className='text-muted-foreground'>No verified installation.</p> : installations.map((installation) => <div key={installation.id} className='rounded border p-2'><div className='font-medium'>{installation.workspaceSlug || installation.planeWorkspaceId}</div><div className='text-muted-foreground'>Granted scopes: {installation.grantedScopes.join(', ') || 'none'}</div><div>Status: {installation.status} · {installation.credentialState}</div></div>)}
-            </CardContent>
-          </Card>
+          <PlaneEndpointCard
+            callbackUrl={app.callbackUrl}
+            webhookUrl={app.webhookUrl}
+          />
+          <PlaneInstallationsCard
+            appId={id}
+            canInstall={app.clientSecretSet && Boolean(app.callbackUrl)}
+            installationsEnabled={installationsEnabled}
+          />
+          <PlaneInboundCard
+            app={app}
+            profileVerified={profile?.verified === true}
+          />
 
           <Card>
             <CardHeader className='pb-2'>

@@ -61,7 +61,7 @@ export function PlaneAgentSetup() {
       <PageHeader
         className='max-w-3xl'
         title={`Connect Plane to ${agent.agent.name}`}
-        subtitle='Register a Plane App bound to this Agent. Prompt delivery ships with the execution path, so inbound stays off for now.'
+        subtitle='Register a Plane App bound to this Agent, then open Manage to install it and configure inbound access.'
         actions={
           <Button variant='outline' asChild>
             <Link to='/agents/$name/edit' params={{ name: agentId }}>
@@ -105,7 +105,7 @@ export function PlaneAgentSetup() {
                         variant='outline'
                         className='text-muted-foreground'
                       >
-                        Inbound off
+                        {app.inboundEnabled ? 'Inbound on' : 'Inbound off'}
                       </Badge>
                       <PlaneCredentialBadge state={app.credentialState} />
                       <Button size='sm' variant='outline' asChild>

@@ -48,8 +48,8 @@ type Props = {
 /**
  * One form for registering and editing a Plane App.
  *
- * The client ID is immutable once registered, inbound cannot be enabled at
- * all, and secrets are only entered on create — the edit page has its own
+ * The client ID is immutable once registered, inbound has a separate control
+ * on the edit page, and secrets are only entered on create — the edit page has its own
  * write-only secret card.
  */
 export function PlaneAppForm({
@@ -181,7 +181,7 @@ export function PlaneAppForm({
           {selectedAgent?.type === 'AGENT_TYPE_PI' ||
           selectedAgent?.type === 'AGENT_TYPE_CURSOR' ? (
             <p className='text-xs text-muted-foreground'>
-              This Agent runs commands on a ButterBox. Once inbound ships,
+              This Agent runs commands on a ButterBox. When inbound is enabled,
               anyone admitted to this App can drive those commands.
             </p>
           ) : null}
@@ -220,7 +220,7 @@ export function PlaneAppForm({
               Empty follows the server default; 0 means unlimited.
             </p>
           </div>
-          <PlaneInboundNotice />
+          {mode === 'create' && <PlaneInboundNotice />}
         </CardContent>
       </Card>
 

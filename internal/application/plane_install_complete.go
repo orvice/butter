@@ -12,7 +12,10 @@ import (
 	"strings"
 )
 
-func (s *PlaneAppServiceServer) CompletePlaneInstall(ctx context.Context, state, code, oauthErr string) string {
+func (s *PlaneAppServiceServer) CompletePlaneInstall(ctx context.Context, state, installationID, oauthErr string) string {
+	if s.installStates == nil {
+		return s.planeInstallRedirect("", "error", "state_invalid", "")
+	}
 	entry, e := s.installStates.Consume(ctx, state, s.planeNow())
 	if e != nil {
 		return s.planeInstallRedirect("", "error", "state_invalid", "")
@@ -25,8 +28,12 @@ func (s *PlaneAppServiceServer) CompletePlaneInstall(ctx context.Context, state,
 	if e = requireWorkspaceManageRole(checkCtx, s.workspaceRepo, entry.WorkspaceID, "plane"); e != nil {
 		return fail("permission_changed", e)
 	}
-	if strings.TrimSpace(oauthErr) != "" || strings.TrimSpace(code) == "" {
-		return fail("denied", errors.New("authorization callback did not contain a code"))
+	if strings.TrimSpace(oauthErr) != "" {
+		return fail("denied", errors.New("installation authorization was denied"))
+	}
+	installationID = strings.TrimSpace(installationID)
+	if installationID == "" {
+		return fail("installation_missing", errors.New("authorization callback did not contain an installation ID"))
 	}
 	if s.installRepo == nil || s.repo == nil {
 		return fail("storage_failed", errors.New("plane installation storage is not configured"))
@@ -46,26 +53,30 @@ func (s *PlaneAppServiceServer) CompletePlaneInstall(ctx context.Context, state,
 	if e != nil {
 		return fail("exchange_failed", e)
 	}
+	defer clear(secret)
 	profile, e := s.requireProfile()
 	if e != nil {
 		return fail("exchange_failed", e)
+	}
+	if app.GetProviderProfile() != profile.Name {
+		return fail("app_mismatch", errors.New("Plane App provider profile changed"))
 	}
 	client := s.planeHTTPClient
 	if client == nil {
 		client = planeapi.NewClient(nil, profile)
 	}
-	token, e := client.ExchangeCode(ctx, app.GetClientId(), string(secret), code)
+	token, e := client.BotToken(ctx, app.GetClientId(), string(secret), installationID)
 	if e != nil {
 		return fail("exchange_failed", e)
 	}
-	identity, e := client.GetInstallation(ctx, token.AccessToken, token.InstallationID)
+	identity, e := client.GetInstallation(ctx, token.AccessToken, installationID)
 	if e != nil {
 		return fail("identity_failed", e)
 	}
-	if identity.ID != token.InstallationID || !identity.Installed {
+	if identity.ID != installationID || !identity.Installed {
 		return fail("identity_failed", errors.New("installation identity mismatch"))
 	}
-	stored, e := s.installRepo.Upsert(ctx, entry.WorkspaceID, app.GetId(), &agentsv1.PlaneInstallation{AppId: app.GetId(), PlaneWorkspaceId: identity.WorkspaceID, WorkspaceSlug: identity.WorkspaceSlug, AppInstallationId: identity.ID, AppBotUserId: identity.BotUserID, AppBotName: identity.BotName, GrantedScopes: identity.Scopes, Status: "installed", CredentialState: "valid"}, planeinstallation.Tokens{AccessToken: token.AccessToken, ExpiresAt: s.planeNow().Add(token.ExpiresIn)})
+	stored, e := s.installRepo.Upsert(ctx, entry.WorkspaceID, app.GetId(), &agentsv1.PlaneInstallation{AppId: app.GetId(), PlaneWorkspaceId: identity.WorkspaceID, WorkspaceSlug: identity.WorkspaceSlug, AppInstallationId: identity.ID, AppBotUserId: identity.BotUserID, AppBotName: identity.BotName, GrantedScopes: token.Scopes, Status: "installed", CredentialState: "valid"}, planeinstallation.Tokens{AccessToken: token.AccessToken, ExpiresAt: s.planeNow().Add(token.ExpiresIn)})
 	if e != nil {
 		return fail("storage_failed", e)
 	}

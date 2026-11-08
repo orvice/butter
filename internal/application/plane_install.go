@@ -49,6 +49,9 @@ func (s *PlaneAppServiceServer) BeginPlaneInstall(ctx context.Context, req *conn
 	if s.installStates == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("plane install state store not configured"))
 	}
+	if s.installRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("plane installation storage is not configured"))
+	}
 	workspaceID, e := requireWorkspace(ctx)
 	if e != nil {
 		return nil, e
@@ -72,15 +75,31 @@ func (s *PlaneAppServiceServer) BeginPlaneInstall(ctx context.Context, req *conn
 	if e != nil {
 		return nil, e
 	}
+	if app.GetProviderProfile() != profile.Name {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("Plane App provider profile does not match this deployment"))
+	}
+	if s.settingsRepo == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("configure the Plane public base URL before installing"))
+	}
+	settings, e := s.settingsRepo.Get(ctx)
+	if e != nil {
+		return nil, connectx.InternalWith(e)
+	}
+	publicBase := strings.TrimRight(strings.TrimSpace(settings.GetPublicBaseUrl()), "/")
+	if e = planeapi.ValidateOrigin(publicBase); e != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("configure the Plane public base URL before installing"))
+	}
 	state, e := randomPlaneState()
 	if e != nil {
 		return nil, connectx.InternalWith(e)
 	}
-	base := ""
+	base := publicBase
 	if s.dashboardBaseURL != nil {
-		base = strings.TrimRight(strings.TrimSpace(s.dashboardBaseURL()), "/")
+		if dashboard := strings.TrimRight(strings.TrimSpace(s.dashboardBaseURL()), "/"); dashboard != "" {
+			base = dashboard
+		}
 	}
-	redirect := base + "/api/plane/oauth/callback"
+	redirect := publicBase + "/api/plane/oauth/callback"
 	ret := sanitizePlaneReturn(req.Msg.GetReturnUrl(), base, app.GetId())
 	now := s.planeNow()
 	if e = s.installStates.Create(ctx, &planestate.Entry{State: state, WorkspaceID: workspaceID, AppID: app.GetId(), ClientID: app.GetClientId(), UserID: user.GetId(), RedirectURI: redirect, ReturnURL: ret, CreatedAt: now, ExpiresAt: now.Add(planeInstallTTL)}); e != nil {
@@ -90,13 +109,13 @@ func (s *PlaneAppServiceServer) BeginPlaneInstall(ctx context.Context, req *conn
 	return connect.NewResponse(&agentsv1.BeginPlaneInstallResponse{AuthorizeUrl: planeapi.NewClient(nil, profile).AuthorizeURL(app.GetClientId(), redirect, state)}), nil
 }
 func sanitizePlaneReturn(raw, base, app string) string {
-	fallback := base + "/plane-apps/" + app
+	fallback := base + "/plane-apps/" + app + "/edit"
 	u, e := url.Parse(strings.TrimSpace(raw))
-	if e != nil || u.String() == "" {
+	if e != nil || u.String() == "" || strings.Contains(raw, "\\") {
 		return fallback
 	}
 	if u.Scheme == "" && u.Host == "" && strings.HasPrefix(u.Path, "/") && !strings.HasPrefix(u.Path, "//") {
-		return u.String()
+		return strings.TrimRight(base, "/") + u.String()
 	}
 	b, _ := url.Parse(base)
 	if b != nil && u.Scheme == b.Scheme && u.Host == b.Host {

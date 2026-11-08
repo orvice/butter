@@ -335,7 +335,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearStateRepo = linearstatemongo.New(db)
 		linearProcessingRepo = linearprocessingmongo.New(db)
 		planeRepo = planemongo.New(db)
-		planeInstallationRepo = planeinstallationmongo.New(db)
+		planeInstallationRepo = planeinstallationmongo.New(db, secretbox.NewKeyring(cryptoKeyRepo))
 		planeInstallStateRepo = planestatemongo.New(db)
 		planeProcessingRepo = planeprocessingmongo.New(db)
 		planeSettingRepo = planesettingmongo.New(db)

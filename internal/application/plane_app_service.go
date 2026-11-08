@@ -422,6 +422,23 @@ func (s *PlaneAppServiceServer) UpdatePlaneApp(ctx context.Context, req *connect
 		if err := requireInboundEnablement(prev.GetClientSecretSet(), prev.GetWebhookSecretSet(), true, profile); err != nil {
 			return nil, err
 		}
+		if s.installRepo == nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("install the Plane App before enabling inbound"))
+		}
+		installations, err := s.installRepo.List(ctx, workspaceID, prev.GetId())
+		if err != nil {
+			return nil, connectx.InternalWith(err)
+		}
+		installed := false
+		for _, installation := range installations {
+			if installation.GetStatus() == "installed" && installation.GetCredentialState() == "valid" {
+				installed = true
+				break
+			}
+		}
+		if !installed {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("install the Plane App before enabling inbound"))
+		}
 	}
 
 	// Identity and provider profile are immutable. Validating the stored
@@ -443,6 +460,7 @@ func (s *PlaneAppServiceServer) UpdatePlaneApp(ctx context.Context, req *connect
 		return nil, err
 	}
 	app.ProviderProfile = prev.GetProviderProfile()
+	app.InboundEnabled = input.GetInboundEnabled()
 	if _, err := resolveActiveAgent(ctx, s.agentRepo, workspaceID, "app.agent_id", app.GetAgentId()); err != nil {
 		return nil, err
 	}

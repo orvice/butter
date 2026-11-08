@@ -18,6 +18,6 @@ func NewPlaneOAuthHandler(c PlaneInstallCompleter) *PlaneOAuthHandler {
 }
 func (h *PlaneOAuthHandler) Register(r *gin.Engine) { r.GET(PlaneOAuthCallbackPath, h.Handle) }
 func (h *PlaneOAuthHandler) Handle(c *gin.Context) {
-	target := h.completer.CompletePlaneInstall(c.Request.Context(), c.Query("state"), c.Query("code"), c.Query("error"))
+	target := h.completer.CompletePlaneInstall(c.Request.Context(), c.Query("state"), c.Query("app_installation_id"), c.Query("error"))
 	c.Redirect(http.StatusFound, target)
 }

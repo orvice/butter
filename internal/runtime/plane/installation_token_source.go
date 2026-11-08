@@ -39,18 +39,20 @@ func (s *InstallationTokenSource) token(ctx context.Context, workspaceID, appID,
 	if s == nil || s.Apps == nil || s.Installations == nil || s.Keyring == nil || s.Client == nil {
 		return "", ErrTokenUnavailable
 	}
-	if s.RefreshBefore <= 0 {
-		s.RefreshBefore = 5 * time.Minute
+	refreshBefore := s.RefreshBefore
+	if refreshBefore <= 0 {
+		refreshBefore = 5 * time.Minute
 	}
 	for attempt := 0; attempt < 2; attempt++ {
 		m, err := s.Installations.GetRuntimeToken(ctx, workspaceID, appID, installationID)
 		if err != nil {
 			return "", ErrTokenUnavailable
 		}
-		if _, err = s.Installations.GetScoped(ctx, workspaceID, appID, installationID); err != nil {
+		installation, err := s.Installations.GetScoped(ctx, workspaceID, appID, installationID)
+		if err != nil || installation.GetStatus() != "installed" || installation.GetCredentialState() != "valid" {
 			return "", ErrTokenUnavailable
 		}
-		if !force && m.AccessToken != "" && time.Until(m.ExpiresAt) > s.RefreshBefore {
+		if !force && m.AccessToken != "" && time.Until(m.ExpiresAt) > refreshBefore {
 			return m.AccessToken, nil
 		}
 		s.mu.Lock()
@@ -91,7 +93,7 @@ func (s *InstallationTokenSource) token(ctx context.Context, workspaceID, appID,
 			s.mu.Unlock()
 			return "", ErrTokenUnavailable
 		}
-		if !force && latest.Revision != m.Revision && latest.AccessToken != "" && time.Until(latest.ExpiresAt) > s.RefreshBefore {
+		if !force && latest.Revision != m.Revision && latest.AccessToken != "" && time.Until(latest.ExpiresAt) > refreshBefore {
 			s.mu.Unlock()
 			return latest.AccessToken, nil
 		}
@@ -110,7 +112,7 @@ func (s *InstallationTokenSource) token(ctx context.Context, workspaceID, appID,
 			s.mu.Unlock()
 			return "", ErrTokenUnavailable
 		}
-		tok, e := s.Client.ClientCredentials(ctx, app.GetClientId(), string(secret))
+		tok, e := s.Client.BotToken(ctx, app.GetClientId(), string(secret), installation.GetAppInstallationId())
 		for i := range secret {
 			secret[i] = 0
 		}
