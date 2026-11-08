@@ -42,6 +42,10 @@ func invocationProcessor(t *testing.T, event func(agent.InvocationContext) (stri
 			}
 		}})
 	}}
+	// The runner's legacy constructor accepts generated Agent values. Keep the
+	// copy local to this integration fixture; production configuration already
+	// owns the value slice before constructing the runner.
+	//nolint:govet // generated protobuf messages contain an internal mutex.
 	svc, err := runner.NewServiceWithMCPHTTPClientFactory(t.Context(), []agentsv1.Agent{pb}, nil, nil, nil, nil,
 		session.InMemoryService(), nil, nil, nil, 0, nil, adkrunner.PluginConfig{}, nil, builders)
 	if err != nil {
