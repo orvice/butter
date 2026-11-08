@@ -117,7 +117,10 @@ func (c *ActivityHTTPClient) createActivity(ctx context.Context, a ActivityReque
 		return ActivityResult{}, &activityError{kind: DeliveryUnknown, err: err}
 	}
 	defer res.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+	raw, readErr := io.ReadAll(io.LimitReader(res.Body, 4096))
+	if readErr != nil {
+		return ActivityResult{Status: res.StatusCode}, &activityError{kind: DeliveryUnknown, status: res.StatusCode, err: errors.New("plane activity response could not be read")}
+	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return ActivityResult{}, classifyActivityStatus(res.StatusCode, raw)
 	}
@@ -127,11 +130,18 @@ func (c *ActivityHTTPClient) createActivity(ctx context.Context, a ActivityReque
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return ActivityResult{Status: res.StatusCode}, &activityError{kind: DeliveryUnknown, status: res.StatusCode, err: err}
 	}
+	if strings.TrimSpace(out.ID) == "" {
+		return ActivityResult{Status: res.StatusCode}, &activityError{kind: DeliveryUnknown, status: res.StatusCode, err: errors.New("plane activity response has no activity ID")}
+	}
 	return ActivityResult{ID: out.ID, Status: res.StatusCode}, nil
 }
 func classifyActivityStatus(status int, _ []byte) error {
 	kind := DeliveryPermanentFailure
-	if status == 408 || status == 409 || status == 429 || (status >= 500 && status <= 599) {
+	if status == 408 || status == 409 || (status >= 500 && status <= 599) {
+		// A failed response is not proof the POST did not create an
+		// activity. Never automatically repeat an ambiguous write.
+		kind = DeliveryUnknown
+	} else if status == 429 {
 		kind = DeliveryRetryable
 	}
 	return &activityError{kind: kind, status: status, err: fmt.Errorf("plane activity http status %d", status)}

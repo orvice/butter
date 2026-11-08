@@ -45,14 +45,17 @@ type DeliveryAttempt struct {
 	InstallationID string
 }
 type DeliveryStore interface {
+	DeliveryClaimer
+	DeliveryCreator
 	Get(context.Context, string) (*DeliveryAttempt, error)
 	Put(context.Context, *DeliveryAttempt) error
 	ListRecoverable(context.Context) ([]*DeliveryAttempt, error)
+	// CompareAndSwap changes a record only while its observed status,
+	// attempt count and claim token still match.
+	CompareAndSwap(context.Context, *DeliveryAttempt, *DeliveryAttempt) error
 }
 
-// DeliveryClaimer is implemented by durable stores that can fence delivery
-// attempts across processes. The fallback remains useful for old/test stores,
-// while Mongo uses an atomic find-and-update.
+// DeliveryClaimer fences delivery attempts across processes.
 type DeliveryClaimer interface {
 	Claim(context.Context, string, string, time.Time, time.Duration) (*DeliveryAttempt, error)
 	PutOwned(context.Context, *DeliveryAttempt, string) error
@@ -96,43 +99,52 @@ func (p *DurablePublisher) PublishReply(ctx context.Context, e *Event, reply str
 		p.mu.Unlock()
 		return ErrPermanentDelivery
 	}
+	if row != nil && row.Status == DeliveryPermanentFailure {
+		p.mu.Unlock()
+		return ErrPermanentDelivery
+	}
 	if row != nil && row.Status == DeliveryPending {
 		if row.LeaseUntil != nil && row.LeaseUntil.After(time.Now().UTC()) {
 			p.mu.Unlock()
 			return ErrDeliveryInProgress
 		}
+		before := *row
 		row.Status = DeliveryUnknown
 		row.LastError = "delivery lease expired; result is ambiguous; owner confirmation required"
 		row.UpdatedAt = time.Now().UTC()
-		_ = p.store.Put(ctx, row)
+		row.ClaimToken = ""
+		row.LeaseUntil = nil
+		err := p.store.CompareAndSwap(ctx, &before, row)
 		p.mu.Unlock()
+		if err != nil {
+			return err
+		}
 		return ErrPermanentDelivery
 	}
 	if row != nil && row.Attempts >= maxAutomaticDeliveryAttempts && row.Status == DeliveryRetryable {
+		before := *row
 		row.Status = DeliveryUnknown
 		row.LastError = "automatic retry budget exhausted; owner confirmation required"
-		_ = p.store.Put(ctx, row)
+		err := p.store.CompareAndSwap(ctx, &before, row)
 		p.mu.Unlock()
+		if err != nil {
+			return err
+		}
 		return ErrPermanentDelivery
 	}
 	if row == nil {
 		row = &DeliveryAttempt{Key: key, Event: e, Reply: reply, WorkspaceID: e.WorkspaceID, AppID: e.AppID, InstallationID: e.InstallationID}
 		row.Status = DeliveryRetryable
-		if creator, ok := p.store.(DeliveryCreator); ok {
-			if err = creator.Create(ctx, row); err != nil && !errors.Is(err, ErrDeliveryAlreadyExists) {
+		if err = p.store.Create(ctx, row); err != nil && !errors.Is(err, ErrDeliveryAlreadyExists) {
+			p.mu.Unlock()
+			return err
+		}
+		if err != nil {
+			row, err = p.store.Get(ctx, key)
+			if err != nil {
 				p.mu.Unlock()
 				return err
 			}
-			if err != nil {
-				row, err = p.store.Get(ctx, key)
-				if err != nil {
-					p.mu.Unlock()
-					return err
-				}
-			}
-		} else if err = p.store.Put(ctx, row); err != nil {
-			p.mu.Unlock()
-			return err
 		}
 	}
 	if row.Event == nil {
@@ -152,26 +164,13 @@ func (p *DurablePublisher) PublishReply(ctx context.Context, e *Event, reply str
 	}
 
 	token := deliveryClaimToken()
-	if claimer, ok := p.store.(DeliveryClaimer); ok {
-		row, err = claimer.Claim(ctx, key, token, time.Now().UTC(), deliveryLeaseDuration)
-		if err != nil {
-			p.mu.Unlock()
-			return err
-		}
-	} else {
-		row.Attempts++
-		row.Status = DeliveryPending
-		row.ClaimToken = token
-		n := time.Now().UTC().Add(deliveryLeaseDuration)
-		row.LeaseUntil = &n
-		row.UpdatedAt = time.Now().UTC()
-		if err = p.store.Put(ctx, row); err != nil {
-			p.mu.Unlock()
-			return err
-		}
+	row, err = p.store.Claim(ctx, key, token, time.Now().UTC(), deliveryLeaseDuration)
+	if err != nil {
+		p.mu.Unlock()
+		return err
 	}
 	p.mu.Unlock()
-	err = p.target.PublishReply(ctx, e, reply)
+	err = p.target.PublishReply(ctx, row.Event, row.Reply)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	row.UpdatedAt = time.Now().UTC()
@@ -181,8 +180,10 @@ func (p *DurablePublisher) PublishReply(ctx context.Context, e *Event, reply str
 		return p.putOwned(ctx, row, token)
 	}
 	row.LastError = safeDeliveryError(err)
-	if r, ok := err.(DeliveryClassifier); ok {
-		switch r.DeliveryStatus() {
+	var classifier DeliveryClassifier
+	var retryable RetryableError
+	if errors.As(err, &classifier) {
+		switch classifier.DeliveryStatus() {
 		case DeliveryRetryable:
 			if row.Attempts >= maxAutomaticDeliveryAttempts {
 				row.Status = DeliveryUnknown
@@ -194,18 +195,20 @@ func (p *DurablePublisher) PublishReply(ctx context.Context, e *Event, reply str
 		default:
 			row.Status = DeliveryPermanentFailure
 		}
-	} else if r, ok := err.(RetryableError); ok && r.Retryable() {
+	} else if errors.As(err, &retryable) && retryable.Retryable() {
 		if row.Attempts >= maxAutomaticDeliveryAttempts {
 			row.Status = DeliveryUnknown
 		} else {
 			row.Status = DeliveryRetryable
 		}
-	} else if errors.Is(err, context.DeadlineExceeded) {
+	} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		row.Status = DeliveryUnknown
 	} else {
 		row.Status = DeliveryPermanentFailure
 	}
-	_ = p.putOwned(ctx, row, token)
+	if saveErr := p.putOwned(ctx, row, token); saveErr != nil {
+		return errors.Join(fmt.Errorf("publish reply: %w", err), saveErr)
+	}
 	return fmt.Errorf("publish reply: %w", err)
 }
 func (p *DurablePublisher) ConfirmAndRetry(ctx context.Context, key, owner string) error {
@@ -224,11 +227,15 @@ func (p *DurablePublisher) ConfirmAndRetry(ctx context.Context, key, owner strin
 	if row.Status == DeliveryDelivered {
 		return ErrDeliveryAlreadyDone
 	}
+	if row.Status == DeliveryPending {
+		return ErrDeliveryInProgress
+	}
+	before := *row
 	row.OwnerConfirmed = true
 	row.Status = DeliveryRetryable
 	row.LastError = ""
 	row.UpdatedAt = time.Now().UTC()
-	if err := p.store.Put(ctx, row); err != nil {
+	if err := p.store.CompareAndSwap(ctx, &before, row); err != nil {
 		return err
 	}
 	return p.publishLocked(ctx, row)
@@ -236,24 +243,12 @@ func (p *DurablePublisher) ConfirmAndRetry(ctx context.Context, key, owner strin
 
 func (p *DurablePublisher) publishLocked(ctx context.Context, row *DeliveryAttempt) error {
 	token := deliveryClaimToken()
-	if claimer, ok := p.store.(DeliveryClaimer); ok {
-		claimed, err := claimer.Claim(ctx, row.Key, token, time.Now().UTC(), deliveryLeaseDuration)
-		if err != nil {
-			return err
-		}
-		row = claimed
-	} else {
-		row.Attempts++
-		row.Status = DeliveryPending
-		row.ClaimToken = token
-		n := time.Now().UTC().Add(deliveryLeaseDuration)
-		row.LeaseUntil = &n
-		row.UpdatedAt = time.Now().UTC()
-		if err := p.store.Put(ctx, row); err != nil {
-			return err
-		}
+	claimed, err := p.store.Claim(ctx, row.Key, token, time.Now().UTC(), deliveryLeaseDuration)
+	if err != nil {
+		return err
 	}
-	err := p.target.PublishReply(ctx, row.Event, row.Reply)
+	row = claimed
+	err = p.target.PublishReply(ctx, row.Event, row.Reply)
 	row.UpdatedAt = time.Now().UTC()
 	if err == nil {
 		row.Status = DeliveryDelivered
@@ -262,18 +257,19 @@ func (p *DurablePublisher) publishLocked(ctx context.Context, row *DeliveryAttem
 		row.LastError = safeDeliveryError(err)
 		row.Status = DeliveryUnknown
 	}
-	_ = p.putOwned(ctx, row, token)
+	if saveErr := p.putOwned(ctx, row, token); saveErr != nil {
+		return errors.Join(err, saveErr)
+	}
 	return err
 }
 
 func (p *DurablePublisher) putOwned(ctx context.Context, row *DeliveryAttempt, token string) error {
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
 	clean := *row
 	clean.ClaimToken = ""
 	clean.LeaseUntil = nil
-	if claimer, ok := p.store.(DeliveryClaimer); ok {
-		return claimer.PutOwned(ctx, &clean, token)
-	}
-	return p.store.Put(ctx, &clean)
+	return p.store.PutOwned(saveCtx, &clean, token)
 }
 
 func deliveryClaimToken() string {
@@ -327,14 +323,12 @@ func (s *MemoryDeliveryStore) Get(_ context.Context, k string) (*DeliveryAttempt
 	if !ok {
 		return nil, ErrDeliveryNotFound
 	}
-	c := *r
-	return &c, nil
+	return cloneDelivery(r), nil
 }
 func (s *MemoryDeliveryStore) Put(_ context.Context, r *DeliveryAttempt) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c := *r
-	s.rows[r.Key] = &c
+	s.rows[r.Key] = cloneDelivery(r)
 	return nil
 }
 func (s *MemoryDeliveryStore) Create(_ context.Context, r *DeliveryAttempt) error {
@@ -343,8 +337,7 @@ func (s *MemoryDeliveryStore) Create(_ context.Context, r *DeliveryAttempt) erro
 	if _, ok := s.rows[r.Key]; ok {
 		return ErrDeliveryAlreadyExists
 	}
-	c := *r
-	s.rows[r.Key] = &c
+	s.rows[r.Key] = cloneDelivery(r)
 	return nil
 }
 func (s *MemoryDeliveryStore) Claim(_ context.Context, key, token string, now time.Time, lease time.Duration) (*DeliveryAttempt, error) {
@@ -354,7 +347,7 @@ func (s *MemoryDeliveryStore) Claim(_ context.Context, key, token string, now ti
 	if !ok {
 		return nil, ErrDeliveryNotFound
 	}
-	if r.Status == DeliveryDelivered || r.Status == DeliveryUnknown || r.Status == DeliveryPermanentFailure {
+	if r.Status != DeliveryRetryable {
 		return nil, ErrDeliveryInProgress
 	}
 	if r.LeaseUntil != nil && r.LeaseUntil.After(now) {
@@ -367,8 +360,9 @@ func (s *MemoryDeliveryStore) Claim(_ context.Context, key, token string, now ti
 	n := now.Add(lease)
 	c.LeaseUntil = &n
 	c.UpdatedAt = now
+	c.ClaimedAt = &now
 	s.rows[key] = &c
-	return &c, nil
+	return cloneDelivery(&c), nil
 }
 func (s *MemoryDeliveryStore) PutOwned(_ context.Context, r *DeliveryAttempt, token string) error {
 	s.mu.Lock()
@@ -377,17 +371,43 @@ func (s *MemoryDeliveryStore) PutOwned(_ context.Context, r *DeliveryAttempt, to
 	if !ok || current.ClaimToken != token {
 		return ErrDeliveryLeaseLost
 	}
-	c := *r
-	s.rows[r.Key] = &c
+	s.rows[r.Key] = cloneDelivery(r)
 	return nil
+}
+func (s *MemoryDeliveryStore) CompareAndSwap(_ context.Context, before, after *DeliveryAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, ok := s.rows[before.Key]
+	if !ok || current.Status != before.Status || current.Attempts != before.Attempts || current.ClaimToken != before.ClaimToken {
+		return ErrDeliveryInProgress
+	}
+	s.rows[before.Key] = cloneDelivery(after)
+	return nil
+}
+
+func cloneDelivery(r *DeliveryAttempt) *DeliveryAttempt {
+	c := *r
+	if r.ClaimedAt != nil {
+		v := *r.ClaimedAt
+		c.ClaimedAt = &v
+	}
+	if r.LeaseUntil != nil {
+		v := *r.LeaseUntil
+		c.LeaseUntil = &v
+	}
+	if r.Event != nil {
+		event := *r.Event
+		event.Raw = append([]byte(nil), r.Event.Raw...)
+		c.Event = &event
+	}
+	return &c
 }
 func (s *MemoryDeliveryStore) ListAll(_ context.Context) ([]*DeliveryAttempt, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]*DeliveryAttempt, 0, len(s.rows))
 	for _, r := range s.rows {
-		c := *r
-		out = append(out, &c)
+		out = append(out, cloneDelivery(r))
 	}
 	return out, nil
 }
@@ -397,8 +417,7 @@ func (s *MemoryDeliveryStore) ListRecoverable(_ context.Context) ([]*DeliveryAtt
 	out := []*DeliveryAttempt{}
 	for _, r := range s.rows {
 		if r.Status == DeliveryPending || r.Status == DeliveryRetryable {
-			c := *r
-			out = append(out, &c)
+			out = append(out, cloneDelivery(r))
 		}
 	}
 	return out, nil

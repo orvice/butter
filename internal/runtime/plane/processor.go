@@ -56,6 +56,7 @@ type Processor struct {
 	mu          sync.Mutex
 	active      map[string]struct{}
 	cancels     map[string]context.CancelFunc
+	runTargets  map[string]string
 	states      map[string]RunState
 	seen        map[string]struct{}
 	maxReply    int
@@ -64,7 +65,7 @@ type Processor struct {
 }
 
 func NewProcessor(r Runner, p ReplyPublisher) *Processor {
-	return &Processor{runner: r, publisher: p, active: map[string]struct{}{}, cancels: map[string]context.CancelFunc{}, states: map[string]RunState{}, seen: map[string]struct{}{}, maxReply: 500}
+	return &Processor{runner: r, publisher: p, active: map[string]struct{}{}, cancels: map[string]context.CancelFunc{}, runTargets: map[string]string{}, states: map[string]RunState{}, seen: map[string]struct{}{}, maxReply: 500}
 }
 func (p *Processor) SetProgressSink(s ProgressSink)           { p.progress = s }
 func (p *Processor) SetDiagnosticStore(store DiagnosticStore) { p.diagnostics = store }
@@ -100,7 +101,7 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	if prompt == "" {
 		return "", ErrPromptRequired
 	}
-	key := e.InstallationID + ":" + e.AgentRunID + ":" + e.ActivityID
+	key := planeRunKey(e) + ":" + e.ActivityID
 	claimKey := e.WorkspaceID + ":" + e.AppID + ":" + e.InstallationID + ":" + e.AgentRunID
 	p.mu.Lock()
 	if _, ok := p.seen[key]; ok {
@@ -111,15 +112,22 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 		p.mu.Unlock()
 		return "", ErrDuplicate
 	}
+	runKey := planeRunKey(e)
+	if _, ok := p.runTargets[runKey]; ok {
+		p.mu.Unlock()
+		return "", planeprocessing.ErrClaimConflict
+	}
 	var claim planeprocessing.Claim
 	claimed := false
 	if p.claimRepo != nil {
 		if p.claimOwner == "" {
+			p.mu.Unlock()
 			return "", planeprocessing.ErrClaimConflict
 		}
 		var claimErr error
 		claim, claimErr = p.claimRepo.Claim(ctx, e.WorkspaceID, e.AppID, e.InstallationID, e.AgentRunID, p.claimOwner, time.Now().Add(5*time.Minute))
 		if claimErr != nil {
+			p.mu.Unlock()
 			return "", claimErr
 		}
 		claimed = true
@@ -127,9 +135,17 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	p.active[key] = struct{}{}
 	child, cancel := context.WithCancel(ctx)
 	p.cancels[key] = cancel
+	p.runTargets[runKey] = key
 	p.states[key] = RunStateRunning
 	p.mu.Unlock()
-	defer func() { cancel(); p.mu.Lock(); delete(p.cancels, key); delete(p.active, key); p.mu.Unlock() }()
+	defer func() {
+		cancel()
+		p.mu.Lock()
+		delete(p.cancels, key)
+		delete(p.active, key)
+		delete(p.runTargets, runKey)
+		p.mu.Unlock()
+	}()
 	out, err := p.runner.Run(child, app.GetAgentId(), []*genai.Part{{Text: prompt}}, "", &agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
 	if claimed {
 		if completeErr := p.claimRepo.Complete(context.Background(), claimKey, claim); completeErr != nil {
@@ -201,9 +217,12 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	return out, nil
 }
 func (p *Processor) Stop(ctx context.Context, e *Event) (StopAudit, error) {
-	key := e.InstallationID + ":" + e.AgentRunID + ":" + e.ActivityID
+	key := planeRunKey(e) + ":" + e.ActivityID
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if target, ok := p.runTargets[planeRunKey(e)]; ok {
+		key = target
+	}
 	if s, ok := p.states[key]; ok && s != RunStateRunning && s != RunStateStopping {
 		return StopAudit{Key: key, State: s, Attempts: 1}, nil
 	}
@@ -218,4 +237,10 @@ func (p *Processor) Stop(ctx context.Context, e *Event) (StopAudit, error) {
 		s = RunStateStopped
 	}
 	return StopAudit{Key: key, State: s, Attempts: 1}, nil
+}
+
+func planeRunKey(e *Event) string {
+	// A Stop has its own Activity ID; the shared Run identity locates the
+	// current Prompt. Keep the workspace/App/installation boundaries intact.
+	return e.WorkspaceID + ":" + e.AppID + ":" + e.InstallationID + ":" + e.AgentRunID
 }

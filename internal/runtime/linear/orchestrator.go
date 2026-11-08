@@ -304,7 +304,7 @@ func (o *Orchestrator) Handle(ctx context.Context, event *Event) error {
 		_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityThought, Body: queuedMessage})
 		return nil
 	}
-	prompts := shareInvocation(append(o.loadFollowUps(ctx, t, backlog), t.own))
+	prompts := append(o.loadFollowUps(ctx, t, backlog), t.own)
 	return o.holdSession(ctx, t, hold, route, prompts)
 }
 
@@ -359,7 +359,7 @@ func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHol
 	for {
 		if len(prompts) > 0 {
 			batch, remaining := promptBatch(prompts)
-			if err := o.runStoppable(runCtx, t, hold, route, batch); err != nil {
+			if err := o.runStoppable(runCtx, t, hold, route, shareInvocation(batch)); err != nil {
 				hold.Abandon()
 				return err
 			}
@@ -370,6 +370,7 @@ func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHol
 			// post nothing more.
 			_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityResponse, Body: stoppedMessage})
 			o.cancelPromptRecords(ctx, t, prompts)
+			prompts = nil
 			hold.AcknowledgeStop(ctx)
 		}
 		if runCtx.Err() != nil {
@@ -377,6 +378,11 @@ func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHol
 			// next holder, and this delivery for redelivery.
 			hold.Abandon()
 			return runCtx.Err()
+		}
+		if len(prompts) > 0 {
+			// Keep the lease and finish every already-drained batch before
+			// taking newer follow-ups or releasing the session.
+			continue
 		}
 		next, err := hold.ReleaseOrDrain(ctx)
 		if err != nil {
@@ -435,7 +441,7 @@ func (o *Orchestrator) recoverSession(ctx context.Context, t *turn) error {
 }
 
 // loadFollowUps turns queued follow-ups into prompts with their records.
-// Follow-ups drained together advance under one invocation ID.
+// Each batch receives its invocation ID when holdSession schedules it.
 func (o *Orchestrator) loadFollowUps(ctx context.Context, t *turn, followUps []FollowUp) []*prompt {
 	prompts := make([]*prompt, 0, len(followUps))
 	for _, f := range followUps {
@@ -450,7 +456,7 @@ func (o *Orchestrator) loadFollowUps(ctx context.Context, t *turn, followUps []F
 		}
 		prompts = append(prompts, p)
 	}
-	return shareInvocation(prompts)
+	return prompts
 }
 
 // shareInvocation gives every prompt of one turn the first prompt's

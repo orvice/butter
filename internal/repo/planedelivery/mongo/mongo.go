@@ -18,7 +18,7 @@ type doc struct {
 
 func New(db *mongo.Database) *Store { return &Store{col: db.Collection("plane_reply_deliveries")} }
 func (s *Store) EnsureIndexes(ctx context.Context) error {
-	_, e := s.col.Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{{Key: "updated_at", Value: 1}}, Options: options.Index()})
+	_, e := s.col.Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{{Key: "value.updatedat", Value: 1}}, Options: options.Index()})
 	return e
 }
 func (s *Store) Get(ctx context.Context, k string) (*plane.DeliveryAttempt, error) {
@@ -46,7 +46,7 @@ func (s *Store) Create(ctx context.Context, r *plane.DeliveryAttempt) error {
 func (s *Store) Claim(ctx context.Context, key, token string, now time.Time, lease time.Duration) (*plane.DeliveryAttempt, error) {
 	filter := bson.M{
 		"_id":          key,
-		"value.status": bson.M{"$in": []string{string(plane.DeliveryPending), string(plane.DeliveryRetryable)}},
+		"value.status": string(plane.DeliveryRetryable),
 		"$or": []bson.M{
 			{"value.lease_until": bson.M{"$exists": false}},
 			{"value.lease_until": nil},
@@ -58,8 +58,8 @@ func (s *Store) Claim(ctx context.Context, key, token string, now time.Time, lea
 		"value.status":      string(plane.DeliveryPending),
 		"value.claim_token": token,
 		"value.lease_until": until,
-		"value.claimed_at":  now,
-		"value.updated_at":  now,
+		"value.claimedat":   now,
+		"value.updatedat":   now,
 	}, "$inc": bson.M{"value.attempts": 1}}
 	var d doc
 	err := s.col.FindOneAndUpdate(ctx, filter, update, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&d)
@@ -83,6 +83,25 @@ func (s *Store) PutOwned(ctx context.Context, r *plane.DeliveryAttempt, token st
 	}
 	if result.MatchedCount == 0 {
 		return plane.ErrDeliveryLeaseLost
+	}
+	return nil
+}
+func (s *Store) CompareAndSwap(ctx context.Context, before, after *plane.DeliveryAttempt) error {
+	filter := bson.M{"_id": before.Key, "value.status": before.Status, "value.attempts": before.Attempts}
+	if before.ClaimToken == "" {
+		filter["$or"] = []bson.M{
+			{"value.claim_token": ""},
+			{"value.claim_token": nil},
+		}
+	} else {
+		filter["value.claim_token"] = before.ClaimToken
+	}
+	result, err := s.col.ReplaceOne(ctx, filter, doc{Key: before.Key, Value: after})
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return plane.ErrDeliveryInProgress
 	}
 	return nil
 }
