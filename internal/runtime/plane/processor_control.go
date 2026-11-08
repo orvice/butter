@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
+	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/genai"
 )
@@ -29,6 +31,16 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 	}
 	if strings.TrimSpace(e.Prompt) == "" {
 		return "", ErrPromptRequired
+	}
+	agentName := app.GetAgentId()
+	if resolver, ok := p.runner.(interface {
+		ResolveAgentRef(string, string) (string, bool)
+	}); ok {
+		var found bool
+		agentName, found = resolver.ResolveAgentRef(e.WorkspaceID, app.GetAgentId())
+		if !found {
+			return "", errors.New("plane agent is not available in this workspace")
+		}
 	}
 	var claim planeprocessing.Claim
 	if p.claimRepo != nil {
@@ -73,25 +85,67 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 	}()
 	defer func() { stopKeeping(); <-kept }()
 
-	out, runErr := p.runner.Run(runCtx, app.GetAgentId(), []*genai.Part{{Text: strings.TrimSpace(e.Prompt)}}, "",
-		&agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
-	state := RunStateSucceeded
+	// Runner-owned Invocations must use the same Stop/Finish arbitration
+	// before their terminal Save. Cache it for runners without a recorder
+	// and failures before an Invocation was created.
+	var finishOnce sync.Once
+	var state RunState
+	var finishErr error
+	finish := func(ctx context.Context, proposed RunState) (RunState, error) {
+		finishOnce.Do(func() {
+			if leaseLost.Load() {
+				finishErr = ErrRunLeaseLost
+				return
+			}
+			if p.claimRepo != nil {
+				if _, err := p.claimRepo.Renew(ctx, planeRunKey(e), claim, time.Now().Add(controlTTL)); err != nil {
+					finishErr = errors.Join(ErrRunLeaseLost, err)
+					return
+				}
+			}
+			state, finishErr = p.control.Finish(ctx, e, token, proposed)
+		})
+		return state, finishErr
+	}
+	runCtx = runner.WithInvocationFinalizer(runCtx, func(ctx context.Context, inv *agentsv1.Invocation) error {
+		proposed := RunStateSucceeded
+		if inv.GetStatus() != agentsv1.InvocationStatus_INVOCATION_STATUS_SUCCEEDED || runCtx.Err() != nil || strings.TrimSpace(inv.GetOutput()) == "" {
+			proposed = RunStateFailed
+		}
+		result, err := finish(ctx, proposed)
+		if err != nil {
+			return err
+		}
+		switch result {
+		case RunStateStopped:
+			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED
+			inv.Error = "stopped by Plane"
+			inv.Output = ""
+		case RunStateFailed:
+			inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+			if inv.GetError() == "" {
+				inv.Error = "plane runner returned empty reply or execution was interrupted"
+			}
+		}
+		return nil
+	})
+	out, runErr := p.runner.Run(runCtx, agentName, []*genai.Part{{Text: strings.TrimSpace(e.Prompt)}}, "",
+		&agentsv1.ContextInfo{WorkspaceId: e.WorkspaceID, UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
+	proposed := RunStateSucceeded
 	out = strings.TrimSpace(out)
 	if runErr != nil || runCtx.Err() != nil || out == "" {
-		state = RunStateFailed
+		proposed = RunStateFailed
 	}
 	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer finishCancel()
+	if errors.Is(runErr, runner.ErrInvocationFinalization) {
+		return "", runErr
+	}
 	// Lease loss suppresses all subsequent reply/progress/diagnostic writes.
 	if leaseLost.Load() {
 		return "", ErrRunLeaseLost
 	}
-	if p.claimRepo != nil {
-		if _, err := p.claimRepo.Renew(finishCtx, planeRunKey(e), claim, time.Now().Add(controlTTL)); err != nil {
-			return "", errors.Join(ErrRunLeaseLost, err)
-		}
-	}
-	state, err := p.control.Finish(finishCtx, e, token, state)
+	state, err := finish(finishCtx, proposed)
 	if err != nil {
 		return "", err
 	}
