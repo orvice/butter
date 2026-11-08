@@ -22,6 +22,7 @@ import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { PlaneAppForm, type PlaneAppFormValues } from './form'
 import {
   PlaneCredentialBadge,
+  PlaneEndpointCard,
   PlaneInboundNotice,
   PlaneProviderNotice,
 } from './shared'
@@ -114,6 +115,7 @@ export function PlaneAppEdit() {
             />
           )}
           <PlaneInboundNotice />
+          <PlaneEndpointCard callbackUrl={app.callbackUrl} webhookUrl={app.webhookUrl} />
           <Card>
             <CardHeader className='pb-2'>
               <CardTitle className='text-base'>Plane installations</CardTitle>

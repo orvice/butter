@@ -77,6 +77,10 @@ func (m *PlaneApp) validate(all bool) error {
 
 	// no validation rules for WebhookSecretSet
 
+	// no validation rules for CallbackUrl
+
+	// no validation rules for WebhookUrl
+
 	if all {
 		switch v := interface{}(m.GetCreatedAt()).(type) {
 		case interface{ ValidateAll() error }:

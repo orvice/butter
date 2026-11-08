@@ -101,6 +101,7 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 		return "", ErrPromptRequired
 	}
 	key := e.InstallationID + ":" + e.AgentRunID + ":" + e.ActivityID
+	claimKey := e.WorkspaceID + ":" + e.AppID + ":" + e.InstallationID + ":" + e.AgentRunID
 	p.mu.Lock()
 	if _, ok := p.seen[key]; ok {
 		p.mu.Unlock()
@@ -131,7 +132,7 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	defer func() { cancel(); p.mu.Lock(); delete(p.cancels, key); delete(p.active, key); p.mu.Unlock() }()
 	out, err := p.runner.Run(child, app.GetAgentId(), []*genai.Part{{Text: prompt}}, "", &agentsv1.ContextInfo{UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
 	if claimed {
-		if completeErr := p.claimRepo.Complete(context.Background(), key, claim); completeErr != nil {
+		if completeErr := p.claimRepo.Complete(context.Background(), claimKey, claim); completeErr != nil {
 			return "", errors.New("plane processing result was discarded after claim completion failure")
 		}
 	}

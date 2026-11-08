@@ -106,13 +106,16 @@ func (s *Store) List(ctx context.Context, f planeprocessing.Filter) ([]*agentsv1
 func (s *Store) Claim(ctx context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
 	key := ws + ":" + app + ":" + installation + ":" + run
 	now := time.Now()
-	f := bson.M{"key": key, "workspace_id": ws, "claim_expires_at": bson.M{"$lte": now}}
+	f := bson.M{"key": key, "workspace_id": ws, "$or": []bson.M{
+		{"claim_expires_at": bson.M{"$lte": now}},
+		{"claim_expires_at": bson.M{"$exists": false}},
+	}}
 	u := bson.M{"$set": bson.M{"claim_owner": owner, "claim_expires_at": expiry}, "$inc": bson.M{"claim_revision": 1, "claim_fence": 1}, "$setOnInsert": bson.M{"workspace_id": ws, "app_id": app, "key": key}}
-	r, e := s.col.UpdateOne(ctx, f, u)
+	r, e := s.col.UpdateOne(ctx, f, u, options.UpdateOne().SetUpsert(true))
 	if e != nil {
 		return planeprocessing.Claim{}, e
 	}
-	if r.MatchedCount != 1 {
+	if r.MatchedCount != 1 && r.UpsertedCount != 1 {
 		return planeprocessing.Claim{}, planeprocessing.ErrClaimConflict
 	}
 	var d doc
