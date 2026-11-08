@@ -370,7 +370,6 @@ func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHol
 			// post nothing more.
 			_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityResponse, Body: stoppedMessage})
 			o.cancelPromptRecords(ctx, t, prompts)
-			prompts = nil
 			hold.AcknowledgeStop(ctx)
 		}
 		if runCtx.Err() != nil {
