@@ -7,6 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	plane "go.orx.me/apps/butter/internal/runtime/plane"
+	"time"
 )
 
 type Store struct{ col *mongo.Collection }
@@ -34,6 +35,56 @@ func (s *Store) Get(ctx context.Context, k string) (*plane.DeliveryAttempt, erro
 func (s *Store) Put(ctx context.Context, r *plane.DeliveryAttempt) error {
 	_, e := s.col.ReplaceOne(ctx, bson.M{"_id": r.Key}, doc{Key: r.Key, Value: r}, options.Replace().SetUpsert(true))
 	return e
+}
+func (s *Store) Create(ctx context.Context, r *plane.DeliveryAttempt) error {
+	_, err := s.col.InsertOne(ctx, doc{Key: r.Key, Value: r})
+	if mongo.IsDuplicateKeyError(err) {
+		return plane.ErrDeliveryAlreadyExists
+	}
+	return err
+}
+func (s *Store) Claim(ctx context.Context, key, token string, now time.Time, lease time.Duration) (*plane.DeliveryAttempt, error) {
+	filter := bson.M{
+		"_id":          key,
+		"value.status": bson.M{"$in": []string{string(plane.DeliveryPending), string(plane.DeliveryRetryable)}},
+		"$or": []bson.M{
+			{"value.lease_until": bson.M{"$exists": false}},
+			{"value.lease_until": nil},
+			{"value.lease_until": bson.M{"$lte": now}},
+		},
+	}
+	until := now.Add(lease)
+	update := bson.M{"$set": bson.M{
+		"value.status":      string(plane.DeliveryPending),
+		"value.claim_token": token,
+		"value.lease_until": until,
+		"value.claimed_at":  now,
+		"value.updated_at":  now,
+	}, "$inc": bson.M{"value.attempts": 1}}
+	var d doc
+	err := s.col.FindOneAndUpdate(ctx, filter, update, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&d)
+	if err == mongo.ErrNoDocuments {
+		return nil, plane.ErrDeliveryInProgress
+	}
+	if err != nil {
+		return nil, err
+	}
+	if d.Value == nil {
+		return nil, errors.New("invalid plane delivery record")
+	}
+	return d.Value, nil
+}
+func (s *Store) PutOwned(ctx context.Context, r *plane.DeliveryAttempt, token string) error {
+	result, err := s.col.UpdateOne(ctx, bson.M{"_id": r.Key, "value.claim_token": token}, bson.M{
+		"$set": bson.M{"value": r},
+	})
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return plane.ErrDeliveryLeaseLost
+	}
+	return nil
 }
 func (s *Store) ListAll(ctx context.Context) ([]*plane.DeliveryAttempt, error) {
 	cur, e := s.col.Find(ctx, bson.M{})
