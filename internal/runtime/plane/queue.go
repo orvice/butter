@@ -25,7 +25,7 @@ type StreamQueue struct {
 var acceptPlaneScript = redis.NewScript(markStopLua + `
 -- Lua is atomic but does not roll back commands after a runtime error.
 -- Validate destination types before setting a cutoff or a holder marker.
-local types = {'string', 'stream', 'hash', 'string', 'string'}
+local types = {'string', 'stream', 'hash', 'string', 'string', 'zset'}
 for i = 1, #KEYS do
   local kind = redis.call('TYPE', KEYS[i]).ok
   if kind ~= 'none' and kind ~= types[i] then
@@ -50,6 +50,9 @@ event.accepted_order = order
 if event.stop then
   redis.call('SET', KEYS[4], order)
   event.stop_target = markStop(KEYS[3])
+  redis.call('ZREMRANGEBYSCORE', KEYS[6], '-inf', order)
+else
+  redis.call('ZADD', KEYS[6], order, tostring(order))
 end
 local id = redis.call('XADD', KEYS[2], '*', 'event', cjson.encode(event))
 redis.call('SET', KEYS[1], '1', 'PX', ARGV[2])
@@ -79,7 +82,7 @@ func (q *StreamQueue) Accept(ctx context.Context, e *Event) (string, error) {
 		stream = ControlStreamKey
 	}
 	if _, err := acceptPlaneScript.Run(ctx, q.client,
-		[]string{"butter:plane:seen:" + id, stream, controlKey(e), controlKey(e) + ":cutoff", orderKey},
+		[]string{"butter:plane:seen:" + id, stream, controlKey(e), controlKey(e) + ":cutoff", orderKey, queueOrderKey(e)},
 		p, (24 * time.Hour).Milliseconds()).Result(); err != nil {
 		if errors.Is(err, redis.Nil) {
 			return "", ErrDuplicate

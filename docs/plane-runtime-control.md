@@ -75,9 +75,17 @@ While new pending entries exist, rolling back only the Worker binary can
 execute messages that a Stop logically discarded. Retain cutoff handling
 until those entries have been drained or explicitly resolved.
 
+The control index now keeps an accepted-order ZSET and a completed-order set
+per Run. Admission registers each Prompt before it reaches a Worker; Begin
+atomically waits behind the lowest earlier uncompleted order, and End marks
+that order complete. Stop removes the cutoff range, so old pending Prompts do
+not block later accepted work. The memory implementation follows the same
+contract for tests. These order indexes currently have no automatic cleanup.
+
 This slice does not implement #502's FIFO batching, per-batch invocation
 association or actor provenance. A busy Prompt remains pending for recovery;
-acquisition order is not yet FIFO. Mapping the stopped control fact to the
+acquisition order is now FIFO once all events have reached durable admission.
+Mapping the stopped control fact to the
 Runner-owned Invocation now uses the same terminal arbitration: Stop first
 persists CANCELLED with no late output; completion first preserves its result.
 The runner calls the Plane finalizer before its terminal save, while the
