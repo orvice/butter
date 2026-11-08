@@ -30,7 +30,7 @@ type PlaneRuntimeDependencies struct {
 	Activity    ActivityClient
 	Token       ActivityTokenSource
 	Delivery    DeliveryStore
-	Processing  planeprocessing.ClaimRepository
+	Processing  planeprocessing.RuntimeRepository
 	Progress    ProgressSink
 	Diagnostics DiagnosticStore
 	TokenLease  FencedTokenLease
@@ -56,6 +56,7 @@ func (PlaneRuntimeFactory) Build(d PlaneRuntimeDependencies) (*PlaneRuntime, err
 	p.SetProgressSink(d.Progress)
 	p.SetDiagnosticStore(d.Diagnostics)
 	p.SetClaimRepository(d.Processing, d.Consumer)
+	p.SetProcessingRepository(d.Processing)
 	w := NewWorker(d.Queue, p, d.Resolver, d.Consumer)
 	return &PlaneRuntime{Client: d.Activity, Publisher: NewDurablePublisher(ActivityReplyPublisher{Client: d.Activity}, d.Delivery), Processor: p, Worker: w}, nil
 }

@@ -172,10 +172,39 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) (result err
 		if !allowedStopUser(app.GetAllowedUserIds(), e.ActorUserID) {
 			return ErrIdentity
 		}
-		return w.confirmStop(ctx, e)
+		err := w.confirmStop(ctx, e)
+		w.updateStatus(ctx, e, err, true)
+		return err
 	}
+	w.updateStatus(ctx, e, nil, false)
 	_, err = w.processor.Process(ctx, app, e)
+	w.updateStatus(ctx, e, err, false)
 	return err
+}
+
+func (w *Worker) updateStatus(ctx context.Context, e *Event, err error, stop bool) {
+	if w.processor == nil || w.processor.processing == nil {
+		return
+	}
+	status := agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_SUCCEEDED
+	failure := ""
+	if !stop {
+		status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_PROCESSING
+		if err != nil {
+			if errors.Is(err, ErrPromptDiscarded) {
+				status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_CANCELLED
+			} else {
+				status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_FAILED
+			}
+			failure = err.Error()
+		}
+	} else if err != nil {
+		status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_FAILED
+		failure = err.Error()
+	} else if e.StopTarget != "" {
+		status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_CANCELLED
+	}
+	_ = w.processor.processing.UpdateStatus(ctx, e.WorkspaceID, e.AppID, e.InstallationID, e.AgentRunID, e.ActivityID, e.Action, status, failure)
 }
 func (w *Worker) confirmStop(ctx context.Context, e *Event) error {
 	if w.processor.control == nil {

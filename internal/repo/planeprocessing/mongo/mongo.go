@@ -105,6 +105,18 @@ func (s *Store) List(ctx context.Context, f planeprocessing.Filter) ([]*agentsv1
 	return out, nil
 }
 
+func (s *Store) UpdateStatus(ctx context.Context, ws, app, installation, run, activity, action string, status agentsv1.PlaneProcessingStatus, failure string) error {
+	key := installation + ":" + run + ":" + activity + ":" + action
+	r, err := s.col.UpdateOne(ctx, bson.M{"key": key, "workspace_id": ws, "app_id": app, "spec": bson.M{"$exists": true}}, bson.M{"$set": bson.M{"status": status, "failure_reason": failure, "updated_at": time.Now().UTC()}})
+	if err != nil {
+		return err
+	}
+	if r.MatchedCount != 1 {
+		return planeprocessing.ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) Claim(ctx context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
 	key := ws + ":" + app + ":" + installation + ":" + run
 	now := time.Now()

@@ -1,17 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import {
-  useOverview,
-  useActivityFeed,
-  useActivityMetrics,
-} from '@/api/dashboard'
-import { useAgents } from '@/api/agents'
-import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
-import { AgentAvatar } from '@/components/butter/primitives'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
-import { isSelectableAgent } from '@/features/agui-chat/agents'
+import type {
+  ActivityEvent,
+  ComponentHealth,
+  ComponentHealthStatus,
+  CronTimeseriesRange,
+} from '@/types/api'
 import {
   AlertTriangle,
   ArrowRight,
@@ -29,12 +23,19 @@ import {
   Terminal,
   Workflow,
 } from 'lucide-react'
-import type {
-  ActivityEvent,
-  ComponentHealth,
-  ComponentHealthStatus,
-  CronTimeseriesRange,
-} from '@/types/api'
+import { useAgents } from '@/api/agents'
+import {
+  useOverview,
+  useActivityFeed,
+  useActivityMetrics,
+} from '@/api/dashboard'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
+import { AgentAvatar } from '@/components/butter/primitives'
+import { isSelectableAgent } from '@/features/agui-chat/agents'
+import { PlaneProcessingList } from '@/features/plane/processing-list'
 
 function relTime(iso?: string): string {
   if (!iso) return ''
@@ -160,7 +161,7 @@ function SystemHealth({
       <div className='grid lg:grid-cols-[minmax(220px,1.35fr)_repeat(3,minmax(128px,1fr))]'>
         <div
           className={cn(
-            'flex items-center gap-3 border-b border-border px-4 py-3 lg:border-b-0 lg:border-e',
+            'flex items-center gap-3 border-b border-border px-4 py-3 lg:border-e lg:border-b-0',
             problemCount > 0 ? 'bg-warning-muted/35' : 'bg-success-muted/30'
           )}
         >
@@ -197,8 +198,16 @@ function SystemHealth({
             health={health?.mongodb}
             icon={<Database />}
           />
-          <HealthItem label='Cache' health={health?.redis} icon={<HardDrive />} />
-          <HealthItem label='Runner' health={health?.runner} icon={<Server />} />
+          <HealthItem
+            label='Cache'
+            health={health?.redis}
+            icon={<HardDrive />}
+          />
+          <HealthItem
+            label='Runner'
+            health={health?.runner}
+            icon={<Server />}
+          />
         </div>
       </div>
     </section>
@@ -217,11 +226,13 @@ function Metric({
   emphasis?: boolean
 }) {
   return (
-    <div className={cn('min-w-0 px-4 py-4 sm:px-5', emphasis && 'bg-accent/65')}>
+    <div
+      className={cn('min-w-0 px-4 py-4 sm:px-5', emphasis && 'bg-accent/65')}
+    >
       <p className='text-xs font-medium text-muted-foreground'>{label}</p>
       <p
         className={cn(
-          'mt-1.5 font-mono text-2xl font-semibold tabular-nums tracking-normal sm:text-3xl',
+          'mt-1.5 font-mono text-2xl font-semibold tracking-normal tabular-nums sm:text-3xl',
           emphasis && 'text-accent-foreground'
         )}
       >
@@ -349,7 +360,13 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
   )
 }
 
-function EmptyRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+function EmptyRow({
+  icon,
+  children,
+}: {
+  icon: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className='flex min-h-24 items-center justify-center gap-2.5 px-4 py-5 text-sm text-muted-foreground'>
       <span className='[&_svg]:size-4'>{icon}</span>
@@ -373,7 +390,9 @@ export function Dashboard() {
     (metrics?.agent_runs_failed ?? 0) + (metrics?.automation_runs_failed ?? 0)
   const totalRuns = agentRuns + automationRuns
   const successRate =
-    totalRuns > 0 ? Math.round(((totalRuns - failedRuns) / totalRuns) * 100) : 100
+    totalRuns > 0
+      ? Math.round(((totalRuns - failedRuns) / totalRuns) * 100)
+      : 100
 
   const ranges: { key: CronTimeseriesRange; label: string }[] = [
     { key: 'RANGE_7D', label: '7 days' },
@@ -476,6 +495,8 @@ export function Dashboard() {
           <div className='space-y-5'>
             <SystemHealth health={health} />
 
+            <PlaneProcessingList />
+
             <section>
               <SectionHeader
                 title='Run activity'
@@ -501,7 +522,7 @@ export function Dashboard() {
                   </div>
                 }
               />
-              <div className='grid grid-cols-2 overflow-hidden rounded-lg border border-transparent bg-card shadow-card [&>*:nth-child(even)]:border-l [&>*:nth-child(n+3)]:border-t sm:grid-cols-4 sm:divide-x sm:divide-border sm:[&>*:nth-child(even)]:border-l-0 sm:[&>*:nth-child(n+3)]:border-t-0'>
+              <div className='grid grid-cols-2 overflow-hidden rounded-lg border border-transparent bg-card shadow-card sm:grid-cols-4 sm:divide-x sm:divide-border [&>*:nth-child(even)]:border-l sm:[&>*:nth-child(even)]:border-l-0 [&>*:nth-child(n+3)]:border-t sm:[&>*:nth-child(n+3)]:border-t-0'>
                 <Metric
                   label='Agent runs'
                   value={agentRuns.toLocaleString()}
@@ -541,7 +562,9 @@ export function Dashboard() {
                   <div className='overflow-hidden rounded-lg border border-transparent bg-card shadow-card'>
                     {attentionShown.length === 0 ? (
                       <EmptyRow
-                        icon={<CheckCircle2 className='text-success-foreground' />}
+                        icon={
+                          <CheckCircle2 className='text-success-foreground' />
+                        }
                       >
                         Nothing needs attention right now
                       </EmptyRow>
@@ -558,7 +581,9 @@ export function Dashboard() {
                     title='Active now'
                     description='Agent runs currently in progress'
                     aside={
-                      activeNow.length > 0 ? `${activeNow.length} running` : 'Idle'
+                      activeNow.length > 0
+                        ? `${activeNow.length} running`
+                        : 'Idle'
                     }
                   />
                   <div className='overflow-hidden rounded-lg border border-transparent bg-card shadow-card'>

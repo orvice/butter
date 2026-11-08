@@ -52,6 +52,7 @@ type Processor struct {
 	diagnostics DiagnosticStore
 	maxReply    int
 	claimRepo   planeprocessing.ClaimRepository
+	processing  planeprocessing.Repository
 	claimOwner  string
 	control     RunControl
 	controlPoll time.Duration
@@ -67,6 +68,7 @@ func (p *Processor) SetClaimRepository(r planeprocessing.ClaimRepository, owner 
 	p.claimRepo = r
 	p.claimOwner = owner
 }
+func (p *Processor) SetProcessingRepository(r planeprocessing.Repository) { p.processing = r }
 func NewProcessorWithDurableDelivery(r Runner, target ReplyPublisher, store DeliveryStore) *Processor {
 	return NewProcessor(r, NewDurablePublisher(target, store))
 }
