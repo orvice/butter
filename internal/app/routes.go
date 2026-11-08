@@ -592,6 +592,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 			h.planeAppSvcServer.SetPlaneInstallStateRepo(result.PlaneInstallStateRepo)
 			h.planeAppSvcServer.SetKeyring(planeKeyring)
 			h.planeAppSvcServer.SetWorkspaceRepo(result.WorkspaceRepo)
+			h.planeAppSvcServer.SetPlaneSettingsRepo(result.PlaneSettingRepo)
 			h.planeAppSvcServer.SetProfileProvider(planeProfileProvider(h.cfg))
 		}
 		h.agentSvcServer.SetPlaneGuard(application.NewPlaneReferenceGuard(result.PlaneRepo))

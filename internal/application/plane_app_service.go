@@ -19,6 +19,7 @@ import (
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	planeprocessingmemory "go.orx.me/apps/butter/internal/repo/planeprocessing/memory"
+	planesetting "go.orx.me/apps/butter/internal/repo/planesetting"
 	planestate "go.orx.me/apps/butter/internal/repo/planestate"
 	workspacerepo "go.orx.me/apps/butter/internal/repo/workspace"
 	plane "go.orx.me/apps/butter/internal/runtime/plane"
@@ -60,6 +61,7 @@ type PlaneAppServiceServer struct {
 	processingRepo   planeprocessing.Repository
 	delivery         *plane.DeliveryManagement
 	planeHTTPClient  *planeapi.Client
+	settingsRepo     planesetting.Repository
 }
 
 func NewPlaneAppServiceServer(repo planerepo.Repository) *PlaneAppServiceServer {
@@ -79,6 +81,24 @@ func (s *PlaneAppServiceServer) SetKeyring(keyring *secretbox.Keyring) { s.keyri
 
 func (s *PlaneAppServiceServer) SetPlaneProcessingRepo(repo planeprocessing.Repository) {
 	s.processingRepo = repo
+}
+
+func (s *PlaneAppServiceServer) SetPlaneSettingsRepo(repo planesetting.Repository) {
+	s.settingsRepo = repo
+}
+
+func (s *PlaneAppServiceServer) decorateApp(ctx context.Context, app *agentsv1.PlaneApp) *agentsv1.PlaneApp {
+	if app == nil || s.settingsRepo == nil {
+		return app
+	}
+	settings, err := s.settingsRepo.Get(ctx)
+	if err != nil || strings.TrimSpace(settings.GetPublicBaseUrl()) == "" {
+		return app
+	}
+	base := strings.TrimRight(strings.TrimSpace(settings.GetPublicBaseUrl()), "/")
+	app.CallbackUrl = base + "/api/plane/oauth/callback"
+	app.WebhookUrl = base + "/api/plane/webhook/" + app.GetId()
+	return app
 }
 
 func (s *PlaneAppServiceServer) PlaneProcessingRepository() planeprocessing.Repository {
@@ -272,6 +292,9 @@ func (s *PlaneAppServiceServer) ListPlaneApps(ctx context.Context, _ *connect.Re
 	if err != nil {
 		return nil, mapPlaneRepoErr(err)
 	}
+	for _, app := range apps {
+		s.decorateApp(ctx, app)
+	}
 	return connect.NewResponse(&agentsv1.ListPlaneAppsResponse{Apps: apps}), nil
 }
 
@@ -287,7 +310,7 @@ func (s *PlaneAppServiceServer) GetPlaneApp(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, mapPlaneRepoErr(err)
 	}
-	return connect.NewResponse(&agentsv1.GetPlaneAppResponse{App: app}), nil
+	return connect.NewResponse(&agentsv1.GetPlaneAppResponse{App: s.decorateApp(ctx, app)}), nil
 }
 
 func (s *PlaneAppServiceServer) GetPlaneProviderProfile(ctx context.Context, _ *connect.Request[agentsv1.GetPlaneProviderProfileRequest]) (*connect.Response[agentsv1.GetPlaneProviderProfileResponse], error) {
@@ -366,7 +389,7 @@ func (s *PlaneAppServiceServer) CreatePlaneApp(ctx context.Context, req *connect
 		"workspace_id", workspaceID, "app_id", created.GetId(), "agent_id", created.GetAgentId(),
 		"provider_profile", created.GetProviderProfile(),
 		"client_secret_set", created.GetClientSecretSet(), "webhook_secret_set", created.GetWebhookSecretSet())
-	return connect.NewResponse(&agentsv1.CreatePlaneAppResponse{App: created}), nil
+	return connect.NewResponse(&agentsv1.CreatePlaneAppResponse{App: s.decorateApp(ctx, created)}), nil
 }
 
 func (s *PlaneAppServiceServer) UpdatePlaneApp(ctx context.Context, req *connect.Request[agentsv1.UpdatePlaneAppRequest]) (*connect.Response[agentsv1.UpdatePlaneAppResponse], error) {
@@ -427,7 +450,7 @@ func (s *PlaneAppServiceServer) UpdatePlaneApp(ctx context.Context, req *connect
 	if err != nil {
 		return nil, mapPlaneRepoErr(err)
 	}
-	return connect.NewResponse(&agentsv1.UpdatePlaneAppResponse{App: updated}), nil
+	return connect.NewResponse(&agentsv1.UpdatePlaneAppResponse{App: s.decorateApp(ctx, updated)}), nil
 }
 
 func (s *PlaneAppServiceServer) PutPlaneAppCredentials(ctx context.Context, req *connect.Request[agentsv1.PutPlaneAppCredentialsRequest]) (*connect.Response[agentsv1.PutPlaneAppCredentialsResponse], error) {
@@ -470,7 +493,7 @@ func (s *PlaneAppServiceServer) PutPlaneAppCredentials(ctx context.Context, req 
 		"workspace_id", workspaceID, "app_id", prev.GetId(),
 		"client_secret_set", updated.GetClientSecretSet(),
 		"webhook_secret_set", updated.GetWebhookSecretSet())
-	return connect.NewResponse(&agentsv1.PutPlaneAppCredentialsResponse{App: updated}), nil
+	return connect.NewResponse(&agentsv1.PutPlaneAppCredentialsResponse{App: s.decorateApp(ctx, updated)}), nil
 }
 
 func (s *PlaneAppServiceServer) DeletePlaneApp(ctx context.Context, req *connect.Request[agentsv1.DeletePlaneAppRequest]) (*connect.Response[agentsv1.DeletePlaneAppResponse], error) {

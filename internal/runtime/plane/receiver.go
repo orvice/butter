@@ -200,9 +200,74 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 		Run               struct{ ID, WorkspaceID string } `json:"run"`
 		AgentActivity     struct{ ID string }              `json:"agent_activity"`
 		Activity          struct{ ID string }              `json:"activity"`
+		Data              json.RawMessage                  `json:"data"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
+	}
+	if len(raw.Data) != 0 && string(raw.Data) != "null" {
+		var nested struct {
+			Prompt            string                           `json:"prompt"`
+			Type              string                           `json:"type"`
+			Action            string                           `json:"action"`
+			AppClientID       string                           `json:"app_client_id"`
+			AppInstallationID string                           `json:"app_installation_id"`
+			AgentUserID       string                           `json:"agent_user_id"`
+			WorkspaceID       string                           `json:"workspace_id"`
+			AgentRun          struct{ ID, WorkspaceID string } `json:"agent_run"`
+			Run               struct{ ID, WorkspaceID string } `json:"run"`
+			AgentActivity     struct {
+				ID      string `json:"id"`
+				Content struct {
+					Body string `json:"body"`
+				} `json:"content"`
+			} `json:"agent_run_activity"`
+			Activity struct {
+				ID      string `json:"id"`
+				Content struct {
+					Body string `json:"body"`
+				} `json:"content"`
+			} `json:"activity"`
+		}
+		if err := json.Unmarshal(raw.Data, &nested); err != nil {
+			return err
+		}
+		if raw.Type == "" {
+			raw.Type = nested.Type
+		}
+		if raw.Action == "" {
+			raw.Action = nested.Action
+		}
+		if raw.AppClientID == "" {
+			raw.AppClientID = nested.AppClientID
+		}
+		if raw.AppInstallationID == "" {
+			raw.AppInstallationID = nested.AppInstallationID
+		}
+		if raw.AgentUserID == "" {
+			raw.AgentUserID = nested.AgentUserID
+		}
+		if raw.WorkspaceID == "" {
+			raw.WorkspaceID = nested.WorkspaceID
+		}
+		if raw.Run.ID == "" {
+			raw.Run = nested.Run
+		}
+		if raw.Run.ID == "" {
+			raw.Run = nested.AgentRun
+		}
+		if raw.Activity.ID == "" {
+			raw.Activity.ID = nested.Activity.ID
+		}
+		if raw.Activity.ID == "" {
+			raw.Activity.ID = nested.AgentActivity.ID
+		}
+		if raw.Prompt == "" {
+			raw.Prompt = nested.AgentActivity.Content.Body
+		}
+		if raw.Prompt == "" {
+			raw.Prompt = nested.Activity.Content.Body
+		}
 	}
 	p.Type, p.Action, p.AppClientID, p.AppInstallationID, p.AgentUserID, p.WorkspaceID = raw.Type, raw.Action, raw.AppClientID, raw.AppInstallationID, raw.AgentUserID, raw.WorkspaceID
 	p.Prompt, p.Type, p.Action, p.AppClientID, p.AppInstallationID, p.AgentUserID, p.WorkspaceID = raw.Prompt, raw.Type, raw.Action, raw.AppClientID, raw.AppInstallationID, raw.AgentUserID, raw.WorkspaceID

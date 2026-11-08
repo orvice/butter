@@ -99,4 +99,6 @@ func StripDerived(app *agentsv1.PlaneApp) {
 	app.CredentialState = agentsv1.PlaneAppCredentialState_PLANE_APP_CREDENTIAL_STATE_UNSPECIFIED
 	app.ClientSecretSet = false
 	app.WebhookSecretSet = false
+	app.CallbackUrl = ""
+	app.WebhookUrl = ""
 }

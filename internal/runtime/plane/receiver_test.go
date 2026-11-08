@@ -17,6 +17,17 @@ func TestWebhookPayloadAcceptsVerifiedDiscriminators(t *testing.T) {
 		t.Fatalf("payload identities = %+v", p)
 	}
 }
+
+func TestWebhookPayloadAcceptsPlaneEnvelope(t *testing.T) {
+	var p webhookPayload
+	body := `{"event":"agent_run_user_prompt","data":{"action":"prompted","type":"agent_run_activity","agent_user_id":"bot","app_client_id":"client","app_installation_id":"install","workspace_id":"ws","agent_run":{"id":"run-1","workspace_id":"ws"},"agent_run_activity":{"id":"activity-1","content":{"body":"<p>Hello Plane</p>"}}}}`
+	if err := p.UnmarshalJSON([]byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	if p.Type != "agent_run_activity" || p.Action != "prompted" || p.Run.ID != "run-1" || p.Activity.ID != "activity-1" || p.Prompt != "<p>Hello Plane</p>" {
+		t.Fatalf("decoded envelope = %+v", p)
+	}
+}
 func TestValidSignatureUsesRawBodyAndConstantTimeDigest(t *testing.T) {
 	body := []byte(`{"type":"agent_run","action":"created"}`)
 	secret := []byte("secret")

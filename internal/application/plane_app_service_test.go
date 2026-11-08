@@ -94,10 +94,27 @@ func newPlaneFixture(t *testing.T) *planeFixture {
 	apps.SetAgentRepo(configStore)
 	apps.SetKeyring(secretbox.NewKeyring(cryptokeymemory.New()))
 	apps.SetProfileProvider(provider)
+	apps.SetPlaneSettingsRepo(settings)
 	admin := NewPlaneAdminServiceServer(settings)
 	admin.SetProfileProvider(provider)
 	return &planeFixture{
 		apps: apps, admin: admin, repo: repo, settings: settings, config: configStore, profile: profile,
+	}
+}
+
+func TestPlaneAppDerivedEndpointsFollowPlatformBaseURL(t *testing.T) {
+	fx := newPlaneFixture(t)
+	if _, err := fx.admin.UpdatePlaneSettings(globalAdminCtx(), connect.NewRequest(&agentsv1.UpdatePlaneSettingsRequest{
+		Settings: &agentsv1.PlaneSettings{PublicBaseUrl: "https://butter.example.com/"},
+	})); err != nil {
+		t.Fatalf("UpdatePlaneSettings: %v", err)
+	}
+	app := fx.create(t, planeOwnerA(), planeSupportApp("client-endpoints"))
+	if got, want := app.GetCallbackUrl(), "https://butter.example.com/api/plane/oauth/callback"; got != want {
+		t.Fatalf("callback URL = %q, want %q", got, want)
+	}
+	if got, want := app.GetWebhookUrl(), "https://butter.example.com/api/plane/webhook/"+app.GetId(); got != want {
+		t.Fatalf("webhook URL = %q, want %q", got, want)
 	}
 }
 

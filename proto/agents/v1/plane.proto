@@ -98,10 +98,15 @@ message PlaneApp {
   // @gotags: json:"webhook_secret_set,omitempty" bson:"webhook_secret_set,omitempty"
   bool webhook_secret_set = 12;
 
-  // Callback and webhook URLs are deliberately absent until the routes that
-  // serve them exist (#498, #499+): publishing a URL nobody answers would
-  // invite operators to register a broken webhook.
-  reserved 13, 14;
+  // OAuth callback URL for this deployment. Empty when the platform public
+  // base URL has not been configured.
+  // @gotags: json:"callback_url,omitempty" bson:"-"
+  string callback_url = 17;
+
+  // Signed inbound webhook URL for this App. Empty when the platform public
+  // base URL has not been configured.
+  // @gotags: json:"webhook_url,omitempty" bson:"-"
+  string webhook_url = 18;
 
   // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
   google.protobuf.Timestamp created_at = 15;

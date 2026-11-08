@@ -31,6 +31,9 @@ const (
 	PlaneAppService_GetPlaneInstallation_FullMethodName       = "/agents.v1.PlaneAppService/GetPlaneInstallation"
 	PlaneAppService_ListPlaneProcessingRecords_FullMethodName = "/agents.v1.PlaneAppService/ListPlaneProcessingRecords"
 	PlaneAppService_GetPlaneProcessingRecord_FullMethodName   = "/agents.v1.PlaneAppService/GetPlaneProcessingRecord"
+	PlaneAppService_ListPlaneDeliveries_FullMethodName        = "/agents.v1.PlaneAppService/ListPlaneDeliveries"
+	PlaneAppService_GetPlaneDelivery_FullMethodName           = "/agents.v1.PlaneAppService/GetPlaneDelivery"
+	PlaneAppService_RetryPlaneDelivery_FullMethodName         = "/agents.v1.PlaneAppService/RetryPlaneDelivery"
 )
 
 // PlaneAppServiceClient is the client API for PlaneAppService service.
@@ -63,6 +66,9 @@ type PlaneAppServiceClient interface {
 	GetPlaneInstallation(ctx context.Context, in *GetPlaneInstallationRequest, opts ...grpc.CallOption) (*GetPlaneInstallationResponse, error)
 	ListPlaneProcessingRecords(ctx context.Context, in *ListPlaneProcessingRecordsRequest, opts ...grpc.CallOption) (*ListPlaneProcessingRecordsResponse, error)
 	GetPlaneProcessingRecord(ctx context.Context, in *GetPlaneProcessingRecordRequest, opts ...grpc.CallOption) (*GetPlaneProcessingRecordResponse, error)
+	ListPlaneDeliveries(ctx context.Context, in *ListPlaneDeliveriesRequest, opts ...grpc.CallOption) (*ListPlaneDeliveriesResponse, error)
+	GetPlaneDelivery(ctx context.Context, in *GetPlaneDeliveryRequest, opts ...grpc.CallOption) (*GetPlaneDeliveryResponse, error)
+	RetryPlaneDelivery(ctx context.Context, in *RetryPlaneDeliveryRequest, opts ...grpc.CallOption) (*RetryPlaneDeliveryResponse, error)
 }
 
 type planeAppServiceClient struct {
@@ -193,6 +199,36 @@ func (c *planeAppServiceClient) GetPlaneProcessingRecord(ctx context.Context, in
 	return out, nil
 }
 
+func (c *planeAppServiceClient) ListPlaneDeliveries(ctx context.Context, in *ListPlaneDeliveriesRequest, opts ...grpc.CallOption) (*ListPlaneDeliveriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPlaneDeliveriesResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_ListPlaneDeliveries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *planeAppServiceClient) GetPlaneDelivery(ctx context.Context, in *GetPlaneDeliveryRequest, opts ...grpc.CallOption) (*GetPlaneDeliveryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPlaneDeliveryResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_GetPlaneDelivery_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *planeAppServiceClient) RetryPlaneDelivery(ctx context.Context, in *RetryPlaneDeliveryRequest, opts ...grpc.CallOption) (*RetryPlaneDeliveryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetryPlaneDeliveryResponse)
+	err := c.cc.Invoke(ctx, PlaneAppService_RetryPlaneDelivery_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PlaneAppServiceServer is the server API for PlaneAppService service.
 // All implementations must embed UnimplementedPlaneAppServiceServer
 // for forward compatibility.
@@ -223,6 +259,9 @@ type PlaneAppServiceServer interface {
 	GetPlaneInstallation(context.Context, *GetPlaneInstallationRequest) (*GetPlaneInstallationResponse, error)
 	ListPlaneProcessingRecords(context.Context, *ListPlaneProcessingRecordsRequest) (*ListPlaneProcessingRecordsResponse, error)
 	GetPlaneProcessingRecord(context.Context, *GetPlaneProcessingRecordRequest) (*GetPlaneProcessingRecordResponse, error)
+	ListPlaneDeliveries(context.Context, *ListPlaneDeliveriesRequest) (*ListPlaneDeliveriesResponse, error)
+	GetPlaneDelivery(context.Context, *GetPlaneDeliveryRequest) (*GetPlaneDeliveryResponse, error)
+	RetryPlaneDelivery(context.Context, *RetryPlaneDeliveryRequest) (*RetryPlaneDeliveryResponse, error)
 	mustEmbedUnimplementedPlaneAppServiceServer()
 }
 
@@ -268,6 +307,15 @@ func (UnimplementedPlaneAppServiceServer) ListPlaneProcessingRecords(context.Con
 }
 func (UnimplementedPlaneAppServiceServer) GetPlaneProcessingRecord(context.Context, *GetPlaneProcessingRecordRequest) (*GetPlaneProcessingRecordResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPlaneProcessingRecord not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) ListPlaneDeliveries(context.Context, *ListPlaneDeliveriesRequest) (*ListPlaneDeliveriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPlaneDeliveries not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) GetPlaneDelivery(context.Context, *GetPlaneDeliveryRequest) (*GetPlaneDeliveryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPlaneDelivery not implemented")
+}
+func (UnimplementedPlaneAppServiceServer) RetryPlaneDelivery(context.Context, *RetryPlaneDeliveryRequest) (*RetryPlaneDeliveryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RetryPlaneDelivery not implemented")
 }
 func (UnimplementedPlaneAppServiceServer) mustEmbedUnimplementedPlaneAppServiceServer() {}
 func (UnimplementedPlaneAppServiceServer) testEmbeddedByValue()                         {}
@@ -506,6 +554,60 @@ func _PlaneAppService_GetPlaneProcessingRecord_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PlaneAppService_ListPlaneDeliveries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPlaneDeliveriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).ListPlaneDeliveries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_ListPlaneDeliveries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).ListPlaneDeliveries(ctx, req.(*ListPlaneDeliveriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaneAppService_GetPlaneDelivery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPlaneDeliveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).GetPlaneDelivery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_GetPlaneDelivery_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).GetPlaneDelivery(ctx, req.(*GetPlaneDeliveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PlaneAppService_RetryPlaneDelivery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetryPlaneDeliveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlaneAppServiceServer).RetryPlaneDelivery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PlaneAppService_RetryPlaneDelivery_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlaneAppServiceServer).RetryPlaneDelivery(ctx, req.(*RetryPlaneDeliveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PlaneAppService_ServiceDesc is the grpc.ServiceDesc for PlaneAppService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -561,6 +663,18 @@ var PlaneAppService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetPlaneProcessingRecord",
 			Handler:    _PlaneAppService_GetPlaneProcessingRecord_Handler,
 		},
+		{
+			MethodName: "ListPlaneDeliveries",
+			Handler:    _PlaneAppService_ListPlaneDeliveries_Handler,
+		},
+		{
+			MethodName: "GetPlaneDelivery",
+			Handler:    _PlaneAppService_GetPlaneDelivery_Handler,
+		},
+		{
+			MethodName: "RetryPlaneDelivery",
+			Handler:    _PlaneAppService_RetryPlaneDelivery_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "agents/v1/plane.proto",
@@ -575,12 +689,11 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ============================================================================= is global, not per-workspace: it names the public
-// address of this deployment. Only global administrators may read or change
-// it, so workspace input can never redirect Plane callbacks or webhooks.
-// The provider profile itself is not writable through any RPC; it comes from
-// the deployment's startup configuration.
-// =============================================================================
+// Plane platform settings are global, not per-workspace: the base URL names
+// the public address of this deployment. Only global administrators may read
+// or change it, so workspace input can never redirect Plane callbacks or
+// webhooks. The provider profile itself is not writable through any RPC; it
+// comes from the deployment's startup configuration.
 type PlaneAdminServiceClient interface {
 	GetPlaneSettings(ctx context.Context, in *GetPlaneSettingsRequest, opts ...grpc.CallOption) (*GetPlaneSettingsResponse, error)
 	UpdatePlaneSettings(ctx context.Context, in *UpdatePlaneSettingsRequest, opts ...grpc.CallOption) (*UpdatePlaneSettingsResponse, error)
@@ -618,12 +731,11 @@ func (c *planeAdminServiceClient) UpdatePlaneSettings(ctx context.Context, in *U
 // All implementations must embed UnimplementedPlaneAdminServiceServer
 // for forward compatibility.
 //
-// ============================================================================= is global, not per-workspace: it names the public
-// address of this deployment. Only global administrators may read or change
-// it, so workspace input can never redirect Plane callbacks or webhooks.
-// The provider profile itself is not writable through any RPC; it comes from
-// the deployment's startup configuration.
-// =============================================================================
+// Plane platform settings are global, not per-workspace: the base URL names
+// the public address of this deployment. Only global administrators may read
+// or change it, so workspace input can never redirect Plane callbacks or
+// webhooks. The provider profile itself is not writable through any RPC; it
+// comes from the deployment's startup configuration.
 type PlaneAdminServiceServer interface {
 	GetPlaneSettings(context.Context, *GetPlaneSettingsRequest) (*GetPlaneSettingsResponse, error)
 	UpdatePlaneSettings(context.Context, *UpdatePlaneSettingsRequest) (*UpdatePlaneSettingsResponse, error)
