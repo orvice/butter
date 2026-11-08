@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -1448,8 +1449,24 @@ func (s *Service) finishInvocation(ctx context.Context, inv *agentsv1.Invocation
 	if output != nil {
 		inv.Output = truncate(*output, 4096)
 	}
+	finalize := invocationFinalizer(ctx)
+	if finalize != nil {
+		if err := finalize(saveCtx, inv); err != nil {
+			*runErr = errors.Join(*runErr, ErrInvocationFinalization, err)
+			return
+		}
+		if inv.Status == agentsv1.InvocationStatus_INVOCATION_STATUS_CANCELLED {
+			*runErr = errors.Join(*runErr, context.Canceled)
+			if output != nil {
+				*output = ""
+			}
+		}
+	}
 	if err := rec.Save(saveCtx, inv); err != nil {
 		log.FromContext(ctx).Warn("failed to record invocation completion", "err", err)
+		if finalize != nil {
+			*runErr = errors.Join(*runErr, ErrInvocationFinalization, err)
+		}
 	}
 }
 

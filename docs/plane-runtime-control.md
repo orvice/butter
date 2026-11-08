@@ -78,8 +78,19 @@ until those entries have been drained or explicitly resolved.
 This slice does not implement #502's FIFO batching, per-batch invocation
 association or actor provenance. A busy Prompt remains pending for recovery;
 acquisition order is not yet FIFO. Mapping the stopped control fact to the
-Runner-owned Invocation's CANCELLED status, processing-record updates and
-their Dashboard projection remain separate work, as does final protocol Gate B
+Runner-owned Invocation now uses the same terminal arbitration: Stop first
+persists CANCELLED with no late output; completion first preserves its result.
+The runner calls the Plane finalizer before its terminal save, while the
+holder is still renewed. A lost fence suppresses that save. A failed terminal
+save leaves the run without an End outcome, so Stop cannot falsely confirm
+that persistence settled. Such records can remain RUNNING until process-owner
+cleanup; started markers still prevent executing them again.
+
+Plane resolves the configured immutable Agent ID within the App's workspace
+before starting the turn and carries that workspace into its Invocation.
+
+Processing-record updates and their Dashboard projection remain separate
+work, as does final protocol Gate B
 acceptance. Neither #502 nor #503 is closed by this slice.
 
 ## Verification
