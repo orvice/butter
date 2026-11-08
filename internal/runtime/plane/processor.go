@@ -7,6 +7,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/genai"
+	"strings"
 	"time"
 )
 
@@ -45,7 +46,11 @@ type StopAudit struct {
 	State    RunState
 	Attempts int
 }
+type InvocationRecovery interface {
+	FailActive(context.Context, string, string, string, string) error
+}
 type Processor struct {
+	invocations InvocationRecovery
 	runner      Runner
 	publisher   ReplyPublisher
 	progress    ProgressSink
@@ -56,6 +61,7 @@ type Processor struct {
 	claimOwner  string
 	control     RunControl
 	controlPoll time.Duration
+	batches     *redisBatchSource
 }
 
 func NewProcessor(r Runner, p ReplyPublisher) *Processor {
@@ -89,6 +95,28 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	}
 	if p.control == nil {
 		return "", ErrRuntimeDependency
+	}
+	if p.batches != nil {
+		if err := p.batches.prepare(ctx, e); err != nil {
+			return "", err
+		}
+		if batching, ok := p.runner.(interface{ SupportsPromptBatching(string, string) bool }); ok && !batching.SupportsPromptBatching(e.WorkspaceID, e.AgentID) {
+			// A Workflow answer addresses the oldest Interrupt exactly once.
+			// Keep each reply intact rather than joining several answers.
+			e.Members = e.Members[:1]
+		}
+		// Re-check mutable policy against every frozen member. Stop and
+		// terminal recovery remain available after inbound is disabled.
+		for i, member := range e.Members {
+			if !app.GetInboundEnabled() || member.AgentID == "" || member.AgentID != app.GetAgentId() ||
+				!allowedStopUser(app.GetAllowedUserIds(), member.ActorUserID) || strings.EqualFold(member.ActorUserID, member.BotUserID) {
+				if i == 0 {
+					return "", ErrPromptRejected
+				}
+				e.Members = e.Members[:i]
+				break
+			}
+		}
 	}
 	return p.processControlled(ctx, app, e)
 }

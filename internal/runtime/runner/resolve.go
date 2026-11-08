@@ -114,3 +114,23 @@ func NewServiceForTestAgents(agents ...*agentsv1.Agent) *Service {
 	}
 	return s
 }
+
+// SupportsPromptBatching reports whether joining several user prompts preserves
+// this agent's turn semantics. Workflow-bearing trees consume one FIFO answer
+// per turn; entry points must keep those answers as separate turns.
+func (s *Service) SupportsPromptBatching(workspaceID, agentID string) bool {
+	name, ok := s.ResolveAgentRef(workspaceID, agentID)
+	if !ok {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pool := make(map[string]*agentsv1.Agent, len(s.agentsProto))
+	root := s.agentsProto[name]
+	for _, pb := range s.agentsProto {
+		if pb.GetWorkspaceId() == root.GetWorkspaceId() {
+			pool[pb.GetAgentId()] = pb
+		}
+	}
+	return !containsWorkflowAgentWithPool(root, pool)
+}

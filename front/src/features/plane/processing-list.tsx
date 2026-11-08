@@ -11,6 +11,8 @@ const labels: Record<number, string> = {
   [PlaneProcessingStatus.SUCCEEDED]: 'Succeeded',
   [PlaneProcessingStatus.FAILED]: 'Failed',
   [PlaneProcessingStatus.CANCELLED]: 'Cancelled',
+  [PlaneProcessingStatus.QUEUED]: 'Queued',
+  [PlaneProcessingStatus.FAILED_UNCERTAIN]: 'Uncertain — review required',
 }
 
 function recordTime(record: PlaneProcessingRecord) {
@@ -25,7 +27,7 @@ export function PlaneProcessingList() {
       <CardHeader>
         <CardTitle className='text-base'>Plane processing</CardTitle>
         <p className='text-sm text-muted-foreground'>
-          Recent webhook runs and Stop outcomes.
+          Prompt batches, actor provenance, execution and delivery outcomes.
         </p>
       </CardHeader>
       <CardContent>
@@ -53,6 +55,33 @@ export function PlaneProcessingList() {
                 <p className='truncate text-xs text-muted-foreground'>
                   {record.runId} · {record.activityId}
                 </p>
+                <p className='text-xs break-all text-muted-foreground'>
+                  Actor: {record.actorUserId || 'unknown'} · Agent:{' '}
+                  {record.agentId || '—'}
+                </p>
+                {record.invocationId && (
+                  <p className='text-xs break-all text-muted-foreground'>
+                    Invocation: {record.invocationId}
+                  </p>
+                )}
+                {record.batchActivityIds.length > 1 && (
+                  <p className='text-xs break-all text-muted-foreground'>
+                    Batch: {record.batchActivityIds.join(', ')}
+                  </p>
+                )}
+                {(record.queueConfirmationStatus ||
+                  record.replyDeliveryStatus) && (
+                  <p className='text-xs text-muted-foreground'>
+                    Queue confirmation: {record.queueConfirmationStatus || '—'}{' '}
+                    · Reply delivery: {record.replyDeliveryStatus || '—'}
+                  </p>
+                )}
+                {record.memoryCaptureDisabledReason && (
+                  <p className='text-xs text-muted-foreground'>
+                    Memory capture disabled:{' '}
+                    {record.memoryCaptureDisabledReason}
+                  </p>
+                )}
                 {record.failureReason && (
                   <p className='truncate text-xs text-destructive'>
                     {record.failureReason}
@@ -61,7 +90,8 @@ export function PlaneProcessingList() {
               </div>
               <Badge
                 variant={
-                  record.status === PlaneProcessingStatus.FAILED
+                  record.status === PlaneProcessingStatus.FAILED ||
+                  record.status === PlaneProcessingStatus.FAILED_UNCERTAIN
                     ? 'destructive'
                     : 'secondary'
                 }

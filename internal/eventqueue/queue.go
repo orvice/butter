@@ -173,7 +173,13 @@ func (q *Queue) Read(ctx context.Context, consumer string, count int64, block ti
 // ReadPending re-claims entries this consumer already holds but never
 // acknowledged — the state a Pod is in after a crash mid-turn.
 func (q *Queue) ReadPending(ctx context.Context, consumer string, count int64) ([]Entry, error) {
-	return q.read(ctx, consumer, "0", count, 0)
+	return q.ReadPendingAfter(ctx, consumer, "0", count)
+}
+
+// ReadPendingAfter pages this consumer's pending entries by Stream ID. The
+// cursor keeps a large active head from starving deferred work further back.
+func (q *Queue) ReadPendingAfter(ctx context.Context, consumer, after string, count int64) ([]Entry, error) {
+	return q.read(ctx, consumer, after, count, 0)
 }
 
 func (q *Queue) read(ctx context.Context, consumer, start string, count int64, block time.Duration) ([]Entry, error) {
@@ -214,6 +220,40 @@ func (q *Queue) Ack(ctx context.Context, ids ...string) error {
 	return nil
 }
 
+var ackOwnedScript = redis.NewScript(`
+for i = 3, #ARGV do
+  local pending = redis.call('XPENDING', KEYS[1], ARGV[1], ARGV[i], ARGV[i], 1)
+  if #pending > 0 and pending[1][2] ~= ARGV[2] then return 0 end
+end
+local ids = {}
+for i = 3, #ARGV do ids[#ids+1] = ARGV[i] end
+redis.call('XACK', KEYS[1], ARGV[1], unpack(ids))
+return 1
+`)
+
+// AckOwned verifies ownership in the same operation as acknowledgment. A
+// paused former owner cannot acknowledge an entry reclaimed by another Pod.
+func (q *Queue) AckOwned(ctx context.Context, consumer string, ids ...string) error {
+	if !q.Available() {
+		return q.notConfigured()
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	args := []any{q.cfg.ConsumerGroup, consumer}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	n, err := ackOwnedScript.Run(ctx, q.rdb, []string{q.cfg.StreamKey}, args...).Int()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errors.New("pending entry is no longer owned")
+	}
+	return nil
+}
+
 // Touch resets one pending entry's idle time while its consumer is still
 // handling it. Without this heartbeat, XAUTOCLAIM can steal a healthy long
 // turn merely because it exceeded the reclaim idle time.
@@ -237,26 +277,35 @@ func (q *Queue) Claim(ctx context.Context, consumer string, minIdle time.Duratio
 	if !q.Available() {
 		return nil, q.notConfigured()
 	}
-	messages, _, err := q.rdb.XAutoClaim(ctx, &redis.XAutoClaimArgs{
+	entries, _, err := q.ClaimAfter(ctx, consumer, minIdle, "0", count)
+	return entries, err
+}
+
+// ClaimAfter pages recovery across the PEL, including beyond healthy entries.
+func (q *Queue) ClaimAfter(ctx context.Context, consumer string, minIdle time.Duration, after string, count int64) ([]Entry, string, error) {
+	if !q.Available() {
+		return nil, "0", q.notConfigured()
+	}
+	messages, next, err := q.rdb.XAutoClaim(ctx, &redis.XAutoClaimArgs{
 		Stream:   q.cfg.StreamKey,
 		Group:    q.cfg.ConsumerGroup,
 		Consumer: consumer,
 		MinIdle:  minIdle,
-		Start:    "0",
+		Start:    after,
 		Count:    count,
 	}).Result()
 	if errors.Is(err, redis.Nil) {
-		return nil, nil
+		return nil, "0", nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("claim %s events: %w", q.cfg.Name, err)
+		return nil, "0", fmt.Errorf("claim %s events: %w", q.cfg.Name, err)
 	}
 	out := make([]Entry, 0, len(messages))
 	for _, message := range messages {
 		payload, _ := message.Values[payloadField].(string)
 		out = append(out, Entry{ID: message.ID, Payload: payload})
 	}
-	return out, nil
+	return out, next, nil
 }
 
 // CheckReady verifies that Redis can be used as a durable queue. Reachability

@@ -48,7 +48,8 @@ func doneOrderKey(e *Event) string             { return controlKey(e) + ":done" 
 // Admission and direct Stop use exactly the same holder-bound marker rule.
 const markStopLua = `
 local function markStop(key)
-  if redis.call('HGET', key, 'phase') == 'running' then
+  local phase = redis.call('HGET', key, 'phase')
+  if phase == 'running' or phase == 'reserved' then
     local token = redis.call('HGET', key, 'token')
     redis.call('HSET', key, 'stop', token)
     return token
@@ -139,6 +140,9 @@ func NewRedisRunControl(client *redis.Client) *RedisRunControl {
 	return &RedisRunControl{client: client}
 }
 func (c *RedisRunControl) Begin(ctx context.Context, e *Event, token string) error {
+	if len(e.Members) > 0 {
+		return c.reserveBatch(ctx, e, token)
+	}
 	result, err := beginControlScript.Run(ctx, c.client,
 		[]string{controlKey(e), controlKey(e) + ":cutoff", startedKey(e), queueOrderKey(e), doneOrderKey(e)},
 		token, e.AcceptedOrder, controlTTL.Milliseconds()).Text()
@@ -177,6 +181,9 @@ func (c *RedisRunControl) Finish(ctx context.Context, e *Event, token string, st
 	return RunState(result), nil
 }
 func (c *RedisRunControl) End(ctx context.Context, e *Event, token string, state RunState) error {
+	if len(e.Members) > 0 {
+		return c.endBatch(ctx, e, token, state)
+	}
 	n, err := endControlScript.Run(ctx, c.client, []string{controlKey(e), outcomeKey(e, token), queueOrderKey(e), doneOrderKey(e)},
 		token, string(state), outcomeTTL.Milliseconds(), max(e.AcceptedOrder, 0)).Int()
 	if err != nil {
@@ -215,6 +222,7 @@ type MemoryRunControl struct {
 }
 type memoryControl struct {
 	token, phase string
+	orders       string
 	stopped      bool
 	result       RunState
 	expiry       time.Time
@@ -238,24 +246,37 @@ func (c *MemoryRunControl) Begin(_ context.Context, e *Event, token string) erro
 	if cutoff, ok := c.cutoffs[controlKey(e)]; ok && e.AcceptedOrder <= cutoff {
 		return ErrPromptDiscarded
 	}
-	if c.started[startedKey(e)] {
-		return ErrTurnConsumed
+	for _, member := range membersOf(e) {
+		if c.started[startedKey(member)] {
+			return ErrTurnConsumed
+		}
 	}
-	if e.AcceptedOrder > 0 {
-		c.accepted[controlKey(e)] = ensureOrderSet(c.accepted[controlKey(e)])
-		c.accepted[controlKey(e)][e.AcceptedOrder] = true
-		cutoff := c.cutoffs[controlKey(e)]
-		for order := range c.accepted[controlKey(e)] {
-			if order < e.AcceptedOrder && order > cutoff && !c.done[controlKey(e)][order] {
-				return ErrRunBusy
-			}
+	selected := map[int64]bool{}
+	last := e.AcceptedOrder
+	for _, member := range membersOf(e) {
+		c.order = max(c.order, member.AcceptedOrder)
+		if member.AcceptedOrder > 0 {
+			c.accepted[controlKey(e)] = ensureOrderSet(c.accepted[controlKey(e)])
+			c.accepted[controlKey(e)][member.AcceptedOrder] = true
+			selected[member.AcceptedOrder] = true
+			last = max(last, member.AcceptedOrder)
+		}
+	}
+	for order := range c.accepted[controlKey(e)] {
+		if order <= last && !selected[order] && order > c.cutoffs[controlKey(e)] && !c.done[controlKey(e)][order] {
+			return ErrRunBusy
 		}
 	}
 	if r := c.current(e); r != nil && r.phase != "ended" {
 		return ErrRunBusy
 	}
 	c.runs[controlKey(e)] = &memoryControl{token: token, phase: "running", expiry: time.Now().Add(controlTTL)}
-	c.started[startedKey(e)] = true
+	if len(e.Members) == 0 {
+		c.started[startedKey(e)] = true
+	} else {
+		c.runs[controlKey(e)].phase = "reserved"
+		c.runs[controlKey(e)].orders = batchOrders(e)
+	}
 	return nil
 }
 func (c *MemoryRunControl) Renew(_ context.Context, e *Event, token string) (bool, error) {
@@ -272,7 +293,7 @@ func (c *MemoryRunControl) Finish(_ context.Context, e *Event, token string, sta
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	r := c.current(e)
-	if r == nil || r.token != token || r.phase == "ended" {
+	if r == nil || r.token != token || (r.phase != "running" && r.phase != "finishing") {
 		return "", ErrRunLeaseLost
 	}
 	if r.phase == "finishing" {
@@ -288,15 +309,17 @@ func (c *MemoryRunControl) End(_ context.Context, e *Event, token string, state 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	r := c.current(e)
-	if r == nil || r.token != token || r.phase != "finishing" || r.result != state {
+	if r == nil || r.token != token || r.phase != "finishing" || r.result != state || (len(e.Members) > 0 && r.orders != batchOrders(e)) {
 		return ErrRunLeaseLost
 	}
 	r.phase, r.expiry = "ended", time.Now().Add(outcomeTTL)
 	c.outcomes[outcomeKey(e, token)] = state
-	if e.AcceptedOrder > 0 {
-		c.done[controlKey(e)] = ensureOrderSet(c.done[controlKey(e)])
-		c.done[controlKey(e)][e.AcceptedOrder] = true
-		delete(c.accepted[controlKey(e)], e.AcceptedOrder)
+	for _, member := range membersOf(e) {
+		if member.AcceptedOrder > 0 {
+			c.done[controlKey(e)] = ensureOrderSet(c.done[controlKey(e)])
+			c.done[controlKey(e)][member.AcceptedOrder] = true
+			delete(c.accepted[controlKey(e)], member.AcceptedOrder)
+		}
 	}
 	return nil
 }
@@ -310,7 +333,7 @@ func (c *MemoryRunControl) RequestStop(_ context.Context, e *Event) (string, err
 			delete(c.accepted[controlKey(e)], order)
 		}
 	}
-	if r := c.current(e); r != nil && r.phase == "running" {
+	if r := c.current(e); r != nil && (r.phase == "running" || r.phase == "reserved") {
 		r.stopped = true
 		return r.token, nil
 	}
@@ -333,4 +356,34 @@ func (c *MemoryRunControl) Outcome(_ context.Context, e *Event, token string) (R
 		return "", false, ErrRunLeaseLost
 	}
 	return "", false, nil
+}
+
+func (c *MemoryRunControl) StartBatch(_ context.Context, e *Event, token string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r := c.current(e)
+	if r == nil || r.token != token || r.phase != "reserved" || r.orders != batchOrders(e) {
+		return ErrRunLeaseLost
+	}
+	if cutoff, ok := c.cutoffs[controlKey(e)]; r.stopped || (ok && e.AcceptedOrder <= cutoff) {
+		return ErrPromptDiscarded
+	}
+	for _, member := range membersOf(e) {
+		if c.started[startedKey(member)] {
+			return ErrTurnConsumed
+		}
+	}
+	for _, member := range membersOf(e) {
+		c.started[startedKey(member)] = true
+	}
+	r.phase = "running"
+	return nil
+}
+func (c *MemoryRunControl) ReleaseBatch(_ context.Context, e *Event, token string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if r := c.current(e); r != nil && r.token == token && r.phase == "reserved" {
+		delete(c.runs, controlKey(e))
+	}
+	return nil
 }

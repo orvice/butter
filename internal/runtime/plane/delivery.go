@@ -69,9 +69,10 @@ type DeliveryAuditStore interface {
 type RetryableError interface{ Retryable() bool }
 type DeliveryClassifier interface{ DeliveryStatus() DeliveryStatus }
 type DurablePublisher struct {
-	target ReplyPublisher
-	store  DeliveryStore
-	mu     sync.Mutex
+	observe func(context.Context, *DeliveryAttempt) error
+	target  ReplyPublisher
+	store   DeliveryStore
+	mu      sync.Mutex
 }
 
 func NewDurablePublisher(target ReplyPublisher, store DeliveryStore) *DurablePublisher {
@@ -269,7 +270,13 @@ func (p *DurablePublisher) putOwned(ctx context.Context, row *DeliveryAttempt, t
 	clean := *row
 	clean.ClaimToken = ""
 	clean.LeaseUntil = nil
-	return p.store.PutOwned(saveCtx, &clean, token)
+	if err := p.store.PutOwned(saveCtx, &clean, token); err != nil {
+		return err
+	}
+	if p.observe != nil {
+		return p.observe(saveCtx, &clean)
+	}
+	return nil
 }
 
 func deliveryClaimToken() string {
@@ -421,4 +428,16 @@ func (s *MemoryDeliveryStore) ListRecoverable(_ context.Context) ([]*DeliveryAtt
 		}
 	}
 	return out, nil
+}
+
+// Stage persists the complete reply before any outbound call. Recovery can
+// deliver this output without executing the Agent again.
+func (p *DurablePublisher) Stage(ctx context.Context, e *Event, reply string) error {
+	row := &DeliveryAttempt{Key: DeliveryKey(e), Event: e, Reply: reply, Status: DeliveryRetryable,
+		WorkspaceID: e.WorkspaceID, AppID: e.AppID, InstallationID: e.InstallationID, UpdatedAt: time.Now().UTC()}
+	err := p.store.Create(ctx, row)
+	if errors.Is(err, ErrDeliveryAlreadyExists) {
+		return nil
+	}
+	return err
 }

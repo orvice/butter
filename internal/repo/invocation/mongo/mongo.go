@@ -543,3 +543,28 @@ func decodeToken(token string) int {
 func encodeToken(offset int) string {
 	return base64.StdEncoding.EncodeToString([]byte(strconv.Itoa(offset)))
 }
+
+func (s *Store) FailActive(ctx context.Context, ws, id, appName, reason string) error {
+	var d doc
+	err := s.coll.FindOne(ctx, bson.M{"_id": id, "workspace_id": ws, "app_name": appName, "status": bson.M{"$in": activeStatuses()}}).Decode(&d)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	inv, err := decode(&d)
+	if err != nil {
+		return err
+	}
+	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+	inv.Error = reason
+	inv.FinishedAt = timestamppb.Now()
+	inv.LatencyMs = inv.GetFinishedAt().AsTime().Sub(inv.GetStartedAt().AsTime()).Milliseconds()
+	spec, err := protojson.Marshal(inv)
+	if err != nil {
+		return err
+	}
+	_, err = s.coll.UpdateOne(ctx, bson.M{"_id": id, "workspace_id": ws, "spec": d.Fields.Spec}, bson.M{"$set": bson.M{"status": inv.GetStatus().String(), "spec": string(spec)}})
+	return err
+}

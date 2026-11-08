@@ -116,3 +116,70 @@ func TestAcceptedEventIsReadOnceAndReclaimedAfterIdle(t *testing.T) {
 		t.Fatalf("pending after ack = %+v, %v; want nothing", pending, err)
 	}
 }
+
+func TestAckOwnedCannotAcknowledgeAReclaimedEntry(t *testing.T) {
+	rdb := redisForTest(t)
+	q := queueForTest(t, rdb, "plane-ack-fence")
+	if _, err := q.Accept(t.Context(), "d1", "prompt"); err != nil {
+		t.Fatal(err)
+	}
+	first, err := q.Read(t.Context(), "old-pod", 1, time.Millisecond)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("read=%v err=%v", first, err)
+	}
+	claimed, err := q.Claim(t.Context(), "new-pod", 0, 1)
+	if err != nil || len(claimed) != 1 {
+		t.Fatalf("claim=%v err=%v", claimed, err)
+	}
+	if err := q.AckOwned(t.Context(), "old-pod", first[0].ID); err == nil {
+		t.Fatal("stale owner acknowledged another Pod's pending event")
+	}
+	pending, err := q.ReadPending(t.Context(), "new-pod", 1)
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("stale acknowledgment lost pending work: %v %v", pending, err)
+	}
+	if err := q.AckOwned(t.Context(), "new-pod", first[0].ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPendingAndReclaimCursorsReachWorkBeyondHealthyHead(t *testing.T) {
+	rdb := redisForTest(t)
+	q := queueForTest(t, rdb, "plane-recovery-cursors")
+	for range 40 {
+		id := uuid.NewString()
+		if _, err := q.Accept(t.Context(), id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := q.Read(t.Context(), "old-pod", 40, time.Millisecond)
+	if err != nil || len(entries) != 40 {
+		t.Fatalf("read=%d err=%v", len(entries), err)
+	}
+	page, err := q.ReadPendingAfter(t.Context(), "old-pod", entries[29].ID, 10)
+	if err != nil || len(page) != 10 || page[0].ID != entries[30].ID {
+		t.Fatalf("pending cursor=%v err=%v", page, err)
+	}
+	// XAUTOCLAIM scans at most COUNT*10 entries. Make its initial head
+	// healthy, and only the final entry idle enough to recover.
+	if err := rdb.Do(t.Context(), "XCLAIM", q.cfg.StreamKey, q.cfg.ConsumerGroup, "old-pod", 0, entries[39].ID, "IDLE", 3600000).Err(); err != nil {
+		t.Fatal(err)
+	}
+	cursor, recovered := "0", false
+	for range 5 {
+		page, next, err := q.ClaimAfter(t.Context(), "new-pod", time.Minute, cursor, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range page {
+			recovered = recovered || entry.ID == entries[39].ID
+		}
+		cursor = next
+		if cursor == "0-0" {
+			break
+		}
+	}
+	if !recovered {
+		t.Fatal("healthy head hid a crashed Pod's pending entry")
+	}
+}

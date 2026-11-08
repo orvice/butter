@@ -24,17 +24,19 @@ func (a TokenLeaseAdapter) Acquire(ctx context.Context, key, owner string, revis
 }
 
 type PlaneRuntimeDependencies struct {
-	Queue       *StreamQueue
-	Resolver    PlaneAppResolver
-	Runner      Runner
-	Activity    ActivityClient
-	Token       ActivityTokenSource
-	Delivery    DeliveryStore
-	Processing  planeprocessing.RuntimeRepository
-	Progress    ProgressSink
-	Diagnostics DiagnosticStore
-	TokenLease  FencedTokenLease
-	Consumer    string
+	Installations ActivityInstallationResolver
+	Invocations   InvocationRecovery
+	Queue         *StreamQueue
+	Resolver      PlaneAppResolver
+	Runner        Runner
+	Activity      ActivityClient
+	Token         ActivityTokenSource
+	Delivery      DeliveryStore
+	Processing    planeprocessing.RuntimeRepository
+	Progress      ProgressSink
+	Diagnostics   DiagnosticStore
+	TokenLease    FencedTokenLease
+	Consumer      string
 }
 type PlaneRuntime struct {
 	Client    ActivityClient
@@ -45,20 +47,23 @@ type PlaneRuntime struct {
 type PlaneRuntimeFactory struct{}
 
 func (PlaneRuntimeFactory) Build(d PlaneRuntimeDependencies) (*PlaneRuntime, error) {
-	if d.Queue == nil || d.Resolver == nil || d.Runner == nil || d.Activity == nil || d.Token == nil || d.Delivery == nil || d.Processing == nil || d.Progress == nil || d.Diagnostics == nil || d.TokenLease == nil {
+	if d.Invocations == nil || d.Installations == nil || d.Queue == nil || d.Resolver == nil || d.Runner == nil || d.Activity == nil || d.Token == nil || d.Delivery == nil || d.Processing == nil || d.Progress == nil || d.Diagnostics == nil || d.TokenLease == nil {
 		return nil, ErrRuntimeDependency
 	}
-	p := NewProcessor(d.Runner, NewDurablePublisher(ActivityReplyPublisher{Client: d.Activity}, d.Delivery))
+	p := NewProcessor(d.Runner, NewDurablePublisher(ActivityReplyPublisher{Client: d.Activity, Installations: d.Installations}, d.Delivery))
 	if d.Queue.client == nil {
 		return nil, ErrRuntimeDependency
 	}
+	p.invocations = d.Invocations
 	p.SetRunControl(NewRedisRunControl(d.Queue.client))
+	p.batches = &redisBatchSource{client: d.Queue.client}
 	p.SetProgressSink(d.Progress)
 	p.SetDiagnosticStore(d.Diagnostics)
 	p.SetClaimRepository(d.Processing, d.Consumer)
 	p.SetProcessingRepository(d.Processing)
+	p.publisher.(*DurablePublisher).observe = p.deliveryProjection
 	w := NewWorker(d.Queue, p, d.Resolver, d.Consumer)
-	return &PlaneRuntime{Client: d.Activity, Publisher: NewDurablePublisher(ActivityReplyPublisher{Client: d.Activity}, d.Delivery), Processor: p, Worker: w}, nil
+	return &PlaneRuntime{Client: d.Activity, Publisher: p.publisher.(*DurablePublisher), Processor: p, Worker: w}, nil
 }
 
 type RuntimeCoordinator struct {

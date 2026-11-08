@@ -349,3 +349,20 @@ func paginate(items []*agentsv1.Invocation, pageSize int32, pageToken string) ([
 	}
 	return items[offset:end], next
 }
+
+func (s *Store) FailActive(_ context.Context, ws, id, appName, reason string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inv := s.byID[id]
+	if inv == nil || inv.GetWorkspaceId() != ws || inv.GetAppName() != appName {
+		return nil
+	}
+	if !isActive(inv.GetStatus()) {
+		return nil
+	}
+	inv.Status = agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED
+	inv.Error = reason
+	inv.FinishedAt = timestamppb.Now()
+	inv.LatencyMs = inv.GetFinishedAt().AsTime().Sub(inv.GetStartedAt().AsTime()).Milliseconds()
+	return nil
+}

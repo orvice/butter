@@ -26,7 +26,7 @@ func (s *Store) EnsureIndexes(context.Context) error { return nil }
 func (s *Store) Create(_ context.Context, r *agentsv1.PlaneProcessingRecord) (*agentsv1.PlaneProcessingRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := r.GetInstallationId() + ":" + r.GetRunId() + ":" + r.GetActivityId() + ":" + r.GetEventAction()
+	key := planeprocessing.BusinessKey(r)
 	if _, ok := s.keys[key]; ok {
 		return nil, planeprocessing.ErrDuplicate
 	}
@@ -59,7 +59,7 @@ func (s *Store) Claim(_ context.Context, ws, app, installation, run, owner strin
 	key := ws + ":" + app + ":" + installation + ":" + run
 	c, ok := s.claims[key]
 	now := time.Now()
-	if ok && c.ExpiresAt.After(now) && c.Owner != owner {
+	if ok && c.ExpiresAt.After(now) {
 		return planeprocessing.Claim{}, planeprocessing.ErrClaimConflict
 	}
 	c.Owner = owner
@@ -87,7 +87,8 @@ func (s *Store) Complete(_ context.Context, key string, in planeprocessing.Claim
 	if !ok || c.Owner != in.Owner || c.Revision != in.Revision || c.Fence != in.Fence || !c.ExpiresAt.After(time.Now()) {
 		return planeprocessing.ErrClaimExpired
 	}
-	delete(s.claims, key)
+	c.Owner, c.ExpiresAt = "", time.Time{}
+	s.claims[key] = c
 	return nil
 }
 func (s *Store) ReclaimExpired(_ context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
@@ -98,7 +99,8 @@ func (s *Store) RecoverExpired(_ context.Context, now time.Time) error {
 	defer s.mu.Unlock()
 	for k, c := range s.claims {
 		if !c.ExpiresAt.After(now) {
-			delete(s.claims, k)
+			c.Owner, c.ExpiresAt = "", time.Time{}
+			s.claims[k] = c
 		}
 	}
 	return nil
@@ -124,7 +126,7 @@ func (s *Store) List(_ context.Context, f planeprocessing.Filter) ([]*agentsv1.P
 func (s *Store) UpdateStatus(_ context.Context, ws, app, installation, run, activity, action string, status agentsv1.PlaneProcessingStatus, failure string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := installation + ":" + run + ":" + activity + ":" + action
+	key := planeprocessing.BusinessKey(&agentsv1.PlaneProcessingRecord{WorkspaceId: ws, AppId: app, InstallationId: installation, RunId: run, ActivityId: activity, EventAction: action})
 	id, ok := s.keys[key]
 	if !ok {
 		return planeprocessing.ErrNotFound
@@ -139,4 +141,25 @@ func (s *Store) UpdateStatus(_ context.Context, ws, app, installation, run, acti
 	r.UpdatedAt = timestamppb.Now()
 	s.records[id] = r
 	return nil
+}
+
+func (s *Store) Project(_ context.Context, r *agentsv1.PlaneProcessingRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := planeprocessing.BusinessKey(r)
+	id := s.keys[key]
+	out := planeprocessing.MergeProjection(s.records[id], r)
+	s.keys[key] = out.Id
+	s.records[out.Id] = out
+	return nil
+}
+
+func (s *Store) FindByEvent(_ context.Context, r *agentsv1.PlaneProcessingRecord) (*agentsv1.PlaneProcessingRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	old := s.records[s.keys[planeprocessing.BusinessKey(r)]]
+	if old == nil {
+		return nil, planeprocessing.ErrNotFound
+	}
+	return proto.Clone(old).(*agentsv1.PlaneProcessingRecord), nil
 }

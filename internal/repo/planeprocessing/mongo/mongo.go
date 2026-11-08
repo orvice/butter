@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -9,21 +10,26 @@ import (
 	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
 
 type Store struct{ col *mongo.Collection }
 type doc struct {
-	ID             string    `bson:"_id"`
-	WorkspaceID    string    `bson:"workspace_id"`
-	AppID          string    `bson:"app_id"`
-	Key            string    `bson:"key"`
-	Spec           string    `bson:"spec"`
-	ClaimOwner     string    `bson:"claim_owner,omitempty"`
-	ClaimRevision  int64     `bson:"claim_revision,omitempty"`
-	ClaimFence     uint64    `bson:"claim_fence,omitempty"`
-	ClaimExpiresAt time.Time `bson:"claim_expires_at,omitempty"`
+	ID                 string                          `bson:"_id"`
+	WorkspaceID        string                          `bson:"workspace_id"`
+	AppID              string                          `bson:"app_id"`
+	Key                string                          `bson:"key"`
+	Spec               string                          `bson:"spec"`
+	Status             *agentsv1.PlaneProcessingStatus `bson:"status,omitempty"`
+	Failure            string                          `bson:"failure_reason,omitempty"`
+	ReceivedAt         time.Time                       `bson:"received_at"`
+	UpdatedAt          time.Time                       `bson:"updated_at"`
+	ProjectionRevision int64                           `bson:"projection_revision,omitempty"`
+	ClaimOwner         string                          `bson:"claim_owner,omitempty"`
+	ClaimRevision      int64                           `bson:"claim_revision,omitempty"`
+	ClaimFence         uint64                          `bson:"claim_fence,omitempty"`
+	ClaimExpiresAt     time.Time                       `bson:"claim_expires_at,omitempty"`
 }
 
 func New(db *mongo.Database) *Store { return &Store{col: db.Collection("plane_processing")} }
@@ -33,7 +39,8 @@ func (s *Store) EnsureIndexes(ctx context.Context) error {
 }
 func encode(r *agentsv1.PlaneProcessingRecord) (doc, error) {
 	b, e := protojson.Marshal(r)
-	return doc{ID: r.GetId(), WorkspaceID: r.GetWorkspaceId(), AppID: r.GetAppId(), Key: r.GetInstallationId() + ":" + r.GetRunId() + ":" + r.GetActivityId() + ":" + r.GetEventAction(), Spec: string(b)}, e
+	status := r.GetStatus()
+	return doc{ID: r.GetId(), WorkspaceID: r.GetWorkspaceId(), AppID: r.GetAppId(), Key: planeprocessing.BusinessKey(r), Spec: string(b), Status: &status, Failure: r.GetFailureReason(), ReceivedAt: r.GetReceivedAt().AsTime(), UpdatedAt: r.GetUpdatedAt().AsTime()}, e
 }
 func decode(d doc) (*agentsv1.PlaneProcessingRecord, error) {
 	r := &agentsv1.PlaneProcessingRecord{}
@@ -41,9 +48,17 @@ func decode(d doc) (*agentsv1.PlaneProcessingRecord, error) {
 		return nil, e
 	}
 	r.Id = d.ID
+	if d.Status != nil {
+		r.Status = *d.Status
+		r.FailureReason = d.Failure
+	}
+	if !d.UpdatedAt.IsZero() {
+		r.UpdatedAt = timestamppb.New(d.UpdatedAt)
+	}
 	return r, nil
 }
 func (s *Store) Create(ctx context.Context, r *agentsv1.PlaneProcessingRecord) (*agentsv1.PlaneProcessingRecord, error) {
+	r = planeprocessing.Normalize(r)
 	d, e := encode(r)
 	if e != nil {
 		return nil, e
@@ -106,15 +121,65 @@ func (s *Store) List(ctx context.Context, f planeprocessing.Filter) ([]*agentsv1
 }
 
 func (s *Store) UpdateStatus(ctx context.Context, ws, app, installation, run, activity, action string, status agentsv1.PlaneProcessingStatus, failure string) error {
-	key := installation + ":" + run + ":" + activity + ":" + action
-	r, err := s.col.UpdateOne(ctx, bson.M{"key": key, "workspace_id": ws, "app_id": app, "spec": bson.M{"$exists": true}}, bson.M{"$set": bson.M{"status": status, "failure_reason": failure, "updated_at": time.Now().UTC()}})
+	r := &agentsv1.PlaneProcessingRecord{WorkspaceId: ws, AppId: app, InstallationId: installation, RunId: run, ActivityId: activity, EventAction: action}
+	var d doc
+	if err := s.col.FindOne(ctx, projectionQuery(r)).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return planeprocessing.ErrNotFound
+		}
+		return err
+	}
+	current, err := decode(d)
 	if err != nil {
 		return err
 	}
-	if r.MatchedCount != 1 {
-		return planeprocessing.ErrNotFound
+	current.Status, current.FailureReason = status, failure
+	return s.Project(ctx, current)
+}
+
+func projectionQuery(r *agentsv1.PlaneProcessingRecord) bson.M {
+	return bson.M{"workspace_id": r.GetWorkspaceId(), "app_id": r.GetAppId(), "spec": bson.M{"$exists": true}, "key": bson.M{"$in": []string{planeprocessing.BusinessKey(r), planeprocessing.LegacyKey(r)}}}
+}
+
+func (s *Store) Project(ctx context.Context, r *agentsv1.PlaneProcessingRecord) error {
+	for range 16 {
+		var existing doc
+		err := s.col.FindOne(ctx, projectionQuery(r)).Decode(&existing)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			if _, err = s.Create(ctx, r); errors.Is(err, planeprocessing.ErrDuplicate) {
+				continue
+			}
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		old, err := decode(existing)
+		if err != nil {
+			return err
+		}
+		merged := planeprocessing.MergeProjection(old, r)
+		d, err := encode(merged)
+		if err != nil {
+			return err
+		}
+		d.Failure = merged.GetFailureReason()
+		filter := bson.M{"_id": existing.ID, "workspace_id": r.GetWorkspaceId()}
+		if existing.ProjectionRevision == 0 {
+			filter["$or"] = []bson.M{{"projection_revision": 0}, {"projection_revision": bson.M{"$exists": false}}}
+		} else {
+			filter["projection_revision"] = existing.ProjectionRevision
+		}
+		d.ProjectionRevision = existing.ProjectionRevision + 1
+		res, err := s.col.ReplaceOne(ctx, filter, d)
+		if err != nil {
+			return err
+		}
+		if res.MatchedCount == 1 {
+			return nil
+		}
 	}
-	return nil
+	return errors.New("plane processing projection contention")
 }
 
 func (s *Store) Claim(ctx context.Context, ws, app, installation, run, owner string, expiry time.Time) (planeprocessing.Claim, error) {
@@ -169,4 +234,14 @@ func (s *Store) RecoverExpired(ctx context.Context, now time.Time) error {
 	return e
 }
 
-var _ = proto.Clone
+func (s *Store) FindByEvent(ctx context.Context, r *agentsv1.PlaneProcessingRecord) (*agentsv1.PlaneProcessingRecord, error) {
+	var d doc
+	err := s.col.FindOne(ctx, projectionQuery(r)).Decode(&d)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, planeprocessing.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return decode(d)
+}
