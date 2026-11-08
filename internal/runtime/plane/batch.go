@@ -41,13 +41,17 @@ type redisBatchSource struct{ client *redis.Client }
 // marker and can be reclaimed after its lease expires. Per-event results outlive
 // the lease and the 24-hour Stop observation window.
 var recoverBatchEventScript = redis.NewScript(`
-local types = {'hash', 'string', 'string', 'zset', 'hash'}
+local types = {'hash', 'string', 'string', 'zset', 'hash', 'string'}
 for i, want in ipairs(types) do
   local kind = redis.call('TYPE', KEYS[i]).ok
   if kind ~= 'none' and kind ~= want then return redis.error_reply('invalid Plane recovery index') end
 end
 local token = redis.call('GET', KEYS[2])
-if not token then return {'ready'} end
+if not token then
+  local cutoff = redis.call('GET', KEYS[6])
+  if cutoff and tonumber(ARGV[1]) <= tonumber(cutoff) then return {'discarded'} end
+  return {'ready'}
+end
 local current = redis.call('HGET', KEYS[1], 'token')
 local phase = redis.call('HGET', KEYS[1], 'phase')
 if token == current and phase ~= 'ended' then return {'busy'} end
@@ -69,12 +73,14 @@ return {'consumed', token, result}
 
 func (s *redisBatchSource) prepare(ctx context.Context, e *Event) error {
 	result, err := recoverBatchEventScript.Run(ctx, s.client,
-		[]string{controlKey(e), startedKey(e), eventResultKey(e), queueOrderKey(e), streamIndexKey(e)},
+		[]string{controlKey(e), startedKey(e), eventResultKey(e), queueOrderKey(e), streamIndexKey(e), controlKey(e) + ":cutoff"},
 		e.AcceptedOrder).StringSlice()
 	if err != nil {
 		return err
 	}
 	switch result[0] {
+	case "discarded":
+		return ErrPromptDiscarded
 	case "busy":
 		return errTurnInProgress
 	case "consumed":

@@ -592,6 +592,9 @@ func TestRedisStopCancelsEveryStartedBatchMemberAndPreservesNewPrompt(t *testing
 	if _, err := successor.Process(t.Context(), app, next); err != nil {
 		t.Fatal(err)
 	}
+	// A later inbound disable must not rewrite Stop's already accepted
+	// cancellation of unread prompts into a generic policy failure.
+	app.InboundEnabled = false
 	w := NewWorker(q, successor, &planeTestResolver{app: app}, "other-pod")
 	entries, _ := q.Read(t.Context(), "other-pod", 4, time.Millisecond)
 	for _, entry := range entries {
