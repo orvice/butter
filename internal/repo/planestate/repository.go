@@ -29,8 +29,11 @@ func NewMemory() *Memory                              { return &Memory{entries: 
 func Hash(s string) string                            { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
 func (s *Memory) EnsureIndexes(context.Context) error { return nil }
 func (s *Memory) Create(_ context.Context, e *Entry) error {
+	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.entries[Hash(e.State)] = *e
+	entry := *e
+	entry.State = ""
+	s.entries[Hash(e.State)] = entry
 	return nil
 }
 func (s *Memory) Consume(_ context.Context, state string, now time.Time) (*Entry, error) {
@@ -43,5 +46,6 @@ func (s *Memory) Consume(_ context.Context, state string, now time.Time) (*Entry
 		return nil, ErrNotFound
 	}
 	delete(s.entries, k)
+	e.State = state
 	return &e, nil
 }

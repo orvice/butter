@@ -30,13 +30,17 @@ func (s *Store) Upsert(_ context.Context, w, a string, in *agentsv1.PlaneInstall
 	defer s.mu.Unlock()
 	var old *rec
 	for _, r := range s.rows {
+		if in.GetAppInstallationId() != "" && r.inst.GetAppInstallationId() == in.GetAppInstallationId() &&
+			(r.workspace != w || r.app != a || r.inst.GetPlaneWorkspaceId() != in.GetPlaneWorkspaceId()) {
+			return nil, repo.ErrConflict
+		}
 		if r.workspace == w && r.app == a && r.inst.GetPlaneWorkspaceId() == in.GetPlaneWorkspaceId() {
 			old = r
-			break
 		}
 	}
 	now := time.Now().UTC()
 	x := proto.Clone(in).(*agentsv1.PlaneInstallation)
+	x.AppId = a
 	if old != nil {
 		x.Id = old.inst.Id
 		x.InstalledAt = old.inst.InstalledAt

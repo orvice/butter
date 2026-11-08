@@ -21,6 +21,7 @@ type stateDoc struct {
 	Hash        string    `bson:"_id"`
 	WorkspaceID string    `bson:"workspace_id"`
 	AppID       string    `bson:"app_id"`
+	ClientID    string    `bson:"client_id"`
 	UserID      string    `bson:"user_id"`
 	RedirectURI string    `bson:"redirect_uri"`
 	ReturnURL   string    `bson:"return_url"`
@@ -53,6 +54,7 @@ func (s *Store) Create(ctx context.Context, entry *planestate.Entry) error {
 		Hash:        planestate.Hash(entry.State),
 		WorkspaceID: entry.WorkspaceID,
 		AppID:       entry.AppID,
+		ClientID:    entry.ClientID,
 		UserID:      entry.UserID,
 		RedirectURI: entry.RedirectURI,
 		ReturnURL:   entry.ReturnURL,
@@ -81,6 +83,7 @@ func (s *Store) Consume(ctx context.Context, state string, now time.Time) (*plan
 		State:       state,
 		WorkspaceID: doc.WorkspaceID,
 		AppID:       doc.AppID,
+		ClientID:    doc.ClientID,
 		UserID:      doc.UserID,
 		RedirectURI: doc.RedirectURI,
 		ReturnURL:   doc.ReturnURL,

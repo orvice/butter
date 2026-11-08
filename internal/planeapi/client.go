@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +17,7 @@ type Token struct {
 	AccessToken    string
 	ExpiresIn      time.Duration
 	InstallationID string
+	Scopes         []string
 }
 type Installation struct {
 	ID            string   `json:"id"`
@@ -36,15 +38,26 @@ func NewClient(h *http.Client, p Profile) *Client {
 	if h == nil {
 		h = &http.Client{Timeout: 30 * time.Second}
 	}
-	return &Client{httpClient: h, OAuthURL: p.OAuthURL, APIURL: p.APIBaseURL}
+	client := *h
+	// OAuth credentials and installation tokens must stay on the configured
+	// origin, including when a provider answers with a redirect.
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &Client{httpClient: &client, OAuthURL: p.OAuthURL, APIURL: p.APIBaseURL}
 }
 func (c *Client) AuthorizeURL(clientID, redirectURI, state string) string {
 	q := url.Values{"client_id": {clientID}, "redirect_uri": {redirectURI}, "response_type": {"code"}, "state": {state}}
-	return strings.TrimRight(c.OAuthURL, "/") + "/oauth/authorize?" + q.Encode()
+	return strings.TrimRight(c.OAuthURL, "/") + "/auth/o/authorize-app/?" + q.Encode()
 }
-func (c *Client) ExchangeCode(ctx context.Context, clientID, secret, code string) (Token, error) {
-	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.OAuthURL, "/")+"/oauth/token", strings.NewReader(form.Encode()))
+
+// BotToken uses the installation-specific client credentials grant for both
+// the initial install and renewal. The callback's authorization code is not
+// exchanged for a user token.
+func (c *Client) BotToken(ctx context.Context, clientID, secret, installationID string) (Token, error) {
+	if strings.TrimSpace(installationID) == "" {
+		return Token{}, errors.New("plane installation ID is required")
+	}
+	form := url.Values{"grant_type": {"client_credentials"}, "app_installation_id": {installationID}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.OAuthURL, "/")+"/auth/o/token/", strings.NewReader(form.Encode()))
 	if err != nil {
 		return Token{}, err
 	}
@@ -56,46 +69,24 @@ func (c *Client) ExchangeCode(ctx context.Context, clientID, secret, code string
 	}
 	defer res.Body.Close()
 	var body struct {
-		AccessToken    string `json:"access_token"`
-		ExpiresIn      int64  `json:"expires_in"`
-		InstallationID string `json:"app_installation_id"`
-		Error          string `json:"error"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
-		return Token{}, err
-	}
-	if res.StatusCode/100 != 2 || body.AccessToken == "" || body.InstallationID == "" {
-		return Token{}, fmt.Errorf("plane authorization exchange failed: %s", body.Error)
-	}
-	return Token{AccessToken: body.AccessToken, ExpiresIn: time.Duration(body.ExpiresIn) * time.Second, InstallationID: body.InstallationID}, nil
-}
-func (c *Client) ClientCredentials(ctx context.Context, clientID, secret string) (Token, error) {
-	form := url.Values{"grant_type": {"client_credentials"}, "client_id": {clientID}, "client_secret": {secret}}
-	req, e := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.OAuthURL, "/")+"/oauth/token", strings.NewReader(form.Encode()))
-	if e != nil {
-		return Token{}, e
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, e := c.httpClient.Do(req)
-	if e != nil {
-		return Token{}, e
-	}
-	defer res.Body.Close()
-	var body struct {
 		AccessToken string `json:"access_token"`
 		ExpiresIn   int64  `json:"expires_in"`
-		Error       string `json:"error"`
+		Scope       string `json:"scope"`
 	}
-	if e = json.NewDecoder(res.Body).Decode(&body); e != nil {
-		return Token{}, e
+	if res.StatusCode/100 != 2 {
+		return Token{}, fmt.Errorf("plane bot token request failed: HTTP %d", res.StatusCode)
 	}
-	if res.StatusCode/100 != 2 || body.AccessToken == "" {
-		return Token{}, fmt.Errorf("plane token exchange failed: %s", body.Error)
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&body); err != nil {
+		return Token{}, errors.New("invalid plane bot token response")
 	}
-	return Token{AccessToken: body.AccessToken, ExpiresIn: time.Duration(body.ExpiresIn) * time.Second}, nil
+	if body.AccessToken == "" || body.ExpiresIn <= 0 || body.ExpiresIn > int64((1<<63-1)/time.Second) {
+		return Token{}, errors.New("incomplete plane bot token response")
+	}
+	return Token{AccessToken: body.AccessToken, ExpiresIn: time.Duration(body.ExpiresIn) * time.Second, InstallationID: installationID, Scopes: strings.Fields(body.Scope)}, nil
 }
 func (c *Client) GetInstallation(ctx context.Context, token, id string) (Installation, error) {
-	req, e := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.APIURL, "/")+"/api/instances/"+url.PathEscape(id)+"/app-installation", nil)
+	query := url.Values{"id": {id}}
+	req, e := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.OAuthURL, "/")+"/auth/o/app-installation/?"+query.Encode(), nil)
 	if e != nil {
 		return Installation{}, e
 	}
@@ -108,12 +99,24 @@ func (c *Client) GetInstallation(ctx context.Context, token, id string) (Install
 	if res.StatusCode/100 != 2 {
 		return Installation{}, fmt.Errorf("plane installation lookup failed: %s", strconv.Itoa(res.StatusCode))
 	}
-	var out Installation
-	if e = json.NewDecoder(res.Body).Decode(&out); e != nil {
-		return Installation{}, e
+	var rows []struct {
+		ID              string `json:"id"`
+		Workspace       string `json:"workspace"`
+		WorkspaceDetail struct {
+			Slug string `json:"slug"`
+		} `json:"workspace_detail"`
+		AppBot string `json:"app_bot"`
+		Status string `json:"status"`
 	}
-	if !out.Installed || out.ID == "" || out.WorkspaceID == "" || out.BotUserID == "" {
+	if e = json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&rows); e != nil {
+		return Installation{}, errors.New("invalid plane installation response")
+	}
+	// Never take the first installation from an unfiltered or ambiguous list.
+	// The installation-specific token must prove exactly the requested identity.
+	if len(rows) != 1 || rows[0].ID != id || rows[0].Status != "installed" ||
+		rows[0].Workspace == "" || rows[0].WorkspaceDetail.Slug == "" || rows[0].AppBot == "" {
 		return Installation{}, errors.New("plane installation identity is incomplete")
 	}
-	return out, nil
+	row := rows[0]
+	return Installation{ID: row.ID, Installed: true, WorkspaceID: row.Workspace, WorkspaceSlug: row.WorkspaceDetail.Slug, BotUserID: row.AppBot}, nil
 }

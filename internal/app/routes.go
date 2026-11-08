@@ -817,6 +817,7 @@ func SetupRoutes(cfg *config.AppConfig, daemonRegistry *daemon.Registry) (func(r
 	linearProcSvcServer := application.NewLinearProcessingServiceServer(nil)
 	linearProcConnectPath, linearProcConnectHandler := agentsv1connect.NewLinearProcessingServiceHandler(linearProcSvcServer, connectOpts...)
 	planeAppSvcServer := application.NewPlaneAppServiceServer(nil)
+	planeAppSvcServer.SetPlaneDashboardBaseURL(func() string { return cfg.MCPOAuth.DashboardBaseURL })
 	planeAppSvcServer.SetAgentRepo(configStore)
 	planeAppConnectPath, planeAppConnectHandler := agentsv1connect.NewPlaneAppServiceHandler(planeAppSvcServer, connectOpts...)
 	planeAdminSvcServer := application.NewPlaneAdminServiceServer(nil)
