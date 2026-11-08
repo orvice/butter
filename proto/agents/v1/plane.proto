@@ -101,12 +101,12 @@ message PlaneApp {
   // OAuth callback URL for this deployment. Empty when the platform public
   // base URL has not been configured.
   // @gotags: json:"callback_url,omitempty" bson:"-"
-  string callback_url = 13;
+  string callback_url = 17;
 
   // Signed inbound webhook URL for this App. Empty when the platform public
   // base URL has not been configured.
   // @gotags: json:"webhook_url,omitempty" bson:"-"
-  string webhook_url = 14;
+  string webhook_url = 18;
 
   // @gotags: json:"created_at,omitempty" bson:"created_at,omitempty"
   google.protobuf.Timestamp created_at = 15;
