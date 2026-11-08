@@ -136,6 +136,16 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 			return "", errors.New("plane processing result was discarded after claim completion failure")
 		}
 	}
+	p.mu.Lock()
+	stopWon := p.states[key] == RunStateStopping
+	if stopWon {
+		p.states[key] = RunStateStopped
+	}
+	p.mu.Unlock()
+	if stopWon {
+		p.emit(ctx, e, key, 3, RunStateStopped, "stopped before completion")
+		return "", context.Canceled
+	}
 	p.emit(ctx, e, key, 1, RunStateRunning, "")
 	if err != nil {
 		state := RunStateFailed
@@ -162,6 +172,17 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 		p.recordDiagnostic(ctx, e, errors.New("empty reply"))
 		return "", errors.New("plane runner returned empty reply")
 	}
+	p.mu.Lock()
+	if p.states[key] == RunStateStopping {
+		p.states[key] = RunStateStopped
+		p.mu.Unlock()
+		p.emit(ctx, e, key, 3, RunStateStopped, "stopped before reply")
+		return "", context.Canceled
+	}
+	// Reserve the successful execution outcome before the external reply
+	// write. A later Stop can no longer rewrite a turn already completed.
+	p.states[key] = RunStateSucceeded
+	p.mu.Unlock()
 	if len(out) > p.maxReply {
 		out = out[:p.maxReply]
 	}
@@ -175,7 +196,6 @@ func (p *Processor) Process(ctx context.Context, app *agentsv1.PlaneApp, e *Even
 	}
 	p.mu.Lock()
 	p.seen[key] = struct{}{}
-	p.states[key] = RunStateSucceeded
 	p.mu.Unlock()
 	p.emit(ctx, e, key, 2, RunStateSucceeded, "")
 	return out, nil
@@ -184,6 +204,9 @@ func (p *Processor) Stop(ctx context.Context, e *Event) (StopAudit, error) {
 	key := e.InstallationID + ":" + e.AgentRunID + ":" + e.ActivityID
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if s, ok := p.states[key]; ok && s != RunStateRunning && s != RunStateStopping {
+		return StopAudit{Key: key, State: s, Attempts: 1}, nil
+	}
 	if c, ok := p.cancels[key]; ok {
 		p.states[key] = RunStateStopping
 		c()
