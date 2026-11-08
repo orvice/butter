@@ -163,3 +163,27 @@ func TestRunControlContract(t *testing.T) {
 		})
 	}
 }
+
+func TestRunControlMemoryHonorsAcceptedOrder(t *testing.T) {
+	c := NewMemoryRunControl()
+	first := &Event{WorkspaceID: "ws", AppID: "app", InstallationID: "inst", AgentRunID: "run", ActivityID: "first", AcceptedOrder: 10}
+	second := *first
+	second.ActivityID = "second"
+	second.AcceptedOrder = 20
+	if err := c.Begin(t.Context(), first, "first-token"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Begin(t.Context(), &second, "second-token"); !errors.Is(err, ErrRunBusy) {
+		t.Fatalf("out-of-order Begin=%v, want ErrRunBusy", err)
+	}
+	state, err := c.Finish(t.Context(), first, "first-token", RunStateSucceeded)
+	if err != nil || state != RunStateSucceeded {
+		t.Fatalf("finish state=%s err=%v", state, err)
+	}
+	if err := c.End(t.Context(), first, "first-token", state); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Begin(t.Context(), &second, "second-token"); err != nil {
+		t.Fatalf("ordered Begin=%v", err)
+	}
+}
