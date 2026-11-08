@@ -272,26 +272,30 @@ func TestWorkerRecoversUnstartedPendingAndDoesNotAckLookupFailure(t *testing.T) 
 	if _, err := q.Accept(t.Context(), e); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.Read(t.Context(), "dead-pod", 1, time.Millisecond); err != nil {
-		t.Fatal(err)
+	entries, err := q.Read(t.Context(), "dead-pod", 1, time.Millisecond)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("pending delivery=%v err=%v", entries, err)
 	}
 	resolver := &planeTestResolver{app: &agentsv1.PlaneApp{AgentId: "agent"}}
 	resolver.fail.Store(true)
 	r := &fakeRunner{out: "recovered"}
 	p := NewProcessor(r, &fakePublisher{})
 	p.SetRunControl(NewRedisRunControl(q.client))
+	// Complete one failed attempt before inspecting PEL state. A timed sleep
+	// could pass without ever exercising the failing lookup.
+	failed := NewWorker(q, p, resolver, "dead-pod")
+	failed.processEntry(t.Context(), q.inner, entries[0])
+	pending, err := q.client.XPending(t.Context(), StreamKey, ConsumerGroup).Result()
+	if err != nil || pending.Count != 1 {
+		t.Fatalf("pre-execution failure was acknowledged: %+v %v", pending, err)
+	}
+	resolver.fail.Store(false)
 	w := NewWorker(q, p, resolver, "replacement")
 	w.block, w.reclaimIdle = 10*time.Millisecond, 30*time.Millisecond
 	if err := w.Start(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	defer w.Stop()
-	time.Sleep(150 * time.Millisecond)
-	pending, err := q.client.XPending(t.Context(), StreamKey, ConsumerGroup).Result()
-	if err != nil || pending.Count != 1 {
-		t.Fatalf("pre-execution failure was acknowledged: %+v %v", pending, err)
-	}
-	resolver.fail.Store(false)
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		pending, err = q.client.XPending(t.Context(), StreamKey, ConsumerGroup).Result()

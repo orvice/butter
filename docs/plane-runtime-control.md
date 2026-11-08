@@ -77,9 +77,10 @@ until those entries have been drained or explicitly resolved.
 
 This slice does not implement #502's FIFO batching, per-batch invocation
 association or actor provenance. A busy Prompt remains pending for recovery;
-acquisition order is not yet FIFO. The Dashboard projection of stopped and
-discarded processing records and final protocol Gate B acceptance are also
-separate work. Neither #502 nor #503 is closed by this slice.
+acquisition order is not yet FIFO. Mapping the stopped control fact to the
+Runner-owned Invocation's CANCELLED status, processing-record updates and
+their Dashboard projection remain separate work, as does final protocol Gate B
+acceptance. Neither #502 nor #503 is closed by this slice.
 
 ## Verification
 
