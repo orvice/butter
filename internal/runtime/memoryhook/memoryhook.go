@@ -134,6 +134,11 @@ func New(svc *mem0memory.Service, sessions session.Service) *Hooks {
 // prompting Linear user is the principal (ADR-0015).
 const PrincipalMetadataKey = "principal"
 
+// DisableCaptureMetadataKey lets an entry point suppress capture when one
+// invocation combines messages whose actor provenance cannot be represented
+// by the single-principal memory contract.
+const DisableCaptureMetadataKey = "disable_memory_capture"
+
 func principalOf(info *agentsv1.ContextInfo) string {
 	if p := info.GetMetadata()[PrincipalMetadataKey]; p != "" {
 		return p
@@ -223,6 +228,9 @@ func (h *Hooks) Finish(ctx context.Context, t *Turn, info *agentsv1.ContextInfo,
 		return
 	}
 	if t.config.GetDisableAutoCapture() {
+		return
+	}
+	if info.GetMetadata()[DisableCaptureMetadataKey] == "true" {
 		return
 	}
 	scope := t.scope

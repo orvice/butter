@@ -22,6 +22,7 @@ import (
 	"go.orx.me/apps/butter/internal/runtime/linearconn"
 	"go.orx.me/apps/butter/internal/runtime/memoryhook"
 	"go.orx.me/apps/butter/internal/runtime/runner"
+	"go.orx.me/apps/butter/internal/userinput"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -36,6 +37,9 @@ const (
 	defaultMaxRun = 1800 * time.Second
 	// postTimeout bounds one activity post.
 	postTimeout = 15 * time.Second
+	// maxPromptBatchBytes keeps a joined follow-up turn within the same text
+	// budget as other user entry points. Individual prompts are never cut.
+	maxPromptBatchBytes = userinput.MaxTextBytes
 )
 
 // ErrSessionBusy means another owner holds the delivery's processing
@@ -354,15 +358,18 @@ func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHol
 	o.sweepInterrupted(runCtx, t, prompts)
 	for {
 		if len(prompts) > 0 {
-			if err := o.runStoppable(runCtx, t, hold, route, prompts); err != nil {
+			batch, remaining := promptBatch(prompts)
+			if err := o.runStoppable(runCtx, t, hold, route, batch); err != nil {
 				hold.Abandon()
 				return err
 			}
+			prompts = remaining
 		}
 		if isClosed(hold.Stopped()) {
 			// The stop is answered only now, when the stopped turn can
 			// post nothing more.
 			_ = t.post(ctx, linearapi.Activity{Type: linearapi.ActivityResponse, Body: stoppedMessage})
+			o.cancelPromptRecords(ctx, t, prompts)
 			hold.AcknowledgeStop(ctx)
 		}
 		if runCtx.Err() != nil {
@@ -380,6 +387,36 @@ func (o *Orchestrator) holdSession(ctx context.Context, t *turn, hold SessionHol
 			return nil
 		}
 		prompts = o.loadFollowUps(ctx, t, next)
+	}
+}
+
+// promptBatch keeps prompts whole while splitting an oversized joined turn
+// into ordered runs. A single oversized prompt is still passed through intact
+// so an accepted user message is never truncated or silently dropped.
+func promptBatch(prompts []*prompt) (batch, remaining []*prompt) {
+	bytes := 0
+	for i, p := range prompts {
+		cost := len([]byte(strings.TrimSpace(p.text)))
+		if len(batch) > 0 {
+			cost += 2
+		}
+		if len(batch) > 0 && bytes+cost > maxPromptBatchBytes {
+			return prompts[:i], prompts[i:]
+		}
+		batch = append(batch, p)
+		bytes += cost
+	}
+	return batch, nil
+}
+
+func (o *Orchestrator) cancelPromptRecords(ctx context.Context, t *turn, prompts []*prompt) {
+	for _, p := range prompts {
+		if p.record == nil {
+			continue
+		}
+		if err := o.recordStatus(ctx, p, agentsv1.LinearProcessingStatus_LINEAR_PROCESSING_STATUS_CANCELLED, "discarded by a stop"); err != nil {
+			t.logger(ctx).Warn("could not cancel a batched linear follow-up", "record_id", p.record.GetId(), "err", err)
+		}
 	}
 }
 
@@ -508,10 +545,12 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts 
 	}
 	texts := make([]string, 0, len(prompts))
 	principal := ""
+	principals := map[string]struct{}{}
 	for _, p := range prompts {
 		texts = append(texts, p.text)
 		if p.userID != "" {
 			principal = p.userID
+			principals[p.userID] = struct{}{}
 		}
 	}
 	input := turnInput(t.event, texts, hasHistory)
@@ -543,7 +582,10 @@ func (o *Orchestrator) run(ctx context.Context, t *turn, route routing, prompts 
 			"linear_issue":           t.event.Issue.Identifier,
 		},
 	}
-	if principal != "" {
+	if len(principals) > 1 {
+		ctxInfo.Metadata[memoryhook.DisableCaptureMetadataKey] = "true"
+		logger.Warn("disabling memory capture for mixed-actor linear turn", "actors", len(principals))
+	} else if principal != "" {
 		ctxInfo.Metadata[memoryhook.PrincipalMetadataKey] = "linear:" + principal
 	}
 
