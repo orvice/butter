@@ -120,3 +120,23 @@ func (s *Store) List(_ context.Context, f planeprocessing.Filter) ([]*agentsv1.P
 	}
 	return out, nil
 }
+
+func (s *Store) UpdateStatus(_ context.Context, ws, app, installation, run, activity, action string, status agentsv1.PlaneProcessingStatus, failure string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := installation + ":" + run + ":" + activity + ":" + action
+	id, ok := s.keys[key]
+	if !ok {
+		return planeprocessing.ErrNotFound
+	}
+	r := s.records[id]
+	if r.GetWorkspaceId() != ws || r.GetAppId() != app {
+		return planeprocessing.ErrNotFound
+	}
+	r = proto.Clone(r).(*agentsv1.PlaneProcessingRecord)
+	r.Status = status
+	r.FailureReason = failure
+	r.UpdatedAt = timestamppb.Now()
+	s.records[id] = r
+	return nil
+}
