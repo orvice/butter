@@ -295,6 +295,8 @@ enum PlaneProcessingStatus {
   PLANE_PROCESSING_STATUS_SUCCEEDED = 3;
   PLANE_PROCESSING_STATUS_FAILED = 4;
   PLANE_PROCESSING_STATUS_CANCELLED = 5;
+  PLANE_PROCESSING_STATUS_QUEUED = 6;
+  PLANE_PROCESSING_STATUS_FAILED_UNCERTAIN = 7;
 }
 
 message PlaneWebhookActivity {
@@ -324,6 +326,22 @@ message PlaneProcessingRecord {
   google.protobuf.Timestamp received_at = 14;
   google.protobuf.Timestamp updated_at = 15;
   PlaneWebhookActivity activity = 16;
+  // The actor of this Activity; never the Run creator as a fallback.
+  string actor_user_id = 17;
+  // Agent binding frozen at admission.
+  string agent_id = 18;
+  // Shared by every Prompt executed in the same batch.
+  string invocation_id = 19;
+  int64 accepted_order = 20;
+  // All batch members in durable accepted order.
+  repeated string batch_activity_ids = 21;
+  string memory_capture_disabled_reason = 22;
+  // Delivery statuses are independent of execution status.
+  string queue_confirmation_status = 23;
+  // Includes not_recorded when execution settled without saved output.
+  string reply_delivery_status = 24;
+  // Monotonic Run claim fence; rejects projections from an expired holder.
+  uint64 execution_fence = 25;
 }
 
 message ListPlaneProcessingRecordsRequest {

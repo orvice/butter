@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/redis/go-redis/v9"
 	"go.orx.me/apps/butter/internal/eventqueue"
+	"strconv"
 	"time"
 )
 
@@ -25,7 +26,7 @@ type StreamQueue struct {
 var acceptPlaneScript = redis.NewScript(markStopLua + `
 -- Lua is atomic but does not roll back commands after a runtime error.
 -- Validate destination types before setting a cutoff or a holder marker.
-local types = {'string', 'stream', 'hash', 'string', 'string', 'zset'}
+local types = {'string', 'stream', 'hash', 'string', 'string', 'zset', 'hash'}
 for i = 1, #KEYS do
   local kind = redis.call('TYPE', KEYS[i]).ok
   if kind ~= 'none' and kind ~= types[i] then
@@ -39,6 +40,13 @@ if not redis.acl_check_cmd('INCR', KEYS[5]) or
    not redis.acl_check_cmd('XADD', KEYS[2], '*', 'event', ARGV[1]) or
    not redis.acl_check_cmd('SET', KEYS[1], '1', 'PX', ARGV[2]) then
   return redis.error_reply('plane admission write permission is missing')
+end
+if not event.stop and not redis.acl_check_cmd('HSET', KEYS[7], '0', '0') then
+  return redis.error_reply('plane Stream index permission is missing')
+end
+if (event.stop and not redis.acl_check_cmd('ZREMRANGEBYSCORE', KEYS[6], '-inf', '0')) or
+   (not event.stop and not redis.acl_check_cmd('ZADD', KEYS[6], '0', '0')) then
+  return redis.error_reply('plane admission order permission is missing')
 end
 if event.stop and (not redis.acl_check_cmd('SET', KEYS[4], '0') or
    not redis.acl_check_cmd('HGET', KEYS[3], 'phase') or
@@ -55,8 +63,9 @@ else
   redis.call('ZADD', KEYS[6], order, tostring(order))
 end
 local id = redis.call('XADD', KEYS[2], '*', 'event', cjson.encode(event))
+if not event.stop then redis.call('HSET', KEYS[7], tostring(order), id) end
 redis.call('SET', KEYS[1], '1', 'PX', ARGV[2])
-return id
+return {id, tostring(order)}
 `)
 
 func NewQueue(rdb *redis.Client) *StreamQueue {
@@ -81,12 +90,17 @@ func (q *StreamQueue) Accept(ctx context.Context, e *Event) (string, error) {
 	if e.Stop {
 		stream = ControlStreamKey
 	}
-	if _, err := acceptPlaneScript.Run(ctx, q.client,
-		[]string{"butter:plane:seen:" + id, stream, controlKey(e), controlKey(e) + ":cutoff", orderKey, queueOrderKey(e)},
-		p, (24 * time.Hour).Milliseconds()).Result(); err != nil {
+	result, err := acceptPlaneScript.Run(ctx, q.client,
+		[]string{"butter:plane:seen:" + id, stream, controlKey(e), controlKey(e) + ":cutoff", orderKey, queueOrderKey(e), streamIndexKey(e)},
+		p, (24 * time.Hour).Milliseconds()).StringSlice()
+	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return "", ErrDuplicate
 		}
+		return "", err
+	}
+	e.AcceptedOrder, err = strconv.ParseInt(result[1], 10, 64)
+	if err != nil {
 		return "", err
 	}
 	return id, nil

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.orx.me/apps/butter/internal/redact"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"io"
 	"net/http"
 	"net/url"
@@ -178,12 +180,37 @@ func (c *ActivityHTTPClient) ListActivities(ctx context.Context, q ActivityQuery
 	return out.Results, nil
 }
 
-type ActivityReplyPublisher struct{ Client ActivityClient }
+type ActivityInstallationResolver interface {
+	GetScoped(context.Context, string, string, string) (*agentsv1.PlaneInstallation, error)
+}
+type ActivityReplyPublisher struct {
+	Client        ActivityClient
+	Installations ActivityInstallationResolver
+}
 
 func (p ActivityReplyPublisher) PublishReply(ctx context.Context, e *Event, reply string) error {
 	if p.Client == nil {
 		return ErrReplyUnavailable
 	}
-	_, err := p.Client.CreateActivity(ctx, ActivityRequest{WorkspaceID: e.WorkspaceID, AppID: e.AppID, WorkspaceSlug: e.PlaneWorkspaceID, RunID: e.AgentRunID, InstallationID: e.InstallationID, Type: ActivityResponse, Body: reply})
+	kind := e.ActivityType
+	if kind == "" {
+		kind = ActivityResponse
+	}
+	installationID := e.PlaneInstallationID
+	if installationID == "" {
+		installationID = e.InstallationID
+	}
+	slug := e.PlaneWorkspaceID // compatibility for isolated legacy adapters
+	if p.Installations != nil {
+		inst, err := p.Installations.GetScoped(ctx, e.WorkspaceID, e.AppID, installationID)
+		if err != nil {
+			return err
+		}
+		if inst.GetId() != e.InstallationID || inst.GetPlaneWorkspaceId() != e.PlaneWorkspaceID || inst.GetAppBotUserId() != e.BotUserID || inst.GetWorkspaceSlug() == "" {
+			return ErrIdentity
+		}
+		slug = inst.GetWorkspaceSlug()
+	}
+	_, err := p.Client.CreateActivity(ctx, ActivityRequest{WorkspaceID: e.WorkspaceID, AppID: e.AppID, WorkspaceSlug: slug, RunID: e.AgentRunID, InstallationID: installationID, Type: kind, Body: redact.Text(reply)})
 	return err
 }

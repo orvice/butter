@@ -69,7 +69,12 @@ type StaleSelection struct {
 // makes it. The stamp is not part of the Invocation message, so it never
 // reaches an API response.
 type Repository interface {
+	// Save ignores a delayed holder save after FailActive fenced the record.
 	Save(ctx context.Context, inv *agentsv1.Invocation) error
+	// FailActive fails only this workspace's active Plane invocation after its
+	// execution lease has lapsed. A missing record is fenced by a failed
+	// placeholder; a known terminal record is never overwritten.
+	FailActive(ctx context.Context, workspaceID, id, appName, reason string) error
 	List(ctx context.Context, filter ListFilter, pageSize int32, pageToken string) ([]*agentsv1.Invocation, string, int32, error)
 	Get(ctx context.Context, workspaceID, id string) (*agentsv1.Invocation, error)
 	// GetAcrossWorkspaces is the explicit global-admin/runtime lookup path.

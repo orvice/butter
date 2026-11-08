@@ -687,7 +687,7 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	tokenSource := &planedeliveryrepo.InstallationTokenSource{Apps: planeRepo, Installations: planeInstallationRepo, Keyring: secretbox.NewKeyring(cryptoKeyRepo), Client: planeapi.NewClient(http.DefaultClient, profile), FencedLease: &planedeliveryrepo.RedisFencedTokenLease{Client: rdb, Prefix: "butter:"}, Owner: live.instanceID}
 	activityClient := planedeliveryrepo.NewActivityHTTPClient(profile.APIBaseURL, http.DefaultClient, tokenSource.Token)
 	lease := &planedeliveryrepo.RedisFencedTokenLease{Client: rdb, Prefix: "butter:"}
-	runtime, err := (planedeliveryrepo.PlaneRuntimeFactory{}).Build(planedeliveryrepo.PlaneRuntimeDependencies{Queue: planedeliveryrepo.NewQueue(rdb), Resolver: scopedPlaneResolver{apps: planeRepo, installations: planeInstallationRepo}, Runner: runnerSvc, Activity: activityClient, Token: tokenSource.Token, Delivery: planeDeliveryStore, Processing: planeProcessingRepo, Progress: stores.Progress, Diagnostics: stores.Diagnostics, TokenLease: lease, Consumer: live.instanceID})
+	runtime, err := (planedeliveryrepo.PlaneRuntimeFactory{}).Build(planedeliveryrepo.PlaneRuntimeDependencies{Installations: planeInstallationRepo, Invocations: invRepo, Queue: planedeliveryrepo.NewQueue(rdb), Resolver: scopedPlaneResolver{apps: planeRepo, installations: planeInstallationRepo}, Runner: runnerSvc, Activity: activityClient, Token: tokenSource.Token, Delivery: planeDeliveryStore, Processing: planeProcessingRepo, Progress: stores.Progress, Diagnostics: stores.Diagnostics, TokenLease: lease, Consumer: live.instanceID})
 	if err != nil {
 		_ = rdb.Close()
 		_ = db.Client().Disconnect(ctx)

@@ -9,6 +9,7 @@ import (
 
 	"butterfly.orx.me/core/log"
 	"go.orx.me/apps/butter/internal/eventqueue"
+	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -58,6 +59,24 @@ func (w *Worker) Start(ctx context.Context) error {
 	}
 	run, stop := context.WithCancel(ctx)
 	w.stop = stop
+	if publisher, ok := w.processor.publisher.(*DurablePublisher); ok {
+		w.wg.Add(1)
+		go func() {
+			defer w.wg.Done()
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				recovery, cancel := context.WithTimeout(run, 30*time.Second)
+				_ = publisher.Recover(recovery)
+				cancel()
+				select {
+				case <-run.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+	}
 	w.wg.Add(2)
 	go func() { defer w.wg.Done(); w.loop(run, w.queue, max(w.concurrency, 1)) }()
 	go func() { defer w.wg.Done(); w.loop(run, w.controls, 4) }()
@@ -72,17 +91,54 @@ func (w *Worker) Stop() {
 }
 func (w *Worker) loop(ctx context.Context, queue planeWorkerQueue, concurrency int) {
 	slots := make(chan struct{}, concurrency)
+	var mu sync.Mutex
+	active := map[string]bool{}
 	dispatch := func(entries []eventqueue.Entry) {
 		for _, entry := range entries {
-			slots <- struct{}{}
+			mu.Lock()
+			if active[entry.ID] {
+				mu.Unlock()
+				continue
+			}
+			select {
+			case slots <- struct{}{}:
+				active[entry.ID] = true
+			default:
+				mu.Unlock()
+				return
+			}
+			mu.Unlock()
 			w.inflight.Add(1)
-			go func() { defer func() { <-slots; w.inflight.Done() }(); w.processEntry(ctx, queue, entry) }()
+			go func() {
+				defer func() {
+					mu.Lock()
+					delete(active, entry.ID)
+					mu.Unlock()
+					<-slots
+					w.inflight.Done()
+				}()
+				w.processEntry(ctx, queue, entry)
+			}()
 		}
 	}
-	if pending, err := queue.ReadPending(ctx, w.consumer, int64(concurrency)); err == nil {
-		dispatch(pending)
-	}
+	pendingCursor, reclaimCursor := "0", "0"
 	for ctx.Err() == nil {
+		// Retry our own deferred FIFO entries promptly; reclaim handles other
+		// consumers only after their heartbeat has lapsed. Scan beyond the
+		// active pool so a running head cannot hide another Run's pending work.
+		if paged, ok := queue.(interface {
+			ReadPendingAfter(context.Context, string, string, int64) ([]eventqueue.Entry, error)
+		}); ok {
+			if pending, err := paged.ReadPendingAfter(ctx, w.consumer, pendingCursor, int64(concurrency*2)); err == nil {
+				pendingCursor = "0"
+				if len(pending) > 0 {
+					pendingCursor = pending[len(pending)-1].ID
+				}
+				dispatch(pending)
+			}
+		} else if pending, err := queue.ReadPending(ctx, w.consumer, int64(concurrency)); err == nil {
+			dispatch(pending)
+		}
 		free := int64(cap(slots) - len(slots))
 		if free == 0 {
 			select {
@@ -92,7 +148,14 @@ func (w *Worker) loop(ctx context.Context, queue planeWorkerQueue, concurrency i
 				continue
 			}
 		}
-		if pending, err := queue.Claim(ctx, w.consumer, w.reclaimIdle, free); err == nil {
+		if paged, ok := queue.(interface {
+			ClaimAfter(context.Context, string, time.Duration, string, int64) ([]eventqueue.Entry, string, error)
+		}); ok {
+			if pending, next, err := paged.ClaimAfter(ctx, w.consumer, w.reclaimIdle, reclaimCursor, free); err == nil {
+				reclaimCursor = next
+				dispatch(pending)
+			}
+		} else if pending, err := queue.Claim(ctx, w.consumer, w.reclaimIdle, free); err == nil {
 			dispatch(pending)
 		}
 		free = int64(cap(slots) - len(slots))
@@ -111,6 +174,7 @@ func (w *Worker) loop(ctx context.Context, queue planeWorkerQueue, concurrency i
 		dispatch(entries)
 	}
 }
+
 func (w *Worker) processEntry(ctx context.Context, queue planeWorkerQueue, entry eventqueue.Entry) {
 	workCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -138,9 +202,16 @@ func (w *Worker) processEntry(ctx context.Context, queue planeWorkerQueue, entry
 		log.FromContext(ctx).Warn("plane event deferred", "stream_id", entry.ID, "err", err)
 		return
 	}
-	// XACK alone is not owner-aware. Check ownership after execution too.
-	if ctx.Err() == nil && queue.Touch(ctx, w.consumer, entry.ID) == nil {
-		if err := queue.Ack(ctx, entry.ID); err != nil {
+	if ctx.Err() == nil {
+		var err error
+		if owned, ok := queue.(interface {
+			AckOwned(context.Context, string, ...string) error
+		}); ok {
+			err = owned.AckOwned(ctx, w.consumer, entry.ID)
+		} else if err = queue.Touch(ctx, w.consumer, entry.ID); err == nil {
+			err = queue.Ack(ctx, entry.ID)
+		}
+		if err != nil {
 			log.FromContext(ctx).Warn("plane event acknowledgment failed", "stream_id", entry.ID, "err", err)
 		}
 	}
@@ -164,7 +235,11 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) (result err
 	if e.WorkspaceID == "" || e.AppID == "" || e.InstallationID == "" {
 		return ErrIdentity
 	}
-	app, err := w.resolver.FindScopedApp(ctx, e.WorkspaceID, e.AppID, e.InstallationID)
+	installationID := e.PlaneInstallationID
+	if installationID == "" {
+		installationID = e.InstallationID
+	} // legacy Stream entries
+	app, err := w.resolver.FindScopedApp(ctx, e.WorkspaceID, e.AppID, installationID)
 	if err != nil {
 		return err
 	}
@@ -172,49 +247,76 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) (result err
 		if !allowedStopUser(app.GetAllowedUserIds(), e.ActorUserID) {
 			return ErrIdentity
 		}
-		err := w.confirmStop(ctx, e)
-		w.updateStatus(ctx, e, err, true)
+		return w.confirmStop(ctx, e)
+	}
+	_, err = w.processor.Process(ctx, app, e)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, errTurnInProgress) {
 		return err
 	}
-	w.updateStatus(ctx, e, nil, false)
-	_, err = w.processor.Process(ctx, app, e)
-	w.updateStatus(ctx, e, err, false)
+	if errors.Is(err, ErrRunBusy) || errors.Is(err, planeprocessing.ErrClaimConflict) {
+		return w.queued(ctx, e)
+	}
+	if errors.Is(err, ErrPromptDiscarded) {
+		return w.reject(ctx, e, agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_CANCELLED, err.Error())
+	}
+	if errors.Is(err, ErrPromptRequired) || errors.Is(err, ErrInvalidInput) || errors.Is(err, ErrPromptRejected) {
+		return w.reject(ctx, e, agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_FAILED, err.Error())
+	}
+	if errors.Is(err, ErrTurnConsumed) && w.processor.batches != nil {
+		// Re-read the persistent execution outcome. A generic consumed error
+		// alone must never acknowledge an event whose projection is missing.
+		var consumed *consumedTurn
+		if !errors.As(err, &consumed) {
+			err = w.processor.batches.prepare(ctx, e)
+		}
+		if errors.As(err, &consumed) {
+			e.InvocationID = consumed.invocation
+			e.Members = nil
+			reason := ""
+			if consumed.state == "uncertain" {
+				reason = "execution started but its holder disappeared; not rerun"
+				if w.processor.invocations != nil {
+					if err := w.processor.invocations.FailActive(ctx, e.WorkspaceID, e.InvocationID, "plane", reason); err != nil {
+						return err
+					}
+				}
+			}
+			if err := w.processor.project(ctx, e, processingState(consumed.state), reason, "", ""); err != nil {
+				return err
+			}
+			return w.processor.recoverDeliveryProjection(ctx, e, consumed.state)
+		}
+		return fmt.Errorf("Plane execution outcome is not yet recoverable: %v", err)
+	}
 	return err
 }
 
-func (w *Worker) updateStatus(ctx context.Context, e *Event, err error, stop bool) {
-	if w.processor == nil || w.processor.processing == nil {
-		return
-	}
-	status := agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_SUCCEEDED
-	failure := ""
-	if !stop {
-		status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_PROCESSING
-		if err != nil {
-			if errors.Is(err, ErrPromptDiscarded) {
-				status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_CANCELLED
-			} else {
-				status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_FAILED
-			}
-			failure = err.Error()
+func (w *Worker) reject(ctx context.Context, e *Event, status agentsv1.PlaneProcessingStatus, reason string) error {
+	e.Members = nil
+	if w.processor.batches != nil {
+		if err := w.processor.batches.retire(ctx, e); err != nil {
+			return err
 		}
-	} else if err != nil {
-		status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_FAILED
-		failure = err.Error()
-	} else if e.StopTarget != "" {
-		status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_CANCELLED
 	}
-	_ = w.processor.processing.UpdateStatus(ctx, e.WorkspaceID, e.AppID, e.InstallationID, e.AgentRunID, e.ActivityID, e.Action, status, failure)
+	return w.processor.project(ctx, e, status, reason, "", "")
 }
+
 func (w *Worker) confirmStop(ctx context.Context, e *Event) error {
 	if w.processor.control == nil {
 		return ErrRuntimeDependency
 	}
 	message := "Nothing is running, so there is nothing to stop."
+	status := agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_SUCCEEDED
+	reason := ""
 	if e.AcceptedOrder == 0 {
 		// Old queued controls have no admission ordering or holder token.
 		// Replaying one must never stop a newer holder.
 		message = "This Stop could not be confirmed. Send Stop again if the run is still active."
+		status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_FAILED_UNCERTAIN
+		reason = message
 	} else if e.StopTarget != "" {
 		waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -225,6 +327,8 @@ func (w *Worker) confirmStop(ctx context.Context, e *Event) error {
 					return err
 				}
 				message = "The run lost its holder; stopping could not be confirmed."
+				status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_FAILED_UNCERTAIN
+				reason = message
 			} else if !done {
 				select {
 				case <-waitCtx.Done():
@@ -234,11 +338,20 @@ func (w *Worker) confirmStop(ctx context.Context, e *Event) error {
 				}
 			} else if state == RunStateStopped {
 				message = "Stopped — send a message to continue."
+				status = agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_CANCELLED
 			} else {
 				message = "The run completed before stopping was confirmed."
 			}
 			break
 		}
 	}
-	return w.processor.publisher.PublishReply(ctx, e, message)
+	err := w.processor.publisher.PublishReply(ctx, e, message)
+	delivery := "delivered"
+	if err != nil && !errors.Is(err, ErrDeliveryAlreadyDone) {
+		delivery = "unconfirmed"
+	}
+	if saveErr := w.processor.project(ctx, e, status, reason, "", w.processor.deliveryStatus(ctx, e, delivery)); saveErr != nil {
+		return saveErr
+	}
+	return err
 }

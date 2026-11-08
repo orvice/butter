@@ -38,6 +38,8 @@ type Repository interface {
 	Get(context.Context, string, string) (*agentsv1.PlaneProcessingRecord, error)
 	List(context.Context, Filter) ([]*agentsv1.PlaneProcessingRecord, error)
 	UpdateStatus(context.Context, string, string, string, string, string, string, agentsv1.PlaneProcessingStatus, string) error
+	Project(context.Context, *agentsv1.PlaneProcessingRecord) error
+	FindByEvent(context.Context, *agentsv1.PlaneProcessingRecord) (*agentsv1.PlaneProcessingRecord, error)
 }
 
 // RuntimeRepository is the full store used by the Plane worker: durable

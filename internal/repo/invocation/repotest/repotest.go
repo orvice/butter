@@ -94,6 +94,62 @@ func wantStatus(t *testing.T, repo invocation.Repository, id string, want agents
 func Run(t *testing.T, factory Factory) {
 	now := time.Now().UTC()
 
+	t.Run("PlaneRecoveryFailsOnlyTheScopedActiveInvocation", func(t *testing.T) {
+		repo := factory(t)("live-pod")
+		for _, item := range []struct {
+			id, app string
+			status  agentsv1.InvocationStatus
+		}{
+			{"lost", "plane", running},
+			{"completed", "plane", done},
+			{"other-entrypoint", "linear", running},
+		} {
+			inv := record(item.id, item.status, now)
+			inv.AppName = item.app
+			save(t, repo, inv)
+		}
+		for _, item := range []struct{ ws, id, app string }{
+			{"other-workspace", "lost", "plane"},
+			{"ws-1", "lost", "linear"},
+			{"ws-1", "completed", "plane"},
+			{"ws-1", "other-entrypoint", "plane"},
+			{"ws-1", "missing", "plane"},
+		} {
+			if err := repo.FailActive(t.Context(), item.ws, item.id, item.app, "lease lost"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		wantStatus(t, repo, "missing", failed)
+		delayedStart := record("missing", running, now)
+		delayedStart.AppName = "plane"
+		save(t, repo, delayedStart)
+		wantStatus(t, repo, "missing", failed)
+		wantStatus(t, repo, "lost", running)
+		wantStatus(t, repo, "completed", done)
+		wantStatus(t, repo, "other-entrypoint", running)
+		if err := repo.FailActive(t.Context(), "ws-1", "lost", "plane", "execution uncertain; never rerun"); err != nil {
+			t.Fatal(err)
+		}
+		failed := wantStatus(t, repo, "lost", agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED)
+		if failed.GetFinishedAt() == nil || failed.GetError() != "execution uncertain; never rerun" {
+			t.Fatalf("recovered invocation=%v", failed)
+		}
+		// A former holder may have taken this snapshot while its lease was
+		// valid, then have its terminal Save delayed past crash recovery.
+		late := record("lost", done, now)
+		late.AppName, late.Output = "plane", "late result from expired holder"
+		save(t, repo, late)
+		wantStatus(t, repo, "lost", agentsv1.InvocationStatus_INVOCATION_STATUS_FAILED)
+		if err := repo.RedactContent(t.Context(), "ws-1", "lost"); err != nil {
+			t.Fatal(err)
+		}
+		save(t, repo, late)
+		redacted := get(t, repo, "lost")
+		if redacted.GetInput() != "" || redacted.GetOutput() != "" || redacted.GetError() != "" {
+			t.Fatalf("expired holder restored recovered/redacted content: %v", redacted)
+		}
+	})
+
 	t.Run("ARecordCarriesTheOwnerOfTheProcessThatCreatedIt", func(t *testing.T) {
 		open := factory(t)
 		save(t, open("pod-a"), record("a1", running, now))

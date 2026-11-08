@@ -1,11 +1,22 @@
 package plane
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
+
+	cryptokeymem "go.orx.me/apps/butter/internal/repo/cryptokey/memory"
+	planerepo "go.orx.me/apps/butter/internal/repo/plane"
+	planemem "go.orx.me/apps/butter/internal/repo/plane/memory"
+	installationrepo "go.orx.me/apps/butter/internal/repo/planeinstallation"
+	installationmem "go.orx.me/apps/butter/internal/repo/planeinstallation/memory"
+	"go.orx.me/apps/butter/internal/secretbox"
+	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
 func TestWebhookPayloadAcceptsVerifiedDiscriminators(t *testing.T) {
@@ -66,5 +77,93 @@ func TestHeaderNames(t *testing.T) {
 	h.Set(SignatureHeader, "x")
 	if h.Get(SignatureHeader) != "x" {
 		t.Fatal("signature header missing")
+	}
+}
+
+func TestWebhookActorConflictsAreRejectedWithoutCreatorFallback(t *testing.T) {
+	for _, body := range []string{
+		`{"activity":{"id":"p","user_id":"alice"},"data":{"agent_run_activity":{"id":"p","user_id":"bob"}}}`,
+		`{"agent_activity":{"id":"p","user_id":"alice"},"activity":{"id":"p","user_id":"bob"}}`,
+		`{"activity":{"id":"p","signal":"stop"},"data":{"activity":{"id":"p","signal":"complete"}}}`,
+	} {
+		var payload webhookPayload
+		if err := payload.UnmarshalJSON([]byte(body)); err == nil {
+			t.Fatalf("conflicting activity identity accepted: %s", body)
+		}
+	}
+	var payload webhookPayload
+	if err := payload.UnmarshalJSON([]byte(`{"run":{"id":"run","user_id":"creator"},"activity":{"id":"p"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Activity.UserID != "" || allowedStopUser(nil, payload.Activity.UserID) {
+		t.Fatal("Run creator was used as the current actor")
+	}
+}
+
+type admissionQueue struct{ events []*Event }
+
+func (q *admissionQueue) Accept(_ context.Context, e *Event) (string, error) {
+	copy := *e
+	copy.AcceptedOrder = int64(len(q.events) + 1)
+	e.AcceptedOrder = copy.AcceptedOrder
+	q.events = append(q.events, &copy)
+	return e.ActivityID, nil
+}
+
+func TestAdmissionFreezesActorAndAgentAndIgnoresRepeatedCreate(t *testing.T) {
+	apps, installations := planemem.New(), installationmem.New()
+	ring := secretbox.NewKeyring(cryptokeymem.New())
+	ciphertext, keyID, err := ring.Encrypt(t.Context(), []byte("webhook-secret"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := apps.CreateApp(t.Context(), "ws", &agentsv1.PlaneApp{
+		Id: "app", ClientId: "client", AgentId: "agent-at-admission", InboundEnabled: true,
+	}, planerepo.AppCredentials{WebhookSecret: planerepo.Credential{Ciphertext: ciphertext, KeyID: keyID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := installations.Upsert(t.Context(), "ws", "app", &agentsv1.PlaneInstallation{
+		AppId: "app", AppInstallationId: "external-installation", PlaneWorkspaceId: "plane-ws",
+		AppBotUserId: "bot", GrantedScopes: requiredAgentScopes,
+	}, installationrepo.Tokens{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := &admissionQueue{}
+	receiver := NewReceiver(apps, installations, ring, q)
+	deliver := func(kind, action, actor, activity string) (Decision, error) {
+		body, _ := json.Marshal(map[string]any{
+			"type": kind, "action": action, "app_client_id": "client", "app_installation_id": "external-installation",
+			"agent_user_id": "bot", "workspace_id": "plane-ws", "prompt": "exact input\n🙂",
+			"run":      map[string]string{"id": "run", "workspace_id": "plane-ws", "user_id": "creator"},
+			"activity": map[string]string{"id": activity, "user_id": actor},
+		})
+		mac := hmac.New(sha256.New, []byte("webhook-secret"))
+		_, _ = mac.Write(body)
+		header := http.Header{}
+		header.Set(SignatureHeader, hex.EncodeToString(mac.Sum(nil)))
+		return receiver.Deliver(t.Context(), app, header, body)
+	}
+	if decision, err := deliver("agent_run_activity", "prompted", "alice", "prompt"); err != nil || decision != DecisionAccepted {
+		t.Fatalf("admission=%s err=%v", decision, err)
+	}
+	for range 2 {
+		if decision, err := deliver("agent_run", "created", "", ""); err != nil || decision != DecisionIgnored {
+			t.Fatalf("Create invoked or reset the Run: %s %v", decision, err)
+		}
+	}
+	for _, actor := range []string{"", "bot"} {
+		if _, err := deliver("agent_run_activity", "prompted", actor, "invalid"); !errors.Is(err, ErrIdentity) {
+			t.Fatalf("missing or bot actor admitted: actor=%q err=%v", actor, err)
+		}
+	}
+	if len(q.events) != 1 {
+		t.Fatalf("Create or untrusted actor manufactured %d inputs", len(q.events))
+	}
+	event := q.events[0]
+	if event.AgentID != "agent-at-admission" || event.ActorUserID != "alice" || event.InstallationID != inst.GetId() ||
+		event.PlaneInstallationID != "external-installation" || event.Prompt != "exact input\n🙂" || event.AcceptedOrder != 1 {
+		t.Fatalf("admission snapshot=%+v", event)
 	}
 }

@@ -17,6 +17,7 @@ import (
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	"go.orx.me/apps/butter/internal/secretbox"
+	"go.orx.me/apps/butter/internal/userinput"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
@@ -157,12 +158,28 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 		}
 	}
 	e := &Event{WorkspaceID: app.GetWorkspaceId(), AppID: app.GetId(), InstallationID: inst.GetId(), PlaneInstallationID: inst.GetAppInstallationId(), PlaneWorkspaceID: inst.GetPlaneWorkspaceId(), BotUserID: inst.GetAppBotUserId(), AgentRunID: p.Run.ID, ActivityID: p.Activity.ID, Prompt: p.Prompt, Signal: p.Activity.Signal, ActorUserID: p.Activity.UserID, Type: p.Type, Action: p.Action, DeliveryID: headers.Get(DeliveryHeader), EventHeader: headers.Get(EventHeader), ReceivedAt: r.now().UnixMilli(), Raw: append([]byte(nil), body...)}
+	e.AgentID = app.GetAgentId()
 	e.Stop = strings.EqualFold(strings.TrimSpace(e.Signal), "stop")
-	if e.Stop && !allowedStopUser(app.GetAllowedUserIds(), e.ActorUserID) {
+	if (e.Stop || e.Type != "agent_run") && (!allowedStopUser(app.GetAllowedUserIds(), e.ActorUserID) || strings.EqualFold(e.ActorUserID, e.BotUserID)) {
 		return "", ErrIdentity
 	}
+	if e.Type == "agent_run" {
+		return DecisionIgnored, nil
+	}
+	if !e.Stop && !app.GetInboundEnabled() {
+		return DecisionIgnored, nil
+	}
+	if !e.Stop {
+		var input userinput.Turn
+		if strings.TrimSpace(e.Prompt) == "" {
+			return "", fmt.Errorf("%w: empty prompt", ErrMalformed)
+		}
+		if err := input.AddText(e.Prompt); err != nil {
+			return "", fmt.Errorf("%w: %v", ErrMalformed, err)
+		}
+	}
 	if e.ActivityID == "" {
-		e.ActivityID = e.AgentRunID + ":" + e.Action
+		return "", ErrMalformed
 	}
 	if _, err := r.queue.Accept(ctx, e); err != nil {
 		if errors.Is(err, ErrDuplicate) {
@@ -171,7 +188,9 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 		return "", err
 	}
 	if r.processing != nil {
-		_, _ = r.processing.Create(ctx, &agentsv1.PlaneProcessingRecord{WorkspaceId: e.WorkspaceID, AppId: e.AppID, InstallationId: e.InstallationID, PlaneWorkspaceId: e.PlaneWorkspaceID, BotUserId: e.BotUserID, RunId: e.AgentRunID, ActivityId: e.ActivityID, EventType: e.Type, EventAction: e.Action, DeliveryId: e.DeliveryID, Status: agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_RECEIVED})
+		// The Stream already owns the event; the Worker repairs this projection
+		// if Mongo is unavailable or it races the first processing attempt.
+		_ = (&Processor{processing: r.processing}).project(ctx, e, agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_RECEIVED, "", "", "")
 	}
 	return DecisionAccepted, nil
 }
@@ -218,6 +237,7 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	aliases := []webhookActivity{raw.AgentActivity, raw.Activity}
 	if len(raw.Data) != 0 && string(raw.Data) != "null" {
 		var nested struct {
 			Prompt            string                           `json:"prompt"`
@@ -235,6 +255,7 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(raw.Data, &nested); err != nil {
 			return err
 		}
+		aliases = append(aliases, nested.AgentActivity, nested.Activity)
 		if raw.Type == "" {
 			raw.Type = nested.Type
 		}
@@ -284,6 +305,24 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 			raw.Activity.UserID = nested.Activity.UserID
 		}
 	}
+	var actor, activityID, signal string
+	for _, alias := range aliases {
+		for _, pair := range []struct {
+			value  string
+			target *string
+		}{
+			{alias.UserID, &actor}, {alias.ID, &activityID}, {alias.Signal, &signal},
+		} {
+			value := strings.TrimSpace(pair.value)
+			if value == "" {
+				continue
+			}
+			if *pair.target != "" && !strings.EqualFold(*pair.target, value) {
+				return ErrIdentity
+			}
+			*pair.target = value
+		}
+	}
 	p.Type, p.Action, p.AppClientID, p.AppInstallationID, p.AgentUserID, p.WorkspaceID = raw.Type, raw.Action, raw.AppClientID, raw.AppInstallationID, raw.AgentUserID, raw.WorkspaceID
 	p.Prompt, p.Type, p.Action, p.AppClientID, p.AppInstallationID, p.AgentUserID, p.WorkspaceID = raw.Prompt, raw.Type, raw.Action, raw.AppClientID, raw.AppInstallationID, raw.AgentUserID, raw.WorkspaceID
 	if p.Run.ID == "" {
@@ -293,6 +332,7 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 	if p.Activity.ID == "" {
 		p.Activity = raw.Activity
 	}
+	p.Activity.UserID, p.Activity.Signal = actor, signal
 	return nil
 }
 
@@ -334,6 +374,13 @@ type Event struct {
 	ActorUserID         string `json:"actor_user_id,omitempty"`
 	Stop                bool   `json:"stop,omitempty"`
 	Raw                 []byte `json:"raw"`
+	AgentID             string `json:"agent_id,omitempty"`
+	// The batch is reconstructed from the Stream, never serialized as a
+	// second pending store.
+	Members        []*Event     `json:"-"`
+	InvocationID   string       `json:"-"`
+	ExecutionFence uint64       `json:"-"`
+	ActivityType   ActivityType `json:"activity_type,omitempty"`
 }
 
 func (e *Event) Encode() (string, error) { b, err := json.Marshal(e); return string(b), err }

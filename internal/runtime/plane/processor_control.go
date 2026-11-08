@@ -13,7 +13,6 @@ import (
 	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	"go.orx.me/apps/butter/internal/runtime/runner"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
-	"google.golang.org/genai"
 )
 
 // processControlled keeps execution's lease through delivery and terminal
@@ -32,15 +31,23 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 	if strings.TrimSpace(e.Prompt) == "" {
 		return "", ErrPromptRequired
 	}
-	agentName := app.GetAgentId()
+	agentID := e.AgentID
+	if agentID == "" {
+		agentID = app.GetAgentId()
+	}
+	agentName := agentID
 	if resolver, ok := p.runner.(interface {
 		ResolveAgentRef(string, string) (string, bool)
 	}); ok {
 		var found bool
-		agentName, found = resolver.ResolveAgentRef(e.WorkspaceID, app.GetAgentId())
+		agentName, found = resolver.ResolveAgentRef(e.WorkspaceID, agentID)
 		if !found {
 			return "", errors.New("plane agent is not available in this workspace")
 		}
+	}
+	parts, _, metadata, inputErr := batchInput(membersOf(e))
+	if inputErr != nil {
+		return "", inputErr
 	}
 	var claim planeprocessing.Claim
 	if p.claimRepo != nil {
@@ -67,14 +74,17 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 		}
 		return "", err
 	}
-	// Once Begin succeeds this event must never run the model again, even
-	// when the Worker loses its delivery or the Pod dies during the turn.
-	defer func() {
-		if resultErr != nil {
-			resultErr = errors.Join(ErrTurnConsumed, resultErr)
-		}
-	}()
-	runCtx, cancelRun := context.WithCancelCause(ctx)
+	maxRunSeconds := int32(1800)
+	if app.MaxRunSeconds != nil {
+		maxRunSeconds = app.GetMaxRunSeconds()
+	}
+	turnCtx := ctx
+	if maxRunSeconds > 0 {
+		var cancelDeadline context.CancelFunc
+		turnCtx, cancelDeadline = context.WithTimeout(ctx, time.Duration(maxRunSeconds)*time.Second)
+		defer cancelDeadline()
+	}
+	runCtx, cancelRun := context.WithCancelCause(turnCtx)
 	defer cancelRun(nil)
 	keepCtx, stopKeeping := context.WithCancel(context.WithoutCancel(ctx))
 	kept := make(chan struct{})
@@ -84,6 +94,36 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 		p.keepControlled(keepCtx, e, token, claim, &leaseLost, cancelRun)
 	}()
 	defer func() { stopKeeping(); <-kept }()
+
+	e.InvocationID = token
+	e.ExecutionFence = claim.Fence
+	if len(e.Members) > 0 {
+		lifecycle, ok := p.control.(interface {
+			StartBatch(context.Context, *Event, string) error
+			ReleaseBatch(context.Context, *Event, string) error
+		})
+		if !ok {
+			return "", ErrRuntimeDependency
+		}
+		defer func() {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			_ = lifecycle.ReleaseBatch(cleanup, e, token)
+		}()
+		if err := p.project(runCtx, e, agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_PROCESSING, "", "", ""); err != nil {
+			return "", err
+		}
+		if err := lifecycle.StartBatch(runCtx, e, token); err != nil {
+			return "", err
+		}
+	}
+	// Once execution starts this event must never run the model again, even
+	// when the Worker loses its delivery or the Pod dies during the turn.
+	defer func() {
+		if resultErr != nil {
+			resultErr = errors.Join(ErrTurnConsumed, resultErr)
+		}
+	}()
 
 	// Runner-owned Invocations must use the same Stop/Finish arbitration
 	// before their terminal Save. Cache it for runners without a recorder
@@ -129,8 +169,13 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 		}
 		return nil
 	})
-	out, runErr := p.runner.Run(runCtx, agentName, []*genai.Part{{Text: strings.TrimSpace(e.Prompt)}}, "",
-		&agentsv1.ContextInfo{WorkspaceId: e.WorkspaceID, UserId: e.BotUserID, SessionId: e.AgentRunID, ChannelName: "plane"}, nil, nil)
+	sessionID, userID := e.AgentRunID, e.BotUserID
+	if len(e.Members) > 0 {
+		sessionID = planeSession(e, agentID)
+		userID = planeServiceUser(e)
+	}
+	out, runErr := p.runner.Run(runCtx, agentName, parts, "",
+		&agentsv1.ContextInfo{Uuid: token, WorkspaceId: e.WorkspaceID, UserId: userID, SessionId: sessionID, ChannelName: "plane", Metadata: metadata}, nil, nil)
 	proposed := RunStateSucceeded
 	out = strings.TrimSpace(out)
 	if runErr != nil || runCtx.Err() != nil || out == "" {
@@ -162,6 +207,26 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 			resultErr = errors.Join(resultErr, err)
 		}
 	}()
+	if state == RunStateSucceeded {
+		if durable, ok := p.publisher.(*DurablePublisher); ok {
+			if err := durable.Stage(finishCtx, e, out); err != nil {
+				return "", err
+			}
+		}
+	}
+	reason := ""
+	if runErr != nil {
+		reason = runErr.Error()
+	}
+	if state == RunStateFailed && reason == "" {
+		reason = "plane runner returned empty reply"
+		if cause := context.Cause(runCtx); cause != nil {
+			reason = cause.Error()
+		}
+	}
+	if err := p.project(finishCtx, e, processingState(state), reason, "", ""); err != nil {
+		return "", err
+	}
 	key := planeRunKey(e) + ":" + e.ActivityID
 	if state == RunStateStopped {
 		p.emit(finishCtx, e, key, 3, RunStateStopped, "")
@@ -180,16 +245,21 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 		return "", runErr
 	}
 	if len(out) > p.maxReply {
-		out = out[:p.maxReply]
+		// The final response is one batch result; never cut a user's result
+		// at an arbitrary byte boundary.
+		if len(e.Members) == 0 {
+			out = out[:p.maxReply]
+		}
 	}
 	deliveryCtx, deliveryCancel := context.WithTimeout(runCtx, 30*time.Second)
 	defer deliveryCancel()
-	if err := p.publisher.PublishReply(deliveryCtx, e, out); err != nil {
+	if err := p.publisher.PublishReply(deliveryCtx, e, out); err != nil && !errors.Is(err, ErrDeliveryAlreadyDone) {
 		// The model succeeded; a failed delivery cannot rewrite execution
 		// into FAILED or cause a later Stop to win over its completed turn.
 		if !leaseLost.Load() {
 			diagnosticCtx, done := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			p.recordDiagnostic(diagnosticCtx, e, err)
+			_ = p.project(diagnosticCtx, e, processingState(state), "", "", p.deliveryStatus(diagnosticCtx, e, "unconfirmed"))
 			done()
 		}
 		return "", fmt.Errorf("plane reply: %w", err)
@@ -200,6 +270,9 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 	progressCtx, done := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer done()
 	p.emit(progressCtx, e, key, 2, RunStateSucceeded, "")
+	if err := p.project(progressCtx, e, processingState(state), "", "", "delivered"); err != nil {
+		return out, err
+	}
 	return out, nil
 }
 

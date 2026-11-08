@@ -3255,6 +3255,22 @@ func (m *PlaneProcessingRecord) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for ActorUserId
+
+	// no validation rules for AgentId
+
+	// no validation rules for InvocationId
+
+	// no validation rules for AcceptedOrder
+
+	// no validation rules for MemoryCaptureDisabledReason
+
+	// no validation rules for QueueConfirmationStatus
+
+	// no validation rules for ReplyDeliveryStatus
+
+	// no validation rules for ExecutionFence
+
 	if len(errors) > 0 {
 		return PlaneProcessingRecordMultiError(errors)
 	}
