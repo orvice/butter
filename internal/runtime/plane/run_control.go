@@ -62,8 +62,12 @@ local cutoff = redis.call('GET', KEYS[2])
 if cutoff and tonumber(ARGV[2]) <= tonumber(cutoff) then return 'discarded' end
 if redis.call('EXISTS', KEYS[3]) == 1 then return 'consumed' end
 if tonumber(ARGV[2]) > 0 then
-  local previous = redis.call('ZRANGEBYSCORE', KEYS[4], '-inf', tonumber(ARGV[2]) - 1, 'LIMIT', 0, 1)
-  if #previous > 0 and redis.call('SISMEMBER', KEYS[5], previous[1]) == 0 then return 'busy' end
+  -- Older Workers leave completed orders in the ZSET. A completed head
+  -- must not hide another unfinished predecessor.
+  local previous = redis.call('ZRANGEBYSCORE', KEYS[4], '-inf', tonumber(ARGV[2]) - 1)
+  for _, order in ipairs(previous) do
+    if redis.call('SISMEMBER', KEYS[5], order) == 0 then return 'busy' end
+  end
 end
 local phase = redis.call('HGET', KEYS[1], 'phase')
 if phase and phase ~= 'ended' then return 'busy' end
@@ -94,16 +98,26 @@ var endControlScript = redis.NewScript(`
 if redis.call('HGET', KEYS[1], 'token') ~= ARGV[1] or
    redis.call('HGET', KEYS[1], 'phase') ~= 'finishing' or
    redis.call('HGET', KEYS[1], 'result') ~= ARGV[2] then return 0 end
+local orderType = redis.call('TYPE', KEYS[3]).ok
+local doneType = redis.call('TYPE', KEYS[4]).ok
+if (orderType ~= 'none' and orderType ~= 'zset') or
+   (doneType ~= 'none' and doneType ~= 'set') then
+  return redis.error_reply('plane terminal order key has an incompatible type')
+end
 if not redis.acl_check_cmd('HSET', KEYS[1], 'phase', 'ended') or
    not redis.acl_check_cmd('PEXPIRE', KEYS[1], ARGV[3]) or
    not redis.acl_check_cmd('SET', KEYS[2], ARGV[2], 'PX', ARGV[3]) or
-   not redis.acl_check_cmd('SADD', KEYS[4], ARGV[4]) then
+   not redis.acl_check_cmd('SADD', KEYS[4], ARGV[4]) or
+   not redis.acl_check_cmd('ZREM', KEYS[3], ARGV[4]) then
   return redis.error_reply('plane terminal control permission is missing')
 end
 redis.call('HSET', KEYS[1], 'phase', 'ended')
 redis.call('PEXPIRE', KEYS[1], ARGV[3])
 redis.call('SET', KEYS[2], ARGV[2], 'PX', ARGV[3])
-if ARGV[4] ~= '0' then redis.call('SADD', KEYS[4], ARGV[4]) end
+if ARGV[4] ~= '0' then
+  redis.call('SADD', KEYS[4], ARGV[4])
+  redis.call('ZREM', KEYS[3], ARGV[4])
+end
 return 1
 `)
 var stopControlScript = redis.NewScript(markStopLua + `
@@ -282,6 +296,7 @@ func (c *MemoryRunControl) End(_ context.Context, e *Event, token string, state 
 	if e.AcceptedOrder > 0 {
 		c.done[controlKey(e)] = ensureOrderSet(c.done[controlKey(e)])
 		c.done[controlKey(e)][e.AcceptedOrder] = true
+		delete(c.accepted[controlKey(e)], e.AcceptedOrder)
 	}
 	return nil
 }

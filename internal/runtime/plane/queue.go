@@ -40,6 +40,10 @@ if not redis.acl_check_cmd('INCR', KEYS[5]) or
    not redis.acl_check_cmd('SET', KEYS[1], '1', 'PX', ARGV[2]) then
   return redis.error_reply('plane admission write permission is missing')
 end
+if (event.stop and not redis.acl_check_cmd('ZREMRANGEBYSCORE', KEYS[6], '-inf', '0')) or
+   (not event.stop and not redis.acl_check_cmd('ZADD', KEYS[6], '0', '0')) then
+  return redis.error_reply('plane admission order permission is missing')
+end
 if event.stop and (not redis.acl_check_cmd('SET', KEYS[4], '0') or
    not redis.acl_check_cmd('HGET', KEYS[3], 'phase') or
    not redis.acl_check_cmd('HSET', KEYS[3], 'stop', 'token')) then

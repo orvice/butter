@@ -77,10 +77,15 @@ until those entries have been drained or explicitly resolved.
 
 The control index now keeps an accepted-order ZSET and a completed-order set
 per Run. Admission registers each Prompt before it reaches a Worker; Begin
-atomically waits behind the lowest earlier uncompleted order, and End marks
-that order complete. Stop removes the cutoff range, so old pending Prompts do
+atomically checks every earlier uncompleted order, and End marks that order
+complete and removes it from the pending-order ZSET. Older completed ZSET
+entries remain readable: a completed head never hides an unfinished successor.
+Stop removes the cutoff range, so old pending Prompts do
 not block later accepted work. The memory implementation follows the same
-contract for tests. These order indexes currently have no automatic cleanup.
+contract for tests. The completed-order set and legacy index entries currently
+have no automatic cleanup. Admission preflights the order-index command
+permissions before changing the counter, cutoff or Stop marker. End validates
+the order key types and permissions before publishing a settled outcome.
 
 This slice does not implement #502's FIFO batching, per-batch invocation
 association or actor provenance. A busy Prompt remains pending for recovery;
@@ -114,3 +119,10 @@ invalid Stream types and denied appends without leaving Stop side effects.
 `TestRunClaimReturnsItsOwnAtomicFence` runs with `BUTTER_TEST_MONGO_URI` and
 checks contention, increasing fences, late completion rejection and the
 separation of lease documents from the processing-record list.
+
+`TestRedisFIFOChecksEveryUnfinishedPredecessor` covers three admitted Prompts:
+after the first finishes, the third must wait for an unread second, including
+with completed index entries left by #519. `TestDeniedFIFOAdmissionCannotChangeControl`
+checks denied order mutations leave the acceptance counter and Stop fact
+untouched. `TestFIFOEndFailureDoesNotPublishSettlement` checks denied cleanup
+and invalid order-key types leave the holder renewing without a settled outcome.
