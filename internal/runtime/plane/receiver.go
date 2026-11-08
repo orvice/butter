@@ -156,7 +156,11 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 			return "", ErrIdentity
 		}
 	}
-	e := &Event{WorkspaceID: app.GetWorkspaceId(), AppID: app.GetId(), InstallationID: inst.GetId(), PlaneInstallationID: inst.GetAppInstallationId(), PlaneWorkspaceID: inst.GetPlaneWorkspaceId(), BotUserID: inst.GetAppBotUserId(), AgentRunID: p.Run.ID, ActivityID: p.Activity.ID, Prompt: p.Prompt, Type: p.Type, Action: p.Action, DeliveryID: headers.Get(DeliveryHeader), EventHeader: headers.Get(EventHeader), ReceivedAt: r.now().UnixMilli(), Raw: append([]byte(nil), body...)}
+	e := &Event{WorkspaceID: app.GetWorkspaceId(), AppID: app.GetId(), InstallationID: inst.GetId(), PlaneInstallationID: inst.GetAppInstallationId(), PlaneWorkspaceID: inst.GetPlaneWorkspaceId(), BotUserID: inst.GetAppBotUserId(), AgentRunID: p.Run.ID, ActivityID: p.Activity.ID, Prompt: p.Prompt, Signal: p.Activity.Signal, ActorUserID: p.Activity.UserID, Type: p.Type, Action: p.Action, DeliveryID: headers.Get(DeliveryHeader), EventHeader: headers.Get(EventHeader), ReceivedAt: r.now().UnixMilli(), Raw: append([]byte(nil), body...)}
+	e.Stop = strings.EqualFold(strings.TrimSpace(e.Signal), "stop")
+	if e.Stop && !allowedStopUser(app.GetAllowedUserIds(), e.ActorUserID) {
+		return "", ErrIdentity
+	}
 	if e.ActivityID == "" {
 		e.ActivityID = e.AgentRunID + ":" + e.Action
 	}
@@ -181,10 +185,19 @@ func validSignature(secret []byte, encoded string, body []byte) bool {
 	return hmac.Equal(expected, mac.Sum(nil))
 }
 
+type webhookActivity struct {
+	ID      string `json:"id"`
+	Signal  string `json:"signal"`
+	UserID  string `json:"user_id"`
+	Content struct {
+		Body string `json:"body"`
+	} `json:"content"`
+}
+
 type webhookPayload struct {
 	Prompt, Type, Action, AppClientID, AppInstallationID, AgentUserID, WorkspaceID string
 	Run                                                                            struct{ ID, WorkspaceID string }
-	Activity                                                                       struct{ ID string }
+	Activity                                                                       webhookActivity
 }
 
 func (p *webhookPayload) UnmarshalJSON(data []byte) error {
@@ -198,8 +211,8 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 		WorkspaceID       string                           `json:"workspace_id"`
 		AgentRun          struct{ ID, WorkspaceID string } `json:"agent_run"`
 		Run               struct{ ID, WorkspaceID string } `json:"run"`
-		AgentActivity     struct{ ID string }              `json:"agent_activity"`
-		Activity          struct{ ID string }              `json:"activity"`
+		AgentActivity     webhookActivity                  `json:"agent_activity"`
+		Activity          webhookActivity                  `json:"activity"`
 		Data              json.RawMessage                  `json:"data"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -216,18 +229,8 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 			WorkspaceID       string                           `json:"workspace_id"`
 			AgentRun          struct{ ID, WorkspaceID string } `json:"agent_run"`
 			Run               struct{ ID, WorkspaceID string } `json:"run"`
-			AgentActivity     struct {
-				ID      string `json:"id"`
-				Content struct {
-					Body string `json:"body"`
-				} `json:"content"`
-			} `json:"agent_run_activity"`
-			Activity struct {
-				ID      string `json:"id"`
-				Content struct {
-					Body string `json:"body"`
-				} `json:"content"`
-			} `json:"activity"`
+			AgentActivity     webhookActivity                  `json:"agent_run_activity"`
+			Activity          webhookActivity                  `json:"activity"`
 		}
 		if err := json.Unmarshal(raw.Data, &nested); err != nil {
 			return err
@@ -260,13 +263,25 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 			raw.Activity.ID = nested.Activity.ID
 		}
 		if raw.Activity.ID == "" {
-			raw.Activity.ID = nested.AgentActivity.ID
+			raw.Activity = nested.AgentActivity
 		}
 		if raw.Prompt == "" {
 			raw.Prompt = nested.AgentActivity.Content.Body
 		}
 		if raw.Prompt == "" {
 			raw.Prompt = nested.Activity.Content.Body
+		}
+		if raw.AgentActivity.Signal == "" {
+			raw.AgentActivity.Signal = nested.AgentActivity.Signal
+		}
+		if raw.AgentActivity.UserID == "" {
+			raw.AgentActivity.UserID = nested.AgentActivity.UserID
+		}
+		if raw.Activity.Signal == "" {
+			raw.Activity.Signal = nested.Activity.Signal
+		}
+		if raw.Activity.UserID == "" {
+			raw.Activity.UserID = nested.Activity.UserID
 		}
 	}
 	p.Type, p.Action, p.AppClientID, p.AppInstallationID, p.AgentUserID, p.WorkspaceID = raw.Type, raw.Action, raw.AppClientID, raw.AppInstallationID, raw.AgentUserID, raw.WorkspaceID
@@ -279,6 +294,22 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 		p.Activity = raw.Activity
 	}
 	return nil
+}
+
+func allowedStopUser(allowed []string, user string) bool {
+	user = strings.TrimSpace(user)
+	if user == "" {
+		return false
+	}
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, candidate := range allowed {
+		if strings.EqualFold(strings.TrimSpace(candidate), user) {
+			return true
+		}
+	}
+	return false
 }
 
 type Event struct {
@@ -296,6 +327,9 @@ type Event struct {
 	EventHeader         string `json:"event_header"`
 	ReceivedAt          int64  `json:"received_at"`
 	Prompt              string `json:"prompt"`
+	Signal              string `json:"signal,omitempty"`
+	ActorUserID         string `json:"actor_user_id,omitempty"`
+	Stop                bool   `json:"stop,omitempty"`
 	Raw                 []byte `json:"raw"`
 }
 

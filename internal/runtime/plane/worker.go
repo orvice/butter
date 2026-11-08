@@ -76,7 +76,23 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) error {
 	if err != nil {
 		return err
 	}
-	_, runErr := w.processor.Process(ctx, app, e)
+	var runErr error
+	if e.Stop {
+		audit, stopErr := w.processor.Stop(ctx, e)
+		if stopErr != nil {
+			runErr = stopErr
+		} else {
+			message := "Stopped — send a message to continue."
+			if audit.State != RunStateStopping {
+				message = "Nothing is running, so there is nothing to stop."
+			}
+			if publishErr := w.processor.publisher.PublishReply(ctx, e, message); publishErr != nil {
+				runErr = publishErr
+			}
+		}
+	} else {
+		_, runErr = w.processor.Process(ctx, app, e)
+	}
 	if ackErr := w.queue.Ack(ctx, entry.ID); ackErr != nil {
 		return ackErr
 	}

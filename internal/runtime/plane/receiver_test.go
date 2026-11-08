@@ -28,6 +28,23 @@ func TestWebhookPayloadAcceptsPlaneEnvelope(t *testing.T) {
 		t.Fatalf("decoded envelope = %+v", p)
 	}
 }
+
+func TestWebhookPayloadPreservesStopSignalAndActor(t *testing.T) {
+	var p webhookPayload
+	body := `{"event":"agent_run_user_prompt","data":{"action":"prompted","type":"agent_run_activity","agent_user_id":"bot","app_client_id":"client","app_installation_id":"install","workspace_id":"ws","agent_run":{"id":"run-1","workspace_id":"ws"},"agent_run_activity":{"id":"activity-stop","signal":"stop","user_id":"user-1","content":{"body":"ignored"}}}}`
+	if err := p.UnmarshalJSON([]byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	if p.Activity.Signal != "stop" || p.Activity.UserID != "user-1" {
+		t.Fatalf("activity = %+v, want stop from user-1", p.Activity)
+	}
+	if !allowedStopUser([]string{"user-1"}, p.Activity.UserID) {
+		t.Fatal("authorized stop user rejected")
+	}
+	if allowedStopUser([]string{"user-2"}, p.Activity.UserID) {
+		t.Fatal("unauthorized stop user accepted")
+	}
+}
 func TestValidSignatureUsesRawBodyAndConstantTimeDigest(t *testing.T) {
 	body := []byte(`{"type":"agent_run","action":"created"}`)
 	secret := []byte("secret")
