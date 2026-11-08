@@ -58,6 +58,8 @@ func TestStopUsesRunIdentityInsteadOfItsOwnActivity(t *testing.T) {
 	r := stopTargetRunner{started: make(chan struct{})}
 	pub := &fakePublisher{}
 	p := NewProcessor(r, pub)
+	control := NewMemoryRunControl()
+	p.SetRunControl(control)
 	e := &Event{WorkspaceID: "ws", AppID: "app", InstallationID: "i", AgentRunID: "r", ActivityID: "prompt", Prompt: "work"}
 	done := make(chan error, 1)
 	go func() {
@@ -80,11 +82,11 @@ func TestStopUsesRunIdentityInsteadOfItsOwnActivity(t *testing.T) {
 		if _, err := p.Stop(ctx, &foreign); err != nil {
 			t.Fatal(err)
 		}
-		p.mu.Lock()
-		state := p.states[planeRunKey(e)+":"+e.ActivityID]
-		p.mu.Unlock()
-		if state != RunStateRunning {
-			t.Fatalf("Stop crossed %s boundary: %s", scope, state)
+		control.mu.Lock()
+		stopped := control.current(e).stopped
+		control.mu.Unlock()
+		if stopped {
+			t.Fatalf("Stop crossed %s boundary", scope)
 		}
 	}
 	stop := *e

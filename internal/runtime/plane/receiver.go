@@ -313,6 +313,9 @@ func allowedStopUser(allowed []string, user string) bool {
 }
 
 type Event struct {
+	// AcceptedOrder is assigned at durable admission, never by a Worker.
+	AcceptedOrder       int64  `json:"accepted_order,omitempty"`
+	StopTarget          string `json:"stop_target,omitempty"`
 	WorkspaceID         string `json:"workspace_id"`
 	AppID               string `json:"app_id"`
 	InstallationID      string `json:"installation_id"`

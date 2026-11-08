@@ -49,6 +49,10 @@ func (PlaneRuntimeFactory) Build(d PlaneRuntimeDependencies) (*PlaneRuntime, err
 		return nil, ErrRuntimeDependency
 	}
 	p := NewProcessor(d.Runner, NewDurablePublisher(ActivityReplyPublisher{Client: d.Activity}, d.Delivery))
+	if d.Queue.client == nil {
+		return nil, ErrRuntimeDependency
+	}
+	p.SetRunControl(NewRedisRunControl(d.Queue.client))
 	p.SetProgressSink(d.Progress)
 	p.SetDiagnosticStore(d.Diagnostics)
 	p.SetClaimRepository(d.Processing, d.Consumer)
