@@ -290,7 +290,8 @@ func isPublicPath(path string) bool {
 		"/api/mcp/oauth/callback",
 		// The browser returns from Linear without a Butter session; the
 		// single-use install state authenticates the callback.
-		LinearOAuthCallbackPath:
+		LinearOAuthCallbackPath,
+		PlaneOAuthCallbackPath:
 		return true
 	}
 	// The Telegram callback carries a Channel ID in the path and
@@ -298,7 +299,7 @@ func isPublicPath(path string) bool {
 	// Butter session or workspace header.
 	// The Linear webhook likewise carries an App ID and authenticates with
 	// Linear's HMAC signature over the body.
-	return strings.HasPrefix(path, "/api/telegram/webhook/") || strings.HasPrefix(path, linearWebhookPrefix)
+	return strings.HasPrefix(path, "/api/telegram/webhook/") || strings.HasPrefix(path, linearWebhookPrefix) || strings.HasPrefix(path, "/api/plane/webhook/")
 }
 
 func bearerToken(c *gin.Context) (string, bool) {

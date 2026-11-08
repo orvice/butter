@@ -24,6 +24,7 @@ import {
   Monitor,
   Moon,
   Palette,
+  Plane,
   Plug,
   Satellite,
   Send,
@@ -107,6 +108,13 @@ const CONNECTION_SECTIONS: ManageSection[] = [
           'Route Linear apps to Agents so issues can be delegated, and review deliveries.',
         to: '/linear-apps',
         icon: SquareKanban,
+      },
+      {
+        title: 'Plane',
+        description:
+          'Register Plane apps and bind them to Agents. Inbound is off until the execution path ships.',
+        to: '/plane-apps',
+        icon: Plane,
       },
       {
         title: 'Notify Groups',
@@ -220,7 +228,7 @@ const ADMIN_ITEMS: ManageItem[] = [
   {
     title: 'Public endpoints',
     description:
-      'Set the public base URL Telegram and Linear deliver callbacks to.',
+      'Set the public base URL Telegram, Linear and Plane deliver callbacks to.',
     to: '/admin/endpoints',
     icon: Globe,
   },

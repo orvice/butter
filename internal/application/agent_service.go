@@ -63,6 +63,8 @@ type AgentServiceServer struct {
 	telegramGuard *TelegramReferenceGuard
 	// linearGuard blocks removing an agent a Linear App routes to.
 	linearGuard *LinearReferenceGuard
+	// planeGuard blocks removing an agent a Plane App routes to.
+	planeGuard *PlaneReferenceGuard
 
 	repo           configrepo.AgentRepository
 	butterBoxRepo  butterboxrepo.Repository
@@ -164,6 +166,11 @@ func (s *AgentServiceServer) SetTelegramGuard(guard *TelegramReferenceGuard) {
 // SetLinearGuard wires the Linear App reference guard after bootstrap.
 func (s *AgentServiceServer) SetLinearGuard(guard *LinearReferenceGuard) {
 	s.linearGuard = guard
+}
+
+// SetPlaneGuard wires the Plane App reference guard after bootstrap.
+func (s *AgentServiceServer) SetPlaneGuard(guard *PlaneReferenceGuard) {
+	s.planeGuard = guard
 }
 
 // SetWorkspaceRepo wires the workspace repository used for role-based
@@ -666,6 +673,11 @@ func (s *AgentServiceServer) DeleteAgent(ctx context.Context, req *connect.Reque
 	// Likewise for a Linear App: its delegated issues would never be
 	// answered (ADR-0015).
 	if err := s.linearGuard.CheckAgentRemovable(ctx, wsID, prev.GetAgentId()); err != nil {
+		return nil, err
+	}
+	// And for a Plane App (spec #487, ticket #497): a registration whose
+	// Agent disappeared would silently never answer.
+	if err := s.planeGuard.CheckAgentRemovable(ctx, wsID, prev.GetAgentId()); err != nil {
 		return nil, err
 	}
 	coord := s.coordinator()

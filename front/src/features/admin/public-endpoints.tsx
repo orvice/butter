@@ -2,6 +2,7 @@ import { Navigate } from '@tanstack/react-router'
 import { useAuth } from '@/hooks/use-auth'
 import { Page, PageHeader, PageScroll } from '@/components/butter/page-parts'
 import { LinearPublicBaseUrlCard } from './linear-settings'
+import { PlaneSettingsCard } from './plane-settings'
 import { TelegramWebhookBaseUrlCard } from './telegram-settings'
 
 /**
@@ -18,12 +19,13 @@ export function AdminPublicEndpointsPage() {
     <Page>
       <PageHeader
         title='Public endpoints'
-        subtitle='The public address of this deployment that Telegram and Linear deliver callbacks to, for every workspace.'
+        subtitle='The public address of this deployment that Telegram, Linear and Plane deliver callbacks to, for every workspace.'
       />
       <PageScroll>
         <div className='grid max-w-2xl gap-4'>
           <TelegramWebhookBaseUrlCard />
           <LinearPublicBaseUrlCard />
+          <PlaneSettingsCard />
         </div>
       </PageScroll>
     </Page>

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"butterfly.orx.me/core/log"
@@ -18,6 +19,7 @@ import (
 	"go.orx.me/apps/butter/internal/channel"
 	"go.orx.me/apps/butter/internal/config"
 	"go.orx.me/apps/butter/internal/mcpoauth"
+	"go.orx.me/apps/butter/internal/planeapi"
 	"go.orx.me/apps/butter/internal/redislease"
 	agentcontentrepo "go.orx.me/apps/butter/internal/repo/agentcontent"
 	agentcontentmemory "go.orx.me/apps/butter/internal/repo/agentcontent/memory"
@@ -74,6 +76,26 @@ import (
 	"go.orx.me/apps/butter/internal/repo/oauthstate"
 	oauthstatememory "go.orx.me/apps/butter/internal/repo/oauthstate/memory"
 	oauthstatemongo "go.orx.me/apps/butter/internal/repo/oauthstate/mongo"
+	planerepo "go.orx.me/apps/butter/internal/repo/plane"
+	planedeliverymongo "go.orx.me/apps/butter/internal/repo/planedelivery/mongo"
+	planediagfactory "go.orx.me/apps/butter/internal/repo/planeproduction/mongo"
+	planedeliveryrepo "go.orx.me/apps/butter/internal/runtime/plane"
+	planediagnosticrepo "go.orx.me/apps/butter/internal/runtime/plane"
+
+	planememory "go.orx.me/apps/butter/internal/repo/plane/memory"
+	planemongo "go.orx.me/apps/butter/internal/repo/plane/mongo"
+	planeinstallationrepo "go.orx.me/apps/butter/internal/repo/planeinstallation"
+	planeinstallationmemory "go.orx.me/apps/butter/internal/repo/planeinstallation/memory"
+	planeinstallationmongo "go.orx.me/apps/butter/internal/repo/planeinstallation/mongo"
+	planeprocessingrepo "go.orx.me/apps/butter/internal/repo/planeprocessing"
+	planeprocessingmemory "go.orx.me/apps/butter/internal/repo/planeprocessing/memory"
+	planeprocessingmongo "go.orx.me/apps/butter/internal/repo/planeprocessing/mongo"
+	planesettingrepo "go.orx.me/apps/butter/internal/repo/planesetting"
+	planesettingmemory "go.orx.me/apps/butter/internal/repo/planesetting/memory"
+	planesettingmongo "go.orx.me/apps/butter/internal/repo/planesetting/mongo"
+	planestaterepo "go.orx.me/apps/butter/internal/repo/planestate"
+	planestatememory "go.orx.me/apps/butter/internal/repo/planestate/memory"
+	planestatemongo "go.orx.me/apps/butter/internal/repo/planestate/mongo"
 	repobindingrepo "go.orx.me/apps/butter/internal/repo/repobinding"
 	repobindingmemory "go.orx.me/apps/butter/internal/repo/repobinding/memory"
 	repobindingmongo "go.orx.me/apps/butter/internal/repo/repobinding/mongo"
@@ -151,19 +173,49 @@ type BootstrapResult struct {
 	LinearSettingRepo      linearsettingrepo.Repository
 	LinearStateRepo        linearstaterepo.Repository
 	LinearProcessingRepo   linearprocessingrepo.Repository
-	CryptoKeyRepo          cryptokeyrepo.Repository
-	RepoCacheRepo          repocache.Repository
-	AgentContentRepo       agentcontentrepo.Repository
-	AgentOperationRepo     agentoprepo.Repository
-	SkillRepo              skillrepo.Repository
-	SkillMDMaxBytes        int64
-	SkillResourceMaxCount  int
-	LangfuseHost           string
-	SessionCounter         func(ctx context.Context) (int64, error)
-	SessionTitleStore      application.SessionTitleStore
-	SessionWSStore         application.WorkspaceSessionStore
-	SessionReadStore       application.SessionReadStore
-	ChatTitleModel         string
+	PlaneRepo              planerepo.Repository
+	PlaneInstallationRepo  planeinstallationrepo.Repository
+	PlaneProcessingRepo    planeprocessingrepo.Repository
+	PlaneInstallStateRepo  planestaterepo.Repository
+	PlaneDeliveryStore     planedeliveryrepo.DeliveryStore
+	PlaneProgressStore     planediagnosticrepo.ProgressSink
+	PlaneDiagnosticStore   planediagnosticrepo.DiagnosticStore
+	PlaneResources         *planedeliveryrepo.PlaneResourceOwner
+	PlaneRuntime           *planedeliveryrepo.PlaneRuntime
+	PlaneActivityClient    planedeliveryrepo.ActivityClient
+	PlaneWorker            *planedeliveryrepo.Worker
+	PlaneSettingRepo       planesettingrepo.Repository
+
+	CryptoKeyRepo         cryptokeyrepo.Repository
+	RepoCacheRepo         repocache.Repository
+	AgentContentRepo      agentcontentrepo.Repository
+	AgentOperationRepo    agentoprepo.Repository
+	SkillRepo             skillrepo.Repository
+	SkillMDMaxBytes       int64
+	SkillResourceMaxCount int
+	LangfuseHost          string
+	SessionCounter        func(ctx context.Context) (int64, error)
+	SessionTitleStore     application.SessionTitleStore
+	SessionWSStore        application.WorkspaceSessionStore
+	SessionReadStore      application.SessionReadStore
+	ChatTitleModel        string
+}
+
+func (r *BootstrapResult) Close(ctx context.Context) error {
+	if r == nil {
+		return nil
+	}
+	if r.PlaneResources != nil {
+		r.PlaneResources.Stop()
+		return nil
+	}
+	if r.Redis != nil {
+		_ = r.Redis.Close()
+	}
+	if r.MongoDB != nil {
+		return r.MongoDB.Client().Disconnect(ctx)
+	}
+	return nil
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,
@@ -220,6 +272,11 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearSettingRepo      linearsettingrepo.Repository
 		linearStateRepo        linearstaterepo.Repository
 		linearProcessingRepo   linearprocessingrepo.Repository
+		planeRepo              planerepo.Repository
+		planeInstallationRepo  planeinstallationrepo.Repository
+		planeProcessingRepo    planeprocessingrepo.Repository
+		planeInstallStateRepo  planestaterepo.Repository
+		planeSettingRepo       planesettingrepo.Repository
 	)
 	authUserRepo := authmongo.New(db)
 	logger.Info("initializing auth bootstrap")
@@ -277,6 +334,11 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearSettingRepo = linearsettingmongo.New(db)
 		linearStateRepo = linearstatemongo.New(db)
 		linearProcessingRepo = linearprocessingmongo.New(db)
+		planeRepo = planemongo.New(db)
+		planeInstallationRepo = planeinstallationmongo.New(db)
+		planeInstallStateRepo = planestatemongo.New(db)
+		planeProcessingRepo = planeprocessingmongo.New(db)
+		planeSettingRepo = planesettingmongo.New(db)
 	case "memory":
 		tokenRepo = apitokenmemory.New()
 		invRepo = invocationmemory.New().WithOwner(live.instanceID)
@@ -303,8 +365,22 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		linearSettingRepo = linearsettingmemory.New()
 		linearStateRepo = linearstatememory.New()
 		linearProcessingRepo = linearprocessingmemory.New()
+		planeRepo = planememory.New()
+		planeInstallationRepo = planeinstallationmemory.New()
+		planeInstallStateRepo = planestatememory.New()
+		planeProcessingRepo = planeprocessingmemory.New()
+		planeSettingRepo = planesettingmemory.New()
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
+	}
+	if err := planeProcessingRepo.EnsureIndexes(ctx); err != nil {
+		return nil, err
+	}
+	if err := planeInstallationRepo.EnsureIndexes(ctx); err != nil {
+		return nil, err
+	}
+	if err := planeInstallStateRepo.EnsureIndexes(ctx); err != nil {
+		return nil, err
 	}
 	if err := workStationRepo.EnsureIndexes(ctx); err != nil {
 		return nil, err
@@ -401,6 +477,16 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 	// index bounds retention of Linear replies; both are fatal.
 	if err := linearProcessingRepo.EnsureIndexes(ctx); err != nil {
 		logger.Error("failed to create linear processing indexes", "err", err)
+		return nil, err
+	}
+	// The Plane (provider profile, client ID) index is what keeps one Plane
+	// app from being registered twice, so a failure is fatal like Linear's.
+	if err := planeRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create plane indexes", "err", err)
+		return nil, err
+	}
+	if err := planeSettingRepo.EnsureIndexes(ctx); err != nil {
+		logger.Error("failed to create plane settings indexes", "err", err)
 		return nil, err
 	}
 	if err := applyActiveContent(ctx, cfg.Agents, bindingRepo, contentRepo); err != nil {
@@ -579,6 +665,41 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		logger.Info("agent-id cutover verifier passed")
 	}
 
+	planeDeliveryStore := planedeliverymongo.New(db)
+	if err := planeDeliveryStore.EnsureIndexes(ctx); err != nil {
+		return nil, err
+	}
+	stores, err := planediagfactory.New(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := planeProfileProvider(cfg)()
+	if err != nil {
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
+		return nil, err
+	}
+	if profile.APIBaseURL == "" {
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
+		return nil, fmt.Errorf("plane activity API credential is missing")
+	}
+	tokenSource := &planedeliveryrepo.InstallationTokenSource{Apps: planeRepo, Installations: planeInstallationRepo, Keyring: secretbox.NewKeyring(cryptoKeyRepo), Client: planeapi.NewClient(http.DefaultClient, profile), FencedLease: &planedeliveryrepo.RedisFencedTokenLease{Client: rdb, Prefix: "butter:"}, Owner: live.instanceID}
+	activityClient := planedeliveryrepo.NewActivityHTTPClient(profile.APIBaseURL, http.DefaultClient, tokenSource.Token)
+	lease := &planedeliveryrepo.RedisFencedTokenLease{Client: rdb, Prefix: "butter:"}
+	runtime, err := (planedeliveryrepo.PlaneRuntimeFactory{}).Build(planedeliveryrepo.PlaneRuntimeDependencies{Queue: planedeliveryrepo.NewQueue(rdb), Resolver: scopedPlaneResolver{apps: planeRepo, installations: planeInstallationRepo}, Runner: runnerSvc, Activity: activityClient, Token: tokenSource.Token, Delivery: planeDeliveryStore, Processing: planeProcessingRepo.(planeprocessingrepo.ClaimRepository), Progress: stores.Progress, Diagnostics: stores.Diagnostics, TokenLease: lease, Consumer: live.instanceID})
+	if err != nil {
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
+		return nil, err
+	}
+	owner := planedeliveryrepo.NewPlaneResourceOwner(planedeliveryrepo.NewRuntimeCoordinator(runtime), rdb, planedeliveryrepo.CloseFunc(func() error { return db.Client().Disconnect(context.Background()) }))
+	if err := owner.Start(ctx); err != nil {
+		owner.Stop()
+		_ = rdb.Close()
+		_ = db.Client().Disconnect(ctx)
+		return nil, err
+	}
 	return &BootstrapResult{
 		RunnerSvc:              runnerSvc,
 		SessionSvc:             sessionSvc,
@@ -620,6 +741,17 @@ func StartChannels(ctx context.Context, cfg *config.AppConfig, agentRepo configr
 		LinearSettingRepo:      linearSettingRepo,
 		LinearStateRepo:        linearStateRepo,
 		LinearProcessingRepo:   linearProcessingRepo,
+		PlaneRepo:              planeRepo,
+		PlaneDeliveryStore:     planeDeliveryStore,
+		PlaneProgressStore:     stores.Progress,
+		PlaneDiagnosticStore:   stores.Diagnostics,
+		PlaneResources:         owner,
+		PlaneRuntime:           runtime,
+		PlaneActivityClient:    activityClient,
+		PlaneWorker:            runtime.Worker,
+		PlaneProcessingRepo:    planeProcessingRepo,
+		PlaneInstallStateRepo:  planeInstallStateRepo,
+		PlaneSettingRepo:       planeSettingRepo,
 		CryptoKeyRepo:          cryptoKeyRepo,
 		RepoCacheRepo:          cacheRepo,
 		AgentContentRepo:       contentRepo,
