@@ -12,6 +12,7 @@ import (
 
 	"go.orx.me/apps/butter/internal/repo/invocation"
 	invocationmem "go.orx.me/apps/butter/internal/repo/invocation/memory"
+	installationrepo "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	processingmem "go.orx.me/apps/butter/internal/repo/planeprocessing/memory"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 	"google.golang.org/adk/v2/agent"
@@ -20,11 +21,26 @@ import (
 // Real Redis admission, worker loops, fencing/batching and the real ADK Runner.
 // Only storage, the deterministic agent leaf and Plane HTTP are test doubles.
 func TestRedisEnvelopeMentionReachesReplyAndDeduplicates(t *testing.T) {
+	for _, global := range []bool{false, true} {
+		t.Run(map[bool]string{false: "granular grants", true: "global read write"}[global], func(t *testing.T) {
+			testRedisEnvelopeMentionReachesReplyAndDeduplicates(t, global)
+		})
+	}
+}
+
+func testRedisEnvelopeMentionReachesReplyAndDeduplicates(t *testing.T, global bool) {
+	t.Helper()
 	client := planeTestRedis(t) // Dedicated test Redis, database 12.
 	if err := client.Del(t.Context(), StreamKey, ControlStreamKey).Err(); err != nil {
 		t.Fatal(err)
 	}
 	f := newReceiverFixture(t)
+	if global {
+		f.installation.GrantedScopes = []string{"read", "write"}
+		if _, err := f.installations.Upsert(t.Context(), "ws", "app", f.installation, installationrepo.Tokens{}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

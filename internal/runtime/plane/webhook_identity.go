@@ -70,7 +70,7 @@ func resolveWebhookInstallation(p *webhookPayload, installations []*agentsv1.Pla
 	}
 	var missing []string
 	for _, required := range requiredAgentScopes {
-		if !slices.Contains(inst.GetGrantedScopes(), required) {
+		if !planeScopeGranted(inst.GetGrantedScopes(), required) {
 			missing = append(missing, required)
 		}
 	}
@@ -81,6 +81,17 @@ func resolveWebhookInstallation(p *webhookPayload, installations []*agentsv1.Pla
 		return nil, fmt.Errorf("%w missing_scopes=%s", err, strings.Join(missing, ","))
 	}
 	return inst, nil
+}
+
+// Plane's All Workspace Resources grant uses literal read/write scopes. A
+// global verb covers only that verb; unrelated granular grants and lookalikes
+// must never satisfy the requirement. Evaluate stored provider grants only.
+func planeScopeGranted(granted []string, required string) bool {
+	if slices.Contains(granted, required) {
+		return true
+	}
+	_, verb, ok := strings.Cut(required, ":")
+	return ok && (verb == "read" || verb == "write") && slices.Contains(granted, verb)
 }
 
 func planeEventLogFields(e *Event) []any {
