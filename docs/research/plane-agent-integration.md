@@ -201,6 +201,14 @@ so a body that a proxy re-serializes fails verification — the Linear receiver'
 
 Two events, both documented with samples ([building an agent]):
 
+**Implementation correction (#524):** the official samples omit
+`app_installation_id`; resolve a unique stored installation within the verified
+App by `workspace_id` + `agent_user_id`, rather than requiring an undocumented
+field. An explicit installation ID must still match when supplied. Run objects
+use `workspace` / `agent_user`, and activity objects use `actor` (not
+`user_id`). See [webhook identity and stuck Run recovery](../plane-webhook-recovery.md)
+for the full field map, safe diagnostics and pre-admission recovery procedure.
+
 `agent_run_create` — `type: "agent_run"`, `action: "created"`, the run object
 (`id`, `agent_user`, `issue`, `project`, `workspace`, `status: "created"`,
 `type: "comment_thread"`, `started_at`) plus `agent_user_id`, `app_client_id`,

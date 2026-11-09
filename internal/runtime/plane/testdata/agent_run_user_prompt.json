@@ -1,0 +1,28 @@
+{
+  "action": "prompted",
+  "agent_run_activity": {
+    "id": "activity-1",
+    "agent_run": "run-1",
+    "type": "prompt",
+    "content": {"type": "prompt", "body": "What is the weather like?"},
+    "ephemeral": false,
+    "signal": "continue",
+    "actor": "user-1",
+    "workspace": "plane-ws"
+  },
+  "agent_run": {
+    "id": "run-1",
+    "agent_user": "bot",
+    "issue": "issue-1",
+    "project": "project-1",
+    "workspace": "plane-ws",
+    "status": "in_progress"
+  },
+  "agent_user_id": "bot",
+  "app_client_id": "client",
+  "comment_id": "comment-1",
+  "issue_id": "issue-1",
+  "project_id": "project-1",
+  "workspace_id": "plane-ws",
+  "type": "agent_run_activity"
+}

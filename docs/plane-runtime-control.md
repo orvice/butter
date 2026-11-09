@@ -1,5 +1,8 @@
 # Plane Run control
 
+For webhook identity rejection and Runs stuck before admission, see
+[Plane webhook identity and stuck Run recovery](plane-webhook-recovery.md).
+
 Plane admission assigns every accepted event a Redis sequence number.
 The signed webhook receiver authenticates the App, installation and Stop
 actor before admission. In one Lua operation, admission deduplicates the

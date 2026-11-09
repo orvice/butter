@@ -1,14 +1,17 @@
 package http
 
 import (
-	"butterfly.orx.me/core/log"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"io"
+	"net/http"
+
+	"butterfly.orx.me/core/log"
 	"github.com/gin-gonic/gin"
 	planeruntime "go.orx.me/apps/butter/internal/runtime/plane"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
-	"io"
-	"net/http"
 )
 
 const PlaneWebhookPath = "/api/plane/webhook/:app_id"
@@ -47,13 +50,15 @@ func (h *PlaneWebhookHandler) Handle(c *gin.Context) {
 		}
 		return
 	}
+	digest := sha256.Sum256([]byte(app.GetId()))
+	logger := log.FromContext(ctx).With("app_hash", hex.EncodeToString(digest[:6]))
 	decision, err := h.receiver.Deliver(ctx, app, c.Request.Header, body)
 	if err == nil {
+		logger.Info("plane webhook received", "decision", string(decision))
 		c.JSON(200, gin.H{"ok": true, "decision": string(decision)})
 		return
 	}
-	logger := log.FromContext(ctx)
-	logger.Warn("rejected plane webhook", "app_id", app.GetId(), "err", err)
+	logger.Warn("rejected plane webhook", "err", err)
 	switch {
 	case errors.Is(err, planeruntime.ErrUnauthorized), errors.Is(err, planeruntime.ErrIdentity):
 		c.JSON(401, gin.H{"error": "unauthorized"})
