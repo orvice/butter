@@ -67,9 +67,12 @@ retaining the local installation record ID. No schema migration is needed.
 
 ## Safe diagnostics
 
-The HTTP response remains generic (`401 unauthorized` for identity rejection,
-`400 malformed webhook` for JSON decode failure). The original JSON decoder and
-admission rules are unchanged.
+HTTP acknowledgement is separate from execution. Wrong/missing signatures
+still return 401. A signed permanent identity/schema rejection now returns
+200 `decision=rejected` with an opaque `receipt_id`, **only after** its scoped
+safe diagnostic is persisted. A failed receipt write or queue admission stays
+503. The original JSON decoder and strict execution checks are unchanged; a
+rejected receipt is not queued work. See the [ACK contract](plane-webhook-ack.md).
 
 For JSON failures, `rejected plane webhook` includes only safe decoder metadata:
 
@@ -153,10 +156,12 @@ paste credentials or complete webhook payloads into logs, Issues or PRs.
 
 ## Runs rejected before admission
 
-A rejected webhook has no durable queue entry, processing record or Invocation
-from that delivery. Updating Butter does **not** replay it, and an HTTP 401 is
-not an acknowledgement. App-webhook retry guarantees are undocumented; do not
-wait for a retry as the recovery plan.
+A permanently rejected webhook has no execution-queue entry, processing record
+or Invocation from that delivery. New HTTP 200 `decision=rejected` responses
+acknowledge only a persisted diagnostic, not accepted work; the raw body is not
+stored as a replayable inbox. Old HTTP 400/401 rejections were not ACKs.
+Updating Butter does **not** replay either kind. App-webhook retry guarantees
+are undocumented; do not wait for a retry as the recovery plan.
 
 - Once the fix/binding is verified, send a **new Prompt** in the thread or start
   a new Run. This creates a new activity and passes through normal admission.
@@ -201,7 +206,10 @@ worker dispatch, processing projection, the real Runner/Invocation recorder and
 the activity HTTP adapter; the queue, stores, agent leaf and Plane HTTP transport
 are deterministic test doubles. `TestRedisEnvelopeMentionReachesReplyAndDeduplicates`
 adds real Redis admission, worker loops, fencing/batching, duplicate delivery
-and a second actor's follow-up. HTTP tests verify 200/400/401 behavior and safe
-logs for both business formats. This is not a claim of production end-to-end
+and a second actor's follow-up, including caller disconnect after ACK. HTTP
+tests verify accepted/ignored/rejected 200, unauthorized 401 and persistence
+failure 503 behavior, plus safe logs for both business formats. Mongo tests
+verify receipt write/read isolation and legacy compatibility; projection outage
+tests prove ACK does not wait and unexecuted work remains pending. This is not a claim of production end-to-end
 acceptance: the new Run and
 old-Run retirement steps above still need to be verified after deployment.

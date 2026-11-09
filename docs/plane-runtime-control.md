@@ -2,11 +2,17 @@
 
 For webhook identity rejection and Runs stuck before admission, see
 [Plane webhook identity and stuck Run recovery](plane-webhook-recovery.md).
+For transport ACKs (including permanent rejection receipts) versus actual
+execution, see [Plane webhook acknowledgements](plane-webhook-ack.md).
 
 Plane admission assigns every accepted event a Redis sequence number.
 The signed webhook receiver authenticates the App, installation and Stop
 actor before admission. In one Lua operation, admission deduplicates the
-event, assigns its order and appends its frozen payload.
+event, assigns its order and appends its frozen payload. Only then does the
+HTTP request acknowledge `accepted`; the worker owns the Mongo RECEIVED
+projection, and projection failure leaves the event pending before execution.
+A 200 `rejected` response is only a persisted terminal diagnostic, never an
+admission sequence, Stop confirmation or successful Agent invocation.
 
 Prompts use the existing `butter:plane:events` Stream. Stops use
 `butter:plane:controls`, with an independent consumer pool. At Stop admission,

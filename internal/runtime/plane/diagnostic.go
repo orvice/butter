@@ -1,9 +1,11 @@
 package plane
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +32,13 @@ type DiagnosticRecord struct {
 	Summary        string
 	Recoverable    bool
 	CreatedAt      time.Time
+	// ExpiresAt is set only for terminal webhook receipts; older execution
+	// diagnostics keep their existing retention semantics.
+	ExpiresAt time.Time
 }
+
+const DiagnosticHistoryLimit = 200
+
 type DiagnosticStore interface {
 	Put(context.Context, *DiagnosticRecord) error
 	Get(context.Context, string, string) (*DiagnosticRecord, error)
@@ -74,7 +82,10 @@ func (s *MemoryDiagnosticStore) List(_ context.Context, ws, app string) ([]*Diag
 			out = append(out, &c)
 		}
 	}
-	return out, nil
+	slices.SortFunc(out, func(a, b *DiagnosticRecord) int {
+		return cmp.Or(b.CreatedAt.Compare(a.CreatedAt), strings.Compare(a.Key, b.Key))
+	})
+	return out[:min(len(out), DiagnosticHistoryLimit)], nil
 }
 func ClassifyFailure(err error) FailureClass {
 	if err == nil {

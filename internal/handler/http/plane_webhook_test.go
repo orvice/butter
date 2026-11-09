@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -25,15 +26,18 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
-type planeWebhookQueue struct{ calls int }
+type planeWebhookQueue struct {
+	calls int
+	err   error
+}
 
 func (q *planeWebhookQueue) Accept(context.Context, *planeruntime.Event) (string, error) {
 	q.calls++
-	return "1-0", nil
+	return "1-0", q.err
 }
 
 func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
-	for _, mode := range []string{"accepted", "accepted envelope", "accepted envelope global scopes", "ignored comment", "missing identity", "conflicting identity", "invalid signature", "malformed type", "malformed syntax"} {
+	for _, mode := range []string{"accepted", "accepted envelope", "accepted envelope global scopes", "ignored comment", "authenticated unsupported", "queue unavailable", "missing identity", "conflicting identity", "invalid signature", "malformed type", "malformed syntax"} {
 		t.Run(mode, func(t *testing.T) {
 			var logs bytes.Buffer
 			previous := slog.Default()
@@ -76,6 +80,8 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 			switch mode {
 			case "ignored comment":
 				payload = map[string]any{"event": "issue_comment", "workspace_id": "plane-ws", "data": map[string]string{"id": "comment-1", "workspace": "plane-ws", "comment_html": "private ordinary comment"}}
+			case "authenticated unsupported":
+				payload = map[string]any{"event": "unsupported_notification", "data": map[string]string{"id": "private-resource"}}
 			case "missing identity":
 				delete(payload, "agent_user_id")
 			case "conflicting identity":
@@ -97,8 +103,14 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 				signature = strings.Repeat("0", 64)
 			}
 			q := &planeWebhookQueue{}
+			if mode == "queue unavailable" {
+				q.err = errors.New("queue unavailable")
+			}
 			router := gin.New()
-			NewPlaneWebhookHandler(planeruntime.NewReceiver(apps, installations, ring, q)).Register(router)
+			diagnostics := planeruntime.NewMemoryDiagnosticStore()
+			receiver := planeruntime.NewReceiver(apps, installations, ring, q)
+			receiver.SetDiagnosticStore(diagnostics)
+			NewPlaneWebhookHandler(receiver).Register(router)
 			req := httptest.NewRequest(http.MethodPost, "/api/plane/webhook/"+app.GetId(), bytes.NewReader(body))
 			req.Header.Set(planeruntime.SignatureHeader, signature)
 			response := httptest.NewRecorder()
@@ -111,26 +123,52 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 				if response.Code != http.StatusOK || q.calls != 0 || !strings.Contains(response.Body.String(), `"decision":"ignored"`) || !strings.Contains(logs.String(), `"decision":"ignored"`) {
 					t.Fatalf("ordinary comment was not harmlessly acknowledged: status=%d queued=%d", response.Code, q.calls)
 				}
-			} else {
-				wantStatus, wantResponse := http.StatusUnauthorized, `{"error":"unauthorized"}`
-				if strings.HasPrefix(mode, "malformed ") {
-					wantStatus, wantResponse = http.StatusBadRequest, `{"error":"malformed webhook"}`
+			} else if mode == "queue unavailable" {
+				rows, _ := diagnostics.List(t.Context(), "ws", app.GetId())
+				if response.Code != http.StatusServiceUnavailable || q.calls != 1 || len(rows) != 0 {
+					t.Fatal("failed durable admission was falsely acknowledged")
 				}
-				if response.Code != wantStatus || q.calls != 0 || response.Body.String() != wantResponse {
-					t.Fatalf("status=%d queued=%d response=%s", response.Code, q.calls, response.Body)
+			} else {
+				if q.calls != 0 {
+					t.Fatal("rejected request entered the work queue")
+				}
+				if mode == "invalid signature" {
+					if response.Code != http.StatusUnauthorized || response.Body.String() != `{"error":"unauthorized"}` {
+						t.Fatalf("unsigned request acknowledged: %d %s", response.Code, response.Body)
+					}
+					rows, _ := diagnostics.List(t.Context(), "ws", app.GetId())
+					if len(rows) != 0 {
+						t.Fatal("unverified request created a receipt")
+					}
+				} else {
+					var ack struct {
+						Decision string `json:"decision"`
+						Receipt  string `json:"receipt_id"`
+					}
+					if err := json.Unmarshal(response.Body.Bytes(), &ack); err != nil {
+						t.Fatal(err)
+					}
+					if response.Code != http.StatusOK || ack.Decision != "rejected" || ack.Receipt == "" {
+						t.Fatalf("permanent rejection not durably acknowledged: %d %s", response.Code, response.Body)
+					}
+					row, err := diagnostics.Get(t.Context(), "ws", ack.Receipt)
+					if err != nil || row.AppID != app.GetId() || row.Class != planeruntime.FailurePermanent || row.Recoverable {
+						t.Fatalf("missing scoped rejection receipt: %v %v", row, err)
+					}
 				}
 				reasons := map[string]string{
-					"missing identity":     "reason=missing field=agent_user_id",
-					"conflicting identity": "reason=conflict field=activity.actor",
-					"invalid signature":    "invalid plane webhook signature",
-					"malformed type":       "reason=json_type field=agent_run_activity.actor expected_type=string actual_kind=object offset=",
-					"malformed syntax":     "reason=json_syntax field=$ expected_type=unknown actual_kind=unknown offset=",
+					"authenticated unsupported": "reason=missing field=app_client_id",
+					"missing identity":          "reason=missing field=agent_user_id",
+					"conflicting identity":      "reason=conflict field=activity.actor",
+					"invalid signature":         "invalid plane webhook signature",
+					"malformed type":            "reason=json_type field=agent_run_activity.actor expected_type=string actual_kind=object offset=",
+					"malformed syntax":          "reason=json_syntax field=$ expected_type=unknown actual_kind=unknown offset=",
 				}
 				if !strings.Contains(logs.String(), reasons[mode]) {
 					t.Fatalf("missing reject diagnosis: %s", logs.String())
 				}
 			}
-			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "private-expanded-actor", "private-invalid-token", "private ordinary comment", "What is the weather", "audit-event-1", "audit-author", "audit-resource", "Audit metadata is not a prompt"} {
+			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "private-expanded-actor", "private-invalid-token", "private-resource", "private ordinary comment", "What is the weather", "audit-event-1", "audit-author", "audit-resource", "Audit metadata is not a prompt"} {
 				if strings.Contains(logs.String(), sensitive) {
 					t.Fatalf("webhook logs leak %q", sensitive)
 				}

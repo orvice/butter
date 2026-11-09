@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"butterfly.orx.me/core/log"
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,14 @@ type PlaneReceiver interface {
 	FindApp(context.Context, string) (*agentsv1.PlaneApp, error)
 	Deliver(context.Context, *agentsv1.PlaneApp, http.Header, []byte) (planeruntime.Decision, error)
 }
+
+// ErrIdentity/ErrMalformed from Deliver are authenticated permanent failures.
+// A 200 rejected receipt is safe only once their diagnostic is persisted.
+// Missing persistence must remain retryable, never an unconditional success.
+type planeWebhookRejectionRecorder interface {
+	RecordWebhookRejection(context.Context, *agentsv1.PlaneApp, []byte, error) (string, error)
+}
+
 type PlaneWebhookHandler struct{ receiver PlaneReceiver }
 
 func NewPlaneWebhookHandler(r PlaneReceiver) *PlaneWebhookHandler {
@@ -60,10 +69,25 @@ func (h *PlaneWebhookHandler) Handle(c *gin.Context) {
 	}
 	logger.Warn("rejected plane webhook", "err", err)
 	switch {
-	case errors.Is(err, planeruntime.ErrUnauthorized), errors.Is(err, planeruntime.ErrIdentity):
+	case errors.Is(err, planeruntime.ErrUnauthorized):
 		c.JSON(401, gin.H{"error": "unauthorized"})
-	case errors.Is(err, planeruntime.ErrMalformed):
-		c.JSON(400, gin.H{"error": "malformed webhook"})
+	case errors.Is(err, planeruntime.ErrIdentity), errors.Is(err, planeruntime.ErrMalformed):
+		recorder, ok := h.receiver.(planeWebhookRejectionRecorder)
+		if !ok {
+			c.JSON(503, gin.H{"error": "temporarily unavailable"})
+			return
+		}
+		recordCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		receipt, recordErr := recorder.RecordWebhookRejection(recordCtx, app, body, err)
+		if recordErr != nil || receipt == "" {
+			logger.Error("plane webhook rejection receipt unavailable")
+			c.JSON(503, gin.H{"error": "temporarily unavailable"})
+			return
+		}
+		receiptDigest := sha256.Sum256([]byte(receipt))
+		logger.Info("plane webhook acknowledged", "decision", string(planeruntime.DecisionRejected), "receipt_hash", hex.EncodeToString(receiptDigest[:6]))
+		c.JSON(200, gin.H{"ok": true, "decision": string(planeruntime.DecisionRejected), "receipt_id": receipt})
 	default:
 		c.JSON(503, gin.H{"error": "temporarily unavailable"})
 	}

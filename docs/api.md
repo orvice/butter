@@ -5200,6 +5200,36 @@ server holds (#339).
 
 The authenticated workspace-scoped `/api/agents.v1.WorkStationService/` exposes connection create/update/delete/get/test/discovery/selection, durable Refresh, local ListItems/GetItem and searchable paginated ListFilterOptions. Connections select github/gitlab/linear/plane; GitLab MERGE_REQUEST is distinct from GitHub PULL_REQUEST. Plane adds an explicit external workspace slug. Only workspace owners and global admins manage connections; workspace admins and members read and refresh. Readable messages never contain credentials. Updates use `expected_revision`; optional `api_key` means absent=keep, nonempty=replace, empty=clear and hide. Responses use `Cache-Control: no-store`. WorkStationHostService List/Get exposes approved Plane hosts to authenticated callers; mutations require global admin and revision CAS. Existing GitHostService remains the registry for GitHub/GitLab. Scope health includes scan progress, last full reconciliation and stale/partial status; existing protobuf field numbers remain compatible. See [the preview RPC/storage and acceptance contract](work-station.md). Real source-platform and deployed two-Pod acceptance is still BLOCKED.
 
+### Plane App webhook acknowledgements
+
+`POST /api/plane/webhook/{app_id}` is a public App-scoped callback, authenticated
+by `X-Plane-Signature` (raw-body HMAC-SHA256), not a Butter bearer token. Bodies
+are capped at 1 MiB. Agent execution is asynchronous through the durable Redis
+Stream; the request never waits for the model or the worker's Mongo projection.
+
+HTTP 200 has four distinct outcomes:
+
+- `{"ok":true,"decision":"accepted"}`: authorized work was durably admitted.
+- `{"ok":true,"decision":"duplicate"}`: business deduplication already owns it.
+- `{"ok":true,"decision":"ignored"}`: known ignored input; no execution promised.
+- `{"ok":true,"decision":"rejected","receipt_id":"webhook:…"}`: a signed
+  permanent validation rejection was durably recorded, **not** queued/executed.
+
+**Changed status semantics:** authenticated malformed/identity/policy failures
+are acknowledged as `rejected` only after diagnostic persistence, instead of
+returning 400/401. Their strict execution checks remain unchanged. Wrong or
+missing signatures still return 401, unknown Apps 404 and oversized bodies 413.
+Queue, credential/lookup or diagnostic-store failures remain 503; no successful
+ACK is sent for unstored work/failure decisions. A 200 is not an Invocation
+success, Stop confirmation or proof of a Plane Run's completed state.
+
+A rejection receipt stores scoped safe metadata, not the raw body or replayable
+work. New receipts expire after 30 days; diagnostic lists are bounded to the
+newest 200 records. See [the acknowledgement/recovery contract](plane-webhook-ack.md)
+and [identity/rejected Run recovery](plane-webhook-recovery.md). Re-enabling a
+Plane-disabled webhook is an explicit operator action after deployment; old
+failed requests are not automatically replayed.
+
 ## Error Handling
 
 RPC endpoints return errors in the standard Connect envelope:
