@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"slices"
+	"strings"
 
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
@@ -67,10 +68,17 @@ func resolveWebhookInstallation(p *webhookPayload, installations []*agentsv1.Pla
 	if inst.GetStatus() != "installed" {
 		return nil, rejectWebhookIdentity("installation_inactive", "installation.status", "installed", inst.GetStatus())
 	}
+	var missing []string
 	for _, required := range requiredAgentScopes {
 		if !slices.Contains(inst.GetGrantedScopes(), required) {
-			return nil, rejectWebhookIdentity("scope_incomplete", required, required, "")
+			missing = append(missing, required)
 		}
+	}
+	if len(missing) != 0 {
+		// Only public names from the fixed requirement list, never arbitrary
+		// stored grant values. Report every missing permission in one pass.
+		err := rejectWebhookIdentity("scope_incomplete", missing[0], missing[0], "")
+		return nil, fmt.Errorf("%w missing_scopes=%s", err, strings.Join(missing, ","))
 	}
 	return inst, nil
 }

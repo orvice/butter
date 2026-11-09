@@ -165,7 +165,7 @@ func TestReceiverEnvelopeBusinessPolicies(t *testing.T) {
 func TestReceiverEnvelopeRequiresDocumentedScopes(t *testing.T) {
 	// Deliberately independent of requiredAgentScopes so misspelled production
 	// requirements cannot silently produce equally misspelled test grants.
-	scopes := []string{"agents.runs:read", "agents.runs:write", "agents.run_activities:read", "agents.run_activities:write"}
+	scopes := []string{"agents.runs:read", "agents.run_activities:read", "agents.run_activities:write"}
 	for _, missing := range append(scopes, "undocumented aliases") {
 		t.Run(missing, func(t *testing.T) {
 			f := newReceiverFixture(t)

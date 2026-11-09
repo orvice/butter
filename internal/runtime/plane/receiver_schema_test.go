@@ -71,7 +71,7 @@ func newReceiverFixture(t *testing.T) *receiverFixture {
 		AppBotUserId: "bot", Status: "installed",
 		// Independent of the receiver's requirements: these are the names in
 		// Plane's OAuth scopes reference, not a copy of the code under test.
-		GrantedScopes: []string{"agents.runs:read", "agents.runs:write", "agents.run_activities:read", "agents.run_activities:write"},
+		GrantedScopes: []string{"agents.runs:read", "agents.run_activities:read", "agents.run_activities:write"},
 	}, installationrepo.Tokens{})
 	if err != nil {
 		t.Fatal(err)
