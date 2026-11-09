@@ -51,6 +51,31 @@ func webhookJSONField(field string) string {
 	return field
 }
 
+// Classification is diagnostic only, never routing or authorization. Unknown
+// discriminator values might contain input text, so never format them verbatim.
+func (p *webhookPayload) identityDiagnostic(err error) error {
+	kind, action, event := "other", "other", "other"
+	switch p.Type {
+	case "":
+		kind = "absent"
+	case "agent_run", "agent_run_activity", "issue", "issue_comment", "work_item", "work_item_comment":
+		kind = p.Type
+	}
+	switch p.Action {
+	case "":
+		action = "absent"
+	case "created", "prompted", "updated", "deleted":
+		action = p.Action
+	}
+	switch p.TransportEvent {
+	case "":
+		event = "absent"
+	case "agent_run_create", "agent_run_user_prompt", "agent_run", "agent_run_activity", "issue", "issue_comment", "work_item", "work_item_comment":
+		event = p.TransportEvent
+	}
+	return fmt.Errorf("%w payload_type=%s payload_action=%s event_kind=%s", err, kind, action, event)
+}
+
 func webhookJSONKind(t reflect.Type) string {
 	if t == nil {
 		return "unknown"

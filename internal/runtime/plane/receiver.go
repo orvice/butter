@@ -36,7 +36,9 @@ var (
 	ErrDuplicate    = errors.New("plane webhook already accepted")
 )
 
-var requiredAgentScopes = []string{"agents.runs:write", "agents.runs:read", "agents.run_activities:write", "agents.run_activities:read"}
+// Plane creates the Run. This integration reads Runs and reads/writes their
+// Activities; creating/updating Runs is neither used nor required.
+var requiredAgentScopes = []string{"agents.runs:read", "agents.run_activities:read", "agents.run_activities:write"}
 
 type Decision string
 
@@ -101,7 +103,7 @@ func (r *Receiver) FindScopedApp(ctx context.Context, workspaceID, appID, instal
 	}
 	return app, nil
 }
-func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers http.Header, body []byte) (Decision, error) {
+func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers http.Header, body []byte) (decision Decision, resultErr error) {
 	if r == nil || r.apps == nil || r.installations == nil || r.keyring == nil || r.queue == nil {
 		return "", errors.New("plane receive is not configured")
 	}
@@ -121,6 +123,11 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 		return "", ErrUnauthorized
 	}
 	var p webhookPayload
+	defer func() {
+		if errors.Is(resultErr, ErrIdentity) {
+			resultErr = p.identityDiagnostic(resultErr)
+		}
+	}()
 	if err := json.Unmarshal(body, &p); err != nil {
 		if errors.Is(err, ErrIdentity) {
 			return "", err

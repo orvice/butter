@@ -32,6 +32,7 @@ type webhookPayload struct {
 	Prompt, Type, Action, AppClientID, AppInstallationID, AgentUserID, WorkspaceID string
 	Run                                                                            webhookRun
 	Activity                                                                       webhookActivity
+	TransportEvent                                                                 string
 }
 
 type webhookFields struct {
@@ -59,7 +60,7 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	*p = webhookPayload{}
+	*p = webhookPayload{TransportEvent: raw.Event}
 	// The official WebhookEvent envelope has transport action/activity and a
 	// complete Agent payload in data. Its activity is an opaque audit record,
 	// not another spelling of data.agent_run_activity. Never authorize, Stop,

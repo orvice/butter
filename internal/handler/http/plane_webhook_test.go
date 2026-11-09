@@ -52,7 +52,7 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 			}
 			_, err = installations.Upsert(t.Context(), "ws", app.GetId(), &agentsv1.PlaneInstallation{
 				AppInstallationId: "private-installation-id", PlaneWorkspaceId: "plane-ws", AppBotUserId: "bot", Status: "installed",
-				GrantedScopes: []string{"agents.runs:read", "agents.runs:write", "agents.run_activities:read", "agents.run_activities:write"},
+				GrantedScopes: []string{"agents.runs:read", "agents.run_activities:read", "agents.run_activities:write"},
 			}, installationrepo.Tokens{})
 			if err != nil {
 				t.Fatal(err)

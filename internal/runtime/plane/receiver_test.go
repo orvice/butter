@@ -126,7 +126,7 @@ func TestAdmissionFreezesActorAndAgentAndIgnoresRepeatedCreate(t *testing.T) {
 	inst, err := installations.Upsert(t.Context(), "ws", "app", &agentsv1.PlaneInstallation{
 		AppId: "app", AppInstallationId: "external-installation", PlaneWorkspaceId: "plane-ws",
 		AppBotUserId: "bot", Status: "installed",
-		GrantedScopes: []string{"agents.runs:read", "agents.runs:write", "agents.run_activities:read", "agents.run_activities:write"},
+		GrantedScopes: []string{"agents.runs:read", "agents.run_activities:read", "agents.run_activities:write"},
 	}, installationrepo.Tokens{})
 	if err != nil {
 		t.Fatal(err)

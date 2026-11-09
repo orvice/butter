@@ -49,6 +49,36 @@ evidence; it did not resolve this parser-role error.
    fixtures now use the documented spelling; missing permissions still fail
    closed, and the incorrect spelling is not accepted as an alias.
 
+## Minimum-permission follow-up after #528
+
+At 2026-11-09 06:23:47–06:23:53 UTC, after deploying #528, the JSON kind
+failures disappeared. Two notifications reached installation scope validation
+and failed on `agents.runs:write`; three others failed on missing
+`data.workspace_id`. No admission or Invocation-start log was observed in that
+query window. The three workspace failures are **not evidence by themselves**
+that those messages are unrelated notifications; their business classification
+must be established without relaxing the identity checks.
+
+The remaining Run-write gate was an implementation mistake. The original local
+Spec §3.2 explicitly excluded unused create/update Run permission. The [OAuth
+reference](https://developers.plane.so/dev-tools/build-plane-app/oauth-scopes)
+describes `agents.runs:write` as creating/updating Runs, while Activity writes
+have their own scope. The [activity client](../../internal/runtime/plane/activity_client.go)
+only sends GET/POST to `/runs/{id}/activities/`; the Bot token client sends POST
+to `/auth/o/token/`. There is no create/update Run call. Merely listing every
+available Agent scope in the previous fixtures was insufficient proof that
+every listed permission was required.
+
+The runtime checklist is now `agents.runs:read`,
+`agents.run_activities:read`, and `agents.run_activities:write`. The positive
+fixture and actual Redis/worker/Runner/reply regressions deliberately omit
+Run-write. Each real permission is still tested as mandatory. Missing grants
+are reported together using only names from that fixed checklist, never
+arbitrary grant text. Identity errors carry safe `payload_type` / `payload_action`
+labels plus the transport `event_kind` (known public enum names, `other`, or
+`absent`) for subsequent diagnosis; these labels do not authorize, route, ignore
+or repair missing fields.
+
 ## Bounded normalization and identity rules
 
 - A nonempty outer `event` plus an object `data` selects the documented envelope.

@@ -112,7 +112,7 @@ func testPlaneInstallBotFlow(t *testing.T, persistent bool) {
 				r.Form.Get("app_installation_id") != "external-install" || r.Form.Get("code") != "" {
 				t.Error("incorrect Bot grant")
 			}
-			_, _ = w.Write([]byte(`{"access_token":"private-bot-token","expires_in":86400,"scope":"agents.runs:read agents.runs:write agents.run_activities:read agents.run_activities:write"}`))
+			_, _ = w.Write([]byte(`{"access_token":"private-bot-token","expires_in":86400,"scope":"agents.runs:read agents.run_activities:read agents.run_activities:write"}`))
 		case "/auth/o/app-installation/":
 			if r.URL.Query().Get("id") != "external-install" || r.Header.Get("Authorization") != "Bearer private-bot-token" {
 				t.Error("incorrect installation lookup")
@@ -133,7 +133,7 @@ func testPlaneInstallBotFlow(t *testing.T, persistent bool) {
 	}
 	rows, err := fx.apps.installRepo.List(t.Context(), "ws-a", app.GetId())
 	if err != nil || len(rows) != 1 || rows[0].GetPlaneWorkspaceId() != "plane-ws" ||
-		rows[0].GetAppBotUserId() != "plane-bot" || strings.Join(rows[0].GetGrantedScopes(), " ") != "agents.runs:read agents.runs:write agents.run_activities:read agents.run_activities:write" {
+		rows[0].GetAppBotUserId() != "plane-bot" || strings.Join(rows[0].GetGrantedScopes(), " ") != "agents.runs:read agents.run_activities:read agents.run_activities:write" {
 		t.Fatalf("installations=%v err=%v", rows, err)
 	}
 	if token, err := fx.apps.installRepo.GetRuntimeToken(t.Context(), "ws-a", app.GetId(), "external-install"); err != nil || token.AccessToken != "private-bot-token" {
