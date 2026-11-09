@@ -48,8 +48,33 @@ retaining the local installation record ID. No schema migration is needed.
 
 ## Safe diagnostics
 
-The HTTP response remains generic (`401 unauthorized` for identity rejection).
-The `rejected plane webhook` log now includes `reason` and `field` in its error:
+The HTTP response remains generic (`401 unauthorized` for identity rejection,
+`400 malformed webhook` for JSON decode failure). The original JSON decoder and
+admission rules are unchanged.
+
+For JSON failures, `rejected plane webhook` includes only safe decoder metadata:
+
+- `reason=json_type`: a typed field has an incompatible JSON value. `field` is
+  the schema field path, `expected_type` is the expected JSON kind, and
+  `actual_kind` is the received JSON kind (never its value).
+- `reason=json_syntax`: invalid JSON syntax. No field/value is inferred.
+- `reason=json_decode`: an unclassified decoder failure; details stay hidden.
+
+`offset` is the decoder-reported byte offset, or `0` when unavailable. For a
+custom unmarshaler's type error it is relative to that JSON value, excluding any
+leading request whitespace. `field=$` denotes the root or an unavailable/
+unrecognized path; kinds fall back to `unknown`. Field paths use a fixed schema
+vocabulary. Raw decoder messages, offending characters, numeric literals and
+input values are never logged.
+
+For example, `reason=json_type field=agent_run_activity.actor
+expected_type=string actual_kind=object offset=42` would distinguish a type
+mismatch from broken JSON syntax. This is an **illustration**, not a claim that
+the live Plane actor field is an object. After deploying the diagnostic patch,
+send a new Prompt and use its actual field/kind diagnosis to confirm the schema
+before changing parsing. This patch alone does not fix a schema mismatch.
+
+For identity rejections, the error includes `reason` and `field`:
 
 - `missing`: required client, workspace, bot, actor or stored installation ID.
 - `app_client_mismatch`: webhook URL and payload select different Apps.

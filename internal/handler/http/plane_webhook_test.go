@@ -33,7 +33,7 @@ func (q *planeWebhookQueue) Accept(context.Context, *planeruntime.Event) (string
 }
 
 func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
-	for _, mode := range []string{"accepted", "missing identity", "conflicting identity", "invalid signature"} {
+	for _, mode := range []string{"accepted", "missing identity", "conflicting identity", "invalid signature", "malformed type", "malformed syntax"} {
 		t.Run(mode, func(t *testing.T) {
 			var logs bytes.Buffer
 			previous := slog.Default()
@@ -70,10 +70,15 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 				delete(payload, "agent_user_id")
 			case "conflicting identity":
 				payload["agent_run_activity"].(map[string]any)["user_id"] = "private-conflicting-actor"
+			case "malformed type":
+				payload["agent_run_activity"].(map[string]any)["actor"] = map[string]string{"id": "private-expanded-actor"}
 			}
 			body, err := json.Marshal(payload)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if mode == "malformed syntax" {
+				body = append(body, []byte(" private-invalid-token")...)
 			}
 			mac := hmac.New(sha256.New, []byte(secret))
 			_, _ = mac.Write(body)
@@ -93,15 +98,25 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 					t.Fatalf("status=%d queued=%d logs=%s", response.Code, q.calls, logs.String())
 				}
 			} else {
-				if response.Code != http.StatusUnauthorized || q.calls != 0 || response.Body.String() != `{"error":"unauthorized"}` {
+				wantStatus, wantResponse := http.StatusUnauthorized, `{"error":"unauthorized"}`
+				if strings.HasPrefix(mode, "malformed ") {
+					wantStatus, wantResponse = http.StatusBadRequest, `{"error":"malformed webhook"}`
+				}
+				if response.Code != wantStatus || q.calls != 0 || response.Body.String() != wantResponse {
 					t.Fatalf("status=%d queued=%d response=%s", response.Code, q.calls, response.Body)
 				}
-				reasons := map[string]string{"missing identity": "reason=missing field=agent_user_id", "conflicting identity": "reason=conflict field=activity.actor", "invalid signature": "invalid plane webhook signature"}
+				reasons := map[string]string{
+					"missing identity":     "reason=missing field=agent_user_id",
+					"conflicting identity": "reason=conflict field=activity.actor",
+					"invalid signature":    "invalid plane webhook signature",
+					"malformed type":       "reason=json_type field=agent_run_activity.actor expected_type=string actual_kind=object offset=",
+					"malformed syntax":     "reason=json_syntax field=$ expected_type=unknown actual_kind=unknown offset=",
+				}
 				if !strings.Contains(logs.String(), reasons[mode]) {
 					t.Fatalf("missing reject diagnosis: %s", logs.String())
 				}
 			}
-			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "What is the weather"} {
+			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "private-expanded-actor", "private-invalid-token", "What is the weather"} {
 				if strings.Contains(logs.String(), sensitive) {
 					t.Fatalf("webhook logs leak %q", sensitive)
 				}
