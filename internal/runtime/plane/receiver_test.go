@@ -24,7 +24,7 @@ func TestWebhookPayloadAcceptsVerifiedDiscriminators(t *testing.T) {
 	if err := p.UnmarshalJSON([]byte(`{"type":"agent_run_activity","action":"prompted","app_client_id":"client","app_installation_id":"install","agent_user_id":"bot","workspace_id":"ws","run":{"id":"run-1","workspace_id":"ws"},"activity":{"id":"activity-1"}}`)); err != nil {
 		t.Fatal(err)
 	}
-	if p.Run.ID != "run-1" || p.Activity.ID != "activity-1" {
+	if p.Run.ID != "run-1" || p.Run.WorkspaceID != "ws" || p.Activity.ID != "activity-1" {
 		t.Fatalf("payload identities = %+v", p)
 	}
 }
@@ -125,7 +125,7 @@ func TestAdmissionFreezesActorAndAgentAndIgnoresRepeatedCreate(t *testing.T) {
 	}
 	inst, err := installations.Upsert(t.Context(), "ws", "app", &agentsv1.PlaneInstallation{
 		AppId: "app", AppInstallationId: "external-installation", PlaneWorkspaceId: "plane-ws",
-		AppBotUserId: "bot", GrantedScopes: requiredAgentScopes,
+		AppBotUserId: "bot", GrantedScopes: requiredAgentScopes, Status: "installed",
 	}, installationrepo.Tokens{})
 	if err != nil {
 		t.Fatal(err)

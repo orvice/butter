@@ -249,6 +249,7 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) (result err
 		}
 		return w.confirmStop(ctx, e)
 	}
+	log.FromContext(ctx).Info("plane event processing", planeEventLogFields(e)...)
 	_, err = w.processor.Process(ctx, app, e)
 	if err == nil {
 		return nil

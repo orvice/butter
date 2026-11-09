@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"butterfly.orx.me/core/log"
 	"github.com/google/uuid"
 	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	"go.orx.me/apps/butter/internal/runtime/runner"
@@ -174,6 +175,7 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 		sessionID = planeSession(e, agentID)
 		userID = planeServiceUser(e)
 	}
+	log.FromContext(ctx).Info("plane invocation starting", planeEventLogFields(e)...)
 	out, runErr := p.runner.Run(runCtx, agentName, parts, "",
 		&agentsv1.ContextInfo{Uuid: token, WorkspaceId: e.WorkspaceID, UserId: userID, SessionId: sessionID, ChannelName: "plane", Metadata: metadata}, nil, nil)
 	proposed := RunStateSucceeded
@@ -194,6 +196,7 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 	if err != nil {
 		return "", err
 	}
+	log.FromContext(ctx).Info("plane invocation settled", append(planeEventLogFields(e), "state", string(state))...)
 	if leaseLost.Load() {
 		return "", ErrRunLeaseLost
 	}
@@ -267,6 +270,7 @@ func (p *Processor) processControlled(ctx context.Context, app *agentsv1.PlaneAp
 	if leaseLost.Load() {
 		return "", ErrRunLeaseLost
 	}
+	log.FromContext(ctx).Info("plane reply delivered", planeEventLogFields(e)...)
 	progressCtx, done := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer done()
 	p.emit(progressCtx, e, key, 2, RunStateSucceeded, "")
