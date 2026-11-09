@@ -83,6 +83,11 @@ func (f *receiverFixture) deliver(t *testing.T, payload map[string]any) (Decisio
 	if err != nil {
 		t.Fatal(err)
 	}
+	return f.deliverBody(t, body)
+}
+
+func (f *receiverFixture) deliverBody(t *testing.T, body []byte) (Decision, error) {
+	t.Helper()
 	mac := hmac.New(sha256.New, []byte("fixture-webhook-secret"))
 	_, _ = mac.Write(body)
 	headers := http.Header{}

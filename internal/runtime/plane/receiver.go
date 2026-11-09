@@ -125,7 +125,7 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 		if errors.Is(err, ErrIdentity) {
 			return "", err
 		}
-		return "", fmt.Errorf("%w: invalid JSON payload", ErrMalformed)
+		return "", webhookJSONDiagnostic(err)
 	}
 	for _, field := range []struct{ name, value string }{
 		{"app_client_id", p.AppClientID}, {"workspace_id", p.WorkspaceID}, {"agent_user_id", p.AgentUserID},
