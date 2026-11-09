@@ -44,6 +44,7 @@ func TestReceiverAuthenticatesBeforeJSONDiagnostics(t *testing.T) {
 // exercise signed receive and must remain rejected without exposing the value.
 func TestReceiverJSONDiagnostics(t *testing.T) {
 	for _, tc := range []struct{ name, body, reason, field, expected, actual string }{
+		{"invalid envelope marker", `{"event":{"private":"sensitive-prompt"},"data":{}}`, "json_type", "event", "string", "object"},
 		{"expanded actor", `{"agent_run_activity":{"actor":{"id":"sensitive-actor-id","name":"sensitive-prompt"}}}`, "json_type", "agent_run_activity.actor", "string", "object"},
 		{"enveloped actor", `{"data":{"agent_run_activity":{"actor":{"id":"sensitive-actor-id"}}}}`, "json_type", "data.agent_run_activity.actor", "string", "object"},
 		{"string resource", `{"agent_run":"sensitive-run-id"}`, "json_type", "agent_run", "object", "string"},

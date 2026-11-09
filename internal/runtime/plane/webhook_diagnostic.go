@@ -41,7 +41,7 @@ func webhookJSONField(field string) string {
 	}
 	for part := range strings.SplitSeq(field, ".") {
 		switch part {
-		case "data", "prompt", "type", "action", "app_client_id", "app_installation_id", "agent_user_id", "workspace_id",
+		case "event", "data", "prompt", "type", "action", "app_client_id", "app_installation_id", "agent_user_id", "workspace_id",
 			"agent_run", "run", "agent_run_activity", "agent_activity", "activity", "id", "workspace", "agent_user",
 			"signal", "user_id", "actor", "content", "body":
 		default:

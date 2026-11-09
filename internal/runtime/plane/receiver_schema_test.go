@@ -68,7 +68,10 @@ func newReceiverFixture(t *testing.T) *receiverFixture {
 	}
 	inst, err := installations.Upsert(t.Context(), "ws", "app", &agentsv1.PlaneInstallation{
 		AppInstallationId: "external-installation", PlaneWorkspaceId: "plane-ws", WorkspaceSlug: "plane-workspace",
-		AppBotUserId: "bot", GrantedScopes: requiredAgentScopes, Status: "installed",
+		AppBotUserId: "bot", Status: "installed",
+		// Independent of the receiver's requirements: these are the names in
+		// Plane's OAuth scopes reference, not a copy of the code under test.
+		GrantedScopes: []string{"agents.runs:read", "agents.runs:write", "agents.run_activities:read", "agents.run_activities:write"},
 	}, installationrepo.Tokens{})
 	if err != nil {
 		t.Fatal(err)
@@ -146,6 +149,15 @@ func TestReceiverRejectsUntrustedPlaneIdentity(t *testing.T) {
 }
 
 func TestOfficialPlanePromptReachesInvocationAndActivity(t *testing.T) {
+	for _, enveloped := range []bool{false, true} {
+		t.Run(map[bool]string{false: "flat", true: "envelope"}[enveloped], func(t *testing.T) {
+			testOfficialPlanePromptReachesInvocationAndActivity(t, enveloped)
+		})
+	}
+}
+
+func testOfficialPlanePromptReachesInvocationAndActivity(t *testing.T, enveloped bool) {
+	t.Helper()
 	var logs bytes.Buffer
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
@@ -177,7 +189,11 @@ func TestOfficialPlanePromptReachesInvocationAndActivity(t *testing.T) {
 	})
 	p.publisher = NewDurablePublisher(ActivityReplyPublisher{Client: client, Installations: f.installations}, NewMemoryDeliveryStore())
 	p.SetProcessingRepository(records)
-	if decision, err := f.deliver(t, officialPrompt(t)); err != nil || decision != DecisionAccepted {
+	prompt := officialPrompt(t)
+	if enveloped {
+		prompt = officialEnvelope(t)
+	}
+	if decision, err := f.deliver(t, prompt); err != nil || decision != DecisionAccepted {
 		t.Fatalf("admission=%s err=%v", decision, err)
 	}
 	e := f.queue.events[0]
