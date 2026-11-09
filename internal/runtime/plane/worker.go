@@ -243,6 +243,14 @@ func (w *Worker) handle(ctx context.Context, entry eventqueue.Entry) (result err
 	if err != nil {
 		return err
 	}
+	// Admission owns only the Redis append. Rebuild this projection here,
+	// before execution; failures remain pending instead of stalling the ACK.
+	if err := w.processor.project(ctx, e, agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_RECEIVED, "", "", ""); err != nil {
+		// This is a projection failure, never a terminal input decision. Do
+		// not expose its cause to terminalPlaneEvent and ACK unexecuted work;
+		// database errors can also echo record values into logs.
+		return errors.New("plane receive projection unavailable")
+	}
 	if e.Stop {
 		if !allowedStopUser(app.GetAllowedUserIds(), e.ActorUserID) {
 			return ErrIdentity

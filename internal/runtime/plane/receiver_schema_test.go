@@ -23,6 +23,7 @@ import (
 	planemem "go.orx.me/apps/butter/internal/repo/plane/memory"
 	installationrepo "go.orx.me/apps/butter/internal/repo/planeinstallation"
 	installationmem "go.orx.me/apps/butter/internal/repo/planeinstallation/memory"
+	processingrepo "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	processingmem "go.orx.me/apps/butter/internal/repo/planeprocessing/memory"
 	"go.orx.me/apps/butter/internal/secretbox"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -91,11 +92,16 @@ func (f *receiverFixture) deliver(t *testing.T, payload map[string]any) (Decisio
 
 func (f *receiverFixture) deliverBody(t *testing.T, body []byte) (Decision, error) {
 	t.Helper()
+	return f.deliverBodyContext(t, t.Context(), body)
+}
+
+func (f *receiverFixture) deliverBodyContext(t *testing.T, ctx context.Context, body []byte) (Decision, error) {
+	t.Helper()
 	mac := hmac.New(sha256.New, []byte("fixture-webhook-secret"))
 	_, _ = mac.Write(body)
 	headers := http.Header{}
 	headers.Set(SignatureHeader, hex.EncodeToString(mac.Sum(nil)))
-	return f.receiver.Deliver(t.Context(), f.app, headers, body)
+	return f.receiver.Deliver(ctx, f.app, headers, body)
 }
 
 func TestReceiverRejectsUntrustedPlaneIdentity(t *testing.T) {
@@ -164,7 +170,6 @@ func testOfficialPlanePromptReachesInvocationAndActivity(t *testing.T, enveloped
 	t.Cleanup(func() { slog.SetDefault(previous) })
 	f := newReceiverFixture(t)
 	records, invocations := processingmem.New(), invocationmem.New()
-	f.receiver.SetProcessingRepo(records)
 	p, _, app := invocationProcessor(t, func(agent.InvocationContext) (string, error) { return "Weather report", nil }, invocations)
 	f.app.AgentId = app.GetAgentId()
 	posted := 0
@@ -199,8 +204,8 @@ func testOfficialPlanePromptReachesInvocationAndActivity(t *testing.T, enveloped
 	e := f.queue.events[0]
 	lookup := &agentsv1.PlaneProcessingRecord{WorkspaceId: e.WorkspaceID, AppId: e.AppID, InstallationId: e.InstallationID, RunId: e.AgentRunID, ActivityId: e.ActivityID, EventAction: e.Action}
 	row, err := records.FindByEvent(t.Context(), lookup)
-	if err != nil || row.GetStatus() != agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_RECEIVED {
-		t.Fatalf("missing receive projection: row=%v err=%v", row, err)
+	if !errors.Is(err, processingrepo.ErrNotFound) {
+		t.Fatalf("HTTP admission unexpectedly performed a projection: row=%v err=%v", row, err)
 	}
 	payload, err := e.Encode()
 	if err != nil {

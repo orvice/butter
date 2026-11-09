@@ -33,3 +33,11 @@ func (h *planeReceiverHolder) Deliver(ctx context.Context, a *agentsv1.PlaneApp,
 	}
 	return r.Deliver(ctx, a, hdr, b)
 }
+
+func (h *planeReceiverHolder) RecordWebhookRejection(ctx context.Context, app *agentsv1.PlaneApp, body []byte, rejection error) (string, error) {
+	r := h.receiver.Load()
+	if r == nil {
+		return "", context.Canceled
+	}
+	return r.RecordWebhookRejection(ctx, app, body, rejection)
+}

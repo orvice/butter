@@ -579,10 +579,10 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 	if h.linearAdminSvcServer != nil && result.LinearSettingRepo != nil {
 		h.linearAdminSvcServer.SetRepo(result.LinearSettingRepo)
 	}
-	// Plane Apps (spec #487, ticket #497). #497 is registration only: no
-	// OAuth install state and no inbound queue are wired yet, so there is no
-	// callback or webhook route that could create an App. Secrets use the
-	// same database-backed master key as every other credential.
+	// Plane management and signed receive dependencies. Execution and its
+	// processing projection belong to the worker; authenticated permanent
+	// rejections use the shared durable diagnostic store before transport ACK.
+	// Secrets use the same database-backed master key as other credentials.
 	if result.PlaneRepo != nil {
 		planeKeyring := secretbox.NewKeyring(result.CryptoKeyRepo)
 		if h.planeAppSvcServer != nil {
@@ -598,7 +598,7 @@ func (h *Handlers) Wire(result *BootstrapResult) {
 		h.agentSvcServer.SetPlaneGuard(application.NewPlaneReferenceGuard(result.PlaneRepo))
 		if h.planeReceiver != nil && result.Redis != nil && result.PlaneInstallationRepo != nil {
 			r := planeruntime.NewReceiver(result.PlaneRepo, result.PlaneInstallationRepo, planeKeyring, planeruntime.NewQueue(result.Redis))
-			r.SetProcessingRepo(result.PlaneProcessingRepo)
+			r.SetDiagnosticStore(result.PlaneDiagnosticStore)
 			h.planeReceiver.receiver.Store(r)
 		}
 	}

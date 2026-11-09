@@ -2,6 +2,7 @@ package plane
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -53,10 +54,19 @@ func testRedisEnvelopeMentionReachesReplyAndDeduplicates(t *testing.T, global bo
 	q := NewQueue(client)
 	f.receiver.queue = q
 	records, invocations := processingmem.New(), invocationmem.New()
-	f.receiver.SetProcessingRepo(records)
 	var executions, responses, posts atomic.Int32
-	base, _, app := invocationProcessor(t, func(agent.InvocationContext) (string, error) {
-		executions.Add(1)
+	started, release := make(chan struct{}), make(chan struct{})
+	caller, cancelCaller := context.WithCancel(t.Context())
+	defer cancelCaller()
+	base, _, app := invocationProcessor(t, func(ctx agent.InvocationContext) (string, error) {
+		if executions.Add(1) == 1 {
+			close(started)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		}
 		return "Weather report", nil
 	}, invocations)
 	f.app.AgentId = app.GetAgentId()
@@ -97,9 +107,20 @@ func testRedisEnvelopeMentionReachesReplyAndDeduplicates(t *testing.T, global bo
 	}
 	t.Cleanup(worker.Stop)
 	payload := officialEnvelope(t)
-	if decision, err := f.deliver(t, payload); err != nil || decision != DecisionAccepted {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision, err := f.deliverBodyContext(t, caller, body); err != nil || decision != DecisionAccepted {
 		t.Fatalf("mention admission=%s err=%v", decision, err)
 	}
+	awaitPlane(t, started, "model still running after durable ACK")
+	if responses.Load() != 0 {
+		t.Fatal("reply finished before the deliberately blocked model")
+	}
+	// Disconnecting the caller after ACK must not cancel already-durable work.
+	cancelCaller()
+	close(release)
 	awaitRecord := func(activity, actor string) *agentsv1.PlaneProcessingRecord {
 		t.Helper()
 		var row *agentsv1.PlaneProcessingRecord

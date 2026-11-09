@@ -15,7 +15,6 @@ import (
 	"butterfly.orx.me/core/log"
 	planerepo "go.orx.me/apps/butter/internal/repo/plane"
 	planeinstallation "go.orx.me/apps/butter/internal/repo/planeinstallation"
-	planeprocessing "go.orx.me/apps/butter/internal/repo/planeprocessing"
 	"go.orx.me/apps/butter/internal/secretbox"
 	"go.orx.me/apps/butter/internal/userinput"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -46,6 +45,8 @@ const (
 	DecisionAccepted  Decision = "accepted"
 	DecisionDuplicate Decision = "duplicate"
 	DecisionIgnored   Decision = "ignored"
+	// Rejected acknowledges a durably recorded permanent failure, not work.
+	DecisionRejected Decision = "rejected"
 )
 
 type Queue interface {
@@ -54,7 +55,7 @@ type Queue interface {
 type Receiver struct {
 	apps          planerepo.Repository
 	installations planeinstallation.Repository
-	processing    planeprocessing.Repository
+	diagnostics   DiagnosticStore
 	keyring       *secretbox.Keyring
 	queue         Queue
 	now           func() time.Time
@@ -64,7 +65,7 @@ func NewReceiver(apps planerepo.Repository, installations planeinstallation.Repo
 	return &Receiver{apps: apps, installations: installations, keyring: keyring, queue: queue, now: time.Now}
 }
 
-func (r *Receiver) SetProcessingRepo(repo planeprocessing.Repository) { r.processing = repo }
+func (r *Receiver) SetDiagnosticStore(store DiagnosticStore) { r.diagnostics = store }
 
 type appLookup interface {
 	FindAppByID(context.Context, string) (*agentsv1.PlaneApp, error)
@@ -216,11 +217,8 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 		return "", err
 	}
 	log.FromContext(ctx).Info("plane webhook queued", planeEventLogFields(e)...)
-	if r.processing != nil {
-		// The Stream already owns the event; the Worker repairs this projection
-		// if Mongo is unavailable or it races the first processing attempt.
-		_ = (&Processor{processing: r.processing}).project(ctx, e, agentsv1.PlaneProcessingStatus_PLANE_PROCESSING_STATUS_RECEIVED, "", "", "")
-	}
+	// The worker owns the RECEIVED projection. A slow projection must never
+	// delay acknowledging an event already owned by the durable Stream.
 	return DecisionAccepted, nil
 }
 func validSignature(secret []byte, encoded string, body []byte) bool {
