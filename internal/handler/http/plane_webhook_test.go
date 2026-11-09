@@ -33,7 +33,7 @@ func (q *planeWebhookQueue) Accept(context.Context, *planeruntime.Event) (string
 }
 
 func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
-	for _, mode := range []string{"accepted", "missing identity", "conflicting identity", "invalid signature", "malformed type", "malformed syntax"} {
+	for _, mode := range []string{"accepted", "accepted envelope", "missing identity", "conflicting identity", "invalid signature", "malformed type", "malformed syntax"} {
 		t.Run(mode, func(t *testing.T) {
 			var logs bytes.Buffer
 			previous := slog.Default()
@@ -52,12 +52,16 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 			}
 			_, err = installations.Upsert(t.Context(), "ws", app.GetId(), &agentsv1.PlaneInstallation{
 				AppInstallationId: "private-installation-id", PlaneWorkspaceId: "plane-ws", AppBotUserId: "bot", Status: "installed",
-				GrantedScopes: []string{"agents.runs:read", "agents.runs:write", "agents.activities:read", "agents.activities:write"},
+				GrantedScopes: []string{"agents.runs:read", "agents.runs:write", "agents.run_activities:read", "agents.run_activities:write"},
 			}, installationrepo.Tokens{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			raw, err := os.ReadFile("../../runtime/plane/testdata/agent_run_user_prompt.json")
+			fixture := "../../runtime/plane/testdata/agent_run_user_prompt.json"
+			if mode == "accepted envelope" {
+				fixture = "../../runtime/plane/testdata/agent_run_user_prompt_envelope.json"
+			}
+			raw, err := os.ReadFile(fixture)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,7 +97,7 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 			req.Header.Set(planeruntime.SignatureHeader, signature)
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, req)
-			if mode == "accepted" {
+			if strings.HasPrefix(mode, "accepted") {
 				if response.Code != http.StatusOK || q.calls != 1 || !strings.Contains(logs.String(), `"decision":"accepted"`) {
 					t.Fatalf("status=%d queued=%d logs=%s", response.Code, q.calls, logs.String())
 				}
@@ -116,7 +120,7 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 					t.Fatalf("missing reject diagnosis: %s", logs.String())
 				}
 			}
-			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "private-expanded-actor", "private-invalid-token", "What is the weather"} {
+			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "private-expanded-actor", "private-invalid-token", "What is the weather", "audit-event-1", "audit-author", "audit-resource", "Audit metadata is not a prompt"} {
 				if strings.Contains(logs.String(), sensitive) {
 					t.Fatalf("webhook logs leak %q", sensitive)
 				}

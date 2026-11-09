@@ -7,9 +7,19 @@ Primary sources:
 - [Building an agent: AgentRun webhooks](https://developers.plane.so/dev-tools/agents/building-an-agent#agentrun-webhooks)
 - [Handling webhooks: signature verification](https://developers.plane.so/dev-tools/build-plane-app/webhooks)
 - [Signals and content payload](https://developers.plane.so/dev-tools/agents/signals-content-payload)
+- [OAuth scopes](https://developers.plane.so/dev-tools/build-plane-app/oauth-scopes)
 
-The documented Agent payload is the event object itself. Butter also accepts
-that object inside `data` for envelope compatibility. The identity fields are:
+The Agent guide shows the flat business payload. The official example also
+handles it inside an explicit `event` + `data` transport envelope. In that form,
+outer `action`, `webhook_id` and `activity` are notification metadata, not
+business activity aliases. Expanded audit actor/Run objects, text and Stop
+signals in outer `activity` do not authorize, invoke or stop an Agent. Only
+`data` supplies the required business fields; shared outer identity claims must
+agree, and an explicit installation ID is enforced at either level. See the
+[source/evidence and regression note](research/plane-webhook-envelope.md).
+
+The following paths describe the business object (prefix them with `data.` in
+the explicit envelope):
 
 | Field | Meaning |
 | --- | --- |
@@ -28,15 +38,17 @@ The official examples **do not contain `app_installation_id`**. After raw-body
 HMAC verification and client-ID validation, Butter resolves exactly one stored
 installation within the selected Butter workspace/App using the Plane
 workspace UUID and bot user. It must be installed and have all four scopes:
-`agents.runs:read`, `agents.runs:write`, `agents.activities:read`, and
-`agents.activities:write`. An explicit `app_installation_id`, when present,
+`agents.runs:read`, `agents.runs:write`, `agents.run_activities:read`, and
+`agents.run_activities:write`. An explicit `app_installation_id`, when present,
 remains mandatory to match; it never falls back to a different installation.
 Missing required identities, ambiguous bindings and conflicting aliases are
 rejected. The optional resource-level fields do not replace required top-level
 (or `data`-level) identities.
 
-Previous `run`, `activity`, `agent_activity`, `workspace_id` and activity
-`user_id` aliases remain accepted, but contradictory aliases are rejected.
+Previous `run`, business `activity`, `agent_activity`, `workspace_id` and
+activity `user_id` aliases remain accepted in the flat/legacy business formats,
+but contradictory aliases are rejected. The explicit envelope's outer audit
+`activity` is never one of those aliases.
 `agent_run/created` is authenticated and ignored: only a Prompt starts an
 Invocation. A Stop uses the activity actor and is admitted even with inbound
 disabled, subject to the normal user allowlist.
@@ -70,9 +82,10 @@ input values are never logged.
 For example, `reason=json_type field=agent_run_activity.actor
 expected_type=string actual_kind=object offset=42` would distinguish a type
 mismatch from broken JSON syntax. This is an **illustration**, not a claim that
-the live Plane actor field is an object. After deploying the diagnostic patch,
-send a new Prompt and use its actual field/kind diagnosis to confirm the schema
-before changing parsing. This patch alone does not fix a schema mismatch.
+the inner Plane actor field is an object. Do not change business identity types
+based on an audit metadata field's shape. Safe decoder diagnostics do not
+coerce incompatible business values; after deployment, send a new Prompt and
+follow its actual admission/execution/delivery logs.
 
 For identity rejections, the error includes `reason` and `field`:
 
@@ -153,11 +166,17 @@ wait for a retry as the recovery plan.
 
 `TestReceiverOfficialPlanePayload` reproduces the pre-fix identity rejection
 with a synthetic-ID fixture matching the official example, directly and inside
-`data`. Admission tests also cover create/Stop, legacy aliases, missing and
-contradictory identities, actor policy, reinstall, scopes and ambiguity.
+`data`. `TestReceiverSeparatesEnvelopeMetadata` also covers the complete
+transport wrapper and expanded audit objects; the fixtures' scope grants are
+independent of the receiver constant and use the OAuth reference's exact names.
+Admission tests cover create/Stop, legacy aliases, missing and contradictory
+identities, actor policy, reinstall, scopes and ambiguity.
 `TestOfficialPlanePromptReachesInvocationAndActivity` drives signed admission,
 worker dispatch, processing projection, the real Runner/Invocation recorder and
 the activity HTTP adapter; the queue, stores, agent leaf and Plane HTTP transport
-are deterministic test doubles. HTTP tests verify 200/401 behavior and safe
-logs. This is not a claim of production end-to-end acceptance: the new Run and
+are deterministic test doubles. `TestRedisEnvelopeMentionReachesReplyAndDeduplicates`
+adds real Redis admission, worker loops, fencing/batching, duplicate delivery
+and a second actor's follow-up. HTTP tests verify 200/400/401 behavior and safe
+logs for both business formats. This is not a claim of production end-to-end
+acceptance: the new Run and
 old-Run retirement steps above still need to be verified after deployment.

@@ -209,6 +209,14 @@ use `workspace` / `agent_user`, and activity objects use `actor` (not
 `user_id`). See [webhook identity and stuck Run recovery](../plane-webhook-recovery.md)
 for the full field map, safe diagnostics and pre-admission recovery procedure.
 
+**Envelope correction (2026-11-09):** the [official PRD Agent example](https://github.com/makeplane/prd-agent/blob/1cda0ff35c3afd892b8f3b5d49d89de45980633e/src/lib/types.ts)
+separates transport `event/action/activity` from the Agent business payload in
+`data`. Do not parse the outer audit activity as a UUID-string business
+activity or merge the transport action into `data.action`. The exact Activity
+scope names are `agents.run_activities:*`. See the [follow-up evidence and
+regression note](plane-webhook-envelope.md), including the limits of the live
+safe diagnostics and the provenance of the synthetic envelope fixture.
+
 `agent_run_create` — `type: "agent_run"`, `action: "created"`, the run object
 (`id`, `agent_user`, `issue`, `project`, `workspace`, `status: "created"`,
 `type: "comment_thread"`, `started_at`) plus `agent_user_id`, `app_client_id`,

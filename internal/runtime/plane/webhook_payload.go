@@ -52,15 +52,34 @@ type webhookFields struct {
 func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		webhookFields
-		Data *webhookFields `json:"data"`
+		Event    string          `json:"event"`
+		Activity json.RawMessage `json:"activity"`
+		Data     *webhookFields  `json:"data"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 	*p = webhookPayload{}
-	fields := []webhookFields{raw.webhookFields}
-	if raw.Data != nil {
-		fields = append(fields, *raw.Data)
+	// The official WebhookEvent envelope has transport action/activity and a
+	// complete Agent payload in data. Its activity is an opaque audit record,
+	// not another spelling of data.agent_run_activity. Never authorize, Stop,
+	// deduplicate or build a prompt from that metadata.
+	enveloped := raw.Event != "" && raw.Data != nil
+	var fields []webhookFields
+	if enveloped {
+		fields = []webhookFields{*raw.Data}
+	} else {
+		// Preserve the flat/legacy aliases, including conflict checks across
+		// data without an explicit transport envelope. Decode the flat activity
+		// here only, so existing safe decoder paths and offsets stay intact.
+		var flat webhookFields
+		if err := json.Unmarshal(data, &flat); err != nil {
+			return err
+		}
+		fields = []webhookFields{flat}
+		if raw.Data != nil {
+			fields = append(fields, *raw.Data)
+		}
 	}
 	for _, f := range fields {
 		for _, pair := range []struct {
@@ -104,6 +123,47 @@ func (p *webhookPayload) UnmarshalJSON(data []byte) error {
 			if p.Prompt == "" {
 				p.Prompt = a.Content.Body
 			}
+		}
+	}
+	if enveloped {
+		// Shared identity claims may constrain data, but may never manufacture
+		// a missing required business identity from the transport wrapper.
+		for _, pair := range []struct {
+			field  string
+			inner  string
+			outers []string
+		}{
+			{"workspace_id", p.WorkspaceID, []string{
+				raw.WorkspaceID, raw.Run.Workspace, raw.Run.WorkspaceID,
+				raw.AgentRun.Workspace, raw.AgentRun.WorkspaceID,
+				raw.AgentRunActivity.Workspace, raw.AgentRunActivity.WorkspaceID,
+				raw.AgentActivity.Workspace, raw.AgentActivity.WorkspaceID,
+			}},
+			{"app_client_id", p.AppClientID, []string{raw.AppClientID}},
+			{"agent_user_id", p.AgentUserID, []string{raw.AgentUserID, raw.AgentRun.AgentUserID, raw.Run.AgentUserID}},
+			{"agent_run.id", p.Run.ID, []string{raw.AgentRun.ID, raw.Run.ID, raw.AgentRunActivity.AgentRunID, raw.AgentActivity.AgentRunID}},
+			{"activity.id", p.Activity.ID, []string{raw.AgentRunActivity.ID, raw.AgentActivity.ID}},
+			{"activity.actor", p.Activity.UserID, []string{raw.AgentRunActivity.Actor, raw.AgentRunActivity.UserID, raw.AgentActivity.Actor, raw.AgentActivity.UserID}},
+			{"activity.signal", p.Activity.Signal, []string{raw.AgentRunActivity.Signal, raw.AgentActivity.Signal}},
+		} {
+			for _, value := range pair.outers {
+				outer := strings.TrimSpace(value)
+				if outer == "" {
+					continue
+				}
+				if pair.inner == "" {
+					return rejectWebhookIdentity("missing", "data."+pair.field, "", "")
+				}
+				if pair.inner != outer {
+					return rejectWebhookIdentity("conflict", pair.field, pair.inner, outer)
+				}
+			}
+		}
+		// Unlike the required business identities, an installation ID is
+		// optional. If explicitly claimed at either level, it must be enforced
+		// against the stored installation; conflicting claims still fail closed.
+		if err := mergeWebhookIdentity("app_installation_id", &p.AppInstallationID, raw.AppInstallationID); err != nil {
+			return err
 		}
 	}
 	return nil

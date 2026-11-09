@@ -36,7 +36,7 @@ var (
 	ErrDuplicate    = errors.New("plane webhook already accepted")
 )
 
-var requiredAgentScopes = []string{"agents.runs:write", "agents.runs:read", "agents.activities:write", "agents.activities:read"}
+var requiredAgentScopes = []string{"agents.runs:write", "agents.runs:read", "agents.run_activities:write", "agents.run_activities:read"}
 
 type Decision string
 
