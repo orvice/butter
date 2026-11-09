@@ -37,9 +37,14 @@ the explicit envelope):
 The official examples **do not contain `app_installation_id`**. After raw-body
 HMAC verification and client-ID validation, Butter resolves exactly one stored
 installation within the selected Butter workspace/App using the Plane
-workspace UUID and bot user. It must be installed and have the three runtime
-scopes: `agents.runs:read`, `agents.run_activities:read`, and
-`agents.run_activities:write`. `agents.runs:write` is **not required**: Plane
+workspace UUID and bot user. It must be installed and cover three runtime
+requirements: `agents.runs:read`, `agents.run_activities:read`, and
+`agents.run_activities:write`. Each may be satisfied by its exact named scope
+or the same-direction global grant: `read` covers read requirements and `write`
+covers write requirements. Thus the verified All Workspace Resources grant
+`read, write` is supported, as are granular and mixed grants. Neither global
+verb implies the other. Stored provider grants are preserved, not rewritten.
+See the [global-scope evidence and regression note](research/plane-global-scope-coverage.md). `agents.runs:write` is **not required**: Plane
 creates the Run, and Butter does not call create/update Run. Do not grant an
 unused permission merely to satisfy an older receiver's over-strict check. An explicit `app_installation_id`, when present,
 remains mandatory to match; it never falls back to a different installation.
@@ -97,17 +102,23 @@ For identity rejections, the error includes `reason` and `field`:
 - `workspace_mismatch` / `bot_user_mismatch`: stored installation binding differs.
 - `installation_ambiguous` / `installation_inactive`: cannot safely select a live installation.
 - `scope_incomplete`: `field` names the first missing required scope;
-  `missing_scopes` lists all missing names from the fixed requirement list.
-  Arbitrary stored grant values are never printed.
+  `missing_scopes` lists all uncovered names from the fixed requirement list
+  after applying exact/global coverage. Arbitrary stored grant values are never
+  printed.
 - `conflict`: resource/envelope/legacy aliases disagree.
 - `actor_is_bot` / `actor_not_allowed`: actor policy rejected the Prompt/Stop.
 
 Identity rejects also include `payload_type` and `payload_action`, classified
 from the selected business object, plus `event_kind` from the transport marker. Only a fixed vocabulary of public type/action
 names is printed; unrecognized or missing values become `other` or `absent`.
-These are diagnostic labels, not routing or authorization. A missing workspace
-remains rejected, including on a notification that might be non-Agent traffic;
-do not fill it from metadata or declare such traffic harmless without evidence.
+These are diagnostic labels, not routing or authorization. Missing Agent
+workspace/actor fields remain rejected; do not fill them from audit metadata.
+A separate bounded filter acknowledges the now-confirmed ordinary
+`issue_comment` envelope as `ignored`, after signature verification and only
+when neither business level carries an Agent claim. It creates no queue entry
+or Invocation, and logs `plane notification ignored event_kind=issue_comment`.
+A comment label cannot hide valid/incomplete Agent input; unknown or ambiguous
+event shapes stay on the validation path.
 
 Identity values appear only as presence flags and 12-hex SHA-256 fingerprints
 (first six bytes). `app_hash`, `installation_hash`, `run_hash`, `activity_hash`
@@ -123,9 +134,11 @@ paste credentials or complete webhook payloads into logs, Issues or PRs.
 
 1. Verify the App's webhook endpoint and secret. If the diagnosis indicates an
    actual stale binding or missing scopes, reinstall through Butter's Plane App
-   page with the three runtime scopes above. An installation that already has
-   them does not need reinstallation for the Run-write check correction. Do not
-   edit database identity fields or disable checks to make a payload pass.
+   page with permissions covering the three requirements above. Prefer named
+   least-privilege grants for a new installation; do not request broad global
+   access merely to make Butter run. An existing verified `read, write` grant
+   needs no expansion, migration or reinstall for this coverage correction.
+   Do not edit database identities or disable checks to make a payload pass.
 2. Start a new Run or send a new Prompt. Look for `plane webhook received`
    (`decision=accepted`), `plane webhook queued`, `plane event processing`,
    `plane invocation starting`, `plane invocation settled`, and

@@ -79,6 +79,19 @@ labels plus the transport `event_kind` (known public enum names, `other`, or
 `absent`) for subsequent diagnosis; these labels do not authorize, route, ignore
 or repair missing fields.
 
+## Global-grant evidence after the minimum-permission fix
+
+At 09:09:25 UTC on deployed commit `ce118b6`, Agent Create/Prompt notifications
+still failed all named requirements, while the separate workspace failures
+were classified as ordinary `issue_comment` events. The owner then supplied
+both the target App's All Workspace Resources Read/Write configuration and
+Butter's verified installation card reporting `Granted scopes: read, write`.
+The previous exact-name-only check was therefore incomplete: a legitimate
+global grant is not an empty or unrecorded grant. See the [global-scope coverage
+follow-up](plane-global-scope-coverage.md) for sources, operation-specific
+coverage, bounded comment filtering and test/evidence limits. Do not repair
+this by rewriting provider grants or asking the owner for broader access.
+
 ## Bounded normalization and identity rules
 
 - A nonempty outer `event` plus an object `data` selects the documented envelope.

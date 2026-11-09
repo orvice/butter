@@ -33,7 +33,7 @@ func (q *planeWebhookQueue) Accept(context.Context, *planeruntime.Event) (string
 }
 
 func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
-	for _, mode := range []string{"accepted", "accepted envelope", "missing identity", "conflicting identity", "invalid signature", "malformed type", "malformed syntax"} {
+	for _, mode := range []string{"accepted", "accepted envelope", "accepted envelope global scopes", "ignored comment", "missing identity", "conflicting identity", "invalid signature", "malformed type", "malformed syntax"} {
 		t.Run(mode, func(t *testing.T) {
 			var logs bytes.Buffer
 			previous := slog.Default()
@@ -50,15 +50,19 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			scopes := []string{"agents.runs:read", "agents.run_activities:read", "agents.run_activities:write"}
+			if strings.Contains(mode, "global scopes") {
+				scopes = []string{"read", "write"}
+			}
 			_, err = installations.Upsert(t.Context(), "ws", app.GetId(), &agentsv1.PlaneInstallation{
 				AppInstallationId: "private-installation-id", PlaneWorkspaceId: "plane-ws", AppBotUserId: "bot", Status: "installed",
-				GrantedScopes: []string{"agents.runs:read", "agents.run_activities:read", "agents.run_activities:write"},
+				GrantedScopes: scopes,
 			}, installationrepo.Tokens{})
 			if err != nil {
 				t.Fatal(err)
 			}
 			fixture := "../../runtime/plane/testdata/agent_run_user_prompt.json"
-			if mode == "accepted envelope" {
+			if strings.Contains(mode, "envelope") {
 				fixture = "../../runtime/plane/testdata/agent_run_user_prompt_envelope.json"
 			}
 			raw, err := os.ReadFile(fixture)
@@ -70,6 +74,8 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch mode {
+			case "ignored comment":
+				payload = map[string]any{"event": "issue_comment", "workspace_id": "plane-ws", "data": map[string]string{"id": "comment-1", "workspace": "plane-ws", "comment_html": "private ordinary comment"}}
 			case "missing identity":
 				delete(payload, "agent_user_id")
 			case "conflicting identity":
@@ -101,6 +107,10 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 				if response.Code != http.StatusOK || q.calls != 1 || !strings.Contains(logs.String(), `"decision":"accepted"`) {
 					t.Fatalf("status=%d queued=%d logs=%s", response.Code, q.calls, logs.String())
 				}
+			} else if mode == "ignored comment" {
+				if response.Code != http.StatusOK || q.calls != 0 || !strings.Contains(response.Body.String(), `"decision":"ignored"`) || !strings.Contains(logs.String(), `"decision":"ignored"`) {
+					t.Fatalf("ordinary comment was not harmlessly acknowledged: status=%d queued=%d", response.Code, q.calls)
+				}
 			} else {
 				wantStatus, wantResponse := http.StatusUnauthorized, `{"error":"unauthorized"}`
 				if strings.HasPrefix(mode, "malformed ") {
@@ -120,7 +130,7 @@ func TestPlaneWebhookOfficialPayloadAndSafeDiagnostics(t *testing.T) {
 					t.Fatalf("missing reject diagnosis: %s", logs.String())
 				}
 			}
-			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "private-expanded-actor", "private-invalid-token", "What is the weather", "audit-event-1", "audit-author", "audit-resource", "Audit metadata is not a prompt"} {
+			for _, sensitive := range []string{secret, signature, string(body), "private-app-id", "private-installation-id", "private-conflicting-actor", "private-expanded-actor", "private-invalid-token", "private ordinary comment", "What is the weather", "audit-event-1", "audit-author", "audit-resource", "Audit metadata is not a prompt"} {
 				if strings.Contains(logs.String(), sensitive) {
 					t.Fatalf("webhook logs leak %q", sensitive)
 				}

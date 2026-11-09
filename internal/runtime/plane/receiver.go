@@ -122,6 +122,13 @@ func (r *Receiver) Deliver(ctx context.Context, app *agentsv1.PlaneApp, headers 
 	if !validSignature(secret, headers.Get(SignatureHeader), body) {
 		return "", ErrUnauthorized
 	}
+	// Ordinary comment notifications have no Agent identity block. Acknowledge
+	// only the known non-Agent shape, after authentication and before applying
+	// Agent-specific fields. Agent claims always keep the strict validation path.
+	if isIssueCommentNotification(body) {
+		log.FromContext(ctx).Info("plane notification ignored", "app_hash", identityHash(app.GetId()), "event_kind", "issue_comment")
+		return DecisionIgnored, nil
+	}
 	var p webhookPayload
 	defer func() {
 		if errors.Is(resultErr, ErrIdentity) {
