@@ -120,7 +120,9 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
   - `MCP_SERVER_TRANSPORT_STREAMABLE_HTTP`
   - `MCP_SERVER_TRANSPORT_SSE`
 - **工具白名单**：`tool_filter` 控制对外暴露的 MCP 工具。
+- **同名工具去重**：ADK 不允许两个工具同名，多个 MCP Server 暴露同名工具时运行时会确定性重命名冲突项：冲突的工具改为 `<server>__<tool>`（server 名按提供商要求清洗），仍重复时再追加 `__2`、`__3`…；未冲突的工具保持原名。命名只取决于 Agent 的 server 顺序与各 server 的工具列表，同一配置每次结果一致。
 - **Agent 关联方式**：Agent 可通过 `mcp_servers`（内联）或 `mcp_server_ids`（引用共享配置）挂载 MCP 工具集。
+- **连接生命周期**：MCP 工具的 streamable HTTP / SSE 会话由构建该 Agent 树时返回的 `agent.Resources` 持有，一棵树的 resources 只有一个 owner。registry reload、`RegisterAgent` / `RegisterAgentWithBuilder` 覆盖同名 Agent、model override 缓存被替换、以及服务关闭都会关闭旧连接；正在运行的一轮持有引用，连接等该轮结束后才真正关闭，因此 reload 不会掐断进行中的 turn。构建中途失败时，已建立的 MCP toolset 也会回滚关闭。
 
 ## 4. Skills（技能）
 

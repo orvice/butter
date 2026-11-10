@@ -148,7 +148,7 @@ func TestValidatePiAgent_RejectsBoxOwnedFields(t *testing.T) {
 }
 
 func TestNewFromProto_PiWithoutBuilderFails(t *testing.T) {
-	_, err := NewFromProtoWithToolsetFactory(context.Background(), validPiAgent(), nil, nil, nil, nil, nil, nil, nil)
+	_, _, err := NewFromProtoWithToolsetFactory(context.Background(), validPiAgent(), nil, nil, nil, nil, nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "pi") {
 		t.Fatalf("expected pi-not-available error, got %v", err)
 	}
@@ -160,7 +160,7 @@ func TestNewFromProto_PiUsesBuilder(t *testing.T) {
 		got = pb
 		return agent.New(agent.Config{Name: pb.GetName(), Description: pb.GetDescription()})
 	})
-	a, err := NewFromProtoWithToolsetFactory(context.Background(), validPiAgent(), nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Pi: builder})
+	a, _, err := NewFromProtoWithToolsetFactory(context.Background(), validPiAgent(), nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Pi: builder})
 	if err != nil {
 		t.Fatalf("NewFromProto: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestNewFromProto_PiInvalidConfigFails(t *testing.T) {
 		t.Fatal("builder must not be called for an invalid pi agent")
 		return nil, nil
 	})
-	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Pi: builder}); err == nil {
+	if _, _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Pi: builder}); err == nil {
 		t.Fatal("expected invalid pi config to fail construction")
 	}
 }

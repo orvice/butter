@@ -50,13 +50,16 @@ type AgentPool map[string]*agentsv1.Agent
 // providers is the list of model provider mappings used to resolve LLM backends.
 // mcpRegistry is the shared MCP server config pool; agents reference entries by ID.
 // remoteAgentRegistry is the shared remote agent config pool; agents reference entries by ID.
-func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry) (agent.Agent, error) {
+//
+// The resources own the live MCP connections the whole tree opened; the caller
+// must Close them when it discards the agent.
+func NewFromProto(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry) (agent.Agent, *Resources, error) {
 	return NewFromProtoWithMCPHTTPClientFactory(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, nil)
 }
 
 // NewFromProtoWithMCPHTTPClientFactory creates an ADK agent with a custom MCP
 // HTTP client factory for static headers, OAuth2 bearer injection, and tests.
-func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory) (agent.Agent, error) {
+func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory) (agent.Agent, *Resources, error) {
 	return NewFromProtoWithToolsetFactory(ctx, pb, providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, httpFactory, nil, nil)
 }
 
@@ -65,7 +68,11 @@ func NewFromProtoWithMCPHTTPClientFactory(ctx context.Context, pb *agentsv1.Agen
 // child_agent_ids and resolved from the pool; embedded sub_agents are never
 // consumed (issue #241). pb is the root of the tree it builds, so its Card
 // Policy starts from a run's root (ADR-0014).
-func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, boxBuilders *BoxAgentBuilders, pool ...AgentPool) (agent.Agent, error) {
+//
+// The returned Resources own the live MCP connections of every agent in the
+// tree, children included; the caller must Close them when it discards the
+// tree. A failed build closes whatever it had already opened.
+func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, providers []agentsv1.ModelProvider, mcpRegistry []agentsv1.MCPServer, remoteAgentRegistry []agentsv1.RemoteAgent, daemonRegistry *daemon.Registry, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, boxBuilders *BoxAgentBuilders, pool ...AgentPool) (agent.Agent, *Resources, error) {
 	b := &treeBuilder{
 		providers:           providers,
 		mcpRegistry:         mcpRegistry,
@@ -74,11 +81,18 @@ func NewFromProtoWithToolsetFactory(ctx context.Context, pb *agentsv1.Agent, pro
 		httpFactory:         httpFactory,
 		toolsetFactory:      toolsetFactory,
 		boxBuilders:         boxBuilders,
+		resources:           &Resources{},
 	}
 	if len(pool) > 0 {
 		b.pool = pool[0]
 	}
-	return b.build(ctx, pb, a2ui.CardPolicy{})
+	a, err := b.build(ctx, pb, a2ui.CardPolicy{})
+	if err != nil {
+		// Every MCP toolset the tree opened is registered here, so a failure
+		// half-way through building children cannot leave connections behind.
+		return nil, nil, errors.Join(err, b.resources.Close())
+	}
+	return a, b.resources, nil
 }
 
 // treeBuilder holds what every agent of one tree is built with.
@@ -91,6 +105,8 @@ type treeBuilder struct {
 	toolsetFactory      ToolsetFactory
 	boxBuilders         *BoxAgentBuilders
 	pool                AgentPool
+	// resources collects the live connections every agent of this tree opens.
+	resources *Resources
 }
 
 // build builds pb under a parent whose Card Policy is parentCardPolicy.
@@ -130,7 +146,7 @@ func (b *treeBuilder) build(ctx context.Context, pb *agentsv1.Agent, parentCardP
 
 	switch pb.GetType() {
 	case agentsv1.AgentType_AGENT_TYPE_LLM, agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED:
-		return newLLMAgent(ctx, pb, mcpServers, subAgents, b.providers, b.httpFactory, b.toolsetFactory, cardPolicy)
+		return newLLMAgent(ctx, pb, mcpServers, subAgents, b.providers, b.httpFactory, b.toolsetFactory, cardPolicy, b.resources)
 	case agentsv1.AgentType_AGENT_TYPE_LOOP:
 		return newLoopAgent(pb, subAgents)
 	case agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL:
@@ -148,7 +164,7 @@ func (b *treeBuilder) build(ctx context.Context, pb *agentsv1.Agent, parentCardP
 	}
 }
 
-func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1.MCPServer, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, cardPolicy a2ui.CardPolicy) (agent.Agent, error) {
+func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1.MCPServer, subAgents []agent.Agent, providers []agentsv1.ModelProvider, httpFactory MCPHTTPClientFactory, toolsetFactory ToolsetFactory, cardPolicy a2ui.CardPolicy, resources *Resources) (agent.Agent, error) {
 	logger := log.FromContext(ctx)
 	acfg := pb.GetConfig()
 
@@ -177,16 +193,30 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1
 		return nil, fmt.Errorf("agent %q: creating model %q: %w", pb.GetName(), acfg.GetModel(), err)
 	}
 
-	toolsets, err := buildMCPToolsets(ctx, mcpServers, httpFactory)
+	var toolsets []tool.Toolset
+	mcpSet, err := buildMCPToolsets(ctx, mcpServers, httpFactory)
 	if err != nil {
 		return nil, fmt.Errorf("agent %q: building MCP toolsets: %w", pb.GetName(), err)
+	}
+	if mcpSet != nil {
+		// Registered before anything else can fail: the tree's resources close
+		// this toolset whenever the build or the agent later goes away.
+		resources.Add(mcpSet)
+		toolsets = append(toolsets, mcpSet)
 	}
 	if toolsetFactory != nil {
 		extraToolsets, err := toolsetFactory(ctx, pb)
 		if err != nil {
 			return nil, fmt.Errorf("agent %q: building built-in toolsets: %w", pb.GetName(), err)
 		}
-		toolsets = append(toolsets, extraToolsets...)
+		for _, ts := range extraToolsets {
+			// Skill, file, and memory toolsets can hold watchers or clients of
+			// their own; the tree's resources release them like MCP sessions.
+			if c, ok := ts.(io.Closer); ok {
+				resources.Add(c)
+			}
+			toolsets = append(toolsets, ts)
+		}
 	}
 	// AG-UI client-declared frontend tools. Resolved per invocation from the
 	// run's context; inert (zero tools) for every non-AG-UI run.
@@ -301,18 +331,26 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) ([]*ag
 	return merged, nil
 }
 
-// buildMCPToolsets creates ADK toolsets from the agent's MCP server configs.
-// Only HTTP-based transports (streamable HTTP and SSE) are supported.
-func buildMCPToolsets(ctx context.Context, servers []*agentsv1.MCPServer, httpFactory MCPHTTPClientFactory) ([]tool.Toolset, error) {
+// buildMCPToolsets creates the agent's ADK MCP toolset from its MCP server
+// configs. Only HTTP-based transports (streamable HTTP and SSE) are supported.
+//
+// The servers are joined into one toolset so that tools two servers expose
+// under the same name are renamed apart instead of failing the run with ADK's
+// "duplicate tool"; see mcpToolsets. The set is the owner of every per-server
+// toolset it wraps, so closing it closes every MCP session the agent holds.
+//
+// A failure part-way through closes the servers already set up and reports the
+// cause alongside any close error.
+func buildMCPToolsets(ctx context.Context, servers []*agentsv1.MCPServer, httpFactory MCPHTTPClientFactory) (*mcpToolsets, error) {
 	if len(servers) == 0 {
 		return nil, nil
 	}
 
-	toolsets := make([]tool.Toolset, 0, len(servers))
+	entries := make([]mcpToolsetEntry, 0, len(servers))
 	for _, srv := range servers {
 		transport, err := mcpTransport(ctx, srv, httpFactory)
 		if err != nil {
-			return nil, fmt.Errorf("mcp server %q: %w", srv.GetName(), err)
+			return nil, closeMCPToolsets(entries, fmt.Errorf("mcp server %q: %w", srv.GetName(), err))
 		}
 
 		cfg := mcptoolset.Config{
@@ -324,11 +362,20 @@ func buildMCPToolsets(ctx context.Context, servers []*agentsv1.MCPServer, httpFa
 
 		ts, err := mcptoolset.New(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("mcp server %q: %w", srv.GetName(), err)
+			return nil, closeMCPToolsets(entries, fmt.Errorf("mcp server %q: %w", srv.GetName(), err))
 		}
-		toolsets = append(toolsets, ts)
+		entries = append(entries, mcpToolsetEntry{server: srv.GetName(), toolset: ts})
 	}
-	return toolsets, nil
+	return newMCPToolsets(entries), nil
+}
+
+// closeMCPToolsets rolls back the servers a failed build had already set up,
+// keeping cause as the error a caller sees first.
+func closeMCPToolsets(entries []mcpToolsetEntry, cause error) error {
+	if err := newMCPToolsets(entries).Close(); err != nil {
+		return errors.Join(cause, fmt.Errorf("closing the MCP toolsets of the failed build: %w", err))
+	}
+	return cause
 }
 
 // MCPTimeout returns the effective timeout for MCP probe operations.
