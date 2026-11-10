@@ -301,14 +301,18 @@ func resolveMCPServers(pb *agentsv1.Agent, registry []agentsv1.MCPServer) ([]*ag
 	return merged, nil
 }
 
-// buildMCPToolsets creates ADK toolsets from the agent's MCP server configs.
-// Only HTTP-based transports (streamable HTTP and SSE) are supported.
+// buildMCPToolsets creates the agent's ADK MCP toolset from its MCP server
+// configs. Only HTTP-based transports (streamable HTTP and SSE) are supported.
+//
+// The servers are joined into one toolset so that tools two servers expose
+// under the same name are renamed apart instead of failing the run with ADK's
+// "duplicate tool"; see mcpToolsets.
 func buildMCPToolsets(ctx context.Context, servers []*agentsv1.MCPServer, httpFactory MCPHTTPClientFactory) ([]tool.Toolset, error) {
 	if len(servers) == 0 {
 		return nil, nil
 	}
 
-	toolsets := make([]tool.Toolset, 0, len(servers))
+	entries := make([]mcpToolsetEntry, 0, len(servers))
 	for _, srv := range servers {
 		transport, err := mcpTransport(ctx, srv, httpFactory)
 		if err != nil {
@@ -326,9 +330,9 @@ func buildMCPToolsets(ctx context.Context, servers []*agentsv1.MCPServer, httpFa
 		if err != nil {
 			return nil, fmt.Errorf("mcp server %q: %w", srv.GetName(), err)
 		}
-		toolsets = append(toolsets, ts)
+		entries = append(entries, mcpToolsetEntry{server: srv.GetName(), toolset: ts})
 	}
-	return toolsets, nil
+	return []tool.Toolset{newMCPToolsets(entries)}, nil
 }
 
 // MCPTimeout returns the effective timeout for MCP probe operations.
