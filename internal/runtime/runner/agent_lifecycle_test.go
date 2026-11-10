@@ -3,9 +3,15 @@ package runner
 import (
 	"context"
 	"errors"
+	"iter"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
 	adkrunner "google.golang.org/adk/v2/runner"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
@@ -282,5 +288,216 @@ func TestRunAfterCloseRejectsNewTurns(t *testing.T) {
 		if _, err := svc.RunTurn(context.Background(), name, []*genai.Part{{Text: "again"}}, "", ctxInfo, nil, nil); !errors.Is(err, errRunnerServiceClosed) {
 			t.Fatalf("RunTurn(%q) after Close = %v, want %v", name, err, errRunnerServiceClosed)
 		}
+	}
+}
+
+// blockedTestModel answers a turn only once the test releases it, so a turn can
+// be held inside its invocation while shutdown runs.
+type blockedTestModel struct {
+	started  chan struct{}
+	release  chan struct{}
+	once     sync.Once
+	reply    string
+	finished atomic.Bool
+}
+
+func (m *blockedTestModel) Name() string { return "blocked-model" }
+
+func (m *blockedTestModel) GenerateContent(_ context.Context, _ *model.LLMRequest, _ bool) iter.Seq2[*model.LLMResponse, error] {
+	return func(yield func(*model.LLMResponse, error) bool) {
+		m.once.Do(func() { close(m.started) })
+		<-m.release
+		m.finished.Store(true)
+		yield(&model.LLMResponse{
+			Content:      genai.NewContentFromText(m.reply, genai.RoleModel),
+			FinishReason: genai.FinishReasonStop,
+		}, nil)
+	}
+}
+
+// A turn whose builder lookup is in flight when Close lands must be refused
+// when it comes back, not admitted against a registry that no longer exists.
+func TestRunBlockedInBuilderLookupIsRefusedWhenCloseLands(t *testing.T) {
+	svc, err := NewService(context.Background(), nil, lifecycleProviders(), nil, nil, nil, session.InMemoryService(), nil, nil, adkrunner.PluginConfig{})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	base, err := newGenerationTestAgent("served-after-close")
+	if err != nil {
+		t.Fatalf("newGenerationTestAgent: %v", err)
+	}
+	buildStarted := make(chan struct{})
+	releaseBuild := make(chan struct{})
+	var once sync.Once
+	svc.RegisterAgentWithBuilder("dynamic-agent", base, func(context.Context, string) (agent.Agent, error) {
+		once.Do(func() { close(buildStarted) })
+		<-releaseBuild
+		return newGenerationTestAgent("served-after-close")
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		ctxInfo := &agentsv1.ContextInfo{Uuid: "close-race", SessionId: "close-race", UserId: "u1", ChannelName: "test-app"}
+		_, runErr := svc.Run(context.Background(), "dynamic-agent", []*genai.Part{{Text: "hello"}}, "override-model", ctxInfo, nil, nil)
+		done <- runErr
+	}()
+
+	select {
+	case <-buildStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("builder lookup did not start")
+	}
+
+	if err := svc.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	close(releaseBuild)
+
+	select {
+	case runErr := <-done:
+		if !errors.Is(runErr, errRunnerServiceClosed) {
+			t.Fatalf("turn whose builder lookup overlapped Close = %v, want %v", runErr, errRunnerServiceClosed)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("turn did not finish after Close")
+	}
+}
+
+// A turn admitted before Close keeps its lease and finishes normally: shutdown
+// retires the lease but does not yank it away from work already in progress.
+func TestRunAdmittedBeforeCloseCompletes(t *testing.T) {
+	svc, err := NewService(context.Background(), nil, lifecycleProviders(), nil, nil, nil, session.InMemoryService(), nil, nil, adkrunner.PluginConfig{})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	generated := &blockedTestModel{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		reply:   "finished after close",
+	}
+	ag, err := llmagent.New(llmagent.Config{Name: "builder-agent", Model: generated})
+	if err != nil {
+		t.Fatalf("llmagent.New: %v", err)
+	}
+	svc.RegisterAgentWithBuilder("builder-agent", ag, nil)
+
+	type runResult struct {
+		output string
+		err    error
+	}
+	done := make(chan runResult, 1)
+	go func() {
+		ctxInfo := &agentsv1.ContextInfo{Uuid: "admitted", SessionId: "admitted", UserId: "u1", ChannelName: "test-app"}
+		output, runErr := svc.Run(context.Background(), "builder-agent", []*genai.Part{{Text: "hello"}}, "", ctxInfo, nil, nil)
+		done <- runResult{output: output, err: runErr}
+	}()
+
+	select {
+	case <-generated.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("turn never reached the model")
+	}
+
+	if err := svc.Close(); err != nil {
+		t.Fatalf("Close during a running turn: %v", err)
+	}
+	close(generated.release)
+
+	select {
+	case result := <-done:
+		if result.err != nil {
+			t.Fatalf("admitted turn failed after Close: %v", result.err)
+		}
+		if result.output != "finished after close" {
+			t.Fatalf("admitted turn output = %q, want %q", result.output, "finished after close")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("admitted turn did not finish after Close")
+	}
+}
+
+// The exact window the loop-top check cannot cover: Close lands after a turn
+// read the registry but before it is admitted, with no generation change to
+// invalidate the lookup. Admission is refused on s.closed alone.
+func TestAdmissionRefusesTurnClosedWithoutGenerationChange(t *testing.T) {
+	svc := newLifecycleService(t)
+
+	svc.mu.Lock()
+	generation := svc.runtimeCache.generation
+	svc.closed = true
+	svc.mu.Unlock()
+
+	if svc.runtimeGenerationCurrent(generation) != true {
+		t.Fatalf("test setup no longer models a Close without a generation change")
+	}
+	if release, ok := svc.admitTurn(); ok {
+		release()
+		t.Fatal("a turn was admitted after the service closed")
+	}
+}
+
+// The pre-admission window, end to end: a turn has finished every unlocked
+// lookup and generation check, and Close lands before it is admitted. Close
+// retires the admission lease under s.mu, so the turn must be refused there —
+// for a builder agent the agent-owned resources are nil and cannot refuse it,
+// and its generation snapshot predates the shutdown, so nothing else can.
+//
+// The shutdown transition is applied directly instead of through Close() so the
+// interleaving is deterministic: a real Close also resets the runtime
+// generation, which would hide the admission decision behind a stale-snapshot
+// retry. The state modelled is the one Close publishes under s.mu.
+func TestRunInFlightBeforeAdmissionIsRefusedWhenCloseLands(t *testing.T) {
+	svc, err := NewService(context.Background(), nil, lifecycleProviders(), nil, nil, nil, session.InMemoryService(), nil, nil, adkrunner.PluginConfig{})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	base, err := newGenerationTestAgent("served-after-close")
+	if err != nil {
+		t.Fatalf("newGenerationTestAgent: %v", err)
+	}
+	buildStarted := make(chan struct{})
+	releaseBuild := make(chan struct{})
+	var once sync.Once
+	svc.RegisterAgentWithBuilder("dynamic-agent", base, func(context.Context, string) (agent.Agent, error) {
+		once.Do(func() { close(buildStarted) })
+		<-releaseBuild
+		return newGenerationTestAgent("served-after-close")
+	})
+
+	type runResult struct {
+		output string
+		err    error
+	}
+	done := make(chan runResult, 1)
+	go func() {
+		ctxInfo := &agentsv1.ContextInfo{Uuid: "pre-admission", SessionId: "pre-admission", UserId: "u1", ChannelName: "test-app"}
+		output, runErr := svc.Run(context.Background(), "dynamic-agent", []*genai.Part{{Text: "hello"}}, "override-model", ctxInfo, nil, nil)
+		done <- runResult{output: output, err: runErr}
+	}()
+
+	select {
+	case <-buildStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("builder lookup did not start")
+	}
+
+	// Close's side of the lock: no new turn may be admitted from here on.
+	svc.mu.Lock()
+	svc.closed = true
+	_ = svc.admissionLocked().Close()
+	svc.mu.Unlock()
+
+	close(releaseBuild)
+
+	select {
+	case result := <-done:
+		if !errors.Is(result.err, errRunnerServiceClosed) {
+			t.Fatalf("turn admitted across Close = (%q, %v), want %v", result.output, result.err, errRunnerServiceClosed)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("turn did not finish after Close")
 	}
 }

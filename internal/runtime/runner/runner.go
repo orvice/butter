@@ -106,6 +106,13 @@ type Service struct {
 	// closed is set by Close: a turn that resolves an agent afterwards fails
 	// instead of spinning on retired resources.
 	closed bool
+	// admission is the service-wide lease every turn holds from admission to
+	// return. It is taken under s.mu, the same lock Close uses to set closed
+	// and retire it, so admission and shutdown have one linearization point:
+	// a turn that got the lease runs to completion, a turn that did not is
+	// refused — including an agent with no resources of its own (a builder
+	// agent), whose nil owner can never fail Acquire.
+	admission *internalagent.Resources
 
 	invRecorder InvocationRecorder
 
@@ -352,6 +359,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 		mcpHTTPFactory:   mcpHTTPFactory,
 		boxBuilders:      boxBuilders,
 		runtimeCache:     newRuntimeCache(),
+		admission:        &internalagent.Resources{},
 	}
 
 	// Add compaction notifier plugin (must be after contextguard).
@@ -660,14 +668,50 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 func (s *Service) Close() error {
 	s.mu.Lock()
 	s.closed = true
+	// Retired under the same lock that admits turns, so no turn can slip in
+	// after this point, whatever it would be served by. The lease carries no
+	// closers of its own, so retiring it here does no work under the lock.
+	admissionErr := s.admissionLocked().Close()
 	resources := s.agentResources
 	overrides := s.runtimeCache.reset()
 	s.agentResources = nil
 	s.mu.Unlock()
 	return errors.Join(
+		admissionErr,
 		closeOwnedResources(slog.Default(), resources),
 		closeOwnedResources(slog.Default(), overrides),
 	)
+}
+
+// admissionLocked returns the service-wide turn lease, creating it on first use
+// so a zero-value Service (tests) still admits and refuses turns consistently.
+// Callers must hold s.mu.
+func (s *Service) admissionLocked() *internalagent.Resources {
+	if s.admission == nil {
+		s.admission = &internalagent.Resources{}
+	}
+	return s.admission
+}
+
+// admitTurn takes the service-wide lease a turn holds until it returns. The
+// decision is made under s.mu, the lock Close takes to set closed and retire
+// the lease, so admission and shutdown have exactly one linearization point:
+// a turn that got the lease runs to completion, a turn that did not is refused.
+//
+// The lease is what makes this hold for builder agents too. They own no MCP
+// resources, so their nil owner's Acquire always succeeds and cannot tell a
+// live service from a closed one.
+func (s *Service) admitTurn() (release func(), ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, false
+	}
+	lease, acquired := s.admissionLocked().Acquire()
+	if !acquired {
+		return nil, false
+	}
+	return lease, true
 }
 
 // closeOwnedResources closes the resources of every named agent, logging each
@@ -1295,7 +1339,22 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			// the replacement; snapshots are per generation, so retry.
 			continue
 		}
-		releaseResources = acquired
+
+		// Admit the turn under the lock Close takes: either this turn holds the
+		// service lease and Close lets it finish, or Close won the lock and the
+		// turn is refused here — the agent lookup above cannot admit it on its
+		// own, because those lookups run unlocked and a builder agent owns no
+		// resources to fail Acquire.
+		lease, admitted := s.admitTurn()
+		if !admitted {
+			acquired()
+			return turn, errRunnerServiceClosed
+		}
+
+		releaseResources = func() {
+			acquired()
+			lease()
+		}
 		r = candidate
 		break
 	}
