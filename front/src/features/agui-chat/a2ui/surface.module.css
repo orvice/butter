@@ -1,0 +1,36 @@
+/* Scope the official components' tokens to Butter surfaces, not the page or
+ * SDK-wide defaults. Keep the existing card density in both colour modes. */
+.surface {
+  --a2ui-card-background: var(--card);
+  --a2ui-color-on-surface: var(--card-foreground);
+  --a2ui-color-border: var(--border);
+  --a2ui-card-border: 1px solid var(--border);
+  --a2ui-card-border-radius: var(--radius);
+  --a2ui-card-padding: 0.75rem;
+  --a2ui-card-margin: 0;
+  --a2ui-card-box-shadow: var(--shadow-xs);
+  --a2ui-column-gap: 0.5rem;
+  --a2ui-row-gap: 0.75rem;
+  --a2ui-border-width: 1px;
+  --a2ui-divider-spacing: 0;
+
+  min-width: 0;
+}
+
+/* Official Row has one flex root. The wrapper must not become a flex item
+ * itself: weight still belongs to the SDK root. Constrain its children so an
+ * unbroken value can wrap even without model-supplied weights. */
+.row {
+  display: contents;
+}
+
+.row > div {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.row > div > * {
+  min-width: 0;
+  max-width: 100%;
+}
