@@ -68,7 +68,7 @@
 ## 5. 版本、工具链与发布
 
 - MyGo 仍 pre-1.0（`v0.8.3`），`v0.8.0` 的 release notes 明确列了 breaking changes（例如 `HandleInput` 开始收到所有按键、`InputEvent.Code` 改语义、窗口失焦配色等），并维护 `docs/ui/migration.md`。**必须 pin 到具体 commit，不能跟 `main`**，升级要按迁移文档评估。
-- MyGo 的 `go.mod` 要求 `go 1.27.3`，Butter 当前是 `go 1.27.1`。引入该依赖需要全仓 bump 工具链（`go.mod` 一行 + CI 的 Go 版本），属于小改动但会影响所有构建。
+- MyGo 的 `go.mod` 要求 `go 1.27.3`，Butter 根 module 当前是 `go 1.27.1`。把桌面端做成独立 module 后，bump 只发生在 `desktop/go.mod` 与桌面 CI 上；代价是桌面端要通过 `replace` 引用根 module 的 proto，因而带入 protobuf/grpc 依赖，后续可把 proto 拆成独立 module。
 - macOS 打包：`mygo build` 出 `.app` + DMG；正式分发需要 Developer ID 签名与 notarytool 公证（`macos.signingIdentity`、`macos.notarize.keychainProfile`），未签名/未公证的包在别的机器上会被 Gatekeeper 拦。`minimumSystemVersion` 默认 12.0。
 - Butter 仓库里 `mobile/` 已是"独立模块 + 独立 CI"的先例（`.github/workflows/mobile.yml` 用 `macos-15` 跑 iOS 构建）。桌面端建议同样自成模块，避免把 GUI 依赖塞进服务端 `go.mod`。
 

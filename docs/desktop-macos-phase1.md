@@ -90,7 +90,7 @@ Butter Desktop 第一阶段是一个 **macOS-only 的原生客户端**：MyGo（
 | --- | --- | --- |
 | MyGo #1471：长回复整段建树 + 选区不跨回收 | 长回复与跨消息复制的验收 | 进入 M2 前二选一：等上游修复；或自建 block 级窗口化并接受选区语义退化；都不接受则把该项降级为已知缺陷写入 release notes，并在验收记录里标注 |
 | MyGo pre-1.0 breaking changes | 升级成本 | pin commit（首版 `v0.8.3` = `5add3817c74bb7505d0b473bc5fb28abe2201b99`）；每季度评审一次升级，按 `docs/ui/migration.md` 评估 |
-| Go 工具链 | 构建 | Butter `go 1.27.1` → MyGo 要求 `go 1.27.3`；随引入依赖一起 bump，并同步 CI |
+| Go 工具链 | 构建 | 桌面端是独立 module（`desktop/go.mod`，Go 1.27.3）；根 module 保持 1.27.1，只有桌面 CI 用 1.27.3 |
 | 7 天会话无 refresh | 体验 | 过期前提示、过期后回登录页；不做伪造续期 |
 | Apple 签名/公证资源 | 发布 | 需 Developer ID 与 notarytool 凭据；未准备好时 M0 出口降级为"本机可运行的 .app"，但 M3 不可降级 |
 | 移植量 | 排期 | fold / follower / A2UI 状态层约 1.6k 行 TS 等价逻辑；按 `run-fold.test.ts` 逐用例移植 |
@@ -112,7 +112,7 @@ Butter Desktop 第一阶段是一个 **macOS-only 的原生客户端**：MyGo（
 
 ## 8. 仓库与构建边界
 
-- 新增 `desktop/`，**独立 Go module**（不进服务端 `go.mod`），独立 CI job；Go/Web 的日常构建与测试不依赖桌面端。
+- 新增 `desktop/`，**独立 Go module**（`desktop/go.mod` 要求 Go 1.27.3，根 module 仍是 1.27.1），独立 CI job；Go/Web 的日常构建与测试不依赖桌面端。Proto 目前通过 `replace` 引用根 module，后续可拆成独立 module 以缩小依赖图。
 - 不新增桌面端专用后端 CRUD；桌面端只消费现有 ConnectRPC、REST 上传与 AG-UI/SSE。
 - 客户端状态层按职责分层：传输（Connect + SSE）、凭证与上下文、运行折叠、A2UI、界面、平台能力；界面不直接调用 HTTP。
 
