@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -79,9 +80,10 @@ type AgentBuilderFunc func(ctx context.Context, model string) (agent.Agent, erro
 // Service manages an agent registry and per-channel ADK runners.
 type Service struct {
 	agents           map[string]agent.Agent
-	agentsProto      map[string]*agentsv1.Agent  // original proto configs keyed by name
-	agentBuilders    map[string]AgentBuilderFunc // dynamic builder funcs keyed by agent name
-	providers        []agentsv1.ModelProvider    // model providers for runtime resolution
+	agentsProto      map[string]*agentsv1.Agent          // original proto configs keyed by name
+	agentResources   map[string]*internalagent.Resources // live MCP connections each agent owns, keyed by name
+	agentBuilders    map[string]AgentBuilderFunc         // dynamic builder funcs keyed by agent name
+	providers        []agentsv1.ModelProvider            // model providers for runtime resolution
 	mcpRegistry      []agentsv1.MCPServer
 	remoteAgents     []agentsv1.RemoteAgent
 	daemonRegistry   *daemon.Registry
@@ -96,6 +98,9 @@ type Service struct {
 
 	mu           sync.Mutex
 	runtimeCache runtimeCache
+	// closed is set by Close: a turn that resolves an agent afterwards fails
+	// instead of spinning on retired resources.
+	closed bool
 
 	invRecorder InvocationRecorder
 
@@ -270,6 +275,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 	basePluginConfig := pluginConfig
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
+	resources := make(map[string]*internalagent.Resources, len(agents))
 	deps := toolsetDeps{agentFileRepo: agentFileRepo, agentFileMaxBytes: agentFileMaxBytes, skillRepo: skillRepo}
 	if ms, ok := memorySvc.(*mem0memory.Service); ok {
 		deps.memory = ms
@@ -300,14 +306,17 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 		)
 
 		if prev, ok := protoRegistry[name]; ok {
+			_ = closeOwnedResources(logger, resources)
 			return nil, fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
 		}
 
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory, boxBuilders, wsPools[agents[i].GetWorkspaceId()])
+		a, res, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, daemonRegistry, mcpHTTPFactory, toolsetFactory, boxBuilders, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
+			_ = closeOwnedResources(logger, resources)
 			return nil, fmt.Errorf("building agent %q: %w", name, err)
 		}
 		registry[name] = a
+		resources[name] = res
 		protoRegistry[name] = &agents[i]
 		logger.Info("agent registered", "agent", name)
 	}
@@ -315,6 +324,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 	// Build contextguard plugin if any agent has context_guard config.
 	guardPC, err := buildContextGuardPlugin(ctx, agents, providers)
 	if err != nil {
+		_ = closeOwnedResources(logger, resources)
 		return nil, fmt.Errorf("building context guard plugin: %w", err)
 	}
 	pluginConfig = mergePluginConfigs(pluginConfig, guardPC)
@@ -322,6 +332,7 @@ func NewServiceWithMCPHTTPClientFactory(ctx context.Context, agents []agentsv1.A
 	svc := &Service{
 		agents:           registry,
 		agentsProto:      protoRegistry,
+		agentResources:   resources,
 		agentBuilders:    make(map[string]AgentBuilderFunc),
 		providers:        providers,
 		mcpRegistry:      mcpRegistry,
@@ -503,11 +514,15 @@ func mergePluginConfigs(a, b adkrunner.PluginConfig) adkrunner.PluginConfig {
 }
 
 // RegisterAgent adds an agent to the registry. If an agent with the same name
-// already exists, it is replaced and a warning is logged.
+// already exists, it is replaced and the replaced agent's MCP connections are
+// closed.
 func (s *Service) RegisterAgent(name string, ag agent.Agent) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	replaced := s.agentResources[name]
+	delete(s.agentResources, name)
 	s.agents[name] = ag
+	s.mu.Unlock()
+	_ = replaced.Close()
 }
 
 // RegisterAgentWithBuilder adds an agent with a builder function that can
@@ -515,9 +530,12 @@ func (s *Service) RegisterAgent(name string, ag agent.Agent) {
 // proto-based (e.g., system agent) but still need to support model overrides.
 func (s *Service) RegisterAgentWithBuilder(name string, ag agent.Agent, builder AgentBuilderFunc) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	replaced := s.agentResources[name]
+	delete(s.agentResources, name)
 	s.agents[name] = ag
 	s.agentBuilders[name] = builder
+	s.mu.Unlock()
+	_ = replaced.Close()
 }
 
 // IsReservedAgentName reports whether name belongs to a dynamically registered
@@ -535,6 +553,7 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 	logger := log.FromContext(ctx)
 	registry := make(map[string]agent.Agent, len(agents))
 	protoRegistry := make(map[string]*agentsv1.Agent, len(agents))
+	resources := make(map[string]*internalagent.Resources, len(agents))
 	toolsetFactory := newToolsetFactory(s.toolsetDeps)
 
 	if err := internalagent.ValidateModelAliases(providers); err != nil {
@@ -558,22 +577,26 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 			continue
 		}
 		if prev, ok := protoRegistry[name]; ok {
+			_ = closeOwnedResources(logger, resources)
 			return fmt.Errorf("agent name %q is used by both workspace %q and workspace %q: agent names must be unique across workspaces", name, prev.GetWorkspaceId(), agents[i].GetWorkspaceId())
 		}
 		if _, isReserved := reserved[name]; isReserved {
 			logger.Warn("skipping proto agent that collides with a reserved builder name", "agent", name, "workspace_id", agents[i].GetWorkspaceId())
 			continue
 		}
-		a, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory, s.boxBuilders, wsPools[agents[i].GetWorkspaceId()])
+		a, res, err := internalagent.NewFromProtoWithToolsetFactory(ctx, &agents[i], providers, mcpRegistry, remoteAgentRegistry, s.daemonRegistry, s.mcpHTTPFactory, toolsetFactory, s.boxBuilders, wsPools[agents[i].GetWorkspaceId()])
 		if err != nil {
+			_ = closeOwnedResources(logger, resources)
 			return fmt.Errorf("rebuilding agent %q: %w", name, err)
 		}
 		registry[name] = a
+		resources[name] = res
 		protoRegistry[name] = &agents[i]
 	}
 
 	guardPC, err := buildContextGuardPlugin(ctx, agents, providers)
 	if err != nil {
+		_ = closeOwnedResources(logger, resources)
 		return fmt.Errorf("building context guard plugin: %w", err)
 	}
 	pluginConfig := mergePluginConfigs(s.basePluginConfig, guardPC)
@@ -582,7 +605,6 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	for name, ag := range s.agents {
 		if _, isProto := protoRegistry[name]; isProto {
@@ -593,16 +615,74 @@ func (s *Service) ReloadProtoAgents(ctx context.Context, agents []agentsv1.Agent
 		}
 	}
 
+	// The replaced agents and every model-overridden agent built against the
+	// old generation lose their connections here. In-flight turns hold an
+	// Acquire, so their connections close when the turn ends.
+	retired := make(map[string]*internalagent.Resources, len(s.agentResources))
+	for name, res := range s.agentResources {
+		// A builder agent carried into the new registry keeps its agent and so
+		// keeps its connections; every rebuilt or dropped agent's resources
+		// are retired below.
+		if _, kept := registry[name]; kept {
+			if _, rebuilt := protoRegistry[name]; !rebuilt {
+				resources[name] = res
+				continue
+			}
+		}
+		retired[name] = res
+	}
+	retiredOverrides := s.runtimeCache.reset()
+
 	s.agents = registry
 	s.agentsProto = protoRegistry
+	s.agentResources = resources
 	s.providers = providers
 	s.mcpRegistry = mcpRegistry
 	s.remoteAgents = remoteAgentRegistry
 	s.pluginConfig = pluginConfig
-	s.runtimeCache.reset()
+	s.mu.Unlock()
+
+	_ = closeOwnedResources(logger, retired)
+	_ = closeOwnedResources(logger, retiredOverrides)
 
 	logger.Info("runner service reloaded", "proto_agents", len(protoRegistry), "total_agents", len(registry))
 	return nil
+}
+
+// Close releases the MCP connections the service's agents and its cached
+// model-overridden agents hold. Turns still running keep their connections
+// until they finish; after Close the service must not start new work.
+func (s *Service) Close() error {
+	s.mu.Lock()
+	s.closed = true
+	resources := s.agentResources
+	overrides := s.runtimeCache.reset()
+	s.agentResources = nil
+	s.mu.Unlock()
+	return errors.Join(
+		closeOwnedResources(slog.Default(), resources),
+		closeOwnedResources(slog.Default(), overrides),
+	)
+}
+
+// closeOwnedResources closes the resources of every named agent, logging each
+// failure: a replacement or shutdown has to finish closing the rest even when
+// one MCP server misbehaves.
+func closeOwnedResources(logger *slog.Logger, resources map[string]*internalagent.Resources) error {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	var errs []error
+	for name, res := range resources {
+		if res == nil {
+			continue
+		}
+		if err := res.Close(); err != nil {
+			logger.Error("closing agent MCP resources failed", "agent", name, "err", err)
+			errs = append(errs, fmt.Errorf("agent %q: %w", name, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // NewServiceForTest builds a Service whose registry contains only the given
@@ -830,13 +910,14 @@ func (s *Service) runtimeGenerationCurrent(generation uint64) bool {
 }
 
 // buildOverriddenAgent creates (or returns cached) an agent with its model
-// replaced. A false current result tells the caller to retry from a fresh
-// runtime snapshot after a concurrent reload.
-func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOverride string, expectedGeneration uint64) (agent.Agent, bool, error) {
+// replaced, together with the resources that own its MCP connections. A false
+// current result tells the caller to retry from a fresh runtime snapshot after
+// a concurrent reload.
+func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOverride string, expectedGeneration uint64) (agent.Agent, *internalagent.Resources, bool, error) {
 	logger := log.FromContext(ctx)
 	cacheKey := agentName + ":" + modelOverride
 	s.mu.Lock()
-	cached, cacheStatus := s.runtimeCache.overriddenAgent(expectedGeneration, cacheKey)
+	cached, cachedResources, cacheStatus := s.runtimeCache.overriddenAgent(expectedGeneration, cacheKey)
 	if cacheStatus != runtimeCacheMiss {
 		s.mu.Unlock()
 		if cacheStatus == runtimeCacheHit {
@@ -844,9 +925,9 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 				"agent", agentName,
 				"model_override", modelOverride,
 			)
-			return cached, true, nil
+			return cached, cachedResources, true, nil
 		}
-		return nil, false, nil
+		return nil, nil, false, nil
 	}
 	pb, hasProto := s.agentsProto[agentName]
 	builder, hasBuilder := s.agentBuilders[agentName]
@@ -874,6 +955,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	)
 
 	var a agent.Agent
+	var resources *internalagent.Resources
 	var err error
 
 	if hasProto {
@@ -884,7 +966,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 			clone.Config = &agentsv1.AgentConfig{}
 		}
 		clone.Config.Model = modelOverride
-		a, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, daemonRegistry, mcpHTTPFactory, newToolsetFactory(deps), boxBuilders, pool)
+		a, resources, err = internalagent.NewFromProtoWithToolsetFactory(ctx, clone, providers, mcpRegistry, remoteAgents, daemonRegistry, mcpHTTPFactory, newToolsetFactory(deps), boxBuilders, pool)
 	} else if hasBuilder {
 		// Builder-based agent: rebuild with the resolved model.
 		a, err = builder(ctx, resolvedName)
@@ -893,25 +975,33 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 	}
 
 	if err != nil {
+		// A failed proto build already closed what it opened; this covers a
+		// constructor that reports both an agent and an error.
+		_ = resources.Close()
 		if !s.runtimeGenerationCurrent(expectedGeneration) {
-			return nil, false, nil
+			return nil, nil, false, nil
 		}
-		return nil, true, err
+		return nil, nil, true, err
 	}
 
 	s.mu.Lock()
-	published, cacheStatus := s.runtimeCache.publishOverriddenAgent(expectedGeneration, cacheKey, a)
+	published, publishedResources, cacheStatus := s.runtimeCache.publishOverriddenAgent(expectedGeneration, cacheKey, a, resources)
 	s.mu.Unlock()
 	if cacheStatus == runtimeCacheStale {
+		// A reload happened while building: this agent will never run, so its
+		// connections must not survive the discarded build.
+		_ = resources.Close()
 		logger.Debug("discarding model-overridden agent built across runtime reload",
 			"agent", agentName,
 			"model_override", modelOverride,
 			"generation", expectedGeneration,
 		)
-		return nil, false, nil
+		return nil, nil, false, nil
 	}
 	if cacheStatus == runtimeCacheHit {
-		return published, true, nil
+		// Another build published this key first; the cached one is in use.
+		_ = resources.Close()
+		return published, publishedResources, true, nil
 	}
 
 	logger.Info("model-overridden agent cached",
@@ -919,7 +1009,7 @@ func (s *Service) buildOverriddenAgent(ctx context.Context, agentName, modelOver
 		"model_override", modelOverride,
 		"resolved_model", resolvedName,
 	)
-	return published, true, nil
+	return published, publishedResources, true, nil
 }
 
 // getOrCreateRunner returns a runner for the given channel, agent, and model
@@ -1120,10 +1210,12 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 
 	var r *adkrunner.Runner
 	var agentProto *agentsv1.Agent
+	var releaseResources func()
 	for {
 		s.mu.Lock()
 		generation := s.runtimeCache.generation
 		ag, ok := s.agents[agentName]
+		resources := s.agentResources[agentName]
 		agentProto = s.agentsProto[agentName]
 		s.mu.Unlock()
 		if !ok {
@@ -1156,7 +1248,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		// If model override is set, rebuild the agent with the overridden model.
 		if modelOverride != "" {
 			logger.Info("applying model override", "model_override", modelOverride)
-			overriddenAg, current, err := s.buildOverriddenAgent(ctx, agentName, modelOverride, generation)
+			overriddenAg, overriddenResources, current, err := s.buildOverriddenAgent(ctx, agentName, modelOverride, generation)
 			if err != nil {
 				return turn, fmt.Errorf("building model-overridden agent: %w", err)
 			}
@@ -1164,6 +1256,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 				continue
 			}
 			ag = overriddenAg
+			resources = overriddenResources
 		}
 
 		candidate, current, err := s.getOrCreateRunner(ctx, channelName, agentName, modelOverride, ag, generation)
@@ -1173,9 +1266,27 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 		if !current {
 			continue
 		}
+
+		// Hold the agent's MCP connections for the whole turn: a reload that
+		// replaces this agent retires them but only the last release closes
+		// them, so a session cannot vanish under a running turn.
+		acquired, ok := resources.Acquire()
+		if !ok {
+			s.mu.Lock()
+			closed := s.closed
+			s.mu.Unlock()
+			if closed {
+				return turn, fmt.Errorf("runner service is closed")
+			}
+			// The reload that retired these resources has already published
+			// the replacement; snapshots are per generation, so retry.
+			continue
+		}
+		releaseResources = acquired
 		r = candidate
 		break
 	}
+	defer releaseResources()
 
 	logger.Debug("invoking ADK runner",
 		"parts_count", len(parts),

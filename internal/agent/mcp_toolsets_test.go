@@ -341,22 +341,18 @@ func TestBuildMCPToolsetsWithRealMCPToolsets(t *testing.T) {
 		},
 	}
 
-	toolsets, err := buildMCPToolsets(context.Background(), servers, nil)
+	set, err := buildMCPToolsets(context.Background(), servers, nil)
 	if err != nil {
 		t.Fatalf("buildMCPToolsets: %v", err)
 	}
-	if len(toolsets) != 1 {
-		t.Fatalf("built %d toolsets, want 1", len(toolsets))
+	if set == nil {
+		t.Fatal("buildMCPToolsets returned no toolset")
 	}
 	// Close before httptest tears its servers down: the streamable transport
 	// holds a standalone SSE stream open.
-	t.Cleanup(func() {
-		if c, ok := toolsets[0].(interface{ Close() error }); ok {
-			_ = c.Close()
-		}
-	})
+	t.Cleanup(func() { _ = set.Close() })
 
-	tools, err := toolsets[0].Tools(testReadonlyContext{context.Background()})
+	tools, err := set.Tools(testReadonlyContext{context.Background()})
 	if err != nil {
 		t.Fatalf("Tools: %v", err)
 	}
@@ -369,4 +365,72 @@ func TestBuildMCPToolsetsWithRealMCPToolsets(t *testing.T) {
 		t.Fatalf("names = %v, want %v", got, want)
 	}
 	packAll(t, tools)
+}
+
+// TestMCPToolsetsCloseIsIdempotent: the aggregate is the single owner of its
+// servers, so a double Close must not close a session twice.
+func TestMCPToolsetsCloseIsIdempotent(t *testing.T) {
+	first := &closeableToolset{name: "alpha"}
+	second := &closeableToolset{name: "beta"}
+	group := newMCPToolsets([]mcpToolsetEntry{
+		{server: "alpha", toolset: first},
+		{server: "beta", toolset: second},
+	})
+	if err := group.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := group.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	if first.closed != 1 || second.closed != 1 {
+		t.Fatalf("closed = %d, %d; want 1, 1", first.closed, second.closed)
+	}
+}
+
+// TestCloseMCPToolsetsRollsBackBuiltServers: the rollback closes every toolset
+// the failed build had already created and keeps the cause first.
+func TestCloseMCPToolsetsRollsBackBuiltServers(t *testing.T) {
+	first := &closeableToolset{name: "alpha"}
+	second := &closeableToolset{name: "beta"}
+	entries := []mcpToolsetEntry{
+		{server: "alpha", toolset: first},
+		{server: "beta", toolset: second},
+	}
+	cause := errors.New("unreachable")
+
+	err := closeMCPToolsets(entries, cause)
+	if !errors.Is(err, cause) {
+		t.Fatalf("rollback error = %v, want %v", err, cause)
+	}
+	if first.closed != 1 || second.closed != 1 {
+		t.Fatalf("closed = %d, %d; want 1, 1", first.closed, second.closed)
+	}
+}
+
+// TestBuildMCPToolsetsClosesEarlierServersOnFailure: a server that cannot be
+// built fails the agent, and the servers set up before it are closed instead of
+// being left open for the lifetime of the process.
+func TestBuildMCPToolsetsClosesEarlierServersOnFailure(t *testing.T) {
+	servers := []*agentsv1.MCPServer{
+		{
+			Name:      "alpha",
+			Url:       "http://127.0.0.1:1/mcp",
+			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
+		},
+		{
+			Name: "beta",
+			Url:  "http://127.0.0.1:1/mcp",
+		},
+	}
+
+	set, err := buildMCPToolsets(context.Background(), servers, nil)
+	if err == nil {
+		t.Fatal("buildMCPToolsets accepted a server without a transport")
+	}
+	if set != nil {
+		t.Fatalf("buildMCPToolsets returned %v alongside an error", set)
+	}
+	if !strings.Contains(err.Error(), `"beta"`) {
+		t.Fatalf("error = %v, want the failing server named", err)
+	}
 }

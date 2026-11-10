@@ -106,7 +106,7 @@ func TestValidateCursorAgent_RejectsBoxOwnedFields(t *testing.T) {
 }
 
 func TestNewFromProto_CursorWithoutBuilderFails(t *testing.T) {
-	_, err := NewFromProtoWithToolsetFactory(context.Background(), validCursorAgent(), nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{})
+	_, _, err := NewFromProtoWithToolsetFactory(context.Background(), validCursorAgent(), nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{})
 	if err == nil || !strings.Contains(err.Error(), "cursor agents are not available") {
 		t.Fatalf("expected cursor-not-available error, got %v", err)
 	}
@@ -118,7 +118,7 @@ func TestNewFromProto_CursorUsesBuilder(t *testing.T) {
 		got = pb
 		return agent.New(agent.Config{Name: pb.GetName()})
 	})
-	a, err := NewFromProtoWithToolsetFactory(context.Background(), validCursorAgent(), nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Cursor: builder})
+	a, _, err := NewFromProtoWithToolsetFactory(context.Background(), validCursorAgent(), nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Cursor: builder})
 	if err != nil {
 		t.Fatalf("NewFromProto: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestNewFromProto_CursorInvalidConfigFails(t *testing.T) {
 		t.Fatal("builder must not be called for an invalid cursor agent")
 		return nil, nil
 	})
-	if _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Cursor: builder}); err == nil {
+	if _, _, err := NewFromProtoWithToolsetFactory(context.Background(), pb, nil, nil, nil, nil, nil, nil, &BoxAgentBuilders{Cursor: builder}); err == nil {
 		t.Fatal("expected invalid cursor config to fail construction")
 	}
 }

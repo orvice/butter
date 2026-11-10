@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -205,17 +206,24 @@ func (r *BootstrapResult) Close(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
+	// The runner owns the MCP sessions its agents opened; closing it first
+	// stops new turns and releases those connections while datastores are
+	// still up.
+	var closeErr error
+	if r.RunnerSvc != nil {
+		closeErr = r.RunnerSvc.Close()
+	}
 	if r.PlaneResources != nil {
 		r.PlaneResources.Stop()
-		return nil
+		return closeErr
 	}
 	if r.Redis != nil {
 		_ = r.Redis.Close()
 	}
 	if r.MongoDB != nil {
-		return r.MongoDB.Client().Disconnect(ctx)
+		return errors.Join(closeErr, r.MongoDB.Client().Disconnect(ctx))
 	}
-	return nil
+	return closeErr
 }
 
 // StartChannels initializes MongoDB, Redis, runner service, channel manager,

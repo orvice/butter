@@ -25,7 +25,7 @@ func TestPiCardsThroughCompositeFactory(t *testing.T) {
 					Edges: []*agentsv1.WorkflowEdge{{From: "START", To: "work"}},
 				}
 			}
-			ag, err := internalagent.NewFromProtoWithToolsetFactory(t.Context(), root, nil, nil, nil, nil, nil, nil, &internalagent.BoxAgentBuilders{Pi: AgentBuilder(bridge.factory)}, internalagent.AgentPool{child.AgentId: child})
+			ag, _, err := internalagent.NewFromProtoWithToolsetFactory(t.Context(), root, nil, nil, nil, nil, nil, nil, &internalagent.BoxAgentBuilders{Pi: AgentBuilder(bridge.factory)}, internalagent.AgentPool{child.AgentId: child})
 			if err != nil {
 				t.Fatal(err)
 			}

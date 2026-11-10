@@ -294,7 +294,7 @@ func runProbeScenario(t *testing.T, target probeTarget, cfg probeConfig, sc prob
 		Name: "prober", AgentId: "prober", WorkspaceId: "ws-probe",
 		Config: &agentsv1.AgentConfig{Model: target.model, Instruction: cfg.instruction, ResultCards: cfg.cards},
 	}
-	ag, err := internalagent.NewFromProto(ctx, pb, target.providers, nil, nil, nil)
+	ag, _, err := internalagent.NewFromProto(ctx, pb, target.providers, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("%s: build agent: %v", target.name, err)
 	}

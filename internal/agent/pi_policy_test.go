@@ -24,13 +24,13 @@ func TestPiBuilderReceivesInheritedCardPolicy(t *testing.T) {
 		return adkagent.New(adkagent.Config{Name: pb.GetName()})
 	}
 	builders := &BoxAgentBuilders{Pi: builder}
-	if _, err := NewFromProtoWithToolsetFactory(t.Context(), root, nil, nil, nil, nil, nil, nil, builders, AgentPool{child.AgentId: child}); err != nil {
+	if _, _, err := NewFromProtoWithToolsetFactory(t.Context(), root, nil, nil, nil, nil, nil, nil, builders, AgentPool{child.AgentId: child}); err != nil {
 		t.Fatal(err)
 	}
 	if len(policies) != 1 || policies[0].Allowed() {
 		t.Fatal("Pi leaf escaped its parent's disabled policy")
 	}
-	if _, err := NewFromProtoWithToolsetFactory(t.Context(), child, nil, nil, nil, nil, nil, nil, builders); err != nil {
+	if _, _, err := NewFromProtoWithToolsetFactory(t.Context(), child, nil, nil, nil, nil, nil, nil, builders); err != nil {
 		t.Fatal(err)
 	}
 	if len(policies) != 2 || !policies[1].Allowed() {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/model"
@@ -48,6 +49,9 @@ type mcpToolsetEntry struct {
 // config; ADK's mcptoolset requires its owner to close it.
 type mcpToolsets struct {
 	entries []mcpToolsetEntry
+
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func newMCPToolsets(entries []mcpToolsetEntry) *mcpToolsets {
@@ -61,17 +65,25 @@ var (
 
 func (*mcpToolsets) Name() string { return "mcp_tools" }
 
-// Close closes every server toolset that can be closed.
+// Close closes every server toolset that can be closed. It is safe to call
+// more than once: the servers' toolsets are closed exactly once and the first
+// result is returned.
 func (m *mcpToolsets) Close() error {
-	var errs []error
-	for _, e := range m.entries {
-		if c, ok := e.toolset.(io.Closer); ok {
-			if err := c.Close(); err != nil {
-				errs = append(errs, fmt.Errorf("mcp server %q: %w", e.server, err))
+	if m == nil {
+		return nil
+	}
+	m.closeOnce.Do(func() {
+		var errs []error
+		for _, e := range m.entries {
+			if c, ok := e.toolset.(io.Closer); ok {
+				if err := c.Close(); err != nil {
+					errs = append(errs, fmt.Errorf("mcp server %q: %w", e.server, err))
+				}
 			}
 		}
-	}
-	return errors.Join(errs...)
+		m.closeErr = errors.Join(errs...)
+	})
+	return m.closeErr
 }
 
 // Tools lists every server's tools under names that can be packed together.
