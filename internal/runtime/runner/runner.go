@@ -42,6 +42,11 @@ import (
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
 )
 
+// errRunnerServiceClosed rejects a turn that starts after Service.Close: the
+// registry and every connection its agents held are gone, so no new work may
+// begin even for an agent that never owned resources (a builder agent).
+var errRunnerServiceClosed = errors.New("runner service is closed")
+
 // isRunnableAgent reports whether an agent with the given lifecycle status may
 // enter the runner registry. Only ACTIVE agents (and legacy UNSPECIFIED rows
 // created before the lifecycle field existed, treated as active) are runnable;
@@ -1213,6 +1218,14 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 	var releaseResources func()
 	for {
 		s.mu.Lock()
+		// Checked under the same lock that publishes the registry: once Close
+		// has run, this turn must not start, however it would be served — an
+		// agent whose resources are nil (builder agents, test agents) has no
+		// Acquire to fail, so the guard cannot live only there.
+		if s.closed {
+			s.mu.Unlock()
+			return turn, errRunnerServiceClosed
+		}
 		generation := s.runtimeCache.generation
 		ag, ok := s.agents[agentName]
 		resources := s.agentResources[agentName]
@@ -1276,7 +1289,7 @@ func (s *Service) run(ctx context.Context, agentName string, parts []*genai.Part
 			closed := s.closed
 			s.mu.Unlock()
 			if closed {
-				return turn, fmt.Errorf("runner service is closed")
+				return turn, errRunnerServiceClosed
 			}
 			// The reload that retired these resources has already published
 			// the replacement; snapshots are per generation, so retry.

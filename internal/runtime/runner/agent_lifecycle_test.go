@@ -2,10 +2,13 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"google.golang.org/adk/v2/agent"
 	adkrunner "google.golang.org/adk/v2/runner"
 	"google.golang.org/adk/v2/session"
+	"google.golang.org/genai"
 
 	internalagent "go.orx.me/apps/butter/internal/agent"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -223,5 +226,61 @@ func TestBuildOverriddenAgentSharesAndRetiresResources(t *testing.T) {
 	}
 	if _, ok := res.Acquire(); ok {
 		t.Fatal("reload kept a model-overridden agent's resources open")
+	}
+}
+
+// A builder agent — the built-in system agent, or anything registered through
+// RegisterAgent / RegisterAgentWithBuilder — has no proto and therefore no
+// Resources entry. Its nil owner cannot fail Acquire after Close, so shutdown
+// must be refused by the registry lock itself, before any turn starts.
+func TestRunAfterCloseRejectsNewTurns(t *testing.T) {
+	svc, err := NewService(context.Background(),
+		[]agentsv1.Agent{lifecycleAgent("mcp-agent")},
+		lifecycleProviders(),
+		[]agentsv1.MCPServer{lifecycleMCPServer()},
+		nil, nil,
+		session.InMemoryService(), nil, nil,
+		adkrunner.PluginConfig{},
+	)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	// This model answers any turn that reaches it, so a turn served after
+	// shutdown produces output instead of the closed error and fails the test.
+	base, err := newGenerationTestAgent("served-after-close")
+	if err != nil {
+		t.Fatalf("newGenerationTestAgent: %v", err)
+	}
+	svc.RegisterAgentWithBuilder("dynamic-agent", base, func(context.Context, string) (agent.Agent, error) {
+		return newGenerationTestAgent("served-after-close")
+	})
+
+	svc.mu.Lock()
+	builderResources := svc.agentResources["dynamic-agent"]
+	svc.mu.Unlock()
+	if builderResources != nil {
+		t.Fatal("builder agent owns resources; this test no longer covers the nil-owner path")
+	}
+
+	if err := svc.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	for _, name := range []string{"mcp-agent", "dynamic-agent"} {
+		ctxInfo := &agentsv1.ContextInfo{
+			Uuid:        "closed-" + name,
+			SessionId:   "closed-" + name,
+			UserId:      "u1",
+			ChannelName: "test-app",
+		}
+		if _, err := svc.Run(context.Background(), name, []*genai.Part{{Text: "hello"}}, "", ctxInfo, nil, nil); !errors.Is(err, errRunnerServiceClosed) {
+			t.Fatalf("Run(%q) after Close = %v, want %v", name, err, errRunnerServiceClosed)
+		}
+		// A repeat turn is refused too: a caller retry loop must not spin or
+		// revive the service.
+		if _, err := svc.RunTurn(context.Background(), name, []*genai.Part{{Text: "again"}}, "", ctxInfo, nil, nil); !errors.Is(err, errRunnerServiceClosed) {
+			t.Fatalf("RunTurn(%q) after Close = %v, want %v", name, err, errRunnerServiceClosed)
+		}
 	}
 }
