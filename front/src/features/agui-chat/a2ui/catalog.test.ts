@@ -43,6 +43,14 @@ describe('butter-basic-v1 catalog', () => {
     ).toBe(true)
   })
 
+  it('registers Cult UI as a bounded presentation-only component', () => {
+    const implementation = butterCatalog.components.get('FluidAIWorkloads')
+    expect(implementation?.schema.safeParse({}).success).toBe(true)
+    expect(
+      implementation?.schema.safeParse({ width: 448 }).success
+    ).toBe(false)
+  })
+
   it('does not import extra components or executable catalog functions', () => {
     expect([...butterCatalog.components.keys()].sort()).toEqual(
       [
@@ -51,6 +59,7 @@ describe('butter-basic-v1 catalog', () => {
         'ChoicePicker',
         'Column',
         'Divider',
+        'FluidAIWorkloads',
         'KeyValue',
         'Row',
         'Status',

@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
+import { FluidAIWorkloads as FluidAIWorkloadsIllustration } from '@/components/ui/fluid-ai-workloads'
 import { CATALOG_ID } from './protocol'
 import styles from './surface.module.css'
 
@@ -151,6 +152,26 @@ const Status = createComponentImplementation(StatusApi, ({ props }) => (
     {text(props.text)}
   </Badge>
 ))
+
+// Cult UI's illustration is vendored as a presentation-only implementation.
+// The A2UI schema intentionally exposes no SVG props, colors, URLs or event
+// handlers: the model can request the bounded illustration, while Butter owns
+// its theme and all behavior remains local to the client.
+const FluidAIWorkloadsApi = {
+  name: 'FluidAIWorkloads',
+  schema: TextApi.schema.pick({ weight: true }),
+}
+
+const FluidAIWorkloads = createComponentImplementation(
+  FluidAIWorkloadsApi,
+  () => (
+    <FluidAIWorkloadsIllustration
+      aria-label='AI workload flow'
+      className={styles.fluidWorkloads}
+      role='img'
+    />
+  )
+)
 
 // Form inputs. Their value is the renderer's local draft only: nothing is
 // sent until the submit button's action fires.
@@ -355,6 +376,7 @@ const components: ReactComponentImplementation[] = [
   Divider,
   KeyValue,
   Status,
+  FluidAIWorkloads,
   TextField,
   ChoicePicker,
   SubmitButton,
