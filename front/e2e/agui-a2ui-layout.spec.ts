@@ -35,7 +35,7 @@ const run = sse([
           { id: 'root', component: 'Card', child: 'col' },
           {
             id: 'col', component: 'Column',
-            children: ['title', 'row', 'divider', 'summary', 'status'],
+            children: ['title', 'row', 'divider', 'summary', 'status', 'fluid'],
           },
           { id: 'title', component: 'Text', text: 'Release summary', variant: 'h3' },
           {
@@ -50,6 +50,7 @@ const run = sse([
           { id: 'divider', component: 'Divider', axis: 'horizontal' },
           { id: 'summary', component: 'Text', text: { path: '/summary' } },
           { id: 'status', component: 'Status', text: 'Healthy', tone: 'success' },
+          { id: 'fluid', component: 'FluidAIWorkloads' },
         ],
       },
     },
@@ -78,6 +79,8 @@ for (const width of [1100, 390]) {
     await expect(card.getByRole('heading', { name: 'Release summary' })).toBeVisible()
     await expect(card.getByText(longValue)).toBeVisible()
     await expect(card.getByText('Healthy')).toBeVisible()
+    const illustration = card.getByRole('img', { name: 'AI workload flow' })
+    await expect(illustration).toBeVisible()
     await expect(card.getByText('**Plain text**, not a link: [details](https://example.com)')).toBeVisible()
     await expect(card.locator('a, strong')).toHaveCount(0)
 
@@ -144,6 +147,9 @@ for (const width of [1100, 390]) {
     // A long unbroken value must not escape its unweighted column or card on
     // mobile. Checking the surface (not the page's hidden overflow) catches it.
     expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    const illustrationBounds = await illustration.boundingBox()
+    expect(illustrationBounds).not.toBeNull()
+    expect(illustrationBounds!.width).toBeLessThanOrEqual((await card.boundingBox())!.width)
     const bounds = await surface.boundingBox()
     expect(bounds).not.toBeNull()
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width)
