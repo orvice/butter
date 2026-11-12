@@ -76,6 +76,10 @@ var catalog = map[string]componentSpec{
 		"text": {kind: propDynString, required: true},
 		"tone": {kind: propEnum, enum: []string{"neutral", "info", "success", "warning", "error"}},
 	}},
+	// FluidAIWorkloads is a fixed, read-only illustration vendored from Cult UI.
+	// Its presentation props stay client-owned; the model can only request the
+	// bounded component by name.
+	"FluidAIWorkloads": {modelAllowed: true, props: map[string]propSpec{}},
 	// Form components: built by the server only (Form.Envelopes), so they
 	// carry no property rules here — a model is refused them by name.
 	"TextField":    {},
