@@ -95,3 +95,48 @@ func TestAnalyticsChartAcceptsDataModelBinding(t *testing.T) {
 		t.Fatalf("Apply() rejected data binding: %v", err)
 	}
 }
+
+func TestCodeBlockValidatesLanguageAndPlainText(t *testing.T) {
+	result, err := Apply(nil, Batch{Fallback: "Example code", Messages: []map[string]any{{
+		"updateComponents": map[string]any{"components": []any{
+			map[string]any{
+				"id": "root", "component": "CodeBlock", "language": "typescript",
+				"title": "Example", "code": "const answer: number = 42",
+			},
+		}},
+	}}}, Anchor{}, DefaultLimits)
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if len(result.Card.Components) != 1 || result.Card.Components[0]["component"] != "CodeBlock" {
+		t.Fatalf("card components = %#v", result.Card.Components)
+	}
+
+	for name, component := range map[string]map[string]any{
+		"unsupported language": {"id": "root", "component": "CodeBlock", "code": "echo hi", "language": "shell"},
+		"oversized code":       {"id": "root", "component": "CodeBlock", "code": strings.Repeat("x", maxCodeRunes+1)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Apply(nil, Batch{Fallback: "Example code", Messages: []map[string]any{{
+				"updateComponents": map[string]any{"components": []any{component}},
+			}}}, Anchor{}, DefaultLimits)
+			if err == nil {
+				t.Fatal("Apply() succeeded for invalid code block")
+			}
+		})
+	}
+	if _, err := Apply(nil, Batch{Fallback: "Example code", Messages: []map[string]any{{
+		"updateComponents": map[string]any{"components": []any{map[string]any{
+			"id": "root", "component": "CodeBlock", "code": map[string]any{"path": "/source"},
+		}}},
+	}}}, Anchor{}, DefaultLimits); err != nil {
+		t.Fatalf("Apply() rejected code data binding: %v", err)
+	}
+	if _, err := Apply(nil, Batch{Fallback: "Example code", Messages: []map[string]any{{
+		"updateComponents": map[string]any{"components": []any{map[string]any{
+			"id": "root", "component": "CodeBlock", "code": "<script>alert(1)</script>",
+		}}},
+	}}}, Anchor{}, DefaultLimits); err != nil {
+		t.Fatalf("Apply() rejected escaped HTML code text: %v", err)
+	}
+}

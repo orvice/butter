@@ -55,6 +55,18 @@ describe('butter-basic-v1 catalog', () => {
     expect(
       chart?.schema.safeParse({ data: { path: '/metrics' } }).success
     ).toBe(true)
+
+    const code = butterCatalog.components.get('CodeBlock')
+    expect(
+      code?.schema.safeParse({
+        code: 'const answer = 42',
+        language: 'typescript',
+        title: 'Example',
+      }).success
+    ).toBe(true)
+    expect(
+      code?.schema.safeParse({ code: 'rm -rf /', language: 'shell' }).success
+    ).toBe(false)
   })
 
   it('does not import extra components or executable catalog functions', () => {
@@ -67,6 +79,7 @@ describe('butter-basic-v1 catalog', () => {
         'Divider',
         'FluidAIWorkloads',
         'AnalyticsChart',
+        'CodeBlock',
         'KeyValue',
         'Row',
         'Status',

@@ -9,7 +9,7 @@ Cult UI 值得作为 **React/shadcn 的视觉实现来源**，不适合作为 Bu
 因此建议：
 
 1. 保留 `@a2ui/react` 0.12.0、`@a2ui/web_core` 0.12.0、`butter-basic-v1` 和现有 `butter.a2ui` 事件契约。
-2. 先用一个纯展示组件做隔离 POC。优先候选是 `fluid-ai-workloads`（静态 SVG）或 `analytics-chart`（数据点和悬浮提示）；把 Cult UI 源码当作本地实现，外面包一层 Butter A2UI component implementation。
+2. 先用纯展示组件做隔离 POC。当前已接入 `fluid-ai-workloads`（静态 SVG）、`analytics-chart`（受限数据点和悬浮提示）和 `code-block`（去掉 action 的只读代码文本）；把 Cult UI 源码当作本地实现，外面包一层 Butter A2UI component implementation。
 3. 新组件必须同时加入 Go 侧白名单、明确的属性 schema、模型可用性策略和前端 catalog；不得因为安装 Cult UI 就把整个 registry 或任意 React props 暴露给模型。
 4. `PromptComposer`、`PromptLibrary`、`AI Instructions`、`ChoicePoll` 和带 commit/action 的卡片属于普通 dashboard/chat UI 或服务端表单候选，不应直接注册为模型可生成的 Result Card。
 
@@ -42,7 +42,7 @@ ADR-0014 定义的 Result Card 是只读的：模型不能收集输入、定义 
 | --- | --- | --- |
 | `fluid-ai-workloads` | 高 | 主要是 SVG 展示；只暴露有限的 `width`/`height` 和固定文案，避免把 SVG 属性任意透传 |
 | `analytics-chart` | 中高 | 适合只读数据图；需要限制点数、数值范围和 label 长度，并把 hover tooltip 当客户端展示状态 |
-| `code-block` | 中 | 展示部分可复用；应先去掉或由宿主控制 copy、tab 切换等 action，代码长度和语言必须受限 |
+| `code-block` | 中 | 已接入只读变体；去掉 copy、tab 切换等 action，代码长度和语言由 Butter 限制 |
 | `halo-progress` | 中 | 适合状态展示，但 registry 条目依赖 Base UI/Motion；先核对动画、无障碍和 bundle 成本 |
 | `agent-suggest-card-stack` | 低 | 有进度/错误状态和 commit button；需要拆出无 action 的只读变体才能进入 Result Card |
 | `choice-poll` | 低（Result Card） | `onValueChange` 和键盘选择是输入语义，应复用 Butter server-built Form，而不是让模型生成 |
@@ -53,7 +53,7 @@ ADR-0014 定义的 Result Card 是只读的：模型不能收集输入、定义 
 
 ## 推荐的扩展步骤
 
-以 `AnalyticsChart` 为例，第一版只允许服务端生成一个只读图表：
+以 `AnalyticsChart` 和只读 `CodeBlock` 为例，扩展只允许服务端生成受限展示组件：
 
 1. 固定 Cult UI 源码 commit，复制实现到 Butter 的前端源码，并将 `@/lib/utils`、theme tokens 和 Vite/Next.js 差异处理成可审查的本地代码。
 2. 在 Go catalog 增加一个明确的 `AnalyticsChart` spec：有限长度的数据点数组、有限的日期/label/value 类型和上限；拒绝 URL、HTML、任意 SVG/JS、事件名和 style/className。

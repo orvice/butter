@@ -265,6 +265,54 @@ const AnalyticsChart = createComponentImplementation(
   }
 )
 
+const CodeBlockApi = {
+  name: 'CodeBlock',
+  schema: TextApi.schema.pick({ weight: true }).extend({
+    code: CommonSchemas.DynamicString,
+    language: CommonSchemas.ComponentId.refine((value) =>
+      [
+        'bash',
+        'css',
+        'go',
+        'html',
+        'javascript',
+        'json',
+        'markdown',
+        'python',
+        'sql',
+        'typescript',
+        'yaml',
+      ].includes(value)
+    ).optional(),
+    title: CommonSchemas.DynamicString.optional(),
+  }),
+}
+
+// CodeBlock deliberately renders escaped text with no copy button, links or
+// execution affordance. This is the read-only part of Cult UI's code-block
+// pattern; Butter owns the language allowlist and length cap on both sides.
+const CodeBlock = createComponentImplementation(CodeBlockApi, ({ props }) => {
+  const code = text(props.code).slice(0, 12000)
+  const language = text(props.language)
+  return (
+    <div
+      className={styles.codeBlock}
+      role='region'
+      aria-label='Code block'
+      data-a2ui-code-language={language || 'plain'}
+    >
+      {props.title && (
+        <p className='border-b border-border/70 px-3 py-2 text-xs font-medium text-muted-foreground'>
+          {text(props.title)}
+        </p>
+      )}
+      <pre className={styles.codeBlockPre}>
+        <code>{code}</code>
+      </pre>
+    </div>
+  )
+})
+
 // Form inputs. Their value is the renderer's local draft only: nothing is
 // sent until the submit button's action fires.
 
@@ -470,6 +518,7 @@ const components: ReactComponentImplementation[] = [
   Status,
   FluidAIWorkloads,
   AnalyticsChart,
+  CodeBlock,
   TextField,
   ChoicePicker,
   SubmitButton,

@@ -1,5 +1,5 @@
 // Package a2ui is butter's A2UI v0.9.1 layer for AG-UI Chat: the
-// butter-basic-v1 catalog (including the fixed FluidAIWorkloads illustration)
+// butter-basic-v1 catalog (including fixed read-only visual components)
 // and its validation, the read-only result cards a
 // model renders through the render_ui tool, and the forms a Workflow Agent's
 // Human Input node presents.

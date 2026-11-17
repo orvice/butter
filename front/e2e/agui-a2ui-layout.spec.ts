@@ -35,7 +35,7 @@ const run = sse([
           { id: 'root', component: 'Card', child: 'col' },
           {
             id: 'col', component: 'Column',
-            children: ['title', 'row', 'divider', 'summary', 'status', 'fluid', 'chart'],
+            children: ['title', 'row', 'divider', 'summary', 'status', 'fluid', 'chart', 'code'],
           },
           { id: 'title', component: 'Text', text: 'Release summary', variant: 'h3' },
           {
@@ -54,6 +54,10 @@ const run = sse([
           {
             id: 'chart', component: 'AnalyticsChart', title: 'Requests',
             data: { path: '/metrics' },
+          },
+          {
+            id: 'code', component: 'CodeBlock', title: 'Example', language: 'typescript',
+            code: 'const answer: number = 42',
           },
         ],
       },
@@ -99,6 +103,10 @@ for (const width of [1100, 390]) {
     await expect(card.getByRole('group', { name: 'Analytics chart' })).toBeVisible()
     await expect(card.getByText('Requests')).toBeVisible()
     await expect(card.locator('.recharts-area')).toBeVisible()
+    const codeBlock = card.getByRole('region', { name: 'Code block' })
+    await expect(codeBlock).toBeVisible()
+    await expect(codeBlock.getByText('const answer: number = 42')).toBeVisible()
+    await expect(codeBlock).toHaveAttribute('data-a2ui-code-language', 'typescript')
     await expect(card.getByText('**Plain text**, not a link: [details](https://example.com)')).toBeVisible()
     await expect(card.locator('a, strong')).toHaveCount(0)
 

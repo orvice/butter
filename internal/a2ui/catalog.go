@@ -30,6 +30,7 @@ const (
 	propChild
 	propChildren
 	propAnalyticsPoints
+	propCodeString
 )
 
 type propSpec struct {
@@ -45,8 +46,9 @@ type componentSpec struct {
 }
 
 var (
-	justifyValues = []string{"start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly", "stretch"}
-	alignValues   = []string{"start", "center", "end", "stretch"}
+	justifyValues      = []string{"start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly", "stretch"}
+	alignValues        = []string{"start", "center", "end", "stretch"}
+	codeLanguageValues = []string{"bash", "css", "go", "html", "javascript", "json", "markdown", "python", "sql", "typescript", "yaml"}
 )
 
 var catalog = map[string]componentSpec{
@@ -85,6 +87,11 @@ var catalog = map[string]componentSpec{
 	"AnalyticsChart": {modelAllowed: true, props: map[string]propSpec{
 		"data":  {kind: propAnalyticsPoints, required: true},
 		"title": {kind: propDynString},
+	}},
+	"CodeBlock": {modelAllowed: true, props: map[string]propSpec{
+		"code":     {kind: propCodeString, required: true},
+		"language": {kind: propEnum, enum: codeLanguageValues},
+		"title":    {kind: propDynString},
 	}},
 	// Form components: built by the server only (Form.Envelopes), so they
 	// carry no property rules here — a model is refused them by name.
@@ -191,6 +198,8 @@ func validateProp(prop propSpec, v any) error {
 		}
 	case propAnalyticsPoints:
 		return validateAnalyticsPoints(v)
+	case propCodeString:
+		return validateCodeString(v)
 	default:
 		return fmt.Errorf("is not supported")
 	}
@@ -200,7 +209,29 @@ func validateProp(prop propSpec, v any) error {
 const (
 	maxAnalyticsPoints = 24
 	maxAnalyticsLabel  = 80
+	maxCodeRunes       = 12000
 )
+
+func validateCodeString(v any) error {
+	switch value := v.(type) {
+	case string:
+		if utf8.RuneCountInString(value) > maxCodeRunes {
+			return fmt.Errorf("is longer than %d characters", maxCodeRunes)
+		}
+		return nil
+	case map[string]any:
+		path, ok := value["path"].(string)
+		if !ok || len(value) != 1 {
+			return fmt.Errorf("must be a string or {\"path\": \"/…\"}")
+		}
+		if _, err := parsePointer(path); err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("must be a string or {\"path\": \"/…\"}")
+	}
+}
 
 // validateAnalyticsPoints keeps the chart a bounded, read-only data view. A
 // path is resolved from the surface data model by the client; literal points
