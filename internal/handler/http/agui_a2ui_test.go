@@ -1701,7 +1701,7 @@ func cardsOff() *agentsv1.ResultCardConfig {
 
 // An LLM agent whose policy turns cards off is not offered render_ui. A
 // model that calls it anyway, as one copying an earlier call from the
-// thread's history would, gets ADK's "not found" error back, and the run
+// thread's history would, gets ADK's unavailable-tool error back, and the run
 // goes on to a text reply with no card.
 func TestAGUIA2UI_CardPolicyDisabledRootOffersNoRenderUI(t *testing.T) {
 	agents := []agentsv1.Agent{cardAgent()}
@@ -1719,8 +1719,8 @@ func TestAGUIA2UI_CardPolicyDisabledRootOffersNoRenderUI(t *testing.T) {
 	if got := a2uiValues(sseEvents(t, w.Body.String())); len(got) != 0 {
 		t.Errorf("a card was streamed under a disabled policy: %+v", got)
 	}
-	if msg, _ := h.lastToolResult("card-model")["error"].(string); !strings.Contains(msg, "not found") {
-		t.Errorf("tool result = %q, want ADK's not-found error", msg)
+	if msg, _ := h.lastToolResult("card-model")["error"].(string); !strings.Contains(msg, "no tool with that name is available") {
+		t.Errorf("tool result = %q, want ADK's unavailable-tool error", msg)
 	}
 	if !strings.Contains(w.Body.String(), `"delta":"Here it is in text."`) {
 		t.Errorf("the run did not go on to its text reply:\n%s", w.Body.String())

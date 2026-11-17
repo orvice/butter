@@ -30,7 +30,7 @@ require (
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sync v0.24.0
-	google.golang.org/adk/v2 v2.7.1
+	google.golang.org/adk/v2 v2.8.0
 	google.golang.org/genai v1.77.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20261104224025-d1e00e9f33ab
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261104224025-d1e00e9f33ab
@@ -45,7 +45,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.3.1 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	github.com/a2aproject/a2a-go v0.3.15 // indirect
-	github.com/a2aproject/a2a-go/v2 v2.6.0 // indirect
+	github.com/a2aproject/a2a-go/v2 v2.7.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.10 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.33.10 // indirect
@@ -143,6 +143,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.60.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.23.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.47.0 // indirect
