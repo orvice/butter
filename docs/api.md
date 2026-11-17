@@ -1244,6 +1244,7 @@ or `fallback` — links belong in the model's text answer.
 | `Status` | `text`, `tone?` (`neutral`, `info`, `success`, `warning`, `error`) | model |
 | `Divider` | `axis?` | model |
 | `FluidAIWorkloads` | no model properties; fixed read-only illustration | model |
+| `AnalyticsChart` | `data` (up to 24 `{label, value}` points or a data-model path), `title?` | model |
 | `TextField` | `name`, `label`, `value`, `variant?`, `hint?`, `required?`, `maxLength?` | server-built forms only |
 | `ChoicePicker` | `name`, `label`, `value`, `options`, `variant: "mutuallyExclusive"`, `hint?`, `required?` | server-built forms only |
 | `Button` | `child`, `variant?`, `action` | server-built forms only |

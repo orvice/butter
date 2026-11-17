@@ -2,6 +2,7 @@ package a2ui
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"sort"
@@ -28,6 +29,7 @@ const (
 	propEnum
 	propChild
 	propChildren
+	propAnalyticsPoints
 )
 
 type propSpec struct {
@@ -80,6 +82,10 @@ var catalog = map[string]componentSpec{
 	// Its presentation props stay client-owned; the model can only request the
 	// bounded component by name.
 	"FluidAIWorkloads": {modelAllowed: true, props: map[string]propSpec{}},
+	"AnalyticsChart": {modelAllowed: true, props: map[string]propSpec{
+		"data":  {kind: propAnalyticsPoints, required: true},
+		"title": {kind: propDynString},
+	}},
 	// Form components: built by the server only (Form.Envelopes), so they
 	// carry no property rules here — a model is refused them by name.
 	"TextField":    {},
@@ -183,8 +189,60 @@ func validateProp(prop propSpec, v any) error {
 				return fmt.Errorf("must be an array of component ids (templates are not supported)")
 			}
 		}
+	case propAnalyticsPoints:
+		return validateAnalyticsPoints(v)
 	default:
 		return fmt.Errorf("is not supported")
+	}
+	return nil
+}
+
+const (
+	maxAnalyticsPoints = 24
+	maxAnalyticsLabel  = 80
+)
+
+// validateAnalyticsPoints keeps the chart a bounded, read-only data view. A
+// path is resolved from the surface data model by the client; literal points
+// are checked here so the model cannot smuggle markup, URLs, or unbounded
+// payloads into the renderer.
+func validateAnalyticsPoints(v any) error {
+	if binding, ok := v.(map[string]any); ok {
+		path, pathOK := binding["path"].(string)
+		if !pathOK || len(binding) != 1 {
+			return fmt.Errorf("must be an array of {label, value} points or {\"path\": \"/…\"}")
+		}
+		if _, err := parsePointer(path); err != nil {
+			return err
+		}
+		return nil
+	}
+	points, ok := v.([]any)
+	if !ok {
+		return fmt.Errorf("must be an array of {label, value} points or {\"path\": \"/…\"}")
+	}
+	if len(points) > maxAnalyticsPoints {
+		return fmt.Errorf("must contain at most %d points", maxAnalyticsPoints)
+	}
+	for i, raw := range points {
+		point, ok := raw.(map[string]any)
+		if !ok || len(point) != 2 {
+			return fmt.Errorf("point %d must contain only label and value", i)
+		}
+		label, labelOK := point["label"].(string)
+		if !labelOK || label == "" {
+			return fmt.Errorf("point %d label must be a non-empty string", i)
+		}
+		if utf8.RuneCountInString(label) > maxAnalyticsLabel {
+			return fmt.Errorf("point %d label is longer than %d characters", i, maxAnalyticsLabel)
+		}
+		if err := validateLiteral(label); err != nil {
+			return fmt.Errorf("point %d label %w", i, err)
+		}
+		value, valueOK := point["value"].(float64)
+		if !valueOK || math.IsNaN(value) || math.IsInf(value, 0) {
+			return fmt.Errorf("point %d value must be a finite number", i)
+		}
 	}
 	return nil
 }

@@ -46,9 +46,15 @@ describe('butter-basic-v1 catalog', () => {
   it('registers Cult UI as a bounded presentation-only component', () => {
     const implementation = butterCatalog.components.get('FluidAIWorkloads')
     expect(implementation?.schema.safeParse({}).success).toBe(true)
+    expect(implementation?.schema.safeParse({ width: 448 }).success).toBe(false)
+
+    const chart = butterCatalog.components.get('AnalyticsChart')
     expect(
-      implementation?.schema.safeParse({ width: 448 }).success
-    ).toBe(false)
+      chart?.schema.safeParse({ data: [{ label: 'Mon', value: 12 }] }).success
+    ).toBe(true)
+    expect(
+      chart?.schema.safeParse({ data: { path: '/metrics' } }).success
+    ).toBe(true)
   })
 
   it('does not import extra components or executable catalog functions', () => {
@@ -60,6 +66,7 @@ describe('butter-basic-v1 catalog', () => {
         'Column',
         'Divider',
         'FluidAIWorkloads',
+        'AnalyticsChart',
         'KeyValue',
         'Row',
         'Status',

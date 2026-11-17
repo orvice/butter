@@ -17,14 +17,23 @@ import {
   TextFieldApi,
 } from '@a2ui/web_core/v0_9'
 import { Loader2 } from 'lucide-react'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { FluidAIWorkloads as FluidAIWorkloadsIllustration } from '@/components/ui/fluid-ai-workloads'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
-import { FluidAIWorkloads as FluidAIWorkloadsIllustration } from '@/components/ui/fluid-ai-workloads'
 import { CATALOG_ID } from './protocol'
 import styles from './surface.module.css'
 
@@ -171,6 +180,89 @@ const FluidAIWorkloads = createComponentImplementation(
       role='img'
     />
   )
+)
+
+type AnalyticsPoint = { label: string; value: number }
+
+function chartPoints(value: unknown): AnalyticsPoint[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(
+      (point): point is AnalyticsPoint =>
+        !!point &&
+        typeof point === 'object' &&
+        typeof (point as { label?: unknown }).label === 'string' &&
+        (point as { label: string }).label.length > 0 &&
+        (point as { label: string }).label.length <= 80 &&
+        typeof (point as { value?: unknown }).value === 'number' &&
+        Number.isFinite((point as { value: number }).value)
+    )
+    .slice(0, 24)
+}
+
+// AnalyticsChart is a read-only, bounded chart wrapper. The server validates
+// the point shape and cap; hover state and tooltip rendering remain local to
+// Recharts and never become A2UI actions or session data.
+const AnalyticsChartApi = {
+  name: 'AnalyticsChart',
+  schema: TextApi.schema.pick({ weight: true }).extend({
+    data: CommonSchemas.DynamicValue,
+    title: CommonSchemas.DynamicString.optional(),
+  }),
+}
+
+const AnalyticsChart = createComponentImplementation(
+  AnalyticsChartApi,
+  ({ props }) => {
+    const data = chartPoints(props.data)
+    return (
+      <div
+        className={styles.analyticsChart}
+        role='group'
+        aria-label='Analytics chart'
+      >
+        {props.title && (
+          <p className='text-xs font-medium text-muted-foreground'>
+            {text(props.title)}
+          </p>
+        )}
+        {data.length > 0 ? (
+          <ResponsiveContainer width='100%' height={180}>
+            <AreaChart
+              data={data}
+              margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+            >
+              <CartesianGrid stroke='var(--border)' strokeDasharray='3 3' />
+              <XAxis
+                dataKey='label'
+                tick={{ fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                width={32}
+                tick={{ fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <Tooltip />
+              <Area
+                type='monotone'
+                dataKey='value'
+                stroke='var(--primary)'
+                fill='var(--primary)'
+                fillOpacity={0.12}
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className='text-xs text-muted-foreground'>No data</p>
+        )}
+      </div>
+    )
+  }
 )
 
 // Form inputs. Their value is the renderer's local draft only: nothing is
@@ -377,6 +469,7 @@ const components: ReactComponentImplementation[] = [
   KeyValue,
   Status,
   FluidAIWorkloads,
+  AnalyticsChart,
   TextField,
   ChoicePicker,
   SubmitButton,
