@@ -257,6 +257,7 @@ export interface AgentConfig {
   memory?: MemoryConfig;
   result_cards?: ResultCardConfig;
   mcp_server_ids?: string[];
+  mcp_code_mode?: boolean;
   remote_agent_ids?: string[];
   file_mounts?: AgentFileMount[];
   model?: string;

@@ -67,6 +67,7 @@ func rejectBoxOwnedFields(cfg *agentsv1.AgentConfig, kind, hint string) error {
 		{cfg.GetGlobalInstruction() != "", "global_instruction"},
 		{len(cfg.GetMcpServers()) > 0, "mcp_servers"},
 		{len(cfg.GetMcpServerIds()) > 0, "mcp_server_ids"},
+		{cfg.GetMcpCodeMode(), "mcp_code_mode"},
 		{len(cfg.GetSkills()) > 0, "skills"},
 		{len(cfg.GetFileMounts()) > 0, "file_mounts"},
 		{cfg.GetContextGuard() != nil, "context_guard"},

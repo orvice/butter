@@ -151,6 +151,15 @@ message AgentConfig {
   // @gotags: json:"result_cards,omitempty" yaml:"result_cards,omitempty"
   ResultCardConfig result_cards = 9;
 
+  // MCP Code Mode. When true, the agent's MCP tools are not offered to the
+  // model one by one; the model gets a single `codemode` tool instead, which
+  // runs a JavaScript snippet in a sandbox that discovers and calls the MCP
+  // tools and returns only the script's result. Only the LLM agent's own MCP
+  // servers (mcp_servers / mcp_server_ids) are affected. PI and CURSOR agents
+  // reject it on write: their MCP surface lives on the box.
+  // @gotags: json:"mcp_code_mode,omitempty" yaml:"mcp_code_mode,omitempty"
+  bool mcp_code_mode = 10;
+
   // --- LLM agent fields (used when type is LLM or UNSPECIFIED) ---
 
   // Model identifier (for example: "gemini-2.5-pro").
