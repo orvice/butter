@@ -69,6 +69,27 @@ describe('butter-basic-v1 catalog', () => {
     ).toBe(false)
   })
 
+  it('registers HaloProgress as a bounded read-only progress ring', () => {
+    const progress = butterCatalog.components.get('HaloProgress')
+    expect(
+      progress?.schema.safeParse({
+        value: 42,
+        max: 100,
+        label: 'Deploy',
+        tone: 'success',
+      }).success
+    ).toBe(true)
+    expect(
+      progress?.schema.safeParse({ value: { path: '/done' } }).success
+    ).toBe(true)
+    expect(
+      progress?.schema.safeParse({ value: 1, tone: 'rainbow' }).success
+    ).toBe(false)
+    expect(progress?.schema.safeParse({ value: 1, color: 'red' }).success).toBe(
+      false
+    )
+  })
+
   it('does not import extra components or executable catalog functions', () => {
     expect([...butterCatalog.components.keys()].sort()).toEqual(
       [
@@ -80,6 +101,7 @@ describe('butter-basic-v1 catalog', () => {
         'FluidAIWorkloads',
         'AnalyticsChart',
         'CodeBlock',
+        'HaloProgress',
         'KeyValue',
         'Row',
         'Status',

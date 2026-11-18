@@ -43,7 +43,7 @@ ADR-0014 定义的 Result Card 是只读的：模型不能收集输入、定义 
 | `fluid-ai-workloads` | 高 | 主要是 SVG 展示；只暴露有限的 `width`/`height` 和固定文案，避免把 SVG 属性任意透传 |
 | `analytics-chart` | 中高 | 适合只读数据图；需要限制点数、数值范围和 label 长度，并把 hover tooltip 当客户端展示状态 |
 | `code-block` | 中 | 已接入只读变体；去掉 copy、tab 切换等 action，代码长度和语言由 Butter 限制 |
-| `halo-progress` | 中 | 适合状态展示，但 registry 条目依赖 Base UI/Motion；先核对动画、无障碍和 bundle 成本 |
+| `halo-progress` | 已落地（只读变体） | 以本地 `HaloProgress` wrapper 实现：不引入 Base UI/Motion，仅用 SVG 环形进度 + CSS 过渡；模型只能提供 `value`/`max`/`label`/`tone`，并遵守 `prefers-reduced-motion` |
 | `agent-suggest-card-stack` | 低 | 有进度/错误状态和 commit button；需要拆出无 action 的只读变体才能进入 Result Card |
 | `choice-poll` | 低（Result Card） | `onValueChange` 和键盘选择是输入语义，应复用 Butter server-built Form，而不是让模型生成 |
 | `prompt-composer` | 不属于 A2UI | 它是带 attach/send/loading 回调的聊天输入；可作为 dashboard composer 的视觉候选 |

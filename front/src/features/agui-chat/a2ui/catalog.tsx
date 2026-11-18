@@ -265,6 +265,105 @@ const AnalyticsChart = createComponentImplementation(
   }
 )
 
+const HaloProgressApi = {
+  name: 'HaloProgress',
+  schema: TextApi.schema.pick({ weight: true }).extend({
+    value: CommonSchemas.DynamicNumber,
+    max: CommonSchemas.DynamicNumber.optional(),
+    label: CommonSchemas.DynamicString.optional(),
+    tone: CommonSchemas.ComponentId.refine((value) =>
+      ['neutral', 'info', 'success', 'warning', 'error'].includes(value)
+    ).optional(),
+  }),
+}
+
+const haloToneClass: Record<string, string> = {
+  neutral: 'text-foreground',
+  info: 'text-sky-600 dark:text-sky-400',
+  success: 'text-emerald-600 dark:text-emerald-400',
+  warning: 'text-amber-600 dark:text-amber-400',
+  error: 'text-destructive',
+}
+
+const finite = (v: unknown, fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback
+
+// HaloProgress is the read-only part of Cult UI's halo-progress: a ring with a
+// soft halo. Geometry, colours and a11y attributes are client-owned; the
+// server only admits bounded numbers, a label and a tone. Bound or malformed
+// values are clamped here so a data-model update can never break the card.
+const HaloProgress = createComponentImplementation(
+  HaloProgressApi,
+  ({ props }) => {
+    const rawMax = finite(props.max, 100)
+    const max = rawMax > 0 ? rawMax : 100
+    const value = Math.min(Math.max(finite(props.value, 0), 0), max)
+    const percent = Math.round((value / max) * 100)
+    const radius = 42
+    const circumference = 2 * Math.PI * radius
+    const label = text(props.label)
+    return (
+      <div
+        className={cn(
+          styles.haloProgress,
+          haloToneClass[props.tone ?? 'neutral'] ?? haloToneClass.neutral
+        )}
+        role='progressbar'
+        aria-label={label || 'Progress'}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        data-a2ui-progress-percent={percent}
+      >
+        <svg
+          viewBox='0 0 100 100'
+          className={styles.haloProgressRing}
+          aria-hidden
+        >
+          <circle
+            cx='50'
+            cy='50'
+            r={radius}
+            fill='none'
+            stroke='currentColor'
+            strokeOpacity={0.15}
+            strokeWidth={8}
+          />
+          <circle
+            cx='50'
+            cy='50'
+            r={radius}
+            fill='none'
+            stroke='currentColor'
+            strokeWidth={8}
+            strokeLinecap='round'
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * (1 - value / max)}
+            transform='rotate(-90 50 50)'
+            className={styles.haloProgressArc}
+          />
+          <text
+            x='50'
+            y='50'
+            textAnchor='middle'
+            dominantBaseline='central'
+            fill='var(--foreground)'
+            fontSize='20'
+            fontWeight='600'
+          >
+            {percent}%
+          </text>
+        </svg>
+        {label && (
+          <span className='min-w-0 text-sm break-words text-foreground'>
+            {label}
+          </span>
+        )}
+      </div>
+    )
+  }
+)
+
 const CodeBlockApi = {
   name: 'CodeBlock',
   schema: TextApi.schema.pick({ weight: true }).extend({
@@ -519,6 +618,7 @@ const components: ReactComponentImplementation[] = [
   FluidAIWorkloads,
   AnalyticsChart,
   CodeBlock,
+  HaloProgress,
   TextField,
   ChoicePicker,
   SubmitButton,

@@ -72,3 +72,29 @@
   line-height: 1.5;
   white-space: pre;
 }
+
+.haloProgress {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.haloProgressRing {
+  width: 4.5rem;
+  height: 4.5rem;
+  flex: none;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, currentColor 40%, transparent));
+}
+
+.haloProgressArc {
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .haloProgressArc {
+    transition: none;
+  }
+}

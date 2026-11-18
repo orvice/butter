@@ -31,6 +31,8 @@ const (
 	propChildren
 	propAnalyticsPoints
 	propCodeString
+	// propNumber is a finite literal number or a {"path": "/…"} data binding.
+	propNumber
 )
 
 type propSpec struct {
@@ -92,6 +94,15 @@ var catalog = map[string]componentSpec{
 		"code":     {kind: propCodeString, required: true},
 		"language": {kind: propEnum, enum: codeLanguageValues},
 		"title":    {kind: propDynString},
+	}},
+	// HaloProgress is a read-only progress ring adapted from Cult UI's
+	// halo-progress. Animation, colours and accessibility attributes are
+	// client-owned; the model supplies only bounded numbers, a label and a tone.
+	"HaloProgress": {modelAllowed: true, props: map[string]propSpec{
+		"value": {kind: propNumber, required: true},
+		"max":   {kind: propNumber},
+		"label": {kind: propDynString},
+		"tone":  {kind: propEnum, enum: []string{"neutral", "info", "success", "warning", "error"}},
 	}},
 	// Form components: built by the server only (Form.Envelopes), so they
 	// carry no property rules here — a model is refused them by name.
@@ -200,6 +211,8 @@ func validateProp(prop propSpec, v any) error {
 		return validateAnalyticsPoints(v)
 	case propCodeString:
 		return validateCodeString(v)
+	case propNumber:
+		return validateNumber(v)
 	default:
 		return fmt.Errorf("is not supported")
 	}
@@ -210,7 +223,34 @@ const (
 	maxAnalyticsPoints = 24
 	maxAnalyticsLabel  = 80
 	maxCodeRunes       = 12000
+
+	// maxProgressMagnitude bounds HaloProgress literals.
+	maxProgressMagnitude = 1e12
 )
+
+// validateNumber accepts a finite literal within a sane magnitude, or a data
+// path. Range relationships (value vs max) are clamped by the client so a
+// data-bound value can never break rendering.
+func validateNumber(v any) error {
+	switch value := v.(type) {
+	case float64:
+		if math.IsNaN(value) || math.IsInf(value, 0) || math.Abs(value) > maxProgressMagnitude {
+			return fmt.Errorf("must be a finite number no larger than %g", maxProgressMagnitude)
+		}
+		return nil
+	case map[string]any:
+		path, ok := value["path"].(string)
+		if !ok || len(value) != 1 {
+			return fmt.Errorf("must be a number or {\"path\": \"/…\"}")
+		}
+		if _, err := parsePointer(path); err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("must be a number or {\"path\": \"/…\"}")
+	}
+}
 
 func validateCodeString(v any) error {
 	switch value := v.(type) {

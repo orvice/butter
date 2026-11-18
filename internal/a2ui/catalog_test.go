@@ -140,3 +140,39 @@ func TestCodeBlockValidatesLanguageAndPlainText(t *testing.T) {
 		t.Fatalf("Apply() rejected escaped HTML code text: %v", err)
 	}
 }
+
+func TestHaloProgressValidatesBoundedNumbers(t *testing.T) {
+	apply := func(component map[string]any) error {
+		_, err := Apply(nil, Batch{Fallback: "Progress", Messages: []map[string]any{{
+			"updateComponents": map[string]any{"components": []any{component}},
+		}}}, Anchor{}, DefaultLimits)
+		return err
+	}
+	for name, component := range map[string]map[string]any{
+		"literal":      {"id": "root", "component": "HaloProgress", "value": 42.0, "max": 100.0, "label": "Deploy", "tone": "success"},
+		"value only":   {"id": "root", "component": "HaloProgress", "value": 3.0},
+		"data binding": {"id": "root", "component": "HaloProgress", "value": map[string]any{"path": "/done"}, "max": map[string]any{"path": "/total"}},
+	} {
+		t.Run("accepts "+name, func(t *testing.T) {
+			if err := apply(component); err != nil {
+				t.Fatalf("Apply() error = %v", err)
+			}
+		})
+	}
+	for name, component := range map[string]map[string]any{
+		"missing value":    {"id": "root", "component": "HaloProgress", "max": 100.0},
+		"string value":     {"id": "root", "component": "HaloProgress", "value": "50"},
+		"huge value":       {"id": "root", "component": "HaloProgress", "value": 1e30},
+		"bad tone":         {"id": "root", "component": "HaloProgress", "value": 1.0, "tone": "rainbow"},
+		"extra property":   {"id": "root", "component": "HaloProgress", "value": 1.0, "color": "red"},
+		"url label":        {"id": "root", "component": "HaloProgress", "value": 1.0, "label": "see https://example.com"},
+		"bad binding":      {"id": "root", "component": "HaloProgress", "value": map[string]any{"path": "/a", "x": 1}},
+		"function binding": {"id": "root", "component": "HaloProgress", "value": map[string]any{"call": "now"}},
+	} {
+		t.Run("rejects "+name, func(t *testing.T) {
+			if err := apply(component); err == nil {
+				t.Fatal("Apply() succeeded for invalid progress")
+			}
+		})
+	}
+}
