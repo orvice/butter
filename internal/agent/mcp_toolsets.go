@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"butterfly.orx.me/core/log"
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/tool"
@@ -47,6 +48,12 @@ type mcpToolsetEntry struct {
 //
 // The set closes its servers' toolsets, since it replaces them in the agent
 // config; ADK's mcptoolset requires its owner to close it.
+//
+// A server that cannot be listed — it is unreachable, its OAuth token needs
+// reauthorization, its handshake fails — does not fail the agent. Its tools are
+// left out and a warning names it, so the remaining servers still work: ADK
+// calls Tools before every model step, and an error there aborts the whole run.
+// A server that comes back contributes its tools again on the next listing.
 type mcpToolsets struct {
 	entries []mcpToolsetEntry
 
@@ -94,7 +101,9 @@ func (m *mcpToolsets) Tools(ctx agent.ReadonlyContext) ([]tool.Tool, error) {
 	for i, e := range m.entries {
 		tools, err := e.toolset.Tools(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("mcp server %q: %w", e.server, err)
+			log.FromContext(ctx).Warn("skipping mcp server: its tools could not be listed",
+				"server", e.server, "err", err)
+			continue
 		}
 		listed[i] = tools
 		total += len(tools)

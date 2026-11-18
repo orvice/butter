@@ -291,12 +291,34 @@ func TestMCPToolsetsNeverTakesAKetName(t *testing.T) {
 	packAll(t, tools)
 }
 
-func TestMCPToolsetsReportsServerErrors(t *testing.T) {
+func TestMCPToolsetsSkipsUnavailableServers(t *testing.T) {
 	failing := &failingMCPServer{name: "broken"}
-	group := newMCPToolsets([]mcpToolsetEntry{entry(fakeServer("alpha", "search")), {server: "broken", toolset: failing}})
+	alpha := fakeServer("alpha", "search")
+	group := newMCPToolsets([]mcpToolsetEntry{{server: "broken", toolset: failing}, entry(alpha)})
 
-	if _, err := group.Tools(nil); err == nil || !strings.Contains(err.Error(), `mcp server "broken"`) {
-		t.Fatalf("Tools error = %v, want it to name the server", err)
+	tools, err := group.Tools(nil)
+	if err != nil {
+		t.Fatalf("Tools: %v", err)
+	}
+	if got, want := toolNames(tools), []string{"search"}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("names = %v, want %v", got, want)
+	}
+	// A server that failed does not stop the surviving tools from packing.
+	packAll(t, tools)
+}
+
+func TestMCPToolsetsReturnsNoToolsWhenEveryServerFails(t *testing.T) {
+	group := newMCPToolsets([]mcpToolsetEntry{
+		{server: "alpha", toolset: &failingMCPServer{name: "alpha"}},
+		{server: "beta", toolset: &failingMCPServer{name: "beta"}},
+	})
+
+	tools, err := group.Tools(nil)
+	if err != nil {
+		t.Fatalf("Tools: %v", err)
+	}
+	if len(tools) != 0 {
+		t.Fatalf("Tools = %v, want none", toolNames(tools))
 	}
 }
 
@@ -363,6 +385,41 @@ func TestBuildMCPToolsetsWithRealMCPToolsets(t *testing.T) {
 	want := []string{"alpha__search", "alpha_only", "beta__search"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("names = %v, want %v", got, want)
+	}
+	packAll(t, tools)
+}
+
+// TestBuildMCPToolsetsToleratesUnreachableServer: one MCP server that cannot
+// be reached must not fail the agent; the reachable server's tools still list.
+func TestBuildMCPToolsetsToleratesUnreachableServer(t *testing.T) {
+	servers := []*agentsv1.MCPServer{
+		{
+			Name:      "alpha",
+			Url:       newTestMCPServer(t, "search"),
+			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
+		},
+		{
+			Name:      "down",
+			Url:       "http://127.0.0.1:1/mcp",
+			Transport: agentsv1.MCPServerTransport_MCP_SERVER_TRANSPORT_STREAMABLE_HTTP,
+		},
+	}
+
+	set, err := buildMCPToolsets(context.Background(), servers, nil)
+	if err != nil {
+		t.Fatalf("buildMCPToolsets: %v", err)
+	}
+	if set == nil {
+		t.Fatal("buildMCPToolsets returned no toolset")
+	}
+	t.Cleanup(func() { _ = set.Close() })
+
+	tools, err := set.Tools(testReadonlyContext{context.Background()})
+	if err != nil {
+		t.Fatalf("Tools: %v", err)
+	}
+	if got, want := toolNames(tools), []string{"search"}; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("names = %v, want the reachable server's tools %v", got, want)
 	}
 	packAll(t, tools)
 }
