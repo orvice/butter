@@ -25,6 +25,7 @@ import (
 	"go.orx.me/apps/butter/internal/a2ui"
 	"go.orx.me/apps/butter/internal/a2uitool"
 	"go.orx.me/apps/butter/internal/aguitool"
+	"go.orx.me/apps/butter/internal/mcpcodemode"
 	"go.orx.me/apps/butter/internal/runtime/daemon"
 	"go.orx.me/apps/butter/internal/runtime/opencode"
 	agentsv1 "go.orx.me/apps/butter/pkg/proto/agents/v1"
@@ -182,6 +183,7 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1
 		"agent", pb.GetName(),
 		"model", acfg.GetModel(),
 		"mcp_servers", mcpNames,
+		"mcp_code_mode", acfg.GetMcpCodeMode(),
 		"sub_agents", subAgentNames,
 		"output_key", acfg.GetOutputKey(),
 		"disallow_transfer_to_parent", acfg.GetDisallowTransferToParent(),
@@ -202,7 +204,13 @@ func newLLMAgent(ctx context.Context, pb *agentsv1.Agent, mcpServers []*agentsv1
 		// Registered before anything else can fail: the tree's resources close
 		// this toolset whenever the build or the agent later goes away.
 		resources.Add(mcpSet)
-		toolsets = append(toolsets, mcpSet)
+		if acfg.GetMcpCodeMode() {
+			// One `codemode` tool in place of every MCP tool. The tree's
+			// resources still close mcpSet itself, once.
+			toolsets = append(toolsets, mcpcodemode.New(mcpSet, mcpcodemode.Limits{}))
+		} else {
+			toolsets = append(toolsets, mcpSet)
+		}
 	}
 	if toolsetFactory != nil {
 		extraToolsets, err := toolsetFactory(ctx, pb)

@@ -2389,6 +2389,7 @@ replayed; clients must call `RetryAgentOperation` explicitly.
 | `global_instruction` | string | Root-level instruction for entire agent tree |
 | `mcp_servers` | MCPServer[] | Inline MCP server configs |
 | `mcp_server_ids` | string[] | References to shared MCP servers |
+| `mcp_code_mode` | bool | MCP Code Mode: offer the agent's MCP tools through one `codemode` tool (a sandboxed JavaScript snippet that discovers and calls them) instead of one tool each. LLM agents only; rejected on PI and CURSOR agents. See `docs/app.md` §3 |
 | `remote_agent_ids` | string[] | References to shared remote agents |
 | `context_guard` | ContextGuardConfig | Context window management |
 | `memory` | MemoryConfig | mem0-backed Workspace/Agent Memory; see [Agent memory configuration](#agent-memory-configuration) |

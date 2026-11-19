@@ -123,6 +123,11 @@ Butter 侧 instruction、MCP、Skill、文件挂载、context guard 与 remote-a
 - **单点故障降级**：某个 MCP Server 连不上（连接被拒、握手失败、OAuth 令牌需重新授权等）时不会让整轮 Agent 运行失败：该 Server 的工具被跳过并记一条 warning，其余 Server 的工具照常提供给模型；Server 恢复后其工具在下次列取时重新出现。ADK 在每次模型调用前都会重新列取工具集，列取报错会导致整轮失败，因此降级发生在列取阶段。
 - **同名工具去重**：ADK 不允许两个工具同名，多个 MCP Server 暴露同名工具时运行时会确定性重命名冲突项：冲突的工具改为 `<server>__<tool>`（server 名按提供商要求清洗），仍重复时再追加 `__2`、`__3`…；未冲突的工具保持原名。命名只取决于 Agent 的 server 顺序与各 server 的工具列表，同一配置每次结果一致。
 - **Agent 关联方式**：Agent 可通过 `mcp_servers`（内联）或 `mcp_server_ids`（引用共享配置）挂载 MCP 工具集。
+- **Code Mode**：`config.mcp_code_mode = true` 时，Agent 不再把每个 MCP 工具逐个交给模型，而是只提供一个 `codemode` 工具（`internal/mcpcodemode`）。模型写一段 JavaScript 函数体，在沙箱里发现并调用 MCP 工具，只有脚本 `return` 的值回到对话，所以大结果可以在脚本里过滤、聚合后再返回，多个工具调用也不必逐轮往返。这与 Pi 内置的 Code Mode 思路一致，但作用于 Butter 自己管理的 MCP 工具；Pi Agent 的 MCP 仍在 ButterBox 一侧配置（ADR-0011），`mcp_code_mode` 在 PI / CURSOR Agent 上写入即被拒绝。
+  - **沙箱 API**（全部同步）：`tools.<name>(args)` 调用工具并返回其 output（失败时抛异常）；`callTool(name, args)`；`callTools([{name, args}])` 并发执行并返回 `[{ok, result|error}]`；`searchTools(query)`、`describeTool(name)`、`ALL_TOOLS` 用于发现；`console.log` 的输出随结果返回。名字沿用上面去重后的工具名。
+  - **工具描述**：`codemode` 的描述里按当前可用工具列出 `名称(参数): 首行说明`（最多 60 个，其余通过 `searchTools` 查找），所以某个 MCP Server 不可达时它的工具会自然从列表里消失。没有任何可用工具时不提供 `codemode`。
+  - **限制**：单次脚本 60 秒（含工具调用，随 turn 取消）、至多 100 次工具调用、脚本 32 KiB、返回 JSON 32 KiB（超出截断并标记 `truncated`）、日志 8 KiB、`callTools` 并发 8、调用栈 256。脚本失败（含空脚本、非字符串、超长）不是工具错误：结果里带 `error` 与已产生的 `logs`，模型可以据此修正。
+  - **安全边界**：沙箱是 goja（纯 Go ECMAScript），没有 `require`、`fetch`、`process`、文件或网络；脚本只能通过 `tools` 调用该 Agent 已挂载（并经 `tool_filter` 过滤）的 MCP 工具，凭证、OAuth 与超时仍由原来的 MCP 工具集处理。工具调用在独立 goroutine 里执行，脚本截止时间到了即返回，即使某个工具无视 context 也不会拖住 turn（它的迟到结果被丢弃）。goja 本身没有内存上限，所以另有一个堆增长看门狗（每 25ms 检查进程 live heap，自脚本开始增长超过 512 MiB 即中断脚本）：它能拦住循环里持续堆数据的脚本，但不能拦住单次就超过上限的分配（例如超大字符串），且按进程统计、不区分脚本。这弱于 Pi 的 QuickJS 沙箱（有硬内存上限）；要在不可信共享 workspace 上开启，需要换成带内存限制的引擎或把执行放进子进程。`mcp_code_mode` 只能用于 LLM Agent，Loop / Sequential / Parallel / Workflow 在创建与更新时会被拒绝。
 - **连接生命周期**：MCP 工具的 streamable HTTP / SSE 会话由构建该 Agent 树时返回的 `agent.Resources` 持有，一棵树的 resources 只有一个 owner。registry reload、`RegisterAgent` / `RegisterAgentWithBuilder` 覆盖同名 Agent、model override 缓存被替换、以及服务关闭都会关闭旧连接；正在运行的一轮持有引用，连接等该轮结束后才真正关闭，因此 reload 不会掐断进行中的 turn。构建中途失败时，已建立的 MCP toolset 也会回滚关闭。
 
 ## 4. Skills（技能）

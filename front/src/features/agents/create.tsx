@@ -89,6 +89,7 @@ const agentSchema = z.object({
   model: z.string().optional(),
   instruction: z.string().optional(),
   mcp_server_ids: z.array(z.string()).optional(),
+  mcp_code_mode: z.boolean().optional(),
   remote_agent_ids: z.array(z.string()).optional(),
   file_mounts: z.array(z.object({
     space_id: z.string().min(1),
@@ -130,6 +131,7 @@ export function AgentCreate() {
       model: '',
       instruction: '',
       mcp_server_ids: [],
+      mcp_code_mode: false,
       remote_agent_ids: initialRemoteAgentId ? [initialRemoteAgentId] : [],
       file_mounts: [],
       icon_url: '',
@@ -182,6 +184,7 @@ export function AgentCreate() {
         model: values.model,
         instruction: values.instruction,
         mcp_server_ids: values.mcp_server_ids ?? [],
+        mcp_code_mode: values.type === 'AGENT_TYPE_LLM' && values.mcp_code_mode ? true : undefined,
         remote_agent_ids: values.remote_agent_ids ?? [],
         file_mounts: values.file_mounts ?? [],
         context_guard: supportsContextGuard(values.type)
@@ -456,6 +459,17 @@ export function AgentCreate() {
               <p className='text-sm text-muted-foreground'>
                 Select shared MCP servers this agent can use. Leave empty to disable shared MCP tools.
               </p>
+              <FormField control={form.control} name='mcp_code_mode' render={({ field }) => (
+                <FormItem className='flex items-center justify-between gap-4 rounded-md border px-3 py-3'>
+                  <div className='space-y-0.5'>
+                    <FormLabel>Code Mode</FormLabel>
+                    <p className='text-xs text-muted-foreground'>
+                      Offer the MCP tools through one codemode tool: the model writes a short JavaScript snippet that discovers and calls the tools in a sandbox, and only the snippet&apos;s result enters the conversation. LLM agents only.
+                    </p>
+                  </div>
+                  <FormControl><Switch checked={field.value ?? false} onCheckedChange={field.onChange} disabled={agentType !== 'AGENT_TYPE_LLM'} /></FormControl>
+                </FormItem>
+              )} />
               <FormField control={form.control} name='mcp_server_ids' render={({ field }) => {
                 const selected = field.value ?? []
                 const servers = mcpData?.mcp_servers ?? []

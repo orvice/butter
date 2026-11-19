@@ -439,6 +439,7 @@ const AgentConfig$json = {
       '6': '.agents.v1.ResultCardConfig',
       '10': 'resultCards'
     },
+    {'1': 'mcp_code_mode', '3': 10, '4': 1, '5': 8, '10': 'mcpCodeMode'},
     {'1': 'model', '3': 20, '4': 1, '5': 9, '10': 'model'},
     {'1': 'instruction', '3': 21, '4': 1, '5': 9, '10': 'instruction'},
     {
@@ -523,18 +524,19 @@ final $typed_data.Uint8List agentConfigDescriptor = $convert.base64Decode(
     '91bnRzGAYgAygLMhkuYWdlbnRzLnYxLkFnZW50RmlsZU1vdW50UgpmaWxlTW91bnRzEhYKBnNr'
     'aWxscxgHIAMoCVIGc2tpbGxzEi8KBm1lbW9yeRgIIAEoCzIXLmFnZW50cy52MS5NZW1vcnlDb2'
     '5maWdSBm1lbW9yeRI+CgxyZXN1bHRfY2FyZHMYCSABKAsyGy5hZ2VudHMudjEuUmVzdWx0Q2Fy'
-    'ZENvbmZpZ1ILcmVzdWx0Q2FyZHMSFAoFbW9kZWwYFCABKAlSBW1vZGVsEiAKC2luc3RydWN0aW'
-    '9uGBUgASgJUgtpbnN0cnVjdGlvbhItChJnbG9iYWxfaW5zdHJ1Y3Rpb24YFiABKAlSEWdsb2Jh'
-    'bEluc3RydWN0aW9uEj0KG2Rpc2FsbG93X3RyYW5zZmVyX3RvX3BhcmVudBgXIAEoCFIYZGlzYW'
-    'xsb3dUcmFuc2ZlclRvUGFyZW50EjsKGmRpc2FsbG93X3RyYW5zZmVyX3RvX3BlZXJzGBggASgI'
-    'UhdkaXNhbGxvd1RyYW5zZmVyVG9QZWVycxJIChBpbmNsdWRlX2NvbnRlbnRzGBkgASgOMh0uYW'
-    'dlbnRzLnYxLkxMTUluY2x1ZGVDb250ZW50c1IPaW5jbHVkZUNvbnRlbnRzEh0KCm91dHB1dF9r'
-    'ZXkYGiABKAlSCW91dHB1dEtleRIqChFpbnB1dF9zY2hlbWFfanNvbhgbIAEoCVIPaW5wdXRTY2'
-    'hlbWFKc29uEiwKEm91dHB1dF9zY2hlbWFfanNvbhgcIAEoCVIQb3V0cHV0U2NoZW1hSnNvbhIl'
-    'Cg5tYXhfaXRlcmF0aW9ucxgeIAEoDVINbWF4SXRlcmF0aW9ucxI1Cgh3b3JrZmxvdxgoIAEoCz'
-    'IZLmFnZW50cy52MS5Xb3JrZmxvd0NvbmZpZ1IId29ya2Zsb3cSKAoCcGkYMiABKAsyGC5hZ2Vu'
-    'dHMudjEuUGlBZ2VudENvbmZpZ1ICcGkSNAoGY3Vyc29yGDMgASgLMhwuYWdlbnRzLnYxLkN1cn'
-    'NvckFnZW50Q29uZmlnUgZjdXJzb3I=');
+    'ZENvbmZpZ1ILcmVzdWx0Q2FyZHMSIgoNbWNwX2NvZGVfbW9kZRgKIAEoCFILbWNwQ29kZU1vZG'
+    'USFAoFbW9kZWwYFCABKAlSBW1vZGVsEiAKC2luc3RydWN0aW9uGBUgASgJUgtpbnN0cnVjdGlv'
+    'bhItChJnbG9iYWxfaW5zdHJ1Y3Rpb24YFiABKAlSEWdsb2JhbEluc3RydWN0aW9uEj0KG2Rpc2'
+    'FsbG93X3RyYW5zZmVyX3RvX3BhcmVudBgXIAEoCFIYZGlzYWxsb3dUcmFuc2ZlclRvUGFyZW50'
+    'EjsKGmRpc2FsbG93X3RyYW5zZmVyX3RvX3BlZXJzGBggASgIUhdkaXNhbGxvd1RyYW5zZmVyVG'
+    '9QZWVycxJIChBpbmNsdWRlX2NvbnRlbnRzGBkgASgOMh0uYWdlbnRzLnYxLkxMTUluY2x1ZGVD'
+    'b250ZW50c1IPaW5jbHVkZUNvbnRlbnRzEh0KCm91dHB1dF9rZXkYGiABKAlSCW91dHB1dEtleR'
+    'IqChFpbnB1dF9zY2hlbWFfanNvbhgbIAEoCVIPaW5wdXRTY2hlbWFKc29uEiwKEm91dHB1dF9z'
+    'Y2hlbWFfanNvbhgcIAEoCVIQb3V0cHV0U2NoZW1hSnNvbhIlCg5tYXhfaXRlcmF0aW9ucxgeIA'
+    'EoDVINbWF4SXRlcmF0aW9ucxI1Cgh3b3JrZmxvdxgoIAEoCzIZLmFnZW50cy52MS5Xb3JrZmxv'
+    'd0NvbmZpZ1IId29ya2Zsb3cSKAoCcGkYMiABKAsyGC5hZ2VudHMudjEuUGlBZ2VudENvbmZpZ1'
+    'ICcGkSNAoGY3Vyc29yGDMgASgLMhwuYWdlbnRzLnYxLkN1cnNvckFnZW50Q29uZmlnUgZjdXJz'
+    'b3I=');
 
 @$core.Deprecated('Use cursorAgentConfigDescriptor instead')
 const CursorAgentConfig$json = {

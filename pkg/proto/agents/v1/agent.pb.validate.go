@@ -541,6 +541,8 @@ func (m *AgentConfig) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for McpCodeMode
+
 	// no validation rules for Model
 
 	// no validation rules for Instruction

@@ -115,6 +115,7 @@ func TestValidatePiAgent_RejectsBoxOwnedFields(t *testing.T) {
 			pb.Config.McpServers = []*agentsv1.MCPServer{{Name: "srv"}}
 		}},
 		{"mcp_server_ids", func(pb *agentsv1.Agent) { pb.Config.McpServerIds = []string{"m1"} }},
+		{"mcp_code_mode", func(pb *agentsv1.Agent) { pb.Config.McpCodeMode = true }},
 		{"skills", func(pb *agentsv1.Agent) { pb.Config.Skills = []string{"sk"} }},
 		{"file_mounts", func(pb *agentsv1.Agent) {
 			pb.Config.FileMounts = []*agentsv1.AgentFileMount{{SpaceId: "sp"}}
