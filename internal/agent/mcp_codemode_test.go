@@ -141,3 +141,26 @@ func TestNewFromProtoMCPCodeMode(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateMCPCodeMode(t *testing.T) {
+	for _, tc := range []struct {
+		typ     agentsv1.AgentType
+		on      bool
+		wantErr bool
+	}{
+		{agentsv1.AgentType_AGENT_TYPE_LLM, true, false},
+		{agentsv1.AgentType_AGENT_TYPE_UNSPECIFIED, true, false},
+		{agentsv1.AgentType_AGENT_TYPE_LLM, false, false},
+		{agentsv1.AgentType_AGENT_TYPE_LOOP, true, true},
+		{agentsv1.AgentType_AGENT_TYPE_SEQUENTIAL, true, true},
+		{agentsv1.AgentType_AGENT_TYPE_PARALLEL, true, true},
+		{agentsv1.AgentType_AGENT_TYPE_WORKFLOW, true, true},
+		{agentsv1.AgentType_AGENT_TYPE_WORKFLOW, false, false},
+	} {
+		pb := &agentsv1.Agent{Name: "a", Type: tc.typ, Config: &agentsv1.AgentConfig{McpCodeMode: tc.on}}
+		err := ValidateMCPCodeMode(pb)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("type %v on=%v: err = %v, wantErr %v", tc.typ, tc.on, err, tc.wantErr)
+		}
+	}
+}

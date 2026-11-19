@@ -340,15 +340,55 @@ func TestSyntaxErrorAndBadArguments(t *testing.T) {
 		t.Errorf("no error for a syntax error: %v", out)
 	}
 
+	// A call without a usable script is a result the model can act on, not a
+	// tool error.
 	for _, args := range []any{nil, map[string]any{}, map[string]any{"script": "  "}, map[string]any{"script": 3}} {
-		if _, err := ct.Run(testCtx(context.Background()), args); err == nil {
-			t.Errorf("Run(%v) did not fail", args)
+		out, err := ct.Run(testCtx(context.Background()), args)
+		if err != nil || out["error"] == nil {
+			t.Errorf("Run(%v) = %v, %v; want an error result", args, out, err)
 		}
 	}
 
 	small := newTool(t, Limits{MaxScriptBytes: 10}, echo)
-	if _, err := small.Run(testCtx(context.Background()), map[string]any{"script": strings.Repeat("a", 11)}); err == nil {
-		t.Error("an oversize script was accepted")
+	out, err := small.Run(testCtx(context.Background()), map[string]any{"script": strings.Repeat("a", 11)})
+	if err != nil || out["error"] == nil {
+		t.Errorf("an oversize script gave %v, %v; want an error result", out, err)
+	}
+}
+
+func TestToolIgnoringItsContextCannotOutlastTheDeadline(t *testing.T) {
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	stuck := &fakeTool{name: "stuck", desc: "Ignores ctx.", run: func(agent.Context, map[string]any) (map[string]any, error) {
+		<-release
+		return map[string]any{"output": "late"}, nil
+	}}
+	ct := newTool(t, Limits{Timeout: 100 * time.Millisecond}, stuck)
+
+	start := time.Now()
+	out := run(t, ct, `return callTools([{name: "stuck"}]).concat([tools.stuck()]);`)
+	if time.Since(start) > 5*time.Second {
+		t.Fatalf("script ran for %v", time.Since(start))
+	}
+	if out["error"] == nil && out["result"] == nil {
+		t.Errorf("no outcome: %v", out)
+	}
+}
+
+func TestHeapGrowthStopsScript(t *testing.T) {
+	_, _, echo := issueTools()
+	ct := newTool(t, Limits{Timeout: 30 * time.Second, MaxHeapGrowthBytes: 64 << 20}, echo)
+
+	start := time.Now()
+	out := run(t, ct, `
+		const hold = [];
+		for (let i = 0; ; i++) hold.push("x".repeat(10000) + i);
+	`)
+	if time.Since(start) > 20*time.Second {
+		t.Fatalf("script ran for %v", time.Since(start))
+	}
+	if msg, _ := out["error"].(string); !strings.Contains(msg, "heap grew") {
+		t.Errorf("error = %v", out["error"])
 	}
 }
 

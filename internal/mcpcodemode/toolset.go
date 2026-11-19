@@ -59,6 +59,9 @@ type Limits struct {
 	MaxLogBytes int
 	// MaxParallel bounds the concurrency of one callTools batch.
 	MaxParallel int
+	// MaxHeapGrowthBytes stops a script when the process's live heap has
+	// grown by this much since the script started. See heapWatch.
+	MaxHeapGrowthBytes uint64
 }
 
 const (
@@ -68,6 +71,7 @@ const (
 	defaultMaxOutputBytes = 32 << 10
 	defaultMaxLogBytes    = 8 << 10
 	defaultMaxParallel    = 8
+	defaultMaxHeapGrowth  = 512 << 20
 
 	// Bounds of the catalog summary in the tool's description.
 	maxListedTools       = 60
@@ -94,6 +98,9 @@ func (l Limits) withDefaults() Limits {
 	}
 	if l.MaxParallel <= 0 {
 		l.MaxParallel = defaultMaxParallel
+	}
+	if l.MaxHeapGrowthBytes == 0 {
+		l.MaxHeapGrowthBytes = defaultMaxHeapGrowth
 	}
 	return l
 }
@@ -371,15 +378,17 @@ func (t *codeTool) ProcessRequest(_ agent.Context, req *model.LLMRequest) error 
 	return toolutils.PackTool(req, t)
 }
 
-// Run executes the script. A failing script is reported in the result, with
-// the logs it produced, rather than as a tool error, so the model can fix it.
+// Run executes the script. A failing script, or a call without a usable
+// script, is reported in the result (with the logs it produced) rather than as
+// a tool error, so the model can fix it.
 func (t *codeTool) Run(ctx agent.Context, args any) (map[string]any, error) {
 	script, err := scriptArg(args)
-	if err != nil {
-		return nil, err
+	if err == nil && len(script) > t.limits.MaxScriptBytes {
+		err = fmt.Errorf("script is too long (%d bytes, max %d)", len(script), t.limits.MaxScriptBytes)
 	}
-	if len(script) > t.limits.MaxScriptBytes {
-		return nil, fmt.Errorf("script is too long (%d bytes, max %d)", len(script), t.limits.MaxScriptBytes)
+	if err != nil {
+		// Same shape as a failing script, so the model fixes its call.
+		return map[string]any{"error": err.Error(), "tool_calls": 0}, nil
 	}
 
 	res := execute(ctx, t.catalog, t.limits, script)

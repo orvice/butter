@@ -376,6 +376,7 @@ class AgentConfig extends $pb.GeneratedMessage {
     $core.Iterable<$core.String>? skills,
     MemoryConfig? memory,
     ResultCardConfig? resultCards,
+    $core.bool? mcpCodeMode,
     $core.String? model,
     $core.String? instruction,
     $core.String? globalInstruction,
@@ -400,6 +401,7 @@ class AgentConfig extends $pb.GeneratedMessage {
     if (skills != null) result.skills.addAll(skills);
     if (memory != null) result.memory = memory;
     if (resultCards != null) result.resultCards = resultCards;
+    if (mcpCodeMode != null) result.mcpCodeMode = mcpCodeMode;
     if (model != null) result.model = model;
     if (instruction != null) result.instruction = instruction;
     if (globalInstruction != null) result.globalInstruction = globalInstruction;
@@ -446,6 +448,7 @@ class AgentConfig extends $pb.GeneratedMessage {
         subBuilder: MemoryConfig.$_createMessage)
     ..aOM<ResultCardConfig>(9, _omitFieldNames ? '' : 'resultCards',
         subBuilder: ResultCardConfig.$_createMessage)
+    ..aOB(10, _omitFieldNames ? '' : 'mcpCodeMode')
     ..aOS(20, _omitFieldNames ? '' : 'model')
     ..aOS(21, _omitFieldNames ? '' : 'instruction')
     ..aOS(22, _omitFieldNames ? '' : 'globalInstruction')
@@ -569,154 +572,170 @@ class AgentConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(9)
   ResultCardConfig ensureResultCards() => $_ensure(8);
 
+  /// MCP Code Mode. When true, the agent's MCP tools are not offered to the
+  /// model one by one; the model gets a single `codemode` tool instead, which
+  /// runs a JavaScript snippet in a sandbox that discovers and calls the MCP
+  /// tools and returns only the script's result. Only the LLM agent's own MCP
+  /// servers (mcp_servers / mcp_server_ids) are affected. PI and CURSOR agents
+  /// reject it on write: their MCP surface lives on the box.
+  /// @gotags: json:"mcp_code_mode,omitempty" yaml:"mcp_code_mode,omitempty"
+  @$pb.TagNumber(10)
+  $core.bool get mcpCodeMode => $_getBF(9);
+  @$pb.TagNumber(10)
+  set mcpCodeMode($core.bool value) => $_setBool(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasMcpCodeMode() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearMcpCodeMode() => $_clearField(10);
+
   /// Model identifier (for example: "gemini-2.5-pro").
   /// @gotags: json:"model,omitempty" yaml:"model,omitempty"
   @$pb.TagNumber(20)
-  $core.String get model => $_getSZ(9);
+  $core.String get model => $_getSZ(10);
   @$pb.TagNumber(20)
-  set model($core.String value) => $_setString(9, value);
+  set model($core.String value) => $_setString(10, value);
   @$pb.TagNumber(20)
-  $core.bool hasModel() => $_has(9);
+  $core.bool hasModel() => $_has(10);
   @$pb.TagNumber(20)
   void clearModel() => $_clearField(20);
 
   /// Instruction guides agent behavior for this node.
   /// @gotags: json:"instruction,omitempty" yaml:"instruction,omitempty"
   @$pb.TagNumber(21)
-  $core.String get instruction => $_getSZ(10);
+  $core.String get instruction => $_getSZ(11);
   @$pb.TagNumber(21)
-  set instruction($core.String value) => $_setString(10, value);
+  set instruction($core.String value) => $_setString(11, value);
   @$pb.TagNumber(21)
-  $core.bool hasInstruction() => $_has(10);
+  $core.bool hasInstruction() => $_has(11);
   @$pb.TagNumber(21)
   void clearInstruction() => $_clearField(21);
 
   /// Global instruction applies across the entire agent tree (root takes effect).
   /// @gotags: json:"global_instruction,omitempty" yaml:"global_instruction,omitempty"
   @$pb.TagNumber(22)
-  $core.String get globalInstruction => $_getSZ(11);
+  $core.String get globalInstruction => $_getSZ(12);
   @$pb.TagNumber(22)
-  set globalInstruction($core.String value) => $_setString(11, value);
+  set globalInstruction($core.String value) => $_setString(12, value);
   @$pb.TagNumber(22)
-  $core.bool hasGlobalInstruction() => $_has(11);
+  $core.bool hasGlobalInstruction() => $_has(12);
   @$pb.TagNumber(22)
   void clearGlobalInstruction() => $_clearField(22);
 
   /// Prevents transferring control to parent/peer agents.
   /// @gotags: json:"disallow_transfer_to_parent,omitempty" yaml:"disallow_transfer_to_parent,omitempty"
   @$pb.TagNumber(23)
-  $core.bool get disallowTransferToParent => $_getBF(12);
+  $core.bool get disallowTransferToParent => $_getBF(13);
   @$pb.TagNumber(23)
-  set disallowTransferToParent($core.bool value) => $_setBool(12, value);
+  set disallowTransferToParent($core.bool value) => $_setBool(13, value);
   @$pb.TagNumber(23)
-  $core.bool hasDisallowTransferToParent() => $_has(12);
+  $core.bool hasDisallowTransferToParent() => $_has(13);
   @$pb.TagNumber(23)
   void clearDisallowTransferToParent() => $_clearField(23);
 
   /// @gotags: json:"disallow_transfer_to_peers,omitempty" yaml:"disallow_transfer_to_peers,omitempty"
   @$pb.TagNumber(24)
-  $core.bool get disallowTransferToPeers => $_getBF(13);
+  $core.bool get disallowTransferToPeers => $_getBF(14);
   @$pb.TagNumber(24)
-  set disallowTransferToPeers($core.bool value) => $_setBool(13, value);
+  set disallowTransferToPeers($core.bool value) => $_setBool(14, value);
   @$pb.TagNumber(24)
-  $core.bool hasDisallowTransferToPeers() => $_has(13);
+  $core.bool hasDisallowTransferToPeers() => $_has(14);
   @$pb.TagNumber(24)
   void clearDisallowTransferToPeers() => $_clearField(24);
 
   /// Controls whether prior conversation contents are included in model requests.
   /// @gotags: json:"include_contents,omitempty" yaml:"include_contents,omitempty"
   @$pb.TagNumber(25)
-  LLMIncludeContents get includeContents => $_getN(14);
+  LLMIncludeContents get includeContents => $_getN(15);
   @$pb.TagNumber(25)
   set includeContents(LLMIncludeContents value) => $_setField(25, value);
   @$pb.TagNumber(25)
-  $core.bool hasIncludeContents() => $_has(14);
+  $core.bool hasIncludeContents() => $_has(15);
   @$pb.TagNumber(25)
   void clearIncludeContents() => $_clearField(25);
 
   /// Optional session state key to store agent output.
   /// @gotags: json:"output_key,omitempty" yaml:"output_key,omitempty"
   @$pb.TagNumber(26)
-  $core.String get outputKey => $_getSZ(15);
+  $core.String get outputKey => $_getSZ(16);
   @$pb.TagNumber(26)
-  set outputKey($core.String value) => $_setString(15, value);
+  set outputKey($core.String value) => $_setString(16, value);
   @$pb.TagNumber(26)
-  $core.bool hasOutputKey() => $_has(15);
+  $core.bool hasOutputKey() => $_has(16);
   @$pb.TagNumber(26)
   void clearOutputKey() => $_clearField(26);
 
   /// Optional schemas encoded as JSON text.
   /// @gotags: json:"input_schema_json,omitempty" yaml:"input_schema_json,omitempty"
   @$pb.TagNumber(27)
-  $core.String get inputSchemaJson => $_getSZ(16);
+  $core.String get inputSchemaJson => $_getSZ(17);
   @$pb.TagNumber(27)
-  set inputSchemaJson($core.String value) => $_setString(16, value);
+  set inputSchemaJson($core.String value) => $_setString(17, value);
   @$pb.TagNumber(27)
-  $core.bool hasInputSchemaJson() => $_has(16);
+  $core.bool hasInputSchemaJson() => $_has(17);
   @$pb.TagNumber(27)
   void clearInputSchemaJson() => $_clearField(27);
 
   /// @gotags: json:"output_schema_json,omitempty" yaml:"output_schema_json,omitempty"
   @$pb.TagNumber(28)
-  $core.String get outputSchemaJson => $_getSZ(17);
+  $core.String get outputSchemaJson => $_getSZ(18);
   @$pb.TagNumber(28)
-  set outputSchemaJson($core.String value) => $_setString(17, value);
+  set outputSchemaJson($core.String value) => $_setString(18, value);
   @$pb.TagNumber(28)
-  $core.bool hasOutputSchemaJson() => $_has(17);
+  $core.bool hasOutputSchemaJson() => $_has(18);
   @$pb.TagNumber(28)
   void clearOutputSchemaJson() => $_clearField(28);
 
   /// Max loop iterations. 0 means run until escalation/termination.
   /// @gotags: json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"
   @$pb.TagNumber(30)
-  $core.int get maxIterations => $_getIZ(18);
+  $core.int get maxIterations => $_getIZ(19);
   @$pb.TagNumber(30)
-  set maxIterations($core.int value) => $_setUnsignedInt32(18, value);
+  set maxIterations($core.int value) => $_setUnsignedInt32(19, value);
   @$pb.TagNumber(30)
-  $core.bool hasMaxIterations() => $_has(18);
+  $core.bool hasMaxIterations() => $_has(19);
   @$pb.TagNumber(30)
   void clearMaxIterations() => $_clearField(30);
 
   /// Workflow graph of nodes and edges executed by the ADK workflow engine.
   /// @gotags: json:"workflow,omitempty" yaml:"workflow,omitempty"
   @$pb.TagNumber(40)
-  WorkflowConfig get workflow => $_getN(19);
+  WorkflowConfig get workflow => $_getN(20);
   @$pb.TagNumber(40)
   set workflow(WorkflowConfig value) => $_setField(40, value);
   @$pb.TagNumber(40)
-  $core.bool hasWorkflow() => $_has(19);
+  $core.bool hasWorkflow() => $_has(20);
   @$pb.TagNumber(40)
   void clearWorkflow() => $_clearField(40);
   @$pb.TagNumber(40)
-  WorkflowConfig ensureWorkflow() => $_ensure(19);
+  WorkflowConfig ensureWorkflow() => $_ensure(20);
 
   /// Binding of a PI agent to one ButterBox and one working directory.
   /// Required when type is PI; meaningless otherwise.
   /// @gotags: json:"pi,omitempty" yaml:"pi,omitempty"
   @$pb.TagNumber(50)
-  PiAgentConfig get pi => $_getN(20);
+  PiAgentConfig get pi => $_getN(21);
   @$pb.TagNumber(50)
   set pi(PiAgentConfig value) => $_setField(50, value);
   @$pb.TagNumber(50)
-  $core.bool hasPi() => $_has(20);
+  $core.bool hasPi() => $_has(21);
   @$pb.TagNumber(50)
   void clearPi() => $_clearField(50);
   @$pb.TagNumber(50)
-  PiAgentConfig ensurePi() => $_ensure(20);
+  PiAgentConfig ensurePi() => $_ensure(21);
 
   /// Binding of a CURSOR agent to one ButterBox and one working directory.
   /// Required when type is CURSOR; meaningless otherwise.
   /// @gotags: json:"cursor,omitempty" yaml:"cursor,omitempty"
   @$pb.TagNumber(51)
-  CursorAgentConfig get cursor => $_getN(21);
+  CursorAgentConfig get cursor => $_getN(22);
   @$pb.TagNumber(51)
   set cursor(CursorAgentConfig value) => $_setField(51, value);
   @$pb.TagNumber(51)
-  $core.bool hasCursor() => $_has(21);
+  $core.bool hasCursor() => $_has(22);
   @$pb.TagNumber(51)
   void clearCursor() => $_clearField(51);
   @$pb.TagNumber(51)
-  CursorAgentConfig ensureCursor() => $_ensure(21);
+  CursorAgentConfig ensureCursor() => $_ensure(22);
 }
 
 /// CursorAgentConfig binds a CURSOR agent to the ButterBox that runs its

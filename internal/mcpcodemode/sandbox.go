@@ -65,6 +65,10 @@ func execute(parent agent.Context, cat *catalog, limits Limits, script string) (
 		vm.Interrupt("script " + reason)
 	})
 	defer stop()
+	go heapWatch(runCtx, limits.MaxHeapGrowthBytes, func(growth uint64) {
+		vm.Interrupt(fmt.Sprintf("script stopped: the process heap grew by %d MiB while it ran (limit %d MiB)",
+			growth>>20, limits.MaxHeapGrowthBytes>>20))
+	})
 
 	out, err := vm.RunString("(function () {\n\"use strict\";\n" + script + "\n})()")
 	if err != nil {
@@ -120,15 +124,7 @@ func (s *sandbox) install() error {
 	for _, e := range s.cat.entries {
 		name := e.name
 		if err := toolsObj.Set(name, func(call goja.FunctionCall) goja.Value {
-			args, err := s.argsOf(call.Argument(0))
-			if err != nil {
-				panic(vm.NewGoError(fmt.Errorf("tools.%s: %w", name, err)))
-			}
-			out, err := s.invoke(name, args)
-			if err != nil {
-				panic(vm.NewGoError(err))
-			}
-			return s.toJS(out)
+			return s.callByName(name, call.Argument(0), "tools."+name)
 		}); err != nil {
 			return err
 		}
@@ -143,15 +139,7 @@ func (s *sandbox) install() error {
 		"ALL_TOOLS": s.toJS(names),
 		"callTool": func(call goja.FunctionCall) goja.Value {
 			name := call.Argument(0).String()
-			args, err := s.argsOf(call.Argument(1))
-			if err != nil {
-				panic(vm.NewGoError(fmt.Errorf("callTool(%q): %w", name, err)))
-			}
-			out, err := s.invoke(name, args)
-			if err != nil {
-				panic(vm.NewGoError(err))
-			}
-			return s.toJS(out)
+			return s.callByName(name, call.Argument(1), fmt.Sprintf("callTool(%q)", name))
 		},
 		"callTools": s.callTools,
 		"searchTools": func(call goja.FunctionCall) goja.Value {
@@ -191,6 +179,20 @@ func (s *sandbox) install() error {
 		}
 	}
 	return vm.Set("console", console)
+}
+
+// callByName is the body of tools.<name> and callTool: arguments in, output
+// out, any failure thrown into the script as an Error.
+func (s *sandbox) callByName(name string, rawArgs goja.Value, label string) goja.Value {
+	args, err := s.argsOf(rawArgs)
+	if err != nil {
+		panic(s.vm.NewGoError(fmt.Errorf("%s: %w", label, err)))
+	}
+	out, err := s.invoke(name, args)
+	if err != nil {
+		panic(s.vm.NewGoError(err))
+	}
+	return s.toJS(out)
 }
 
 func unknownTool(name string) error {
@@ -244,24 +246,43 @@ func (s *sandbox) invoke(name string, args map[string]any) (any, error) {
 
 // call runs a tool whose call was already counted. It is safe to run from
 // several goroutines: it touches no goja value.
-func (s *sandbox) call(e *entry, args map[string]any) (out any, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("tool %q crashed: %v", e.name, r)
-		}
-	}()
+//
+// The tool runs in its own goroutine so that the script's deadline holds even
+// for a tool that ignores its context: call returns when the deadline passes
+// and the tool is left to finish on its own. Its late result is dropped.
+func (s *sandbox) call(e *entry, args map[string]any) (any, error) {
 	if err := s.ctx.Err(); err != nil {
 		return nil, fmt.Errorf("tool %q was not called: %w", e.name, err)
 	}
-	resp, err := e.run(s.agent, args)
-	if err != nil {
-		return nil, fmt.Errorf("tool %q failed: %w", e.name, err)
+	type reply struct {
+		resp map[string]any
+		err  error
+	}
+	done := make(chan reply, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- reply{err: fmt.Errorf("crashed: %v", r)}
+			}
+		}()
+		resp, err := e.run(s.agent, args)
+		done <- reply{resp, err}
+	}()
+
+	var r reply
+	select {
+	case r = <-done:
+	case <-s.ctx.Done():
+		return nil, fmt.Errorf("tool %q did not finish: %w", e.name, s.ctx.Err())
+	}
+	if r.err != nil {
+		return nil, fmt.Errorf("tool %q failed: %w", e.name, r.err)
 	}
 	// An MCP tool answers {"output": ...}; hand the script the output itself.
-	if v, ok := resp["output"]; ok && len(resp) == 1 {
+	if v, ok := r.resp["output"]; ok && len(r.resp) == 1 {
 		return v, nil
 	}
-	return resp, nil
+	return r.resp, nil
 }
 
 // callTools runs a batch of calls concurrently and reports each outcome, so
