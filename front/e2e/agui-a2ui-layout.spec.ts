@@ -35,7 +35,7 @@ const run = sse([
           { id: 'root', component: 'Card', child: 'col' },
           {
             id: 'col', component: 'Column',
-            children: ['title', 'row', 'divider', 'summary', 'status'],
+            children: ['title', 'row', 'divider', 'summary', 'status', 'fluid', 'chart', 'code', 'progress'],
           },
           { id: 'title', component: 'Text', text: 'Release summary', variant: 'h3' },
           {
@@ -50,6 +50,19 @@ const run = sse([
           { id: 'divider', component: 'Divider', axis: 'horizontal' },
           { id: 'summary', component: 'Text', text: { path: '/summary' } },
           { id: 'status', component: 'Status', text: 'Healthy', tone: 'success' },
+          { id: 'fluid', component: 'FluidAIWorkloads' },
+          {
+            id: 'chart', component: 'AnalyticsChart', title: 'Requests',
+            data: { path: '/metrics' },
+          },
+          {
+            id: 'code', component: 'CodeBlock', title: 'Example', language: 'typescript',
+            code: 'const answer: number = 42',
+          },
+          {
+            id: 'progress', component: 'HaloProgress', label: 'Rollout',
+            tone: 'success', value: { path: '/done' }, max: 8,
+          },
         ],
       },
     },
@@ -58,7 +71,19 @@ const run = sse([
   ui(
     {
       updateDataModel: {
-        surfaceId, path: '/', value: { summary: '**Plain text**, not a link: [details](https://example.com)' },
+        surfaceId,
+        path: '/',
+        // AnalyticsChart resolves its bounded points from the A2UI data model.
+        // The server validates the path and point shape before it reaches this client.
+        value: {
+          done: 6,
+          summary: '**Plain text**, not a link: [details](https://example.com)',
+          metrics: [
+            { label: 'Mon', value: 12 },
+            { label: 'Tue', value: 19 },
+            { label: 'Wed', value: 15 },
+          ],
+        },
       },
     },
     2
@@ -78,6 +103,20 @@ for (const width of [1100, 390]) {
     await expect(card.getByRole('heading', { name: 'Release summary' })).toBeVisible()
     await expect(card.getByText(longValue)).toBeVisible()
     await expect(card.getByText('Healthy')).toBeVisible()
+    const illustration = card.getByRole('img', { name: 'AI workload flow' })
+    await expect(illustration).toBeVisible()
+    await expect(card.getByRole('group', { name: 'Analytics chart' })).toBeVisible()
+    await expect(card.getByText('Requests')).toBeVisible()
+    await expect(card.locator('.recharts-area')).toBeVisible()
+    const codeBlock = card.getByRole('region', { name: 'Code block' })
+    await expect(codeBlock).toBeVisible()
+    await expect(codeBlock.getByText('const answer: number = 42')).toBeVisible()
+    await expect(codeBlock).toHaveAttribute('data-a2ui-code-language', 'typescript')
+    const progress = card.getByRole('progressbar', { name: 'Rollout' })
+    await expect(progress).toBeVisible()
+    await expect(progress).toHaveAttribute('aria-valuenow', '6')
+    await expect(progress).toHaveAttribute('aria-valuemax', '8')
+    await expect(progress).toHaveAttribute('data-a2ui-progress-percent', '75')
     await expect(card.getByText('**Plain text**, not a link: [details](https://example.com)')).toBeVisible()
     await expect(card.locator('a, strong')).toHaveCount(0)
 
@@ -86,7 +125,7 @@ for (const width of [1100, 390]) {
     const column = card.locator(':scope > div')
     const row = column.locator('[data-a2ui-layout="row"] > div')
     // The divider is the column's direct div child that is not the Row shell.
-    const divider = column.locator(':scope > div:not([data-a2ui-layout])')
+    const divider = column.locator(':scope > div:not([data-a2ui-layout])').first()
     await expect(column).toHaveCSS('flex-direction', 'column')
     await expect(column).toHaveCSS('gap', '8px')
     await expect(row).toHaveCSS('flex-direction', 'row')
@@ -144,6 +183,9 @@ for (const width of [1100, 390]) {
     // A long unbroken value must not escape its unweighted column or card on
     // mobile. Checking the surface (not the page's hidden overflow) catches it.
     expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    const illustrationBounds = await illustration.boundingBox()
+    expect(illustrationBounds).not.toBeNull()
+    expect(illustrationBounds!.width).toBeLessThanOrEqual((await card.boundingBox())!.width)
     const bounds = await surface.boundingBox()
     expect(bounds).not.toBeNull()
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width)

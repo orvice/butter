@@ -169,6 +169,7 @@ Components (catalog butter-basic-v1). Every component is {"id": "...", "componen
 - KeyValue: {"label": <text>, "value": <text>} — one labelled result.
 - Status: {"text": <text>, "tone"?: neutral|info|success|warning|error}.
 - Divider: {"axis"?: horizontal|vertical}.
+- FluidAIWorkloads: a fixed, read-only AI workload flow illustration (no properties).
 <text> is a plain string, or {"path": "/key"} to read a string from the card's data model (set with {"updateDataModel": {"path": "/", "value": {"key": "..."}}}).
 
 Rules: plain text only (no HTML, markdown links, images or URLs); at most %d components per card, %d KiB per call, and %d cards per conversation. An invalid call changes nothing and returns an error explaining why; fix it or answer in text. After %d failed calls in a row, render_ui refuses the rest of this turn.

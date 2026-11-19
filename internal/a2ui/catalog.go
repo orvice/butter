@@ -2,6 +2,7 @@ package a2ui
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"sort"
@@ -28,6 +29,10 @@ const (
 	propEnum
 	propChild
 	propChildren
+	propAnalyticsPoints
+	propCodeString
+	// propNumber is a finite literal number or a {"path": "/…"} data binding.
+	propNumber
 )
 
 type propSpec struct {
@@ -43,8 +48,9 @@ type componentSpec struct {
 }
 
 var (
-	justifyValues = []string{"start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly", "stretch"}
-	alignValues   = []string{"start", "center", "end", "stretch"}
+	justifyValues      = []string{"start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly", "stretch"}
+	alignValues        = []string{"start", "center", "end", "stretch"}
+	codeLanguageValues = []string{"bash", "css", "go", "html", "javascript", "json", "markdown", "python", "sql", "typescript", "yaml"}
 )
 
 var catalog = map[string]componentSpec{
@@ -75,6 +81,28 @@ var catalog = map[string]componentSpec{
 	"Status": {modelAllowed: true, props: map[string]propSpec{
 		"text": {kind: propDynString, required: true},
 		"tone": {kind: propEnum, enum: []string{"neutral", "info", "success", "warning", "error"}},
+	}},
+	// FluidAIWorkloads is a fixed, read-only illustration vendored from Cult UI.
+	// Its presentation props stay client-owned; the model can only request the
+	// bounded component by name.
+	"FluidAIWorkloads": {modelAllowed: true, props: map[string]propSpec{}},
+	"AnalyticsChart": {modelAllowed: true, props: map[string]propSpec{
+		"data":  {kind: propAnalyticsPoints, required: true},
+		"title": {kind: propDynString},
+	}},
+	"CodeBlock": {modelAllowed: true, props: map[string]propSpec{
+		"code":     {kind: propCodeString, required: true},
+		"language": {kind: propEnum, enum: codeLanguageValues},
+		"title":    {kind: propDynString},
+	}},
+	// HaloProgress is a read-only progress ring adapted from Cult UI's
+	// halo-progress. Animation, colours and accessibility attributes are
+	// client-owned; the model supplies only bounded numbers, a label and a tone.
+	"HaloProgress": {modelAllowed: true, props: map[string]propSpec{
+		"value": {kind: propNumber, required: true},
+		"max":   {kind: propNumber},
+		"label": {kind: propDynString},
+		"tone":  {kind: propEnum, enum: []string{"neutral", "info", "success", "warning", "error"}},
 	}},
 	// Form components: built by the server only (Form.Envelopes), so they
 	// carry no property rules here — a model is refused them by name.
@@ -179,8 +207,113 @@ func validateProp(prop propSpec, v any) error {
 				return fmt.Errorf("must be an array of component ids (templates are not supported)")
 			}
 		}
+	case propAnalyticsPoints:
+		return validateAnalyticsPoints(v)
+	case propCodeString:
+		return validateCodeString(v)
+	case propNumber:
+		return validateNumber(v)
 	default:
 		return fmt.Errorf("is not supported")
+	}
+	return nil
+}
+
+const (
+	maxAnalyticsPoints = 24
+	maxAnalyticsLabel  = 80
+	maxCodeRunes       = 12000
+
+	// maxProgressMagnitude bounds HaloProgress literals.
+	maxProgressMagnitude = 1e12
+)
+
+// validateNumber accepts a finite literal within a sane magnitude, or a data
+// path. Range relationships (value vs max) are clamped by the client so a
+// data-bound value can never break rendering.
+func validateNumber(v any) error {
+	switch value := v.(type) {
+	case float64:
+		if math.IsNaN(value) || math.IsInf(value, 0) || math.Abs(value) > maxProgressMagnitude {
+			return fmt.Errorf("must be a finite number no larger than %g", maxProgressMagnitude)
+		}
+		return nil
+	case map[string]any:
+		path, ok := value["path"].(string)
+		if !ok || len(value) != 1 {
+			return fmt.Errorf("must be a number or {\"path\": \"/…\"}")
+		}
+		if _, err := parsePointer(path); err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("must be a number or {\"path\": \"/…\"}")
+	}
+}
+
+func validateCodeString(v any) error {
+	switch value := v.(type) {
+	case string:
+		if utf8.RuneCountInString(value) > maxCodeRunes {
+			return fmt.Errorf("is longer than %d characters", maxCodeRunes)
+		}
+		return nil
+	case map[string]any:
+		path, ok := value["path"].(string)
+		if !ok || len(value) != 1 {
+			return fmt.Errorf("must be a string or {\"path\": \"/…\"}")
+		}
+		if _, err := parsePointer(path); err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("must be a string or {\"path\": \"/…\"}")
+	}
+}
+
+// validateAnalyticsPoints keeps the chart a bounded, read-only data view. A
+// path is resolved from the surface data model by the client; literal points
+// are checked here so the model cannot smuggle markup, URLs, or unbounded
+// payloads into the renderer.
+func validateAnalyticsPoints(v any) error {
+	if binding, ok := v.(map[string]any); ok {
+		path, pathOK := binding["path"].(string)
+		if !pathOK || len(binding) != 1 {
+			return fmt.Errorf("must be an array of {label, value} points or {\"path\": \"/…\"}")
+		}
+		if _, err := parsePointer(path); err != nil {
+			return err
+		}
+		return nil
+	}
+	points, ok := v.([]any)
+	if !ok {
+		return fmt.Errorf("must be an array of {label, value} points or {\"path\": \"/…\"}")
+	}
+	if len(points) > maxAnalyticsPoints {
+		return fmt.Errorf("must contain at most %d points", maxAnalyticsPoints)
+	}
+	for i, raw := range points {
+		point, ok := raw.(map[string]any)
+		if !ok || len(point) != 2 {
+			return fmt.Errorf("point %d must contain only label and value", i)
+		}
+		label, labelOK := point["label"].(string)
+		if !labelOK || label == "" {
+			return fmt.Errorf("point %d label must be a non-empty string", i)
+		}
+		if utf8.RuneCountInString(label) > maxAnalyticsLabel {
+			return fmt.Errorf("point %d label is longer than %d characters", i, maxAnalyticsLabel)
+		}
+		if err := validateLiteral(label); err != nil {
+			return fmt.Errorf("point %d label %w", i, err)
+		}
+		value, valueOK := point["value"].(float64)
+		if !valueOK || math.IsNaN(value) || math.IsInf(value, 0) {
+			return fmt.Errorf("point %d value must be a finite number", i)
+		}
 	}
 	return nil
 }

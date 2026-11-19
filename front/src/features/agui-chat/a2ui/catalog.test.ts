@@ -43,6 +43,53 @@ describe('butter-basic-v1 catalog', () => {
     ).toBe(true)
   })
 
+  it('registers Cult UI as a bounded presentation-only component', () => {
+    const implementation = butterCatalog.components.get('FluidAIWorkloads')
+    expect(implementation?.schema.safeParse({}).success).toBe(true)
+    expect(implementation?.schema.safeParse({ width: 448 }).success).toBe(false)
+
+    const chart = butterCatalog.components.get('AnalyticsChart')
+    expect(
+      chart?.schema.safeParse({ data: [{ label: 'Mon', value: 12 }] }).success
+    ).toBe(true)
+    expect(
+      chart?.schema.safeParse({ data: { path: '/metrics' } }).success
+    ).toBe(true)
+
+    const code = butterCatalog.components.get('CodeBlock')
+    expect(
+      code?.schema.safeParse({
+        code: 'const answer = 42',
+        language: 'typescript',
+        title: 'Example',
+      }).success
+    ).toBe(true)
+    expect(
+      code?.schema.safeParse({ code: 'rm -rf /', language: 'shell' }).success
+    ).toBe(false)
+  })
+
+  it('registers HaloProgress as a bounded read-only progress ring', () => {
+    const progress = butterCatalog.components.get('HaloProgress')
+    expect(
+      progress?.schema.safeParse({
+        value: 42,
+        max: 100,
+        label: 'Deploy',
+        tone: 'success',
+      }).success
+    ).toBe(true)
+    expect(
+      progress?.schema.safeParse({ value: { path: '/done' } }).success
+    ).toBe(true)
+    expect(
+      progress?.schema.safeParse({ value: 1, tone: 'rainbow' }).success
+    ).toBe(false)
+    expect(progress?.schema.safeParse({ value: 1, color: 'red' }).success).toBe(
+      false
+    )
+  })
+
   it('does not import extra components or executable catalog functions', () => {
     expect([...butterCatalog.components.keys()].sort()).toEqual(
       [
@@ -51,6 +98,10 @@ describe('butter-basic-v1 catalog', () => {
         'ChoicePicker',
         'Column',
         'Divider',
+        'FluidAIWorkloads',
+        'AnalyticsChart',
+        'CodeBlock',
+        'HaloProgress',
         'KeyValue',
         'Row',
         'Status',
